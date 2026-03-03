@@ -5,4 +5,4 @@ export default function StatTool() {
       <p>Coming soon.</p>
     </div>
   )
-}
+}// x
