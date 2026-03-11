@@ -1,6 +1,6 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import { BrowserRouter, Routes, Route, Link } from 'react-router-dom'
+import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import StatTool from './tools/stat/StatTool'
 import DefineTool from './tools/define/DefineTool'
 
@@ -8,8 +8,8 @@ function App() {
   return (
     <BrowserRouter>
       <nav style={{ padding: '1rem', borderBottom: '1px solid #eee' }}>
-        <Link to="/stat" style={{ marginRight: '1rem' }}>STAT</Link>
-        <Link to="/define">Define Your System</Link>
+        <a href="https://changebefore.com/stat/" style={{ marginRight: '1rem' }}>STAT</a>
+        <a href="https://changebefore.com/define-access/">Define Your System</a>
       </nav>
       <Routes>
         <Route path="/stat" element={<StatTool />} />
