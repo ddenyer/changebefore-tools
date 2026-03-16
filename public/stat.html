@@ -16,15 +16,16 @@ html,body{font-family:'DM Sans',sans-serif;background:#f0ede8;color:#1a1a1a;-web
 .fade{animation:fadeIn .3s ease both}
 .shell{min-height:auto;display:flex;flex-direction:column}
 
-.prog-wrap{max-width:760px;margin:0 auto;padding:1rem 1.5rem .2rem}
+.prog-wrap{max-width:100%;margin:0 auto;padding:1rem 2rem .2rem}
 .prog-bars{display:flex;gap:3px;margin-bottom:.3rem}
 .prog-bar{flex:1;height:3px;border-radius:2px;background:#d8d3cb;transition:background .3s}
 .prog-bar.done{background:#e07030}
 .prog-bar.now{background:#1a1a1a}
 .prog-lbls{display:flex;gap:3px}
-.prog-lbl{flex:1;font-size:.52rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#b0a898;text-align:center;overflow:hidden;white-space:nowrap;font-family:'DM Sans',sans-serif}
+.prog-lbl{flex:1;font-size:.52rem;font-weight:700;letter-spacing:0;text-transform:uppercase;color:#b0a898;text-align:center;font-family:'DM Sans',sans-serif}
 .prog-lbl.done{color:#e07030}
 .prog-lbl.now{color:#1a1a1a}
+@media(max-width:480px){.prog-lbl{font-size:.42rem;letter-spacing:0}}
 .main{flex:1}
 .content{max-width:760px;margin:0 auto;padding:2.5rem 1.5rem 3rem}
 .land-hero{border-bottom:1px solid #d8d3cb;padding-bottom:2rem;margin-bottom:2rem}
@@ -438,8 +439,10 @@ function Slider({label,value,onChange,max=120,asIs=null}){
 }
 
 
-const STEPS=['Start','Focus','Context','Survey 1','Survey 2','Profile','Future','Report'];
-function Progress({step}){return(<div className="prog-wrap"><div className="prog-bars">{STEPS.map((_,i)=><div key={i} className={`prog-bar${i<step?' done':i===step?' now':''}`}/>)}</div><div className="prog-lbls">{STEPS.map((s,i)=><div key={i} className={`prog-lbl${i<step?' done':i===step?' now':''}`}>{s}</div>)}</div></div>);}
+const STEPS=['Start','Focus','Context','Survey','Profile','Future','Report'];
+// Map 8 flow steps (0-7) to 7 nav positions — Survey 1 (step 3) and Survey 2 (step 4) both show as nav step 3
+function stepToNav(s){return s<=3?s:s===4?3:s-1;}
+function Progress({step}){const nav=stepToNav(step);return(<div className="prog-wrap"><div className="prog-bars">{STEPS.map((_,i)=><div key={i} className={`prog-bar${i<nav?' done':i===nav?' now':''}`}/>)}</div><div className="prog-lbls">{STEPS.map((s,i)=><div key={i} className={`prog-lbl${i<nav?' done':i===nav?' now':''}`}>{s}</div>)}</div></div>);}
 function BackBtn({onClick}){return(<button className="back-btn" onClick={onClick} aria-label="Go back to previous step">← Back</button>);}
 
 // Gap analysis logic
@@ -1145,7 +1148,7 @@ function App(){
                 <input className="inp" placeholder="e.g. SELL-2025" value={sessionCode} onChange={e=>setSessionCode(e.target.value)} style={{maxWidth:'260px'}}/>
               </div>
               <div className="disc">
-                <strong>Privacy:</strong> Your responses are used only to generate your report. Names and session codes are stored securely to enable group reports and return-visit comparison. No data is shared with third parties. This tool supports structured thinking and does not constitute professional advice. For questions about your data, contact <a href="mailto:contact@changebefore.com" style={{color:'inherit'}}>contact@changebefore.com</a>.
+                <strong>Privacy:</strong> Your responses are used only to generate your report. Names and session codes are stored securely to enable group reports and return-visit comparison. No data is shared with third parties. This tool supports structured thinking and does not constitute professional advice. For questions about your data, contact <a href="mailto:contact@changebefore.com" style={{color:'inherit'}}>contact@changebefore.com</a>. <a href="https://changebefore.com/privacy/" target="_blank" rel="noopener noreferrer" style={{color:'inherit',textDecoration:'underline'}}>View our full privacy notice →</a>
               </div>
               <div className="btn-row">
                 <button className="btn-p" onClick={()=>{
@@ -1169,6 +1172,7 @@ function App(){
               <div className="sec-tag">Section 1 — What Are We Looking At?</div>
               <h2 className="pg-title">What is the thing you want to work on?</h2>
               <p className="pg-sub">This could be a team, a department, a division, a whole organisation, or any system you want to explore. Be as specific as possible — the more clearly you define it, the more useful your results will be.</p>
+              <p style={{fontSize:'.85rem',color:'#888',marginBottom:'1.25rem',fontFamily:"'DM Sans',sans-serif"}}>Need help identifying what to focus on? Try the <a href="https://changebefore.com/define/" target="_blank" rel="noopener noreferrer" style={{color:'#e07030',textDecoration:'none',fontWeight:600}}>Define Your System tool →</a></p>
               <label className="field-lbl">Name the thing</label>
               <div className="field-sub">e.g. "The Nuclear Operations Division", "Our R&D team", "Sellafield Ltd", "The customer service function"</div>
               <input className="inp" placeholder="What are we looking at?" value={thing} onChange={e=>setThing(e.target.value)} style={{marginBottom:'1.25rem'}}/>
@@ -1187,7 +1191,7 @@ function App(){
             <div>
               <BackBtn onClick={()=>go(1)}/>
               <div className="sec-tag">Section 1 — What Are We Looking At?</div>
-              <h2 className="pg-title">Provide information</h2>
+              <h2 className="pg-title">Tell us about it</h2>
               <p className="pg-sub">Please share any information about the thing you want to work on. You can add notes, a website link, or upload a document. These are optional, but they will help improve the results.</p>
 
               <label className="field-lbl" style={{fontWeight:400,color:'#555',marginBottom:'.5rem'}}>What is it? Don't worry about precision — just tell me about it.</label>
@@ -1206,6 +1210,7 @@ function App(){
 
               <label className="field-lbl" style={{fontWeight:400,color:'#555',marginBottom:'.5rem'}}>Upload a document (optional — .pdf, .docx or .txt)</label>
               <input type="file" accept=".pdf,.doc,.docx,.txt" ref={fileInputRef}
+                style={{fontFamily:"'DM Sans',sans-serif",fontSize:'.85rem',color:'#555',cursor:'pointer'}}
                 onChange={e=>{const f=e.target.files[0];if(f)setDocFileName(f.name);}}/>
               {docFileName&&(
                 <div style={{marginTop:'.5rem',fontSize:'.8rem',color:'#555',fontFamily:"'DM Sans',sans-serif"}}>
@@ -1213,9 +1218,9 @@ function App(){
                 </div>
               )}
 
-              <div style={{marginTop:'1.5rem'}}>
-                <label className="field-lbl">Your role <span style={{color:'#c0b8ae',fontWeight:400}}>(optional)</span></label>
-                <div className="field-sub">Helps the group report show whether different levels of the organisation see things differently.</div>
+              <div style={{marginTop:'1.5rem',borderTop:'1px solid #d8d3cb',paddingTop:'1.25rem'}}>
+                <label className="field-lbl">Your role</label>
+                <div className="field-sub">Please select the option that best describes your role.</div>
                 <div style={{display:'flex',flexWrap:'wrap',gap:'.5rem',marginBottom:'.75rem'}}>
                   {['Frontline / Operational','Team Leader','Manager','Senior Leader','Executive / Board','None of the above'].map(r=>(
                     <button key={r} onClick={()=>setRole(r)}
@@ -1381,13 +1386,13 @@ function App(){
               <h2 className="pg-title">{th}</h2>
               <p className="pg-sub">Current: <strong>{SLABELS[asIsStrat]}</strong> · Desired: <strong>{SLABELS[tobeStrat]}</strong></p>
               <div className="rpt-tabs">
-                {['Profile & Charts','Detailed Analysis','Suggestions & Actions','Group Report'].map((t,i)=>(
+                {['Profile & Charts','Detailed Analysis','Suggestions & Actions','Group Report','Save & Next Steps'].map((t,i)=>(
                   <div key={i} className={`rpt-tab${rptTab===i?' active':''}`} onClick={()=>setRptTab(i)}>
                     {t}{i===3&&groupRespondents&&<span style={{background:'#e07030',color:'#fff',borderRadius:'10px',padding:'1px 6px',fontSize:'.6rem',fontWeight:700,marginLeft:'.3rem'}}>{groupRespondents.length}</span>}
                   </div>
                 ))}
                 {isAdmin&&(
-                  <div className={`rpt-tab${rptTab===4?' active':''}`} onClick={()=>setRptTab(4)} style={{color:rptTab===4?'#e07030':'#b0a898',borderBottomColor:rptTab===4?'#e07030':'transparent'}}>
+                  <div className={`rpt-tab${rptTab===5?' active':''}`} onClick={()=>setRptTab(5)} style={{color:rptTab===5?'#e07030':'#b0a898',borderBottomColor:rptTab===5?'#e07030':'transparent'}}>
                     🔒 Facilitator
                   </div>
                 )}
@@ -1453,6 +1458,7 @@ function App(){
                   )}
                   <div className="btn-row">
                     <button className="btn-p" onClick={()=>setRptTab(1)}>Read Detailed Analysis →</button>
+                    <button className="btn-s" onClick={()=>go(6)}>← Back to Future Vision</button>
                   </div>
                 </div>
               )}
@@ -1471,6 +1477,7 @@ function App(){
                   <div className="btn-row">
                     <button className="btn-p" onClick={()=>setRptTab(2)}>See Actions →</button>
                     <button className="btn-s" onClick={()=>setRptTab(0)}>← Profile</button>
+                    <button className="btn-s" onClick={()=>go(6)}>← Back to Future Vision</button>
                   </div>
                 </div>
               )}
@@ -1484,7 +1491,7 @@ function App(){
                       <span style={{fontSize:'1rem',flexShrink:0}}>⚡</span>
                       <span><strong>Live view</strong> — these suggestions update automatically as you adjust your desired profile sliders. Go back to <em>Future Vision</em> and move a slider to see them change.</span>
                     </div>
-                    <p className="rpt-body">For each domain, the action is the highest-leverage experiment based on where your scores diverge most from your desired direction. The coaching question targets the second-highest-leverage area to prompt deeper reflection.</p>
+                    <p className="rpt-body">For each domain, the action is the highest-leverage experiment based on where your scores diverge most from your desired direction. The reflection question targets the second-highest-leverage area to prompt deeper reflection.</p>
                   </div>
                   <div className="gap-summary" style={{marginBottom:'1.5rem'}}>
                     <div className="gap-row hdr"><div>Dimension</div><div className="gap-val">Now</div><div className="gap-val">Desired</div><div className="gap-val">Scale of change</div></div>
@@ -1512,7 +1519,7 @@ function App(){
                           </div>
                         </div>
                         <div>
-                          <div style={{fontSize:'.7rem',fontWeight:800,letterSpacing:'.08em',textTransform:'uppercase',color:'#2563eb',marginBottom:'.5rem',fontFamily:"'DM Sans',sans-serif"}}>Coaching Question</div>
+                          <div style={{fontSize:'.7rem',fontWeight:800,letterSpacing:'.08em',textTransform:'uppercase',color:'#2563eb',marginBottom:'.5rem',fontFamily:"'DM Sans',sans-serif"}}>Reflection Question</div>
                           <div className="sug-item" style={{borderLeft:'3px solid #2563eb'}}>
                             <div className="sug-num" style={{background:'#eff6ff',color:'#2563eb'}}>?</div>
                             <div className="sug-txt" style={{fontStyle:'italic'}}>{sec.question}</div>
@@ -1522,10 +1529,10 @@ function App(){
                     );
                   })}
                   <div className="btn-row" style={{marginTop:'2rem'}}>
-                    <button className="btn-p" onClick={printReport}>⬇ Save / Print Full Report</button>
-                    <div style={{fontSize:'.7rem',color:'#b0a898',marginTop:'.4rem',fontFamily:"'DM Sans',sans-serif"}}>Use your browser's "Save as PDF" option when printing for a clean digital copy.</div>
-                    <button className="btn-s" onClick={restart}>Start Again</button>
+                    <button className="btn-p" onClick={()=>setRptTab(4)}>Save & Next Steps →</button>
                     <button className="btn-s" onClick={()=>setRptTab(0)}>← Profile</button>
+                    <button className="btn-s" onClick={()=>go(6)}>← Back to Future Vision</button>
+                    <button className="btn-s" onClick={restart}>Start Again</button>
                   </div>
                 </div>
               )}
@@ -1753,8 +1760,69 @@ function App(){
                 </div>
               )}
 
-              {/* TAB 4 — FACILITATOR (admin only) */}
-              {rptTab===4&&isAdmin&&facilInsights&&(
+              {/* TAB 4 — SAVE & NEXT STEPS */}
+              {rptTab===4&&(
+                <div>
+                  <div className="rpt-section">
+                    <div className="rpt-heading">Save or Print Your Report</div>
+                    <p className="rpt-body">To save your report as a PDF, use your browser's print function (<strong>Ctrl+P</strong> on Windows, <strong>Cmd+P</strong> on Mac) and select <strong>Save as PDF</strong>. Print all tabs before saving for the complete report.</p>
+                    <div className="btn-row" style={{marginTop:'1rem'}}>
+                      <button className="btn-p" onClick={printReport}>⬇ Save / Print Full Report</button>
+                    </div>
+                  </div>
+
+                  <div className="rpt-section" style={{borderTop:'1px solid #d8d3cb',paddingTop:'1.75rem',marginTop:'1.75rem'}}>
+                    <div className="rpt-heading">Take It Further: Run STAT with Your Team</div>
+                    <p className="rpt-body">Your individual report is a starting point. It reflects a single perspective on how your organisation operates — and what it could become. The real diagnostic power emerges when you compare results across your team or organisation.</p>
+                    <p className="rpt-body" style={{marginTop:'.75rem'}}>Even people working side by side often see the current position very differently. And leaders frequently see the organisation in ways that differ sharply from the experience of those they lead. Understanding those differences is not a problem to manage — it is the insight you need to act.</p>
+
+                    <div style={{marginTop:'1.25rem'}}>
+                      <div className="rpt-heading" style={{fontSize:'.85rem',marginBottom:'.6rem'}}>Run STAT with your leadership team to:</div>
+                      <ul style={{paddingLeft:'1.25rem',lineHeight:1.8,fontSize:'.875rem',color:'#555',fontFamily:"'DM Sans',sans-serif"}}>
+                        <li>Find out whether your ExCom or SLT shares a common strategic direction — or only assumes it does</li>
+                        <li>Surface hidden tensions between what leaders say is the priority and what they actually drive</li>
+                        <li>Identify where different parts of leadership are pulling in different directions without realising it</li>
+                        <li>Test whether the strategy you intend is the strategy being experienced</li>
+                        <li>Create the conditions for an honest, evidence-based conversation about where to go next</li>
+                      </ul>
+                    </div>
+
+                    <div style={{marginTop:'1.25rem'}}>
+                      <div className="rpt-heading" style={{fontSize:'.85rem',marginBottom:'.6rem'}}>Run STAT across your organisation to:</div>
+                      <ul style={{paddingLeft:'1.25rem',lineHeight:1.8,fontSize:'.875rem',color:'#555',fontFamily:"'DM Sans',sans-serif"}}>
+                        <li>Compare how leaders see the organisation with how it is experienced on the ground</li>
+                        <li>Identify where strategic intent is not translating into operational reality</li>
+                        <li>Reveal differences in how people across functions and business units see the organisation's current position and direction</li>
+                        <li>Understand whether different parts of the organisation have fundamentally different starting points — as organisations do after a merger or acquisition</li>
+                        <li>Generate a baseline you can use to track whether change is actually happening</li>
+                      </ul>
+                    </div>
+
+                    <div style={{marginTop:'1.25rem'}}>
+                      <div className="rpt-heading" style={{fontSize:'.85rem',marginBottom:'.5rem'}}>What the group report shows:</div>
+                      <p className="rpt-body">The group profile aggregates all responses to reveal the collective strategic picture — where the group agrees most, where it disagrees most, and what organisational action would do most to close the gap between where you are and where you want to be.</p>
+                    </div>
+
+                    <div style={{marginTop:'1.25rem'}}>
+                      <div className="rpt-heading" style={{fontSize:'.85rem',marginBottom:'.5rem'}}>How organisations have used it:</div>
+                      <p className="rpt-body">Teams use STAT to resolve longstanding tensions that were visible but never named — surfacing differences in how people across functions and business units see the organisation's current position and direction. Leadership groups use it to move from assumption to evidence. One organisation used it immediately after an acquisition to map the strategic perspectives of both legacy teams — and understand what integration would actually require.</p>
+                    </div>
+
+                    <div style={{marginTop:'1.5rem',padding:'1.25rem',background:'#fff8f5',border:'1px solid #f5c8b0',borderRadius:'6px'}}>
+                      <div style={{fontSize:'.85rem',fontWeight:700,color:'#1a1a1a',marginBottom:'.5rem',fontFamily:"'DM Sans',sans-serif"}}>Ready to run it with your team?</div>
+                      <p style={{fontSize:'.85rem',color:'#555',lineHeight:1.7,fontFamily:"'DM Sans',sans-serif"}}>Contact us at <a href="mailto:contact@changebefore.com" style={{color:'#e07030'}}>contact@changebefore.com</a> or visit <a href="https://changebefore.com/contact/" target="_blank" rel="noopener noreferrer" style={{color:'#e07030'}}>changebefore.com/contact</a> to arrange a conversation.</p>
+                    </div>
+                  </div>
+
+                  <div className="btn-row" style={{marginTop:'1.75rem'}}>
+                    <button className="btn-s" onClick={()=>setRptTab(2)}>← Suggestions & Actions</button>
+                    <button className="btn-s" onClick={restart}>Start Again</button>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 5 — FACILITATOR (admin only) */}
+              {rptTab===5&&isAdmin&&facilInsights&&(
                 <div>
                   <div className="mock-badge" style={{background:'#fff8ed',color:'#92400e'}}>🔒 Facilitator view — only visible when logged in as Admin</div>
                   <div className="rpt-section">
