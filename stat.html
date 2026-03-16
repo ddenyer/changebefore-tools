@@ -106,6 +106,21 @@ html,body{font-family:'DM Sans',sans-serif;background:#f0ede8;color:#1a1a1a;-web
 .rpt-section{margin-bottom:1.5rem}
 .rpt-heading{font-size:.63rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#e07030;margin-bottom:.5rem;font-family:'DM Sans',sans-serif}
 .rpt-body{font-size:.875rem;line-height:1.75;color:#1a1a1a;margin-bottom:.65rem;font-family:'DM Sans',sans-serif}
+.da-summary{background:#fff;border:1px solid #d8d3cb;border-left:4px solid #1a1a1a;border-radius:4px;padding:1.25rem 1.5rem;margin-bottom:1.75rem}
+.da-summary-heading{font-size:.63rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#1a1a1a;margin-bottom:.5rem;font-family:'DM Sans',sans-serif}
+.da-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.75rem}
+.da-card{background:#fff;border:1px solid #d8d3cb;border-top:3px solid #e07030;border-radius:4px;padding:1.1rem 1.25rem}
+.da-card-heading{font-size:.63rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#e07030;margin-bottom:.5rem;font-family:'DM Sans',sans-serif}
+.da-lower{display:flex;flex-direction:column;gap:.85rem;margin-bottom:1.5rem}
+.da-lower-card{background:#fff;border:1px solid #d8d3cb;border-radius:4px;padding:1.1rem 1.25rem}
+.da-lower-card.best{border-left:4px solid #16a34a}
+.da-lower-card.blind{border-left:4px solid #dc2626}
+.da-lower-card.areas{border-left:4px solid #2563eb}
+.da-lower-heading{font-size:.63rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.5rem;font-family:'DM Sans',sans-serif}
+.da-lower-card.best .da-lower-heading{color:#16a34a}
+.da-lower-card.blind .da-lower-heading{color:#dc2626}
+.da-lower-card.areas .da-lower-heading{color:#2563eb}
+@media(max-width:600px){.da-grid{grid-template-columns:1fr}}
 .rpt-subhead{font-size:.84rem;font-weight:700;color:#1a1a1a;margin:.9rem 0 .35rem;font-family:'Cormorant Garamond',serif}
 .chart-pair{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;margin:1.25rem 0}
 .chart-box{border:1px solid #d8d3cb;border-radius:4px;padding:1.25rem;background:#fff;text-align:center}
@@ -1388,11 +1403,19 @@ function App(){
               <h2 className="pg-title">{th}</h2>
               <p className="pg-sub">Current: <strong>{SLABELS[asIsStrat]}</strong> · Desired: <strong>{SLABELS[tobeStrat]}</strong></p>
               <div className="rpt-tabs">
-                {['Profile & Charts','Detailed Analysis','Suggestions & Actions','Group Report','Save & Next Steps'].map((t,i)=>(
+                {['Profile & Charts','Detailed Analysis','Suggestions & Actions'].map((t,i)=>(
                   <div key={i} className={`rpt-tab${rptTab===i?' active':''}`} onClick={()=>setRptTab(i)}>
-                    {t}{i===3&&groupRespondents&&<span style={{background:'#e07030',color:'#fff',borderRadius:'10px',padding:'1px 6px',fontSize:'.6rem',fontWeight:700,marginLeft:'.3rem'}}>{groupRespondents.length}</span>}
+                    {t}
                   </div>
                 ))}
+                {sessionCode.trim()&&(
+                  <div className={`rpt-tab${rptTab===3?' active':''}`} onClick={()=>setRptTab(3)}>
+                    Group Report{groupRespondents&&<span style={{background:'#e07030',color:'#fff',borderRadius:'10px',padding:'1px 6px',fontSize:'.6rem',fontWeight:700,marginLeft:'.3rem'}}>{groupRespondents.length}</span>}
+                  </div>
+                )}
+                <div className={`rpt-tab${rptTab===4?' active':''}`} onClick={()=>setRptTab(4)}>
+                  Save & Next Steps
+                </div>
                 {isAdmin&&(
                   <div className={`rpt-tab${rptTab===5?' active':''}`} onClick={()=>setRptTab(5)} style={{color:rptTab===5?'#e07030':'#b0a898',borderBottomColor:rptTab===5?'#e07030':'transparent'}}>
                     🔒 Facilitator
@@ -1468,14 +1491,49 @@ function App(){
               {/* TAB 1 */}
               <div style={{display:rptTab===1?'block':'none'}} className="print-tab-section">
                 <div>
-                  <div className="rpt-section"><div className="rpt-heading">Summary</div><p className="rpt-body">{SD.summary}</p>{industryContext&&<p className="rpt-body">{industryContext}</p>}</div>
-                  <div className="rpt-section"><div className="rpt-heading">Purpose</div><p className="rpt-body">{SD.purpose}</p></div>
-                  <div className="rpt-section"><div className="rpt-heading">People</div><p className="rpt-body">{SD.people}</p></div>
-                  <div className="rpt-section"><div className="rpt-heading">Process</div><p className="rpt-body">{SD.process}</p></div>
-                  <div className="rpt-section"><div className="rpt-heading">Product</div><p className="rpt-body">{SD.product}</p></div>
-                  <div className="rpt-section"><div className="rpt-heading">At Its Best</div><p className="rpt-body">{SD.atBest}</p></div>
-                  <div className="rpt-section"><div className="rpt-heading">Blind Spots and Risk Factors</div><p className="rpt-body">{SD.blind}</p></div>
-                  <div className="rpt-section"><div className="rpt-heading">Areas for Consideration</div><p className="rpt-body">{SD.areas}</p></div>
+                  {/* Summary — full width, dark left border */}
+                  <div className="da-summary">
+                    <div className="da-summary-heading">Summary</div>
+                    <p className="rpt-body">{SD.summary}</p>
+                    {industryContext&&<p className="rpt-body">{industryContext}</p>}
+                  </div>
+
+                  {/* Four domain cards — 2×2 grid */}
+                  <div className="da-grid">
+                    <div className="da-card">
+                      <div className="da-card-heading">Purpose</div>
+                      <p className="rpt-body">{SD.purpose}</p>
+                    </div>
+                    <div className="da-card">
+                      <div className="da-card-heading">People</div>
+                      <p className="rpt-body">{SD.people}</p>
+                    </div>
+                    <div className="da-card">
+                      <div className="da-card-heading">Process</div>
+                      <p className="rpt-body">{SD.process}</p>
+                    </div>
+                    <div className="da-card">
+                      <div className="da-card-heading">Product</div>
+                      <p className="rpt-body">{SD.product}</p>
+                    </div>
+                  </div>
+
+                  {/* Lower three — full width, colour-coded left borders */}
+                  <div className="da-lower">
+                    <div className="da-lower-card best">
+                      <div className="da-lower-heading">At Its Best</div>
+                      <p className="rpt-body">{SD.atBest}</p>
+                    </div>
+                    <div className="da-lower-card blind">
+                      <div className="da-lower-heading">Blind Spots and Risk Factors</div>
+                      <p className="rpt-body">{SD.blind}</p>
+                    </div>
+                    <div className="da-lower-card areas">
+                      <div className="da-lower-heading">Areas for Consideration</div>
+                      <p className="rpt-body">{SD.areas}</p>
+                    </div>
+                  </div>
+
                   <div className="btn-row">
                     <button className="btn-p" onClick={()=>setRptTab(2)}>See Actions →</button>
                     <button className="btn-s" onClick={()=>setRptTab(0)}>← Profile</button>
