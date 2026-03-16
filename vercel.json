@@ -1,7 +1,7 @@
 {
-    "routes": [
-          { "src": "/stat", "dest": "/stat.html" },
-          { "src": "/define", "dest": "/define.html" },
-          { "src": "/(.*)", "dest": "/index.html" }
-    ]
+  "rewrites": [
+    { "source": "/stat", "destination": "/stat.html" },
+    { "source": "/define", "destination": "/define.html" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
 }
