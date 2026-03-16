@@ -104,8 +104,6 @@ html,body{font-family:'DM Sans',sans-serif;background:#f0ede8;color:#1a1a1a;-web
 .rpt-tab.active{color:#1a1a1a;border-bottom-color:#1a1a1a}
 .rpt-tab:hover:not(.active){color:#555}
 .rpt-section{margin-bottom:1.5rem}
-.rpt-heading{font-size:.63rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#e07030;margin-bottom:.5rem;font-family:'DM Sans',sans-serif}
-.rpt-body{font-size:.875rem;line-height:1.75;color:#1a1a1a;margin-bottom:.65rem;font-family:'DM Sans',sans-serif}
 .da-summary{background:#fff;border:1px solid #d8d3cb;border-left:4px solid #1a1a1a;border-radius:4px;padding:1.25rem 1.5rem;margin-bottom:1.75rem}
 .da-summary-heading{font-size:.63rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#1a1a1a;margin-bottom:.5rem;font-family:'DM Sans',sans-serif}
 .da-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.75rem}
@@ -121,6 +119,8 @@ html,body{font-family:'DM Sans',sans-serif;background:#f0ede8;color:#1a1a1a;-web
 .da-lower-card.blind .da-lower-heading{color:#dc2626}
 .da-lower-card.areas .da-lower-heading{color:#2563eb}
 @media(max-width:600px){.da-grid{grid-template-columns:1fr}}
+.rpt-heading{font-size:.63rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#e07030;margin-bottom:.5rem;font-family:'DM Sans',sans-serif}
+.rpt-body{font-size:.875rem;line-height:1.75;color:#1a1a1a;margin-bottom:.65rem;font-family:'DM Sans',sans-serif}
 .rpt-subhead{font-size:.84rem;font-weight:700;color:#1a1a1a;margin:.9rem 0 .35rem;font-family:'Cormorant Garamond',serif}
 .chart-pair{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;margin:1.25rem 0}
 .chart-box{border:1px solid #d8d3cb;border-radius:4px;padding:1.25rem;background:#fff;text-align:center}
@@ -228,12 +228,12 @@ html,body{font-family:'DM Sans',sans-serif;background:#f0ede8;color:#1a1a1a;-web
 .diamond-fullscreen-close{position:absolute;top:.75rem;right:.75rem;background:none;border:none;font-size:1.4rem;cursor:pointer;color:#666;line-height:1}
 .diamond-expand-hint{font-size:.65rem;color:#b0a898;text-align:center;margin-top:.3rem;cursor:pointer;font-family:'DM Sans',sans-serif}
 @media print{
+  .print-tab-section{display:block!important}
+  .print-tab-section+.print-tab-section{page-break-before:always}
   .ftr,.prog-wrap,.back-btn,.btn-row,.rpt-tabs,.mock-badge{display:none!important}
   .shell{display:block}
   .content{max-width:100%;padding:1rem}
   .rpt-tab-panel{display:block!important}
-  .print-tab-section{display:block!important}
-  .print-tab-section+.print-tab-section{page-break-before:always}
   .chart-pair{grid-template-columns:1fr 1fr}
   .sug-grid{grid-template-columns:1fr 1fr}
   .page-break{page-break-before:always}
@@ -1381,172 +1381,6 @@ function App(){
                   <div className="think"><div className="dots"><div className="dot"/><div className="dot"/><div className="dot"/></div><span className="think-txt">Generating your personalised report…</span></div>
                 ):apiError?(
                   <div>
-                    <div style={{background:'#fff8f5',border:'1px solid #e07030',borderRadius:'5px',padding:'.65rem .9rem',marginBottom:'.75rem',fontSize:'.82rem',color:'#c0392b',fontFamily:"'DM Sans',sans-serif"}}>
-                      ⚠ Report generation failed — please check your connection and try again.
-                    </div>
-                    <button className="btn-p" onClick={()=>{setApiError(false);generate();}}>Try Again →</button>
-                  </div>
-                ):(
-                  <button className="btn-p" onClick={generate}>Generate My Report →</button>
-                )}
-                {showReport&&<button className="btn-s" onClick={()=>{go(7);setRptTab(2);}}>⚡ Live Suggestions</button>}
-                <button className="btn-s" onClick={()=>go(5)}>← Back</button>
-              </div>
-            </div>
-          )}
-
-          {/* STEP 7: REPORT */}
-          {step===7&&(
-            <div>
-              {PREVIEW_MODE&&<div className="mock-badge">⚡ Preview — mock report · live tool uses Anthropic API</div>}
-              <div className="sec-tag">Organisational Resilience Report</div>
-              <h2 className="pg-title">{th}</h2>
-              <p className="pg-sub">Current: <strong>{SLABELS[asIsStrat]}</strong> · Desired: <strong>{SLABELS[tobeStrat]}</strong></p>
-              <div className="rpt-tabs">
-                {['Profile & Charts','Detailed Analysis','Suggestions & Actions'].map((t,i)=>(
-                  <div key={i} className={`rpt-tab${rptTab===i?' active':''}`} onClick={()=>setRptTab(i)}>
-                    {t}
-                  </div>
-                ))}
-                {sessionCode.trim()&&(
-                  <div className={`rpt-tab${rptTab===3?' active':''}`} onClick={()=>setRptTab(3)}>
-                    Group Report{groupRespondents&&<span style={{background:'#e07030',color:'#fff',borderRadius:'10px',padding:'1px 6px',fontSize:'.6rem',fontWeight:700,marginLeft:'.3rem'}}>{groupRespondents.length}</span>}
-                  </div>
-                )}
-                <div className={`rpt-tab${rptTab===4?' active':''}`} onClick={()=>setRptTab(4)}>
-                  Save & Next Steps
-                </div>
-                {isAdmin&&(
-                  <div className={`rpt-tab${rptTab===5?' active':''}`} onClick={()=>setRptTab(5)} style={{color:rptTab===5?'#e07030':'#b0a898',borderBottomColor:rptTab===5?'#e07030':'transparent'}}>
-                    🔒 Facilitator
-                  </div>
-                )}
-              </div>
-
-              {/* TAB 0 */}
-              <div style={{display:rptTab===0?'block':'none'}} className="print-tab-section">
-                <div>
-                  <div className="chart-pair">
-                    <div className="chart-box">
-                      <ExpandableDiamond title="Current Profile (As-Is)">
-                        <div className="chart-lbl">Current Profile (As-Is)</div>
-                        <DiamondChart p={prog} d={def} c={con} f={flex} color="#e07030" prevProfile={prevSubmission}/>
-                        <div style={{marginTop:'.75rem',fontSize:'.78rem',color:'#888',fontWeight:600,fontFamily:"'DM Sans',sans-serif"}}>{SLABELS[asIsStrat]}</div>
-                        {prevSubmission&&(
-                          <div style={{marginTop:'.5rem',fontSize:'.72rem',color:'#94a3b8',lineHeight:1.5,fontFamily:"'DM Sans',sans-serif"}}>
-                            <span style={{display:'block',marginBottom:'.2rem'}}>— — dotted line = your profile from {prevSubmission.date}</span>
-                            {[{lbl:'Progressive',now:prog,prev:prevSubmission.prog},{lbl:'Defensive',now:def,prev:prevSubmission.def},{lbl:'Consistent',now:con,prev:prevSubmission.con},{lbl:'Flexible',now:flex,prev:prevSubmission.flex}]
-                              .filter(r=>Math.abs(r.now-r.prev)>=3)
-                              .map(r=>{const d=r.now-r.prev;return(
-                                <span key={r.lbl} style={{display:'block',color:d>0?'#16a34a':'#e07030',fontWeight:600}}>
-                                  {r.lbl}: {d>0?`+${d}`:d} since last visit
-                                </span>
-                              );})
-                            }
-                          </div>
-                        )}
-                      </ExpandableDiamond>
-                    </div>
-                    <div className="chart-box">
-                      <ExpandableDiamond title="Desired Profile (To-Be)">
-                        <div className="chart-lbl">Desired Profile (To-Be)</div>
-                        <DiamondChart p={tobe.p} d={tobe.d} c={tobe.c} f={tobe.f} color="#1a1a1a"/>
-                        <div style={{marginTop:'.75rem',fontSize:'.78rem',color:'#888',fontWeight:600,fontFamily:"'DM Sans',sans-serif"}}>{SLABELS[tobeStrat]}</div>
-                      </ExpandableDiamond>
-                    </div>
-                  </div>
-                  <div className="rpt-section">
-                    <div className="rpt-heading">What This Profile Tells Us About {th}</div>
-                    <p className="rpt-body">{SD.summary}</p>
-                    {industryContext&&<p className="rpt-body">{industryContext}</p>}
-                  </div>
-                  <div className="rpt-section">
-                    <div className="rpt-heading">Gap Between Current and Desired Profile</div>
-                    <div className="gap-summary">
-                      <div className="gap-row hdr"><div>Dimension</div><div className="gap-val">Now</div><div className="gap-val">Desired</div><div className="gap-val">Change</div></div>
-                      {[{lbl:'Progressive',now:prog,des:tobe.p},{lbl:'Defensive',now:def,des:tobe.d},{lbl:'Consistent',now:con,des:tobe.c},{lbl:'Flexible',now:flex,des:tobe.f}].map(r=>{
-                        const g=r.des-r.now;const gl=gapLabel(g);
-                        return(<div key={r.lbl} className="gap-row">
-                          <div style={{fontWeight:600}}>{r.lbl}</div>
-                          <div className="gap-val">{r.now}</div>
-                          <div className="gap-val">{r.des}</div>
-                          <div className="gap-val"><span className={`gap-badge gap-${gl}`}>{gapBadgeText(g)}{g>0?` ▲${g}`:g<0?` ▼${Math.abs(g)}`:' —'}</span></div>
-                        </div>);
-                      })}
-                    </div>
-                  </div>
-                  {asIsStrat!==tobeStrat&&(
-                    <div className="rpt-section">
-                      <div className="rpt-heading">The Shift You Are Seeking</div>
-                      <p className="rpt-body">You want {th} to shift from <strong>{SLABELS[asIsStrat]}</strong> toward <strong>{SLABELS[tobeStrat]}</strong>. This is a meaningful strategic shift that will require deliberate attention to leadership behaviours, structural enablers, and how success is measured and rewarded.</p>
-                    </div>
-                  )}
-                  <div className="btn-row">
-                    <button className="btn-p" onClick={()=>setRptTab(1)}>Read Detailed Analysis →</button>
-                    <button className="btn-s" onClick={()=>go(6)}>← Back to Future Vision</button>
-                  </div>
-                </div>
-              </div>
-
-              {/* TAB 1 */}
-              <div style={{display:rptTab===1?'block':'none'}} className="print-tab-section">
-                <div>
-                  {/* Summary — full width, dark left border */}
-                  <div className="da-summary">
-                    <div className="da-summary-heading">Summary</div>
-                    <p className="rpt-body">{SD.summary}</p>
-                    {industryContext&&<p className="rpt-body">{industryContext}</p>}
-                  </div>
-
-                  {/* Four domain cards — 2×2 grid */}
-                  <div className="da-grid">
-                    <div className="da-card">
-                      <div className="da-card-heading">Purpose</div>
-                      <p className="rpt-body">{SD.purpose}</p>
-                    </div>
-                    <div className="da-card">
-                      <div className="da-card-heading">People</div>
-                      <p className="rpt-body">{SD.people}</p>
-                    </div>
-                    <div className="da-card">
-                      <div className="da-card-heading">Process</div>
-                      <p className="rpt-body">{SD.process}</p>
-                    </div>
-                    <div className="da-card">
-                      <div className="da-card-heading">Product</div>
-                      <p className="rpt-body">{SD.product}</p>
-                    </div>
-                  </div>
-
-                  {/* Lower three — full width, colour-coded left borders */}
-                  <div className="da-lower">
-                    <div className="da-lower-card best">
-                      <div className="da-lower-heading">At Its Best</div>
-                      <p className="rpt-body">{SD.atBest}</p>
-                    </div>
-                    <div className="da-lower-card blind">
-                      <div className="da-lower-heading">Blind Spots and Risk Factors</div>
-                      <p className="rpt-body">{SD.blind}</p>
-                    </div>
-                    <div className="da-lower-card areas">
-                      <div className="da-lower-heading">Areas for Consideration</div>
-                      <p className="rpt-body">{SD.areas}</p>
-                    </div>
-                  </div>
-
-                  <div className="btn-row">
-                    <button className="btn-p" onClick={()=>setRptTab(2)}>See Actions →</button>
-                    <button className="btn-s" onClick={()=>setRptTab(0)}>← Profile</button>
-                    <button className="btn-s" onClick={()=>go(6)}>← Back to Future Vision</button>
-                  </div>
-                </div>
-              </div>
-
-              {/* TAB 2 */}
-              <div style={{display:rptTab===2?'block':'none'}} className="print-tab-section">
-                <div>
-                  <div className="rpt-section">
-                    <div className="rpt-heading">About These Actions</div>
                     <p className="rpt-body">For each domain, the action is the highest-leverage experiment based on where your scores diverge most from your desired direction. The reflection question targets the second-highest-leverage area to prompt deeper reflection.</p>
                   </div>
                   <div className="gap-summary" style={{marginBottom:'1.5rem'}}>
@@ -1591,7 +1425,7 @@ function App(){
                     <button className="btn-s" onClick={restart}>Start Again</button>
                   </div>
                 </div>
-              </div>
+              )}
 
               {/* TAB 3 — GROUP REPORT */}
               {rptTab===3&&(
@@ -1601,7 +1435,7 @@ function App(){
                     <strong style={{color:'#e07030'}}>Group report not available yet.</strong>
                     <p style={{marginTop:'.5rem',fontSize:'.85rem',color:'#555'}}>Complete all 24 survey questions to generate the group report.</p>
                   </div>
-                )}
+              </div>
                 {groupRespondents&&groupMean&&(<div>
                   {PREVIEW_MODE&&<div className="mock-badge">⚡ Preview — co-respondents simulated · live tool links real users via Supabase in real time</div>}
 
@@ -1817,7 +1651,7 @@ function App(){
               )}
 
               {/* TAB 4 — SAVE & NEXT STEPS */}
-              <div style={{display:rptTab===4?'block':'none'}} className="print-tab-section">
+              {rptTab===4&&(
                 <div>
                   <div className="rpt-section">
                     <div className="rpt-heading">Save or Print Your Report</div>
@@ -1829,35 +1663,39 @@ function App(){
 
                   <div className="rpt-section" style={{borderTop:'1px solid #d8d3cb',paddingTop:'1.75rem',marginTop:'1.75rem'}}>
                     <div className="rpt-heading">Take It Further: Run STAT with Your Team</div>
-                    <p className="rpt-body">Your individual report reflects one perspective. The diagnostic value multiplies when you compare results across a team or organisation — because the gaps between how different people see the current position are often more revealing than the scores themselves.</p>
-                    <p className="rpt-body" style={{marginTop:'.75rem'}}>Even people in the same team often see things very differently. Leaders frequently see the organisation in ways that diverge sharply from the experience of those they lead. STAT makes those differences visible — and discussable.</p>
+                    <p className="rpt-body">Your individual report is a starting point. It reflects a single perspective on how your organisation operates — and what it could become. The real diagnostic power emerges when you compare results across your team or organisation.</p>
+                    <p className="rpt-body" style={{marginTop:'.75rem'}}>Even people working side by side often see the current position very differently. And leaders frequently see the organisation in ways that differ sharply from the experience of those they lead. Understanding those differences is not a problem to manage — it is the insight you need to act.</p>
 
                     <div style={{marginTop:'1.25rem'}}>
-                      <div className="rpt-heading" style={{fontSize:'.85rem',marginBottom:'.6rem'}}>With your leadership team:</div>
+                      <div className="rpt-heading" style={{fontSize:'.85rem',marginBottom:'.6rem'}}>Run STAT with your leadership team to:</div>
                       <ul style={{paddingLeft:'1.25rem',lineHeight:1.8,fontSize:'.875rem',color:'#555',fontFamily:"'DM Sans',sans-serif"}}>
-                        <li>Find out whether your ExCom or SLT actually shares a strategic direction — or only assumes it does</li>
-                        <li>Surface hidden tensions between stated priorities and what leaders actually drive</li>
+                        <li>Find out whether your ExCom or SLT shares a common strategic direction — or only assumes it does</li>
+                        <li>Surface hidden tensions between what leaders say is the priority and what they actually drive</li>
+                        <li>Identify where different parts of leadership are pulling in different directions without realising it</li>
+                        <li>Test whether the strategy you intend is the strategy being experienced</li>
                         <li>Create the conditions for an honest, evidence-based conversation about where to go next</li>
                       </ul>
                     </div>
 
                     <div style={{marginTop:'1.25rem'}}>
-                      <div className="rpt-heading" style={{fontSize:'.85rem',marginBottom:'.6rem'}}>Across your organisation:</div>
+                      <div className="rpt-heading" style={{fontSize:'.85rem',marginBottom:'.6rem'}}>Run STAT across your organisation to:</div>
                       <ul style={{paddingLeft:'1.25rem',lineHeight:1.8,fontSize:'.875rem',color:'#555',fontFamily:"'DM Sans',sans-serif"}}>
                         <li>Compare how leaders see the organisation with how it is experienced on the ground</li>
-                        <li>Reveal differences across functions, business units, or — after a merger or acquisition — legacy teams</li>
-                        <li>Generate a baseline to track whether change is actually happening</li>
+                        <li>Identify where strategic intent is not translating into operational reality</li>
+                        <li>Reveal differences in how people across functions and business units see the organisation's current position and direction</li>
+                        <li>Understand whether different parts of the organisation have fundamentally different starting points — as organisations do after a merger or acquisition</li>
+                        <li>Generate a baseline you can use to track whether change is actually happening</li>
                       </ul>
                     </div>
 
                     <div style={{marginTop:'1.25rem'}}>
-                      <div className="rpt-heading" style={{fontSize:'.85rem',marginBottom:'.5rem'}}>The group report shows:</div>
-                      <p className="rpt-body">Where the group agrees most, where it disagrees most, and what would do most to close the gap between where you are and where you want to be.</p>
+                      <div className="rpt-heading" style={{fontSize:'.85rem',marginBottom:'.5rem'}}>What the group report shows:</div>
+                      <p className="rpt-body">The group profile aggregates all responses to reveal the collective strategic picture — where the group agrees most, where it disagrees most, and what organisational action would do most to close the gap between where you are and where you want to be.</p>
                     </div>
 
                     <div style={{marginTop:'1.25rem'}}>
                       <div className="rpt-heading" style={{fontSize:'.85rem',marginBottom:'.5rem'}}>How organisations have used it:</div>
-                      <p className="rpt-body">Teams use STAT to resolve tensions that were visible but never named. Leadership groups use it to move from assumption to evidence. One organisation used it after an acquisition to map the strategic perspectives of both legacy teams — and understand what integration would actually require.</p>
+                      <p className="rpt-body">Teams use STAT to resolve longstanding tensions that were visible but never named — surfacing differences in how people across functions and business units see the organisation's current position and direction. Leadership groups use it to move from assumption to evidence. One organisation used it immediately after an acquisition to map the strategic perspectives of both legacy teams — and understand what integration would actually require.</p>
                     </div>
 
                     <div style={{marginTop:'1.5rem',padding:'1.25rem',background:'#fff8f5',border:'1px solid #f5c8b0',borderRadius:'6px'}}>
@@ -1871,7 +1709,7 @@ function App(){
                     <button className="btn-s" onClick={restart}>Start Again</button>
                   </div>
                 </div>
-              </div>
+              )}
 
               {/* TAB 5 — FACILITATOR (admin only) */}
               {rptTab===5&&isAdmin&&facilInsights&&(
