@@ -15,9 +15,7 @@ html,body{font-family:'DM Sans',sans-serif;background:#f0ede8;color:#1a1a1a;-web
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
 .fade{animation:fadeIn .3s ease both}
 .shell{min-height:auto;display:flex;flex-direction:column}
-.ftr{background:#1a1a1a;padding:.8rem 1.75rem;display:flex;align-items:center;justify-content:space-between;margin-top:auto}
-.ftr-l{font-size:.65rem;color:#888;font-family:'DM Sans',sans-serif}
-.ftr-r{font-size:.65rem;color:#555;font-family:'DM Sans',sans-serif}
+
 .prog-wrap{max-width:760px;margin:0 auto;padding:1rem 1.5rem .2rem}
 .prog-bars{display:flex;gap:3px;margin-bottom:.3rem}
 .prog-bar{flex:1;height:3px;border-radius:2px;background:#d8d3cb;transition:background .3s}
@@ -439,7 +437,7 @@ function Slider({label,value,onChange,max=120,asIs=null}){
   );
 }
 
-function Footer(){return(<div className="ftr"><span className="ftr-l">© ChangeBefore · changebefore.com</span><span className="ftr-r">STAT</span></div>);}
+
 const STEPS=['Start','Focus','Context','Survey 1','Survey 2','Profile','Future','Report'];
 function Progress({step}){return(<div className="prog-wrap"><div className="prog-bars">{STEPS.map((_,i)=><div key={i} className={`prog-bar${i<step?' done':i===step?' now':''}`}/>)}</div><div className="prog-lbls">{STEPS.map((s,i)=><div key={i} className={`prog-lbl${i<step?' done':i===step?' now':''}`}>{s}</div>)}</div></div>);}
 function BackBtn({onClick}){return(<button className="back-btn" onClick={onClick} aria-label="Go back to previous step">← Back</button>);}
@@ -1846,7 +1844,7 @@ function App(){
 
         </div>
       </div>
-      <Footer/>
+
     </div>
   );
 }
