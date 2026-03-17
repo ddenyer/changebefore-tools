@@ -769,38 +769,7 @@ function generateFacilitatorInsights(groupRespondents, groupMean, groupTobe, que
   return { surprises, extremes: extremes.slice(0,4), topDivergers, contentions: contentions.slice(0,4), keyQs: keyQs.slice(0,4) };
 }
 
-function seededRand(seed, n) {
-  const x = Math.sin(seed * 9301 + n * 49297 + 233) * 1000000;
-  return x - Math.floor(x);
-}
 
-function generateMockRespondents(sessionCode, baseS1, baseS2, respondentName, userRole='') {
-  const seed = sessionCode.split('').reduce((s, c, i) => s + c.charCodeAt(0) * (i + 1), 0);
-  const count = 4 + Math.floor(seededRand(seed, 0) * 3);
-  const NAMES = ['Sarah K.','Marcus T.','Priya L.','James H.','Fiona M.','Rachel B.','Tom C.','Anita W.','Ben S.','Claire H.'];
-  const shuffled = [...NAMES].sort((a, b) => seededRand(seed + a.charCodeAt(0), 1) - 0.5);
-  const respondents = [{ name: respondentName || 'You', s1: baseS1, s2: baseS2, isYou: true, role: userRole }];
-  for (let i = 0; i < count; i++) {
-    const s1mock = baseS1.map((ans, qi) => {
-      const lv = parseInt(ans.l) || 0;
-      const rv = parseInt(ans.r) || 0;
-      const total = lv + rv || 10;
-      const noise = Math.round((seededRand(seed, qi * 20 + i * 7 + 1) - 0.5) * 6);
-      const newL = Math.max(0, Math.min(total, lv + noise));
-      return { l: String(newL), r: String(total - newL) };
-    });
-    const s2mock = baseS2.map((ans, qi) => {
-      const lv = parseInt(ans.l) || 0;
-      const rv = parseInt(ans.r) || 0;
-      const total = lv + rv || 10;
-      const noise = Math.round((seededRand(seed, qi * 20 + i * 7 + 13) - 0.5) * 6);
-      const newL = Math.max(0, Math.min(total, lv + noise));
-      return { l: String(newL), r: String(total - newL) };
-    });
-    respondents.push({ name: shuffled[i] || `Respondent ${i + 2}`, s1: s1mock, s2: s2mock, isYou: false });
-  }
-  return respondents;
-}
 
 function scoreRespondent(s1, s2) {
   if(!s1||!s1.length||!s2||!s2.length) return {def:60,prog:60,con:60,flex:60};
@@ -992,7 +961,7 @@ function App(){
 
   const effectiveCode = sessionCode.trim() || 'DEMO-SESSION';
   const isAdmin = respondentName.trim().toLowerCase()==='admin';
-  const groupRespondents = (s1done && s2done) || isAdmin ? generateMockRespondents(effectiveCode, s1ans, s2ans, respondentName, role==='None of the above'?roleCustom:role).filter(r => isAdmin ? !r.isYou : true) : null;
+  const groupRespondents = (sessionCode.trim() && participants && participants.filter(p=>p.completed).length>1) ? participants.filter(p=>p.completed) : null;
 
   function initTobe(){if(!tobeInit){setTobe({p:prog,d:def,c:con,f:flex});setTobeInit(true);}}
   function go(n){setStep(n);if(n===6)initTobe();}
