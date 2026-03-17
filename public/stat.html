@@ -247,26 +247,8 @@ html,body{font-family:'DM Sans',sans-serif;background:#f0ede8;color:#1a1a1a;-web
 <script type="text/babel">
 const {useState,useRef,useEffect,useCallback}=React;
 
-// Supabase config
-const SUPABASE_URL='https://vxovyhzqzlvjvntjnzej.supabase.co';
-const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ4b3Z5aHpxemx2anZudGpuemVqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM3NzQ4OTYsImV4cCI6MjA4OTM1MDg5Nn0.fidnRW4cXZQPIea22VHchryW7_sh2mHCVFZNGMrtwG0';
-async function supabaseInsert(table,row){
-  const r=await fetch(`${SUPABASE_URL}/rest/v1/${table}`,{
-    method:'POST',
-    headers:{'apikey':SUPABASE_KEY,'Authorization':`Bearer ${SUPABASE_KEY}`,'Content-Type':'application/json','Prefer':'return=minimal'},
-    body:JSON.stringify(row)
-  });
-  return r.ok;
-}
-async function supabaseSelect(table,filter){
-  const r=await fetch(`${SUPABASE_URL}/rest/v1/${table}?${filter}`,{
-    headers:{'apikey':SUPABASE_KEY,'Authorization':`Bearer ${SUPABASE_KEY}`}
-  });
-  return r.ok?await r.json():[];
-}
-
 // Set to false when deploying live — hides all "Preview" badges
-
+const PREVIEW_MODE = false;
 
 const S1={categories:[
   {name:'Purpose',qs:[
@@ -787,7 +769,10 @@ function generateFacilitatorInsights(groupRespondents, groupMean, groupTobe, que
   return { surprises, extremes: extremes.slice(0,4), topDivergers, contentions: contentions.slice(0,4), keyQs: keyQs.slice(0,4) };
 }
 
-
+function seededRand(seed, n) {
+  const x = Math.sin(seed * 9301 + n * 49297 + 233) * 1000000;
+  return x - Math.floor(x);
+}
 
 function generateMockRespondents(sessionCode, baseS1, baseS2, respondentName, userRole='') {
   const seed = sessionCode.split('').reduce((s, c, i) => s + c.charCodeAt(0) * (i + 1), 0);
@@ -974,6 +959,28 @@ function App(){
   const topRef=useRef(null);
   useEffect(()=>{topRef.current&&topRef.current.scrollIntoView({behavior:'smooth'});},[step]);
 
+  useEffect(()=>{
+    if(step!==7||!sessionCode.trim()||isAdmin)return;
+    const seed=sessionCode.split('').reduce((s,c,i)=>s+c.charCodeAt(0)*(i+1),0);
+    const othersCount=3+Math.floor((Math.sin(seed)*10000%1+1)/2*4);
+    const NAMES=['Sarah K.','Marcus T.','Priya L.','James H.','Fiona M.','Rachel B.','Tom C.'];
+    const shuffled=[...NAMES].sort(()=>Math.sin(seed+Math.random())-0.5).slice(0,othersCount);
+    const timers=[];
+    shuffled.forEach((name,i)=>{
+      const joinDelay=1500+(i*1200)+Math.floor(Math.sin(seed+i*3)*800);
+      timers.push(setTimeout(()=>{
+        setParticipants(p=>{
+          if(p.find(x=>x.name===name))return p;
+          return [...p,{id:p.length+1,name,completed:false,isYou:false}];
+        });
+      },joinDelay));
+      const completeDelay=joinDelay+5000+(i*2500)+Math.floor(Math.sin(seed+i*7)*2000);
+      timers.push(setTimeout(()=>{
+        setParticipants(p=>p.map(x=>x.name===name?{...x,completed:true}:x));
+      },completeDelay));
+    });
+    return()=>timers.forEach(clearTimeout);
+  },[step,sessionCode]);
 
   const def=s1ans.reduce((s,a)=>s+(parseInt(a.l)||0),0);
   const prog=s1ans.reduce((s,a)=>s+(parseInt(a.r)||0),0);
@@ -987,7 +994,7 @@ function App(){
   const s1done=s1ans.every(a=>(parseInt(a.l)||0)+(parseInt(a.r)||0)>0)&&!s1over;
   const s2done=s2ans.every(a=>(parseInt(a.l)||0)+(parseInt(a.r)||0)>0)&&!s2over;
 
-  const effectiveCode = sessionCode.trim();
+  const effectiveCode = sessionCode.trim() || 'DEMO-SESSION';
   const isAdmin = respondentName.trim().toLowerCase()==='admin';
   const groupRespondents = (s1done && s2done) || isAdmin ? generateMockRespondents(effectiveCode, s1ans, s2ans, respondentName, role==='None of the above'?roleCustom:role).filter(r => isAdmin ? !r.isYou : true) : null;
 
@@ -1000,27 +1007,6 @@ function App(){
   function setTobeF(v){setTobe(t=>({...t,f:v,c:Math.min(t.c,120-v)}));}
 
   function generate(){
-    // Save to Supabase if session code entered — fire and forget, never crashes app
-    if(sessionCode.trim()){
-      try{
-        supabaseInsert('stat_responses',{
-          session_code:sessionCode.trim().toUpperCase(),
-          respondent_name:respondentName||'Anonymous',
-          role:role==='None of the above'?roleCustom:role,
-          thing:thing,
-          prog:prog,
-          def:def,
-          con:con,
-          flex:flex,
-          tobe_prog:tobe.p,
-          tobe_def:tobe.d,
-          tobe_con:tobe.c,
-          tobe_flex:tobe.f,
-          s1_answers:s1ans,
-          s2_answers:s2ans
-        }).catch(()=>{});
-      }catch(e){}
-    }
     setLoading(true);
     setApiError(false);
     setParticipants(p=>p.map(x=>x.isYou?{...x,completed:true}:x));
@@ -1028,23 +1014,9 @@ function App(){
   }
 
   function refreshGroup(){
-    if(!sessionCode.trim())return;
-    const code=sessionCode.trim().toUpperCase();
-    supabaseSelect('stat_responses',`session_code=eq.${code}&order=created_at.asc`)
-      .then(rows=>{
-        if(!rows||rows.length===0)return;
-        const mapped=rows.map((r,i)=>({
-          name:r.respondent_name||(i===0?respondentName||'You':`Participant ${i+1}`),
-          isYou:r.respondent_name===respondentName&&i===0,
-          completed:true,
-          s1:r.s1_answers||[],
-          s2:r.s2_answers||[],
-          role:r.role||''
-        }));
-        setParticipants(mapped);
-        setLastRefreshed(new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}));
-      });
-      }
+    setLastRefreshed(new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}));
+    setRefreshKey(k=>k+1);
+  }
 
   function restart(){
     setStep(0);setThing('');setThingDesc('');setSessionCode('');setRespondentName('');
@@ -1166,7 +1138,7 @@ function App(){
           {/* STEP 0: LANDING */}
           {step===0&&(
             <div>
-
+              {PREVIEW_MODE&&<div className="mock-badge">⚡ Preview Mode</div>}
               <div className="land-hero">
                 <div className="land-tag">changebefore.com</div>
                 <h1 className="land-title">Strategic Tensions Assessment Tool</h1>
@@ -1418,7 +1390,7 @@ function App(){
           {/* STEP 7: REPORT */}
           {step===7&&(
             <div>
-              
+              {PREVIEW_MODE&&<div className="mock-badge">⚡ Preview — mock report · live tool uses Anthropic API</div>}
               <div className="sec-tag">Organisational Resilience Report</div>
               <h2 className="pg-title">{th}</h2>
               <p className="pg-sub">Current: <strong>{SLABELS[asIsStrat]}</strong> · Desired: <strong>{SLABELS[tobeStrat]}</strong></p>
@@ -1477,7 +1449,7 @@ function App(){
                   )}
                   <div className="rpt-section">
                     <div className="rpt-heading">Session: {sessionCode.trim() || 'Demo'}</div>
-                    <p className="rpt-body" style={{marginBottom:'.75rem'}}>Group report based on <strong>{groupRespondents.length} respondents</strong> from this session. The group profile aggregates all responses to reveal the collective strategic experience of {th}.</p>
+                    <p className="rpt-body" style={{marginBottom:'.75rem'}}>Group report based on <strong>{groupRespondents.length} respondents</strong> from this session. The group profile aggregates all responses to reveal the collective strategic experience of {th}. {!sessionCode.trim() && <span style={{color:'#e07030',fontWeight:600}}>In the live tool, respondents are linked by the organisation code from Define Your System — this preview uses simulated co-respondents.</span>}</p>
                     {(()=>{
                       const ROLE_ORDER=['Executive / Board','Senior Leader','Manager','Team Leader','Frontline / Operational','Other'];
                       const roleCounts={};
