@@ -959,7 +959,7 @@ function App(){
   const s1done=s1ans.every(a=>(parseInt(a.l)||0)+(parseInt(a.r)||0)>0)&&!s1over;
   const s2done=s2ans.every(a=>(parseInt(a.l)||0)+(parseInt(a.r)||0)>0)&&!s2over;
 
-  const effectiveCode = sessionCode.trim() || 'DEMO-SESSION';
+  const effectiveCode = sessionCode.trim();
   const isAdmin = respondentName.trim().toLowerCase()==='admin';
   const groupRespondents = (sessionCode.trim() && participants && participants.filter(p=>p.completed).length>1) ? participants.filter(p=>p.completed) : null;
 
@@ -991,7 +991,7 @@ function App(){
     setS1Active(0);setS2Active(0);
     setTobe({p:0,d:0,c:0,f:0});setTobeInit(false);
     setShowReport(false);setRptTab(0);setRole('');setRoleCustom('');
-    setPrevSubmission(null);setApiError(false);
+    setApiError(false);
   }
 
   const {pGap,dGap,cGap,fGap,mindsetGap,approachGap}=computeGaps(prog,def,con,flex,tobe.p,tobe.d,tobe.c,tobe.f);
