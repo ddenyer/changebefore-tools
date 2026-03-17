@@ -1717,8 +1717,8 @@ function App(){
                       if(highVar.length===0)return null;
                       const splits=highVar.map(item=>{
                         const sk=item.sectionKey;const qi=item.qi;
-                        const seniorMean=seniors.reduce((s,r)=>(s+(parseInt(r[sk][qi]?.r)||0)),0)/seniors.length;
-                        const juniorMean=juniors.reduce((s,r)=>(s+(parseInt(r[sk][qi]?.r)||0)),0)/juniors.length;
+                        const seniorMean=seniors.length?seniors.reduce((s,r)=>(s+(parseInt(r[sk]?.[qi]?.r)||0)),0)/seniors.length:0;
+                        const juniorMean=juniors.length?juniors.reduce((s,r)=>(s+(parseInt(r[sk]?.[qi]?.r)||0)),0)/juniors.length:0;
                         return{q:item.q.q,seniorMean,juniorMean,diff:Math.abs(seniorMean-juniorMean)};
                       }).filter(x=>x.diff>=2).sort((a,b)=>b.diff-a.diff);
                       if(splits.length===0)return null;
