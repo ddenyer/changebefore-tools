@@ -1527,10 +1527,10 @@ function App(){
                     <div className="rpt-heading">Your Profile vs Group — At a Glance</div>
                     <div className="gap-summary">
                       <div className="gap-row hdr"><div>Dimension</div><div className="gap-val" style={{color:'#e07030'}}>You now</div><div className="gap-val" style={{color:'#1a1a1a'}}>Group now</div><div className="gap-val" style={{color:'#555'}}>You future</div><div className="gap-val" style={{color:'#059669'}}>Group future</div></div>
-                      {[{lbl:'Progressive',ya:prog,ga:groupMean.prog,yt:tobe.p,gt:groupTobe?groupTobe.p:null},
-                        {lbl:'Defensive',ya:def,ga:groupMean.def,yt:tobe.d,gt:groupTobe?groupTobe.d:null},
-                        {lbl:'Consistent',ya:con,ga:groupMean.con,yt:tobe.c,gt:groupTobe?groupTobe.c:null},
-                        {lbl:'Flexible',ya:flex,ga:groupMean.flex,yt:tobe.f,gt:groupTobe?groupTobe.f:null}
+                      {[{lbl:'Progressive',ya:prog,ga:groupMean?.prog||0,yt:tobe.p,gt:groupTobe?groupTobe.p:null},
+                        {lbl:'Defensive',ya:def,ga:groupMean?.def||0,yt:tobe.d,gt:groupTobe?groupTobe.d:null},
+                        {lbl:'Consistent',ya:con,ga:groupMean?.con||0,yt:tobe.c,gt:groupTobe?groupTobe.c:null},
+                        {lbl:'Flexible',ya:flex,ga:groupMean?.flex||0,yt:tobe.f,gt:groupTobe?groupTobe.f:null}
                       ].map(r=>(
                         <div key={r.lbl} className="gap-row">
                           <div style={{fontWeight:600}}>{r.lbl}</div>
