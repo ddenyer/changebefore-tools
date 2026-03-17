@@ -761,12 +761,12 @@ function generateFacilitatorInsights(groupRespondents, groupMean, groupTobe, que
   }).sort((a,b)=>b.dist-a.dist);
   const topDivergers = divergence.filter(d=>d.dist>15).slice(0,3);
   const surprises = [];
-  const progDefBalance = Math.abs(groupMean.prog - groupMean.def);
-  if(progDefBalance<8) surprises.push(`The group is unusually balanced between Progressive (${Math.round(groupMean.prog)}) and Defensive (${Math.round(groupMean.def)}) — a neutral mindset position. This is rare and worth exploring: is this a genuine strategic choice, or does it reflect uncertainty or lack of shared direction?`);
-  if(groupMean.prog>85) surprises.push(`The group's average Progressive score (${Math.round(groupMean.prog)}) is very high. This level of forward-orientation is striking — it may reflect genuine ambition, or it could suggest insufficient attention to risk and defensive resilience.`);
-  if(groupMean.def>85) surprises.push(`The group's average Defensive score (${Math.round(groupMean.def)}) is very high. This degree of defensive focus warrants discussion — is ${org} in a genuinely high-risk environment, or has caution become the default mode even where growth is possible?`);
-  if(groupMean.flex>85) surprises.push(`The group's average Flexible score (${Math.round(groupMean.flex)}) is very high. High flexibility at group level may reflect genuine adaptability, or it could indicate inconsistency and a lack of shared standards.`);
-  if(groupMean.con>85) surprises.push(`The group's average Consistent score (${Math.round(groupMean.con)}) is very high. This level of standardisation may be appropriate for ${org}'s context — or it may indicate over-reliance on procedure at the expense of judgement.`);
+  const progDefBalance = Math.abs(groupMean?.prog - groupMean?.def);
+  if(progDefBalance<8) surprises.push(`The group is unusually balanced between Progressive (${Math.round(groupMean?.prog)}) and Defensive (${Math.round(groupMean?.def)}) — a neutral mindset position. This is rare and worth exploring: is this a genuine strategic choice, or does it reflect uncertainty or lack of shared direction?`);
+  if(groupMean?.prog>85) surprises.push(`The group's average Progressive score (${Math.round(groupMean?.prog)}) is very high. This level of forward-orientation is striking — it may reflect genuine ambition, or it could suggest insufficient attention to risk and defensive resilience.`);
+  if(groupMean?.def>85) surprises.push(`The group's average Defensive score (${Math.round(groupMean?.def)}) is very high. This degree of defensive focus warrants discussion — is ${org} in a genuinely high-risk environment, or has caution become the default mode even where growth is possible?`);
+  if(groupMean?.flex>85) surprises.push(`The group's average Flexible score (${Math.round(groupMean?.flex)}) is very high. High flexibility at group level may reflect genuine adaptability, or it could indicate inconsistency and a lack of shared standards.`);
+  if(groupMean?.con>85) surprises.push(`The group's average Consistent score (${Math.round(groupMean?.con)}) is very high. This level of standardisation may be appropriate for ${org}'s context — or it may indicate over-reliance on procedure at the expense of judgement.`);
   if(surprises.length===0) surprises.push(`The group's profile is relatively consistent with what might be expected for an organisation of this type. There are no immediately striking anomalies — but the facilitator may want to probe whether the scores reflect genuine self-awareness or social desirability.`);
   const contentions = [];
   if(questionVariance&&questionVariance.length>0){
@@ -1053,11 +1053,11 @@ function App(){
     }), {p:0,d:0,c:0,f:0});
     return {p: sum.p/n, d: sum.d/n, c: sum.c/n, f: sum.f/n};
   })() : null;
-  const grpTobeStrat = groupTobe ? getStrategy(groupTobe.d, groupTobe.p, groupTobe.c, groupTobe.f) : 'neutral';
+  const grpTobeStrat = groupTobe ? getStrategy(groupTobe?.d, groupTobe?.p, groupTobe?.c, groupTobe?.f) : 'neutral';
   const groupSuggestions = groupRespondents && groupMean
     ? generateGroupSuggestions(groupMean, tobe.p, tobe.d, tobe.c, tobe.f, thing, [thingDesc, contextText].join(' '), highVarQs)
     : [];
-  const grpStrat = groupMean ? getStrategy(groupMean.def, groupMean.prog, groupMean.con, groupMean.flex) : 'neutral';
+  const grpStrat = groupMean ? getStrategy(groupMean?.def, groupMean?.prog, groupMean?.con, groupMean?.flex) : 'neutral';
   const topConsensus = [...allVariance].sort((a,b)=>a.variance-b.variance).slice(0,5);
   const topDisagreement = allVariance.slice(0,5);
 
@@ -1483,7 +1483,7 @@ function App(){
                   <div className="chart-box" style={{maxWidth:'340px',margin:'0 auto 2rem'}}>
                     <CombinedDiamondChart
                       yourProfile={isAdmin?null:{prog,def,con,flex}}
-                      groupProfile={groupMean?{prog:groupMean.prog,def:groupMean.def,con:groupMean.con,flex:groupMean.flex}:{prog:0,def:0,con:0,flex:0}}
+                      groupProfile={groupMean?{prog:groupMean?.prog,def:groupMean?.def,con:groupMean?.con,flex:groupMean?.flex}:{prog:0,def:0,con:0,flex:0}}
                       otherProfiles={(groupRespondents||[]).map(r=>scoreRespondent(r.s1,r.s2))}
                       yourColor="#e07030"
                       groupColor="#e07030"
@@ -1505,7 +1505,7 @@ function App(){
                   <div className="chart-box" style={{maxWidth:'340px',margin:'0 auto 1.5rem'}}>
                     <CombinedDiamondChart
                       yourProfile={{prog:tobe.p,def:tobe.d,con:tobe.c,flex:tobe.f}}
-                      groupProfile={{prog:groupTobe.p,def:groupTobe.d,con:groupTobe.c,flex:groupTobe.f}}
+                      groupProfile={{prog:groupTobe?.p,def:groupTobe?.d,con:groupTobe?.c,flex:groupTobe?.f}}
                       otherProfiles={[]}
                       yourColor="#1a1a1a"
                       groupColor="#059669"
@@ -1527,10 +1527,10 @@ function App(){
                     <div className="rpt-heading">Your Profile vs Group — At a Glance</div>
                     <div className="gap-summary">
                       <div className="gap-row hdr"><div>Dimension</div><div className="gap-val" style={{color:'#e07030'}}>You now</div><div className="gap-val" style={{color:'#1a1a1a'}}>Group now</div><div className="gap-val" style={{color:'#555'}}>You future</div><div className="gap-val" style={{color:'#059669'}}>Group future</div></div>
-                      {[{lbl:'Progressive',ya:prog,ga:groupMean?.prog||0,yt:tobe.p,gt:groupTobe?groupTobe.p:null},
-                        {lbl:'Defensive',ya:def,ga:groupMean?.def||0,yt:tobe.d,gt:groupTobe?groupTobe.d:null},
-                        {lbl:'Consistent',ya:con,ga:groupMean?.con||0,yt:tobe.c,gt:groupTobe?groupTobe.c:null},
-                        {lbl:'Flexible',ya:flex,ga:groupMean?.flex||0,yt:tobe.f,gt:groupTobe?groupTobe.f:null}
+                      {[{lbl:'Progressive',ya:prog,ga:groupMean?.prog||0,yt:tobe.p,gt:groupTobe?groupTobe?.p:null},
+                        {lbl:'Defensive',ya:def,ga:groupMean?.def||0,yt:tobe.d,gt:groupTobe?groupTobe?.d:null},
+                        {lbl:'Consistent',ya:con,ga:groupMean?.con||0,yt:tobe.c,gt:groupTobe?groupTobe?.c:null},
+                        {lbl:'Flexible',ya:flex,ga:groupMean?.flex||0,yt:tobe.f,gt:groupTobe?groupTobe?.f:null}
                       ].map(r=>(
                         <div key={r.lbl} className="gap-row">
                           <div style={{fontWeight:600}}>{r.lbl}</div>
