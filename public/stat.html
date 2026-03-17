@@ -227,7 +227,9 @@ html,body{font-family:'DM Sans',sans-serif;background:#f0ede8;color:#1a1a1a;-web
 .diamond-fullscreen-inner{background:#fff;border-radius:12px;padding:2rem;max-width:520px;width:90%;position:relative}
 .diamond-fullscreen-close{position:absolute;top:.75rem;right:.75rem;background:none;border:none;font-size:1.4rem;cursor:pointer;color:#666;line-height:1}
 .diamond-expand-hint{font-size:.65rem;color:#b0a898;text-align:center;margin-top:.3rem;cursor:pointer;font-family:'DM Sans',sans-serif}
+.print-copyright{display:none}
 @media print{
+  .print-copyright{display:block!important;text-align:center;font-size:.65rem;color:#888;margin-top:2rem;padding-top:1rem;border-top:1px solid #d8d3cb;font-family:'DM Sans',sans-serif}
   .print-tab-section{display:block!important}
   .print-tab-section+.print-tab-section{page-break-before:always}
   .ftr,.prog-wrap,.back-btn,.btn-row,.rpt-tabs,.mock-badge{display:none!important}
@@ -1160,7 +1162,7 @@ function App(){
                 {isAdmin&&sessionCode.trim()&&<div className="field-sub" style={{color:'#e07030',fontWeight:600,marginTop:'.35rem'}}>⚡ Facilitator mode — you will be taken straight to the group report</div>}
               </div>
               <div style={{marginBottom:'1.5rem'}}>
-                <label className="field-lbl">Joining a group session? Enter your session code</label>
+                <label className="field-lbl">Joining a group session? Enter the session code provided by your facilitator</label>
                 <div className="field-sub">Leave blank if not applicable.</div>
                 <input className="inp" placeholder="e.g. SELL-2025" value={sessionCode} onChange={e=>setSessionCode(e.target.value)} style={{maxWidth:'260px'}}/>
               </div>
@@ -1186,7 +1188,7 @@ function App(){
           {step===1&&(
             <div>
               <BackBtn onClick={()=>go(0)}/>
-              <div className="sec-tag">Section 1 — What Are We Looking At?</div>
+              <div className="sec-tag">Section 1a — What Are We Looking At?</div>
               <h2 className="pg-title">What is the thing you want to work on?</h2>
               <p className="pg-sub">This could be a team, a department, a division, a whole organisation, or any system you want to explore. Be as specific as possible — the more clearly you define it, the more useful your results will be.</p>
               <p style={{fontSize:'.85rem',color:'#888',marginBottom:'1.25rem',fontFamily:"'DM Sans',sans-serif"}}>Need help identifying what to focus on? Try the <a href="https://changebefore.com/define/" target="_blank" rel="noopener noreferrer" style={{color:'#e07030',textDecoration:'none',fontWeight:600}}>Define Your System tool →</a></p>
@@ -1207,9 +1209,9 @@ function App(){
           {step===2&&(
             <div>
               <BackBtn onClick={()=>go(1)}/>
-              <div className="sec-tag">Section 1 — What Are We Looking At?</div>
+              <div className="sec-tag">Section 1a — What Are We Looking At?</div>
               <h2 className="pg-title">Tell us about it</h2>
-              <p className="pg-sub">Please share any information about the thing you want to work on. You can add notes, a website link, or upload a document. These are optional, but they will help improve the results.</p>
+              <p className="pg-sub">Please share any information about the thing you want to work on. You can add notes, a website link, or upload a document. This section is optional, but it will help improve the results.</p>
 
               <label className="field-lbl" style={{fontWeight:400,color:'#555',marginBottom:'.5rem'}}>What is it? Don't worry about precision — just tell me about it.</label>
               <textarea className="inp inp-ta" placeholder="Describe it in your own words." value={contextText} onChange={e=>setContextText(e.target.value)} style={{minHeight:'180px',marginBottom:'.25rem'}}/>
@@ -1291,7 +1293,7 @@ function App(){
                   </div>
                 </div>
                 <div style={{fontSize:'.75rem',color:'#555',marginTop:'.75rem',lineHeight:1.5,fontFamily:"'DM Sans',sans-serif"}}>
-                  In this example the person scored <strong>7–3</strong>, meaning they strongly believe their organisation follows established procedures. A score of <strong>5–5</strong> would mean equal weight. All 10 points must be allocated — you can give all 10 to one side if that reflects reality.
+                  In this example the person scored <strong>7–3</strong>, meaning they strongly believe their organisation follows established procedures. A score of <strong>5–5</strong> would mean equal weight.
                 </div>
               </div>
               <QuestionSection secData={S1} answers={s1ans} onChange={setS1} activeIdx={s1active} setActiveIdx={setS1Active}/>
@@ -1327,7 +1329,7 @@ function App(){
               <BackBtn onClick={()=>go(4)}/>
               <div className="sec-tag">Your Current Profile</div>
               <h2 className="pg-title">How <em style={{fontStyle:'normal',color:'#e07030'}}>{th}</em> operates today</h2>
-              <p className="pg-sub">Your scores across the four strategic dimensions, plotted on the resilience profile chart.</p>
+              <p className="pg-sub">Your scores across the four strategic dimensions plotted on the STAT profile chart.</p>
               <div className="chart-box" style={{maxWidth:'320px',margin:'0 auto 1.5rem'}}>
                 <ExpandableDiamond title={`As-Is Profile — ${th}`}>
                   <div className="chart-lbl">As-Is Profile — {th}</div>
@@ -1346,7 +1348,7 @@ function App(){
               </div>
               <div className="strat-badge"><div className="strat-dot"/><div><strong style={{fontFamily:"'DM Sans',sans-serif"}}>Dominant strategy: {SLABELS[asIsStrat]}</strong><br/><span style={{fontSize:'.8rem',fontWeight:400,color:'#666',fontFamily:"'DM Sans',sans-serif"}}>{SDESC[asIsStrat]}</span></div></div>
               <div className="btn-row">
-                <button className="btn-p" onClick={()=>go(6)}>Set Future Vision →</button>
+                <button className="btn-p" onClick={()=>go(6)}>Set Future Profile →</button>
                 <button className="btn-s" onClick={()=>go(4)}>← Back</button>
               </div>
             </div>
@@ -1356,7 +1358,7 @@ function App(){
           {step===6&&(
             <div>
               <BackBtn onClick={()=>go(5)}/>
-              <div className="sec-tag">Future Vision</div>
+              <div className="sec-tag">Future Profile</div>
               <h2 className="pg-title">Where do you want <em style={{fontStyle:'normal',color:'#e07030'}}>{th}</em> to be?</h2>
               <p className="pg-sub">Drag the sliders to set your desired future profile. The sliders start from your current as-is scores. Moving one slider will automatically adjust its paired dimension so the combined total stays within 120.</p>
               <div className="slider-section">
@@ -1389,7 +1391,7 @@ function App(){
                 ):(
                   <button className="btn-p" onClick={generate}>Generate My Report →</button>
                 )}
-                {showReport&&<button className="btn-s" onClick={()=>{go(7);setRptTab(2);}}>⚡ Live Suggestions</button>}
+                
                 <button className="btn-s" onClick={()=>go(5)}>← Back</button>
               </div>
             </div>
@@ -1477,7 +1479,7 @@ function App(){
                   )}
                   <div className="btn-row">
                     <button className="btn-p" onClick={()=>setRptTab(1)}>Read Detailed Analysis →</button>
-                    <button className="btn-s" onClick={()=>go(6)}>← Back to Future Vision</button>
+                    <button className="btn-s" onClick={()=>go(6)}>← Back to Future Profile</button>
                   </div>
                 </div>
               </div>
@@ -1500,7 +1502,7 @@ function App(){
                   <div className="btn-row">
                     <button className="btn-p" onClick={()=>setRptTab(2)}>See Actions →</button>
                     <button className="btn-s" onClick={()=>setRptTab(0)}>← Profile</button>
-                    <button className="btn-s" onClick={()=>go(6)}>← Back to Future Vision</button>
+                    <button className="btn-s" onClick={()=>go(6)}>← Back to Future Profile</button>
                   </div>
                 </div>
               </div>
@@ -1550,7 +1552,7 @@ function App(){
                   <div className="btn-row" style={{marginTop:'2rem'}}>
                     <button className="btn-p" onClick={()=>setRptTab(4)}>Save & Next Steps →</button>
                     <button className="btn-s" onClick={()=>setRptTab(0)}>← Profile</button>
-                    <button className="btn-s" onClick={()=>go(6)}>← Back to Future Vision</button>
+                    <button className="btn-s" onClick={()=>go(6)}>← Back to Future Profile</button>
                     <button className="btn-s" onClick={restart}>Start Again</button>
                   </div>
                 </div>
@@ -1928,6 +1930,7 @@ function App(){
               )}
             </div>
           )}
+              <div className="print-copyright">© ChangeBefore Ltd. All rights reserved. This report is confidential and intended solely for the named recipient. STAT is a proprietary diagnostic tool. Unauthorised reproduction or distribution is prohibited.</div>
 
         </div>
       </div>
