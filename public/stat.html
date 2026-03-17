@@ -1066,7 +1066,7 @@ function App(){
 
   function getStrategyText(strat){
     const ctx=[thingDesc,contextText].filter(Boolean).join(' ');
-    const rawCtx=ctx.length>15?ctx.slice(0,120)+(ctx.length>120?'…':''):'';const ctxNote=rawCtx?` ${rawCtx.charAt(0).toLowerCase()+rawCtx.slice(1).replace(/\.\s*$/,'')+'.'}`:'';
+    const ctxNote=ctx.length>15?` This pattern is particularly notable given ${th}'s context: ${ctx.slice(0,100)}${ctx.length>100?'...':''}`:'';
     const texts={
       preventative_control:{
         summary:`${capTh}'s profile shows a dominant Preventative Control strategy — a defensive, consistency-focused approach.${ctxNote} Organisational resilience is achieved through robust risk management, physical barriers, systems back-ups, safeguards and standards. The organisation is strongly oriented toward protecting what exists and preventing disruption rather than proactively pursuing change.`,
