@@ -1542,7 +1542,7 @@ function App(){
               </div>
 
               {/* TAB 3 — GROUP REPORT */}
-              <div style={{display:rptTab===3?'block':'none'}} className="print-tab-section">
+              {rptTab===3&&(
                 <div>
                 {!groupRespondents&&(
                   <div style={{padding:'2rem',background:'#fff8f5',border:'1px solid #e07030',borderRadius:'6px',marginBottom:'1rem',fontFamily:"'DM Sans',sans-serif"}}>
@@ -1760,8 +1760,8 @@ function App(){
                     <button className="btn-s" onClick={restart}>Start Again</button>
                     <button className="btn-s" onClick={()=>setRptTab(0)}>← Individual Report</button>
                   </div>
-                </div>)}
-              </div>
+                </div>
+              )}
 
 
               {/* TAB 4 — SAVE & NEXT STEPS */}
