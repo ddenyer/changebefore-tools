@@ -1773,6 +1773,7 @@ function App(){
                     <div className="btn-row" style={{marginTop:'1rem'}}>
                       <button className="btn-p" onClick={printReport}>⬇ Save / Print Full Report</button>
                     </div>
+                    {sessionCode.trim()&&<p style={{fontSize:'.8rem',color:'#888',marginTop:'.75rem',fontFamily:"'DM Sans',sans-serif"}}>To include the Group Report in your PDF, switch to the Group Report tab first, then print.</p>}
                   </div>
 
                   <div className="rpt-section" style={{borderTop:'1px solid #d8d3cb',paddingTop:'1.75rem',marginTop:'1.75rem'}}>
