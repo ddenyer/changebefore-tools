@@ -795,6 +795,7 @@ function computeGroupMean(respondents) {
 }
 
 function computeQuestionVariance(respondents, allQ, sectionKey) {
+  if(!respondents||!respondents.length||!allQ)return [];
   return allQ.map((q, qi) => {
     const rights = respondents.map(r => parseInt(r[sectionKey]?.[qi]?.r) || 0);
     const mean = rights.reduce((s, v) => s + v, 0) / rights.length;
@@ -852,7 +853,7 @@ function generateGroupSuggestions(groupMean, userTobeP, userTobeD, userTobeC, us
   if (highVarQs) {
     const allSorted = [...highVarQs].sort((a, b) => a.variance - b.variance);
     if (allSorted.length > 0 && allSorted[0].variance < 1.5) {
-      const topConsensus = allSorted[0];
+      const topConsensus = allSorted.length>0 ? allSorted[0] : null;
       suggestions.push(`The area of strongest agreement across ${th} is: "<em>${topConsensus.q.q}</em>" — where respondents gave remarkably consistent answers (mean right-side score: ${topConsensus.meanR.toFixed(1)}). This represents a genuine organisational characteristic that can be relied upon as a foundation for change.`);
     }
   }
@@ -1033,7 +1034,7 @@ function App(){
   const allS2Q = S2.categories.flatMap(c => c.qs);
   const s1Variance = groupRespondents ? computeQuestionVariance(groupRespondents, allS1Q, 's1') : [];
   const s2Variance = groupRespondents ? computeQuestionVariance(groupRespondents, allS2Q, 's2') : [];
-  const allVariance = [...s1Variance, ...s2Variance].sort((a, b) => b.variance - a.variance);
+  const allVariance = [...(s1Variance||[]), ...(s2Variance||[])].sort((a, b) => b.variance - a.variance);
   const highVarQs = allVariance.slice(0, 5);
   const groupTobe = groupRespondents ? (()=>{
     const seed = effectiveCode.split('').reduce((s,c,i)=>s+c.charCodeAt(0)*(i+1),0);
@@ -1617,7 +1618,7 @@ function App(){
                       {(groupRespondents||[]).map((r,i)=>(
                         <div key={i} className={`resp-chip${r.isYou?' you':''}`} title={r.role||''}>
                           {r.name}{r.isYou?' (you)':''}
-                          {r.role&&<span style={{fontSize:'.6rem',opacity:.6,marginLeft:'.25rem'}}>· {r.role.split('/')[0].trim()}</span>}
+                          {r.role&&<span style={{fontSize:'.6rem',opacity:.6,marginLeft:'.25rem'}}>· {(r.role||'').split('/')[0].trim()}</span>}
                         </div>
                       ))}
                     </div>
@@ -1691,12 +1692,12 @@ function App(){
                     <p className="rpt-body" style={{marginBottom:'.75rem'}}>These are the questions where respondents gave the most similar answers — suggesting genuine shared understanding of how {th} operates in these areas.</p>
                     <div className="var-table">
                       <div className="var-row hdr"><div>Question</div><div>Mean score (A|B)</div><div>Consistency</div><div>Status</div></div>
-                      {topConsensus.map((item,i)=>(
+                      {(topConsensus||[]).map((item,i)=>(
                         <div key={i} className="var-row">
-                          <div style={{fontSize:'.77rem',lineHeight:1.45,color:'#1a1a1a'}}>{item.q.q}</div>
-                          <div style={{fontSize:'.78rem',color:'#888',whiteSpace:'nowrap'}}>{item.meanL.toFixed(1)} | {item.meanR.toFixed(1)}</div>
+                          <div style={{fontSize:'.77rem',lineHeight:1.45,color:'#1a1a1a'}}>{item.q?.q||""}</div>
+                          <div style={{fontSize:'.78rem',color:'#888',whiteSpace:'nowrap'}}>{(item.meanL||0).toFixed(1)} | {item.meanR.toFixed(1)}</div>
                           <div className="var-bar-wrap"><div className="var-bar-bg"><div className="var-bar-fill" style={{width:`${(1-normVar(item.variance))*100}%`,background:varBarColor(item.variance)}}/></div></div>
-                          <div><span className={`cons-badge ${varClass(item.variance)}`}>{varLabel(item.variance)}</span></div>
+                          <div><span className={`cons-badge ${varClass(item.variance||0)}`}>{varLabel(item.variance||0)}</span></div>
                         </div>
                       ))}
                     </div>
@@ -1713,7 +1714,7 @@ function App(){
                       const seniors=(groupRespondents||[]).filter(r=>seniorRoles.includes(r.role));
                       const juniors=(groupRespondents||[]).filter(r=>juniorRoles.includes(r.role));
                       if(seniors.length<1||juniors.length<1)return null;
-                      const highVar=topDisagreement.filter(item=>item.variance>=2.5);
+                      const highVar=(topDisagreement||[]).filter(item=>(item.variance||0)>=2.5);
                       if(highVar.length===0)return null;
                       const splits=highVar.map(item=>{
                         const sk=item.sectionKey;const qi=item.qi;
@@ -1726,18 +1727,18 @@ function App(){
                       const seniorDir=top.seniorMean>top.juniorMean?'more progressive':'more defensive';
                       return(
                         <div style={{background:'#fffbeb',border:'1px solid #fde68a',borderRadius:'5px',padding:'.65rem .9rem',marginBottom:'.75rem',fontSize:'.78rem',color:'#92400e',fontFamily:"'DM Sans',sans-serif"}}>
-                          <strong>Seniority split detected:</strong> On <em>"{top.q}"</em>, senior leaders (avg {top.seniorMean.toFixed(1)}) and operational staff (avg {top.juniorMean.toFixed(1)}) scored this question differently by {top.diff.toFixed(1)} points. Senior leaders lean {seniorDir}. This may indicate that the strategy being set at the top is not the one being experienced on the ground.
+                          <strong>Seniority split detected:</strong> On <em>"{top.q}"</em>, senior leaders (avg {(top?.seniorMean||0).toFixed(1)}) and operational staff (avg {(top?.juniorMean||0).toFixed(1)}) scored this question differently by {top.diff.toFixed(1)} points. Senior leaders lean {seniorDir}. This may indicate that the strategy being set at the top is not the one being experienced on the ground.
                         </div>
                       );
                     })()}
                     <div className="var-table">
                       <div className="var-row hdr"><div>Question</div><div>Mean score (A|B)</div><div>Disagreement</div><div>Status</div></div>
-                      {topDisagreement.map((item,i)=>(
+                      {(topDisagreement||[]).map((item,i)=>(
                         <div key={i} className="var-row">
-                          <div style={{fontSize:'.77rem',lineHeight:1.45,color:'#1a1a1a'}}>{item.q.q}</div>
-                          <div style={{fontSize:'.78rem',color:'#888',whiteSpace:'nowrap'}}>{item.meanL.toFixed(1)} | {item.meanR.toFixed(1)}</div>
+                          <div style={{fontSize:'.77rem',lineHeight:1.45,color:'#1a1a1a'}}>{item.q?.q||""}</div>
+                          <div style={{fontSize:'.78rem',color:'#888',whiteSpace:'nowrap'}}>{(item.meanL||0).toFixed(1)} | {item.meanR.toFixed(1)}</div>
                           <div className="var-bar-wrap"><div className="var-bar-bg"><div className="var-bar-fill" style={{width:`${normVar(item.variance)*100}%`,background:varBarColor(item.variance)}}/></div></div>
-                          <div><span className={`cons-badge ${varClass(item.variance)}`}>{varLabel(item.variance)}</span></div>
+                          <div><span className={`cons-badge ${varClass(item.variance||0)}`}>{varLabel(item.variance||0)}</span></div>
                         </div>
                       ))}
                     </div>
@@ -1746,7 +1747,7 @@ function App(){
                   <div className="rpt-section">
                     <div className="rpt-heading">Organisational Suggestions for {th}</div>
                     <p className="rpt-body" style={{marginBottom:'1rem'}}>These suggestions are based on the group profile, the areas of greatest disagreement, and the context you have provided. They are intended as starting points for organisational dialogue — not prescriptions.</p>
-                    {groupSuggestions.map((s,i)=>(
+                    {(groupSuggestions||[]).map((s,i)=>(
                       <div key={i} className="grp-sug-item">
                         <div className="grp-sug-num">{i+1}</div>
                         <div className="grp-sug-txt" dangerouslySetInnerHTML={{__html:s}}/>
