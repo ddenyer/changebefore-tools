@@ -104,6 +104,21 @@ html,body{font-family:'DM Sans',sans-serif;background:#f0ede8;color:#1a1a1a;-web
 .rpt-tab.active{color:#1a1a1a;border-bottom-color:#1a1a1a}
 .rpt-tab:hover:not(.active){color:#555}
 .rpt-section{margin-bottom:1.5rem}
+.da-summary{background:#fff;border:1px solid #d8d3cb;border-left:4px solid #1a1a1a;border-radius:4px;padding:1.25rem 1.5rem;margin-bottom:1.75rem}
+.da-summary-heading{font-size:.63rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#1a1a1a;margin-bottom:.5rem;font-family:'DM Sans',sans-serif}
+.da-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.75rem}
+.da-card{background:#fff;border:1px solid #d8d3cb;border-top:3px solid #e07030;border-radius:4px;padding:1.1rem 1.25rem}
+.da-card-heading{font-size:.63rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#e07030;margin-bottom:.5rem;font-family:'DM Sans',sans-serif}
+.da-lower{display:flex;flex-direction:column;gap:.85rem;margin-bottom:1.5rem}
+.da-lower-card{background:#fff;border:1px solid #d8d3cb;border-radius:4px;padding:1.1rem 1.25rem}
+.da-lower-card.best{border-left:4px solid #16a34a}
+.da-lower-card.blind{border-left:4px solid #dc2626}
+.da-lower-card.areas{border-left:4px solid #2563eb}
+.da-lower-heading{font-size:.63rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.5rem;font-family:'DM Sans',sans-serif}
+.da-lower-card.best .da-lower-heading{color:#16a34a}
+.da-lower-card.blind .da-lower-heading{color:#dc2626}
+.da-lower-card.areas .da-lower-heading{color:#2563eb}
+@media(max-width:600px){.da-grid{grid-template-columns:1fr}}
 .rpt-heading{font-size:.63rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#e07030;margin-bottom:.5rem;font-family:'DM Sans',sans-serif}
 .rpt-body{font-size:.875rem;line-height:1.75;color:#1a1a1a;margin-bottom:.65rem;font-family:'DM Sans',sans-serif}
 .rpt-subhead{font-size:.84rem;font-weight:700;color:#1a1a1a;margin:.9rem 0 .35rem;font-family:'Cormorant Garamond',serif}
@@ -213,6 +228,8 @@ html,body{font-family:'DM Sans',sans-serif;background:#f0ede8;color:#1a1a1a;-web
 .diamond-fullscreen-close{position:absolute;top:.75rem;right:.75rem;background:none;border:none;font-size:1.4rem;cursor:pointer;color:#666;line-height:1}
 .diamond-expand-hint{font-size:.65rem;color:#b0a898;text-align:center;margin-top:.3rem;cursor:pointer;font-family:'DM Sans',sans-serif}
 @media print{
+  .print-tab-section{display:block!important}
+  .print-tab-section+.print-tab-section{page-break-before:always}
   .ftr,.prog-wrap,.back-btn,.btn-row,.rpt-tabs,.mock-badge{display:none!important}
   .shell{display:block}
   .content{max-width:100%;padding:1rem}
@@ -1386,11 +1403,13 @@ function App(){
               <h2 className="pg-title">{th}</h2>
               <p className="pg-sub">Current: <strong>{SLABELS[asIsStrat]}</strong> · Desired: <strong>{SLABELS[tobeStrat]}</strong></p>
               <div className="rpt-tabs">
-                {['Profile & Charts','Detailed Analysis','Suggestions & Actions','Group Report','Save & Next Steps'].map((t,i)=>(
-                  <div key={i} className={`rpt-tab${rptTab===i?' active':''}`} onClick={()=>setRptTab(i)}>
-                    {t}{i===3&&groupRespondents&&<span style={{background:'#e07030',color:'#fff',borderRadius:'10px',padding:'1px 6px',fontSize:'.6rem',fontWeight:700,marginLeft:'.3rem'}}>{groupRespondents.length}</span>}
-                  </div>
+                {['Profile & Charts','Detailed Analysis','Suggestions & Actions'].map((t,i)=>(
+                  <div key={i} className={`rpt-tab${rptTab===i?' active':''}`} onClick={()=>setRptTab(i)}>{t}</div>
                 ))}
+                {sessionCode.trim()&&(
+                  <div className={`rpt-tab${rptTab===3?' active':''}`} onClick={()=>setRptTab(3)}>Group Report{groupRespondents&&<span style={{background:'#e07030',color:'#fff',borderRadius:'10px',padding:'1px 6px',fontSize:'.6rem',fontWeight:700,marginLeft:'.3rem'}}>{groupRespondents.length}</span>}</div>
+                )}
+                <div className={`rpt-tab${rptTab===4?' active':''}`} onClick={()=>setRptTab(4)}>Save & Next Steps</div>
                 {isAdmin&&(
                   <div className={`rpt-tab${rptTab===5?' active':''}`} onClick={()=>setRptTab(5)} style={{color:rptTab===5?'#e07030':'#b0a898',borderBottomColor:rptTab===5?'#e07030':'transparent'}}>
                     🔒 Facilitator
@@ -1399,7 +1418,7 @@ function App(){
               </div>
 
               {/* TAB 0 */}
-              {rptTab===0&&(
+              <div style={{display:rptTab===0?'block':'none'}} className="print-tab-section">
                 <div>
                   <div className="chart-pair">
                     <div className="chart-box">
@@ -1461,36 +1480,36 @@ function App(){
                     <button className="btn-s" onClick={()=>go(6)}>← Back to Future Vision</button>
                   </div>
                 </div>
-              )}
+              </div>
 
               {/* TAB 1 */}
-              {rptTab===1&&(
+              <div style={{display:rptTab===1?'block':'none'}} className="print-tab-section">
                 <div>
-                  <div className="rpt-section"><div className="rpt-heading">Summary</div><p className="rpt-body">{SD.summary}</p>{industryContext&&<p className="rpt-body">{industryContext}</p>}</div>
-                  <div className="rpt-section"><div className="rpt-heading">Purpose</div><p className="rpt-body">{SD.purpose}</p></div>
-                  <div className="rpt-section"><div className="rpt-heading">People</div><p className="rpt-body">{SD.people}</p></div>
-                  <div className="rpt-section"><div className="rpt-heading">Process</div><p className="rpt-body">{SD.process}</p></div>
-                  <div className="rpt-section"><div className="rpt-heading">Product</div><p className="rpt-body">{SD.product}</p></div>
-                  <div className="rpt-section"><div className="rpt-heading">At Its Best</div><p className="rpt-body">{SD.atBest}</p></div>
-                  <div className="rpt-section"><div className="rpt-heading">Blind Spots and Risk Factors</div><p className="rpt-body">{SD.blind}</p></div>
-                  <div className="rpt-section"><div className="rpt-heading">Areas for Consideration</div><p className="rpt-body">{SD.areas}</p></div>
+                  <div className="da-summary"><div className="da-summary-heading">Summary</div><p className="rpt-body">{SD.summary}</p>{industryContext&&<p className="rpt-body">{industryContext}</p>}</div>
+                  <div className="da-grid">
+                    <div className="da-card"><div className="da-card-heading">Purpose</div><p className="rpt-body">{SD.purpose}</p></div>
+                    <div className="da-card"><div className="da-card-heading">People</div><p className="rpt-body">{SD.people}</p></div>
+                    <div className="da-card"><div className="da-card-heading">Process</div><p className="rpt-body">{SD.process}</p></div>
+                    <div className="da-card"><div className="da-card-heading">Product</div><p className="rpt-body">{SD.product}</p></div>
+                  </div>
+                  <div className="da-lower">
+                    <div className="da-lower-card best"><div className="da-lower-heading">At Its Best</div><p className="rpt-body">{SD.atBest}</p></div>
+                    <div className="da-lower-card blind"><div className="da-lower-heading">Blind Spots and Risk Factors</div><p className="rpt-body">{SD.blind}</p></div>
+                    <div className="da-lower-card areas"><div className="da-lower-heading">Areas for Consideration</div><p className="rpt-body">{SD.areas}</p></div>
+                  </div>
                   <div className="btn-row">
                     <button className="btn-p" onClick={()=>setRptTab(2)}>See Actions →</button>
                     <button className="btn-s" onClick={()=>setRptTab(0)}>← Profile</button>
                     <button className="btn-s" onClick={()=>go(6)}>← Back to Future Vision</button>
                   </div>
                 </div>
-              )}
+              </div>
 
               {/* TAB 2 */}
-              {rptTab===2&&(
+              <div style={{display:rptTab===2?'block':'none'}} className="print-tab-section">
                 <div>
                   <div className="rpt-section">
                     <div className="rpt-heading">About These Actions</div>
-                    <div style={{background:'#fff8f5',border:'1px solid #f5c8b0',borderRadius:'5px',padding:'.65rem .9rem',marginBottom:'1rem',fontSize:'.78rem',color:'#8b4513',display:'flex',gap:'.5rem',alignItems:'flex-start',fontFamily:"'DM Sans',sans-serif"}}>
-                      <span style={{fontSize:'1rem',flexShrink:0}}>⚡</span>
-                      <span><strong>Live view</strong> — these suggestions update automatically as you adjust your desired profile sliders. Go back to <em>Future Vision</em> and move a slider to see them change.</span>
-                    </div>
                     <p className="rpt-body">For each domain, the action is the highest-leverage experiment based on where your scores diverge most from your desired direction. The reflection question targets the second-highest-leverage area to prompt deeper reflection.</p>
                   </div>
                   <div className="gap-summary" style={{marginBottom:'1.5rem'}}>
@@ -1545,7 +1564,7 @@ function App(){
                     <strong style={{color:'#e07030'}}>Group report not available yet.</strong>
                     <p style={{marginTop:'.5rem',fontSize:'.85rem',color:'#555'}}>Complete all 24 survey questions to generate the group report.</p>
                   </div>
-                )}
+              </div>
                 {groupRespondents&&groupMean&&(<div>
                   {PREVIEW_MODE&&<div className="mock-badge">⚡ Preview — co-respondents simulated · live tool links real users via Supabase in real time</div>}
 
