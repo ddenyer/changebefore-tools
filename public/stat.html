@@ -804,6 +804,7 @@ function scoreRespondent(s1, s2) {
 }
 
 function computeGroupMean(respondents) {
+  if(!respondents||respondents.length===0)return null;
   const n = respondents.length;
   return respondents.reduce((acc, r) => {
     const sc = scoreRespondent(r.s1, r.s2);
