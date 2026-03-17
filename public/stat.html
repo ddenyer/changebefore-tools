@@ -266,7 +266,7 @@ async function supabaseSelect(table,filter){
 }
 
 // Set to false when deploying live — hides all "Preview" badges
-const PREVIEW_MODE = false;
+
 
 const S1={categories:[
   {name:'Purpose',qs:[
@@ -1164,7 +1164,7 @@ function App(){
           {/* STEP 0: LANDING */}
           {step===0&&(
             <div>
-              {PREVIEW_MODE&&<div className="mock-badge">⚡ Preview Mode</div>}
+
               <div className="land-hero">
                 <div className="land-tag">changebefore.com</div>
                 <h1 className="land-title">Strategic Tensions Assessment Tool</h1>
