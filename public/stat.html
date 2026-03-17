@@ -959,6 +959,24 @@ function App(){
   const topRef=useRef(null);
   useEffect(()=>{topRef.current&&topRef.current.scrollIntoView({behavior:'smooth'});},[step]);
 
+  // Fetch real group data from Supabase when reaching report step with session code
+  useEffect(()=>{
+    if(step!==7||!sessionCode.trim())return;
+    const code=sessionCode.trim().toUpperCase();
+    supabaseSelect('stat_responses',`session_code=eq.${code}&order=created_at.asc`)
+      .then(rows=>{
+        if(!rows||rows.length===0)return;
+        const mapped=rows.map((r,i)=>({
+          name:r.respondent_name||`Participant ${i+1}`,
+          isYou:r.respondent_name===respondentName&&i===0,
+          completed:true,
+          s1:r.s1_answers||[],
+          s2:r.s2_answers||[],
+          role:r.role||''
+        }));
+        setParticipants(mapped);
+      }).catch(()=>{});
+  },[step,sessionCode]);
 
   const def=s1ans.reduce((s,a)=>s+(parseInt(a.l)||0),0);
   const prog=s1ans.reduce((s,a)=>s+(parseInt(a.r)||0),0);
