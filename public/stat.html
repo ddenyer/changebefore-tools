@@ -744,7 +744,7 @@ function generateFacilitatorInsights(groupRespondents, groupMean, groupTobe, que
   const n = groupRespondents?.length||1;
   const dims = ['prog','def','con','flex'];
   const dimNames = {prog:'Progressive',def:'Defensive',con:'Consistent',flex:'Flexible'};
-  const scored = groupRespondents.map(r => ({...r,scores: scoreRespondent(r.s1, r.s2)}));
+  const scored = (groupRespondents||[]).map(r => ({...r,scores: scoreRespondent(r.s1, r.s2)}));
   const extremes = [];
   dims.forEach(dim => {
     const vals = scored.map(r => r.scores[dim]);
@@ -1045,7 +1045,7 @@ function App(){
   const highVarQs = allVariance.slice(0, 5);
   const groupTobe = groupRespondents ? (()=>{
     const n = groupRespondents?.length||1;
-    const sum = groupRespondents.reduce((acc, r) => ({
+    const sum = (groupRespondents||[]).reduce((acc, r) => ({
       p: acc.p + (r.tobe_prog||tobe.p),
       d: acc.d + (r.tobe_def||tobe.d),
       c: acc.c + (r.tobe_con||tobe.c),
@@ -1450,11 +1450,11 @@ function App(){
                     {(()=>{
                       const ROLE_ORDER=['Executive / Board','Senior Leader','Manager','Team Leader','Frontline / Operational','Other'];
                       const roleCounts={};
-                      groupRespondents.forEach(r=>{
+                      (groupRespondents||[]).forEach(r=>{
                         const k=r.role&&r.role!=='None of the above'?r.role:(r.role?'Other':'Unknown');
                         roleCounts[k]=(roleCounts[k]||0)+1;
                       });
-                      const hasAnyRole=groupRespondents.some(r=>r.role);
+                      const hasAnyRole=(groupRespondents||[]).some(r=>r.role);
                       if(!hasAnyRole)return null;
                       return(
                         <div style={{marginBottom:'1rem'}}>
@@ -1471,7 +1471,7 @@ function App(){
                       );
                     })()}
                     <div className="resp-chips">
-                      {groupRespondents.map((r,i)=>(
+                      {(groupRespondents||[]).map((r,i)=>(
                         <div key={i} className={`resp-chip${r.isYou?' you':''}`} title={r.role||''}>
                           {r.name}{r.isYou?' (you)':''}
                           {r.role&&<span style={{fontSize:'.6rem',opacity:.6,marginLeft:'.25rem'}}>· {r.role.split('/')[0].trim()}</span>}
@@ -1483,8 +1483,8 @@ function App(){
                   <div className="chart-box" style={{maxWidth:'340px',margin:'0 auto 2rem'}}>
                     <CombinedDiamondChart
                       yourProfile={isAdmin?null:{prog,def,con,flex}}
-                      groupProfile={{prog:groupMean.prog,def:groupMean.def,con:groupMean.con,flex:groupMean.flex}}
-                      otherProfiles={groupRespondents.map(r=>scoreRespondent(r.s1,r.s2))}
+                      groupProfile={groupMean?{prog:groupMean.prog,def:groupMean.def,con:groupMean.con,flex:groupMean.flex}:{prog:0,def:0,con:0,flex:0}}
+                      otherProfiles={(groupRespondents||[]).map(r=>scoreRespondent(r.s1,r.s2))}
                       yourColor="#e07030"
                       groupColor="#e07030"
                       title={isAdmin?"Group As-Is Profile":"As-Is — You vs Group"}
@@ -1563,12 +1563,12 @@ function App(){
                     <div className="rpt-heading">Where the Group Disagrees Most</div>
                     <p className="rpt-body" style={{marginBottom:'.75rem'}}>These questions showed the widest spread of responses — indicating that different people in {th} are experiencing or enacting the strategy differently. These are the most important questions to discuss as a group.</p>
                     {(()=>{
-                      const hasRoles=groupRespondents.some(r=>r.role&&r.role!=='None of the above');
+                      const hasRoles=(groupRespondents||[]).some(r=>r.role&&r.role!=='None of the above');
                       if(!hasRoles)return null;
                       const seniorRoles=['Executive / Board','Senior Leader'];
                       const juniorRoles=['Manager','Team Leader','Frontline / Operational'];
-                      const seniors=groupRespondents.filter(r=>seniorRoles.includes(r.role));
-                      const juniors=groupRespondents.filter(r=>juniorRoles.includes(r.role));
+                      const seniors=(groupRespondents||[]).filter(r=>seniorRoles.includes(r.role));
+                      const juniors=(groupRespondents||[]).filter(r=>juniorRoles.includes(r.role));
                       if(seniors.length<1||juniors.length<1)return null;
                       const highVar=topDisagreement.filter(item=>item.variance>=2.5);
                       if(highVar.length===0)return null;
