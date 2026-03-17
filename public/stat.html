@@ -247,6 +247,28 @@ html,body{font-family:'DM Sans',sans-serif;background:#f0ede8;color:#1a1a1a;-web
 <script type="text/babel">
 const {useState,useRef,useEffect,useCallback}=React;
 
+// Supabase
+const SB_URL='https://vxovyhzqzlvjvntjnzej.supabase.co';
+const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ4b3Z5aHpxemx2anZudGpuemVqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM3NzQ4OTYsImV4cCI6MjA4OTM1MDg5Nn0.fidnRW4cXZQPIea22VHchryW7_sh2mHCVFZNGMrtwG0';
+async function supabaseInsert(table,row){
+  try{
+    const r=await fetch(`${SB_URL}/rest/v1/${table}`,{
+      method:'POST',
+      headers:{'apikey':SB_KEY,'Authorization':`Bearer ${SB_KEY}`,'Content-Type':'application/json','Prefer':'return=minimal'},
+      body:JSON.stringify(row)
+    });
+    return r.ok;
+  }catch(e){return false;}
+}
+async function supabaseSelect(table,filter){
+  try{
+    const r=await fetch(`${SB_URL}/rest/v1/${table}?${filter}`,{
+      headers:{'apikey':SB_KEY,'Authorization':`Bearer ${SB_KEY}`}
+    });
+    return r.ok?await r.json():[];
+  }catch(e){return [];}
+}
+
 // Set to false when deploying live — hides all "Preview" badges
 const PREVIEW_MODE = false;
 
@@ -972,6 +994,18 @@ function App(){
   function setTobeF(v){setTobe(t=>({...t,f:v,c:Math.min(t.c,120-v)}));}
 
   function generate(){
+    // Save to Supabase if session code entered
+    if(sessionCode.trim()){
+      supabaseInsert('stat_responses',{
+        session_code:sessionCode.trim().toUpperCase(),
+        respondent_name:respondentName||'Anonymous',
+        role:role==='None of the above'?roleCustom:role,
+        thing:thing,
+        prog:prog,def:def,con:con,flex:flex,
+        tobe_prog:tobe.p,tobe_def:tobe.d,tobe_con:tobe.c,tobe_flex:tobe.f,
+        s1_answers:s1ans,s2_answers:s2ans
+      });
+    }
     setLoading(true);
     setApiError(false);
     setParticipants(p=>p.map(x=>x.isYou?{...x,completed:true}:x));
