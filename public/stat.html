@@ -1561,7 +1561,7 @@ function App(){
                         ))}
                       </div>
                       <div>
-                        <div className="submit-txt">{groupRespondents.length} of {groupRespondents.length} completed</div>
+                        <div className="submit-txt">{groupRespondents?.length||0} of {groupRespondents?.length||0} completed</div>
                         <div className="all-in-badge" style={{marginTop:'.35rem'}}>✓ All responses in — group report is complete</div>
                       </div>
                     </div>
@@ -1590,7 +1590,7 @@ function App(){
                   )}
                   <div className="rpt-section">
                     <div className="rpt-heading">Session: {sessionCode.trim() || 'Demo'}</div>
-                    <p className="rpt-body" style={{marginBottom:'.75rem'}}>Group report based on <strong>{groupRespondents.length} respondents</strong> from this session. The group profile aggregates all responses to reveal the collective strategic experience of {th}. {!sessionCode.trim() && <span style={{color:'#e07030',fontWeight:600}}>In the live tool, respondents are linked by the organisation code from Define Your System — this preview uses simulated co-respondents.</span>}</p>
+                    <p className="rpt-body" style={{marginBottom:'.75rem'}}>Group report based on <strong>{groupRespondents?.length||0} respondents</strong> from this session. The group profile aggregates all responses to reveal the collective strategic experience of {th}. {!sessionCode.trim() && <span style={{color:'#e07030',fontWeight:600}}>In the live tool, respondents are linked by the organisation code from Define Your System — this preview uses simulated co-respondents.</span>}</p>
                     {(()=>{
                       const ROLE_ORDER=['Executive / Board','Senior Leader','Manager','Team Leader','Frontline / Operational','Other'];
                       const roleCounts={};
