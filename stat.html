@@ -1381,6 +1381,135 @@ function App(){
                   <div className="think"><div className="dots"><div className="dot"/><div className="dot"/><div className="dot"/></div><span className="think-txt">Generating your personalised report…</span></div>
                 ):apiError?(
                   <div>
+                    <div style={{background:'#fff8f5',border:'1px solid #e07030',borderRadius:'5px',padding:'.65rem .9rem',marginBottom:'.75rem',fontSize:'.82rem',color:'#c0392b',fontFamily:"'DM Sans',sans-serif"}}>
+                      ⚠ Report generation failed — please check your connection and try again.
+                    </div>
+                    <button className="btn-p" onClick={()=>{setApiError(false);generate();}}>Try Again →</button>
+                  </div>
+                ):(
+                  <button className="btn-p" onClick={generate}>Generate My Report →</button>
+                )}
+                {showReport&&<button className="btn-s" onClick={()=>{go(7);setRptTab(2);}}>⚡ Live Suggestions</button>}
+                <button className="btn-s" onClick={()=>go(5)}>← Back</button>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 7: REPORT */}
+          {step===7&&(
+            <div>
+              {PREVIEW_MODE&&<div className="mock-badge">⚡ Preview — mock report · live tool uses Anthropic API</div>}
+              <div className="sec-tag">Organisational Resilience Report</div>
+              <h2 className="pg-title">{th}</h2>
+              <p className="pg-sub">Current: <strong>{SLABELS[asIsStrat]}</strong> · Desired: <strong>{SLABELS[tobeStrat]}</strong></p>
+              <div className="rpt-tabs">
+                {['Profile & Charts','Detailed Analysis','Suggestions & Actions'].map((t,i)=>(
+                  <div key={i} className={`rpt-tab${rptTab===i?' active':''}`} onClick={()=>setRptTab(i)}>{t}</div>
+                ))}
+                {sessionCode.trim()&&(
+                  <div className={`rpt-tab${rptTab===3?' active':''}`} onClick={()=>setRptTab(3)}>Group Report{groupRespondents&&<span style={{background:'#e07030',color:'#fff',borderRadius:'10px',padding:'1px 6px',fontSize:'.6rem',fontWeight:700,marginLeft:'.3rem'}}>{groupRespondents.length}</span>}</div>
+                )}
+                <div className={`rpt-tab${rptTab===4?' active':''}`} onClick={()=>setRptTab(4)}>Save & Next Steps</div>
+                {isAdmin&&(
+                  <div className={`rpt-tab${rptTab===5?' active':''}`} onClick={()=>setRptTab(5)} style={{color:rptTab===5?'#e07030':'#b0a898',borderBottomColor:rptTab===5?'#e07030':'transparent'}}>
+                    🔒 Facilitator
+                  </div>
+                )}
+              </div>
+
+              {/* TAB 0 */}
+              <div style={{display:rptTab===0?'block':'none'}} className="print-tab-section">
+                <div>
+                  <div className="chart-pair">
+                    <div className="chart-box">
+                      <ExpandableDiamond title="Current Profile (As-Is)">
+                        <div className="chart-lbl">Current Profile (As-Is)</div>
+                        <DiamondChart p={prog} d={def} c={con} f={flex} color="#e07030" prevProfile={prevSubmission}/>
+                        <div style={{marginTop:'.75rem',fontSize:'.78rem',color:'#888',fontWeight:600,fontFamily:"'DM Sans',sans-serif"}}>{SLABELS[asIsStrat]}</div>
+                        {prevSubmission&&(
+                          <div style={{marginTop:'.5rem',fontSize:'.72rem',color:'#94a3b8',lineHeight:1.5,fontFamily:"'DM Sans',sans-serif"}}>
+                            <span style={{display:'block',marginBottom:'.2rem'}}>— — dotted line = your profile from {prevSubmission.date}</span>
+                            {[{lbl:'Progressive',now:prog,prev:prevSubmission.prog},{lbl:'Defensive',now:def,prev:prevSubmission.def},{lbl:'Consistent',now:con,prev:prevSubmission.con},{lbl:'Flexible',now:flex,prev:prevSubmission.flex}]
+                              .filter(r=>Math.abs(r.now-r.prev)>=3)
+                              .map(r=>{const d=r.now-r.prev;return(
+                                <span key={r.lbl} style={{display:'block',color:d>0?'#16a34a':'#e07030',fontWeight:600}}>
+                                  {r.lbl}: {d>0?`+${d}`:d} since last visit
+                                </span>
+                              );})
+                            }
+                          </div>
+                        )}
+                      </ExpandableDiamond>
+                    </div>
+                    <div className="chart-box">
+                      <ExpandableDiamond title="Desired Profile (To-Be)">
+                        <div className="chart-lbl">Desired Profile (To-Be)</div>
+                        <DiamondChart p={tobe.p} d={tobe.d} c={tobe.c} f={tobe.f} color="#1a1a1a"/>
+                        <div style={{marginTop:'.75rem',fontSize:'.78rem',color:'#888',fontWeight:600,fontFamily:"'DM Sans',sans-serif"}}>{SLABELS[tobeStrat]}</div>
+                      </ExpandableDiamond>
+                    </div>
+                  </div>
+                  <div className="rpt-section">
+                    <div className="rpt-heading">What This Profile Tells Us About {th}</div>
+                    <p className="rpt-body">{SD.summary}</p>
+                    {industryContext&&<p className="rpt-body">{industryContext}</p>}
+                  </div>
+                  <div className="rpt-section">
+                    <div className="rpt-heading">Gap Between Current and Desired Profile</div>
+                    <div className="gap-summary">
+                      <div className="gap-row hdr"><div>Dimension</div><div className="gap-val">Now</div><div className="gap-val">Desired</div><div className="gap-val">Change</div></div>
+                      {[{lbl:'Progressive',now:prog,des:tobe.p},{lbl:'Defensive',now:def,des:tobe.d},{lbl:'Consistent',now:con,des:tobe.c},{lbl:'Flexible',now:flex,des:tobe.f}].map(r=>{
+                        const g=r.des-r.now;const gl=gapLabel(g);
+                        return(<div key={r.lbl} className="gap-row">
+                          <div style={{fontWeight:600}}>{r.lbl}</div>
+                          <div className="gap-val">{r.now}</div>
+                          <div className="gap-val">{r.des}</div>
+                          <div className="gap-val"><span className={`gap-badge gap-${gl}`}>{gapBadgeText(g)}{g>0?` ▲${g}`:g<0?` ▼${Math.abs(g)}`:' —'}</span></div>
+                        </div>);
+                      })}
+                    </div>
+                  </div>
+                  {asIsStrat!==tobeStrat&&(
+                    <div className="rpt-section">
+                      <div className="rpt-heading">The Shift You Are Seeking</div>
+                      <p className="rpt-body">You want {th} to shift from <strong>{SLABELS[asIsStrat]}</strong> toward <strong>{SLABELS[tobeStrat]}</strong>. This is a meaningful strategic shift that will require deliberate attention to leadership behaviours, structural enablers, and how success is measured and rewarded.</p>
+                    </div>
+                  )}
+                  <div className="btn-row">
+                    <button className="btn-p" onClick={()=>setRptTab(1)}>Read Detailed Analysis →</button>
+                    <button className="btn-s" onClick={()=>go(6)}>← Back to Future Vision</button>
+                  </div>
+                </div>
+              </div>
+
+              {/* TAB 1 */}
+              <div style={{display:rptTab===1?'block':'none'}} className="print-tab-section">
+                <div>
+                  <div className="da-summary"><div className="da-summary-heading">Summary</div><p className="rpt-body">{SD.summary}</p>{industryContext&&<p className="rpt-body">{industryContext}</p>}</div>
+                  <div className="da-grid">
+                    <div className="da-card"><div className="da-card-heading">Purpose</div><p className="rpt-body">{SD.purpose}</p></div>
+                    <div className="da-card"><div className="da-card-heading">People</div><p className="rpt-body">{SD.people}</p></div>
+                    <div className="da-card"><div className="da-card-heading">Process</div><p className="rpt-body">{SD.process}</p></div>
+                    <div className="da-card"><div className="da-card-heading">Product</div><p className="rpt-body">{SD.product}</p></div>
+                  </div>
+                  <div className="da-lower">
+                    <div className="da-lower-card best"><div className="da-lower-heading">At Its Best</div><p className="rpt-body">{SD.atBest}</p></div>
+                    <div className="da-lower-card blind"><div className="da-lower-heading">Blind Spots and Risk Factors</div><p className="rpt-body">{SD.blind}</p></div>
+                    <div className="da-lower-card areas"><div className="da-lower-heading">Areas for Consideration</div><p className="rpt-body">{SD.areas}</p></div>
+                  </div>
+                  <div className="btn-row">
+                    <button className="btn-p" onClick={()=>setRptTab(2)}>See Actions →</button>
+                    <button className="btn-s" onClick={()=>setRptTab(0)}>← Profile</button>
+                    <button className="btn-s" onClick={()=>go(6)}>← Back to Future Vision</button>
+                  </div>
+                </div>
+              </div>
+
+              {/* TAB 2 */}
+              <div style={{display:rptTab===2?'block':'none'}} className="print-tab-section">
+                <div>
+                  <div className="rpt-section">
+                    <div className="rpt-heading">About These Actions</div>
                     <p className="rpt-body">For each domain, the action is the highest-leverage experiment based on where your scores diverge most from your desired direction. The reflection question targets the second-highest-leverage area to prompt deeper reflection.</p>
                   </div>
                   <div className="gap-summary" style={{marginBottom:'1.5rem'}}>
