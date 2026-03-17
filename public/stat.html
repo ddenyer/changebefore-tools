@@ -1772,8 +1772,25 @@ function App(){
   );
 }
 
+
+class ErrorBoundary extends React.Component {
+  constructor(props){super(props);this.state={error:null,info:null};}
+  componentDidCatch(error,info){this.setState({error:error.message,info:info.componentStack});}
+  render(){
+    if(this.state.error){
+      return React.createElement('div',{style:{padding:'2rem',fontFamily:"'DM Sans',sans-serif",background:'#fff8f5',border:'2px solid #e07030',margin:'2rem',borderRadius:'8px'}},
+        React.createElement('h3',{style:{color:'#e07030',marginBottom:'1rem'}},'Something went wrong'),
+        React.createElement('pre',{style:{fontSize:'.75rem',color:'#555',whiteSpace:'pre-wrap',marginBottom:'1rem'}},this.state.error),
+        React.createElement('pre',{style:{fontSize:'.65rem',color:'#888',whiteSpace:'pre-wrap'}},this.state.info),
+        React.createElement('button',{onClick:()=>this.setState({error:null,info:null}),style:{marginTop:'1rem',padding:'.5rem 1rem',background:'#e07030',color:'#fff',border:'none',borderRadius:'4px',cursor:'pointer'}},'Try Again')
+      );
+    }
+    return this.props.children;
+  }
+}
+
 const root=ReactDOM.createRoot(document.getElementById('root'));
-root.render(<App/>);
+root.render(React.createElement(ErrorBoundary,null,React.createElement(App,null)));
 </script>
 </body>
 </html>
