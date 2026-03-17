@@ -706,11 +706,11 @@ function CombinedDiamondChart({yourProfile, groupProfile, otherProfiles=[], your
           fill={yourColor} fillOpacity={.10} stroke={yourColor} strokeWidth={2} strokeLinejoin="round"/>}
         {[['prog',groupProfile.prog],['flex',groupProfile.flex],['def',groupProfile.def],['con',groupProfile.con]].map(([ax,sc])=>{
           const[x,y]=axisPt(ax,sc);
-          return(<g key={'g'+ax}><circle cx={x} cy={y} r={11} fill={groupColor}/><text x={x} y={y+4} textAnchor="middle" fill="#fff" fontSize={10} fontWeight={700} fontFamily="DM Sans,sans-serif">{Math.round(sc)}</text></g>);
+          return(<g key={'g'+ax}><circle cx={x} cy={y} r={8} fill={groupColor} opacity={0.8}/>{false&&<text x={x} y={y+4} textAnchor="middle" fill="#fff" fontSize={10} fontWeight={700} fontFamily="DM Sans,sans-serif">{Math.round(sc)}</text></g>);
         })}
         {yourProfile&&[['prog',yourProfile.prog],['flex',yourProfile.flex],['def',yourProfile.def],['con',yourProfile.con]].map(([ax,sc])=>{
           const[x,y]=axisPt(ax,sc);
-          return(<g key={'y'+ax}><circle cx={x} cy={y} r={9} fill={yourColor} stroke="#fff" strokeWidth={1.5}/><text x={x} y={y+3} textAnchor="middle" fill="#fff" fontSize={9} fontWeight={700} fontFamily="DM Sans,sans-serif">{Math.round(sc)}</text></g>);
+          return(<g key={'y'+ax}><circle cx={x} cy={y} r={7} fill={yourColor} stroke="#fff" strokeWidth={1.5}/>{false&&<text x={x} y={y+3} textAnchor="middle" fill="#fff" fontSize={9} fontWeight={700} fontFamily="DM Sans,sans-serif">{Math.round(sc)}</text></g>);
         })}
         <text x={CX} y={CY-RD-16} textAnchor="middle" fill="#1a1a1a" fontSize={11} fontWeight={700} fontFamily="DM Sans,sans-serif">Progressive</text>
         <text x={CX+RD+10} y={CY+4} textAnchor="start" fill="#1a1a1a" fontSize={11} fontWeight={700} fontFamily="DM Sans,sans-serif">Flexible</text>
@@ -1533,7 +1533,7 @@ function App(){
                     );
                   })}
                   <div className="btn-row" style={{marginTop:'2rem'}}>
-                    <button className="btn-p" onClick={()=>setRptTab(4)}>Save & Next Steps →</button>
+                    {sessionCode.trim()?<button className="btn-p" onClick={()=>setRptTab(3)}>View Group Report →</button>:<button className="btn-p" onClick={()=>setRptTab(4)}>Save & Next Steps →</button>}
                     <button className="btn-s" onClick={()=>setRptTab(0)}>← Profile</button>
                     <button className="btn-s" onClick={()=>go(6)}>← Back to Future Profile</button>
                     <button className="btn-s" onClick={restart}>Start Again</button>
@@ -1542,7 +1542,7 @@ function App(){
               </div>
 
               {/* TAB 3 — GROUP REPORT */}
-              {rptTab===3&&(
+              <div style={{display:rptTab===3?'block':'none'}} className="print-tab-section">
                 <div>
                 {!groupRespondents&&(
                   <div style={{padding:'2rem',background:'#fff8f5',border:'1px solid #e07030',borderRadius:'6px',marginBottom:'1rem',fontFamily:"'DM Sans',sans-serif"}}>
@@ -1665,7 +1665,7 @@ function App(){
                       <span style={{fontSize:'.78rem',color:'#666',fontFamily:"'DM Sans',sans-serif"}}>{SDESC[grpTobeStrat]}</span></div>
                     </div>
                   </div>
-                  )}
+              </div>
 
                   <div className="rpt-section">
                     <div className="rpt-heading">Your Profile vs Group — At a Glance</div>
@@ -1776,7 +1776,7 @@ function App(){
                   </div>
 
                   <div className="rpt-section" style={{borderTop:'1px solid #d8d3cb',paddingTop:'1.75rem',marginTop:'1.75rem'}}>
-                    <div className="rpt-heading">Take It Further: Run STAT with Your Team</div>
+                    <div style={{fontSize:'1rem',fontWeight:700,letterSpacing:'.05em',textTransform:'uppercase',color:'#e07030',marginBottom:'.5rem',fontFamily:"'DM Sans',sans-serif"}}>Take It Further: Run STAT with Your Team or Organisation</div>
                     <p className="rpt-body">Your individual report is a starting point. It reflects a single perspective on how your organisation operates — and what it could become. The real diagnostic power emerges when you compare results across your team or organisation.</p>
                     <p className="rpt-body" style={{marginTop:'.75rem'}}>Even people working side by side often see the current position very differently. And leaders frequently see the organisation in ways that differ sharply from the experience of those they lead. Understanding those differences is not a problem to manage — it is the insight you need to act.</p>
 
