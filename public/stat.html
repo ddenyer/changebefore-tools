@@ -1000,24 +1000,26 @@ function App(){
   function setTobeF(v){setTobe(t=>({...t,f:v,c:Math.min(t.c,120-v)}));}
 
   function generate(){
-    // Save to Supabase if session code entered
+    // Save to Supabase if session code entered — fire and forget, never crashes app
     if(sessionCode.trim()){
-      supabaseInsert('stat_responses',{
-        session_code:sessionCode.trim().toUpperCase(),
-        respondent_name:respondentName||'Anonymous',
-        role:role==='None of the above'?roleCustom:role,
-        thing:thing,
-        prog:prog,
-        def:def,
-        con:con,
-        flex:flex,
-        tobe_prog:tobe.p,
-        tobe_def:tobe.d,
-        tobe_con:tobe.c,
-        tobe_flex:tobe.f,
-        s1_answers:s1ans,
-        s2_answers:s2ans
-      });
+      try{
+        supabaseInsert('stat_responses',{
+          session_code:sessionCode.trim().toUpperCase(),
+          respondent_name:respondentName||'Anonymous',
+          role:role==='None of the above'?roleCustom:role,
+          thing:thing,
+          prog:prog,
+          def:def,
+          con:con,
+          flex:flex,
+          tobe_prog:tobe.p,
+          tobe_def:tobe.d,
+          tobe_con:tobe.c,
+          tobe_flex:tobe.f,
+          s1_answers:s1ans,
+          s2_answers:s2ans
+        }).catch(()=>{});
+      }catch(e){}
     }
     setLoading(true);
     setApiError(false);
