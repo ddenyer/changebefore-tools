@@ -972,7 +972,7 @@ function App(){
   const s1done=s1ans.every(a=>(parseInt(a.l)||0)+(parseInt(a.r)||0)>0)&&!s1over;
   const s2done=s2ans.every(a=>(parseInt(a.l)||0)+(parseInt(a.r)||0)>0)&&!s2over;
 
-  const effectiveCode = sessionCode.trim() || 'DEMO-SESSION';
+  const effectiveCode = sessionCode.trim();
   const isAdmin = respondentName.trim().toLowerCase()==='admin';
   const groupRespondents = (s1done && s2done) || isAdmin ? generateMockRespondents(effectiveCode, s1ans, s2ans, respondentName, role==='None of the above'?roleCustom:role).filter(r => isAdmin ? !r.isYou : true) : null;
 
