@@ -741,7 +741,7 @@ function CombinedDiamondChart({yourProfile, groupProfile, otherProfiles=[], your
 function generateFacilitatorInsights(groupRespondents, groupMean, groupTobe, questionVariance, th){
   if(!groupRespondents||groupRespondents.length<2||!groupMean) return null;
   const org = th||'the organisation';
-  const n = groupRespondents.length;
+  const n = groupRespondents?.length||1;
   const dims = ['prog','def','con','flex'];
   const dimNames = {prog:'Progressive',def:'Defensive',con:'Consistent',flex:'Flexible'};
   const scored = groupRespondents.map(r => ({...r,scores: scoreRespondent(r.s1, r.s2)}));
@@ -794,6 +794,7 @@ function generateFacilitatorInsights(groupRespondents, groupMean, groupTobe, que
 
 
 function scoreRespondent(s1, s2) {
+  if(!s1||!s2)return{prog:0,def:0,con:0,flex:0};
   if(!s1||!s1.length||!s2||!s2.length) return {def:60,prog:60,con:60,flex:60};
   const def = s1.reduce((s, a) => s + (parseInt(a?.l) || 0), 0);
   const prog = s1.reduce((s, a) => s + (parseInt(a?.r) || 0), 0);
@@ -1042,7 +1043,7 @@ function App(){
   const allVariance = [...s1Variance, ...s2Variance].sort((a, b) => b.variance - a.variance);
   const highVarQs = allVariance.slice(0, 5);
   const groupTobe = groupRespondents ? (()=>{
-    const n = groupRespondents.length;
+    const n = groupRespondents?.length||1;
     const sum = groupRespondents.reduce((acc, r) => ({
       p: acc.p + (r.tobe_prog||tobe.p),
       d: acc.d + (r.tobe_def||tobe.d),
@@ -1394,7 +1395,7 @@ function App(){
                   <div key={i} className={`rpt-tab${rptTab===i?' active':''}`} onClick={()=>setRptTab(i)}>{t}</div>
                 ))}
                 {sessionCode.trim()&&(
-                  <div className={`rpt-tab${rptTab===3?' active':''}`} onClick={()=>setRptTab(3)}>Group Report{groupRespondents&&<span style={{background:'#e07030',color:'#fff',borderRadius:'10px',padding:'1px 6px',fontSize:'.6rem',fontWeight:700,marginLeft:'.3rem'}}>{groupRespondents.length}</span>}</div>
+                  <div className={`rpt-tab${rptTab===3?' active':''}`} onClick={()=>setRptTab(3)}>Group Report{groupRespondents&&groupRespondents.length>0&&<span style={{background:'#e07030',color:'#fff',borderRadius:'10px',padding:'1px 6px',fontSize:'.6rem',fontWeight:700,marginLeft:'.3rem'}}>{groupRespondents.length}</span>}</div>
                 )}
                 <div className={`rpt-tab${rptTab===4?' active':''}`} onClick={()=>setRptTab(4)}>Save & Next Steps</div>
                 {isAdmin&&(
@@ -1415,7 +1416,7 @@ function App(){
                         <div style={{marginTop:'.75rem',fontSize:'.78rem',color:'#888',fontWeight:600,fontFamily:"'DM Sans',sans-serif"}}>{SLABELS[asIsStrat]}</div>
                       </ExpandableDiamond>
                       <div>
-                        <div className="submit-txt">{groupRespondents.length} of {groupRespondents.length} completed</div>
+                        <div className="submit-txt">{groupRespondents?.length||0} of {groupRespondents?.length||0} completed</div>
                         <div className="all-in-badge" style={{marginTop:'.35rem'}}>✓ All responses in — group report is complete</div>
                       </div>
                     </div>
@@ -1444,7 +1445,7 @@ function App(){
                   )}
                   <div className="rpt-section">
                     <div className="rpt-heading">Session: {sessionCode.trim() || 'Demo'}</div>
-                    <p className="rpt-body" style={{marginBottom:'.75rem'}}>Group report based on <strong>{groupRespondents.length} respondents</strong> from this session. The group profile aggregates all responses to reveal the collective strategic experience of {th}. {!sessionCode.trim() && <span style={{color:'#e07030',fontWeight:600}}>In the live tool, respondents are linked by the organisation code from Define Your System — this preview uses simulated co-respondents.</span>}</p>
+                    <p className="rpt-body" style={{marginBottom:'.75rem'}}>Group report based on <strong>{groupRespondents?.length||0} respondents</strong> from this session. The group profile aggregates all responses to reveal the collective strategic experience of {th}. {!sessionCode.trim() && <span style={{color:'#e07030',fontWeight:600}}>In the live tool, respondents are linked by the organisation code from Define Your System — this preview uses simulated co-respondents.</span>}</p>
                     {(()=>{
                       const ROLE_ORDER=['Executive / Board','Senior Leader','Manager','Team Leader','Frontline / Operational','Other'];
                       const roleCounts={};
