@@ -452,7 +452,7 @@ function Slider({label,value,onChange,max=120,asIs=null}){
           <div style={{position:'absolute',left:`${(asIs/max)*100}%`,transform:'translateX(-50%)',top:'-4px',width:'2px',height:'30px',background:'#e07030',opacity:.35,pointerEvents:'none',borderRadius:'2px'}} title={`Current as-is: ${Math.round(asIs)}`}/>
         )}
       </div>
-      {asIs!==null&&<div style={{fontSize:'.62rem',color:'#c0b8ae',marginTop:'.15rem',fontFamily:"'DM Sans',sans-serif"}}>▲ orange line = your current as-is score</div>}
+      {asIs!==null&&<div style={{fontSize:'.62rem',color:'#e07030',marginTop:'.15rem',fontFamily:"'DM Sans',sans-serif"}}>▲ orange line = your current as-is score</div>}
     </div>
   );
 }
@@ -1210,7 +1210,7 @@ function App(){
                 If you completed the Define Your System tool for <strong>{th}</strong> — copy and paste the text it produced in the box above, or upload the PDF below.
               </div>
 
-              <label className="field-lbl" style={{fontWeight:400,color:'#555',marginBottom:'.5rem'}}>Link to a relevant webpage (optional)</label>
+              <label className="field-lbl" style={{fontWeight:400,color:'#555',marginBottom:'.5rem'}}>Link to a relevant webpage <span style={{color:'#b0a898',fontWeight:400}}>(optional — paste a URL and click Fetch to extract text about the organisation)</span></label>
               <div style={{display:'flex',gap:'.5rem',marginBottom:'1.25rem'}}>
                 <input className="inp" placeholder="https://..." value={website} onChange={e=>setWebsite(e.target.value)} style={{flex:1,marginBottom:0}}/>
                 <button className="btn-s" style={{flexShrink:0,background:'#888',color:'#fff',border:'none',fontWeight:600,padding:'.72rem 1.1rem',minWidth:'72px'}} onClick={()=>{}}>Fetch</button>
@@ -1227,8 +1227,9 @@ function App(){
               )}
 
               <div style={{marginTop:'1.5rem',borderTop:'1px solid #d8d3cb',paddingTop:'1.25rem'}}>
-                <label className="field-lbl">Your role</label>
-                <div className="field-sub">Please select the option that best describes your role.</div>
+                <div className="sec-tag" style={{marginBottom:'.5rem'}}>Section 1b — Who is completing this?</div>
+                <h2 className="pg-title" style={{fontSize:'1.25rem',marginBottom:'.35rem'}}>Tell us about yourself</h2>
+                <div className="field-sub" style={{marginBottom:'.75rem'}}>Please select the option that best describes your role.</div>
                 <div style={{display:'flex',flexWrap:'wrap',gap:'.5rem',marginBottom:'.75rem'}}>
                   {['Frontline / Operational','Team Leader','Manager','Senior Leader','Executive / Board','None of the above'].map(r=>(
                     <button key={r} onClick={()=>setRole(r)}
@@ -1243,7 +1244,7 @@ function App(){
               </div>
 
               <div className="btn-row">
-                <button className="btn-p" onClick={()=>go(3)}>Next →</button>
+                <button className="btn-p" disabled={!role} onClick={()=>go(3)}>Next →</button>
                 <button className="btn-s" onClick={()=>go(1)}>← Back</button>
               </div>
             </div>
@@ -1326,7 +1327,7 @@ function App(){
                 </ExpandableDiamond>
               </div>
               <div className="score-grid">
-                {[{lbl:'Progressive',val:prog,dim:'Mindset'},{lbl:'Defensive',val:def,dim:'Mindset'},{lbl:'Flexible',val:flex,dim:'Approach'},{lbl:'Consistent',val:con,dim:'Approach'}].map(sc=>(
+                {[{lbl:'Progressive',val:prog,dim:'Mindset'},{lbl:'Defensive',val:def,dim:'Mindset'},{lbl:'Consistent',val:con,dim:'Approach'},{lbl:'Flexible',val:flex,dim:'Approach'}].map(sc=>(
                   <div key={sc.lbl} className="score-card">
                     <div className="score-dim">{sc.dim}</div>
                     <div className="score-val">{sc.val}</div>
