@@ -796,10 +796,10 @@ function computeGroupMean(respondents) {
 
 function computeQuestionVariance(respondents, allQ, sectionKey) {
   return allQ.map((q, qi) => {
-    const rights = respondents.map(r => parseInt(r[sectionKey][qi]?.r) || 0);
+    const rights = respondents.map(r => parseInt(r[sectionKey]?.[qi]?.r) || 0);
     const mean = rights.reduce((s, v) => s + v, 0) / rights.length;
     const variance = Math.sqrt(rights.reduce((s, v) => s + (v - mean) ** 2, 0) / rights.length);
-    const meanL = respondents.reduce((s, r) => s + (parseInt(r[sectionKey][qi]?.l) || 0), 0) / respondents.length;
+    const meanL = respondents.reduce((s, r) => s + (parseInt(r[sectionKey]?.[qi]?.l) || 0), 0) / respondents.length;
     const meanR = mean;
     return { q, qi, sectionKey, meanL, meanR, variance, mean };
   });
