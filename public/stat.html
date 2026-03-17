@@ -1008,17 +1008,13 @@ function App(){
   const allVariance = [...s1Variance, ...s2Variance].sort((a, b) => b.variance - a.variance);
   const highVarQs = allVariance.slice(0, 5);
   const groupTobe = groupRespondents ? (()=>{
-    const seed = effectiveCode.split('').reduce((s,c,i)=>s+c.charCodeAt(0)*(i+1),0);
     const n = groupRespondents.length;
-    const sum = groupRespondents.reduce((acc, r, ri) => {
-      const noise = (ax) => Math.round((seededRand(seed+ri*10, ax.charCodeAt(0)) - 0.5) * 16);
-      return {
-        p: acc.p + Math.max(20, Math.min(100, tobe.p + noise('p'))),
-        d: acc.d + Math.max(20, Math.min(100, tobe.d + noise('d'))),
-        c: acc.c + Math.max(20, Math.min(100, tobe.c + noise('c'))),
-        f: acc.f + Math.max(20, Math.min(100, tobe.f + noise('f'))),
-      };
-    }, {p:0,d:0,c:0,f:0});
+    const sum = groupRespondents.reduce((acc, r) => ({
+      p: acc.p + (r.tobe_prog||tobe.p),
+      d: acc.d + (r.tobe_def||tobe.d),
+      c: acc.c + (r.tobe_con||tobe.c),
+      f: acc.f + (r.tobe_flex||tobe.f),
+    }), {p:0,d:0,c:0,f:0});
     return {p: sum.p/n, d: sum.d/n, c: sum.c/n, f: sum.f/n};
   })() : null;
   const grpTobeStrat = groupTobe ? getStrategy(groupTobe.d, groupTobe.p, groupTobe.c, groupTobe.f) : 'neutral';
