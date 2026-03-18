@@ -1533,7 +1533,7 @@ function App(){
                     );
                   })}
                   <div className="btn-row" style={{marginTop:'2rem'}}>
-                    {sessionCode.trim()?<button className="btn-p" onClick={()=>setRptTab(3)}>View Group Report →</button>:<button className="btn-p" onClick={()=>setRptTab(4)}>Save & Next Steps →</button>}
+                    {sessionCode.trim()?<button className="btn-p" onClick={()=>setRptTab(3)}>View Group Report →</button>:{sessionCode.trim()?<button className="btn-p" onClick={()=>setRptTab(3)}>View Group Report →</button>:<button className="btn-p" onClick={()=>setRptTab(4)}>Save & Next Steps →</button>}}
                     <button className="btn-s" onClick={()=>setRptTab(0)}>← Profile</button>
                     <button className="btn-s" onClick={()=>go(6)}>← Back to Future Profile</button>
                     <button className="btn-s" onClick={restart}>Start Again</button>
@@ -1665,7 +1665,7 @@ function App(){
                       <span style={{fontSize:'.78rem',color:'#666',fontFamily:"'DM Sans',sans-serif"}}>{SDESC[grpTobeStrat]}</span></div>
                     </div>
                   </div>
-                  )}
+              </div>
 
                   <div className="rpt-section">
                     <div className="rpt-heading">Your Profile vs Group — At a Glance</div>
@@ -1773,6 +1773,7 @@ function App(){
                     <div className="btn-row" style={{marginTop:'1rem'}}>
                       <button className="btn-p" onClick={printReport}>⬇ Save / Print Full Report</button>
                     </div>
+                    {sessionCode.trim()&&<p style={{fontSize:'.8rem',color:'#888',marginTop:'.75rem',fontFamily:"'DM Sans',sans-serif"}}>To include the Group Report in your PDF, switch to the Group Report tab first, then print.</p>}
                     {sessionCode.trim()&&<p style={{fontSize:'.8rem',color:'#888',marginTop:'.75rem',fontFamily:"'DM Sans',sans-serif"}}>To include the Group Report in your PDF, switch to the Group Report tab first, then print.</p>}
                   </div>
 
@@ -1912,10 +1913,9 @@ function App(){
                   </div>
                 </div>
               )}
-              <div className="print-copyright">© ChangeBefore Ltd. All rights reserved. This report is confidential and intended solely for the named recipient. STAT is a proprietary diagnostic tool. Unauthorised reproduction or distribution is prohibited.</div>
             </div>
           )}
-
+              <div className="print-copyright">© ChangeBefore Ltd. All rights reserved. This report is confidential and intended solely for the named recipient. STAT is a proprietary diagnostic tool. Unauthorised reproduction or distribution is prohibited.</div>
 
         </div>
       </div>
