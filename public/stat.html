@@ -1533,7 +1533,7 @@ function App(){
                     );
                   })}
                   <div className="btn-row" style={{marginTop:'2rem'}}>
-                    {sessionCode.trim()?<button className="btn-p" onClick={()=>setRptTab(3)}>View Group Report →</button>:{sessionCode.trim()&&<button className="btn-p" onClick={()=>setRptTab(3)}>View Group Report</button>}{!sessionCode.trim()&&<button className="btn-p" onClick={()=>setRptTab(4)}>Save &amp; Next Steps</button>}}
+                    {sessionCode.trim()&&<button className="btn-p" onClick={()=>setRptTab(3)}>View Group Report</button>}{!sessionCode.trim()&&<button className="btn-p" onClick={()=>setRptTab(4)}>Save &amp; Next Steps</button>}
                     <button className="btn-s" onClick={()=>setRptTab(0)}>← Profile</button>
                     <button className="btn-s" onClick={()=>go(6)}>← Back to Future Profile</button>
                     <button className="btn-s" onClick={restart}>Start Again</button>
