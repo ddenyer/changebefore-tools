@@ -1,10 +1,28 @@
 import { useState, useEffect } from "react";
 
 /* ── GLOBAL STORE ─────────────────────────────────────────────────────────── */
-const STORE = { participants: {}, step: 1, revealed: {} };
-const pSave = (name, d) => { STORE.participants[name] = { ...(STORE.participants[name] || { name }), ...d }; };
+const STORE = { participants: {}, step: 1, revealed: {}, sessionId: "" };
+const pSave = (name, d) => {
+  STORE.participants[name] = { ...(STORE.participants[name] || { name }), ...d };
+  if (STORE.sessionId) {
+    fetch("/api/sl-save", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId: STORE.sessionId, participantName: name, data: STORE.participants[name] }),
+    }).catch(() => {});
+  }
+};
 const pGet  = n => STORE.participants[n] || { name: n };
 const pAll  = () => Object.values(STORE.participants);
+const syncFromSupabase = async () => {
+  if (!STORE.sessionId) return;
+  try {
+    const resp = await fetch("/api/sl-load?sessionId=" + encodeURIComponent(STORE.sessionId));
+    if (!resp.ok) return;
+    const { participants } = await resp.json();
+    participants.forEach(p => { if (p.name) STORE.participants[p.name] = p; });
+  } catch (e) {}
+};
 
 /* ── DATA — Q2 FCA 2025/26 ACTUALS ───────────────────────────────────────── */
 const REV_LINES = [
@@ -357,13 +375,16 @@ function Entry({ onEnter, onFacilitator }) {
   const [pwd, setPwd]   = useState("");
   const [showPwd, setShowPwd] = useState(false);
   const [name, setName] = useState("");
+  const [session, setSession] = useState("FBaM-Mar26");
   const [word, setWord] = useState("");
   const [err, setErr]   = useState("");
-  const canEnter = pwd === PART_PWD && name.trim().length > 0;
+  const canEnter = pwd === PART_PWD && name.trim().length > 0 && session.trim().length > 0;
 
   const go = () => {
     if (pwd !== PART_PWD) { setErr("Incorrect password."); return; }
     if (!name.trim()) { setErr("Please enter your name."); return; }
+    if (!session.trim()) { setErr("Please enter the session code."); return; }
+    STORE.sessionId = session.trim();
     pSave(name.trim(), { feelingWord: word.trim() });
     onEnter(name.trim());
   };
@@ -397,6 +418,12 @@ function Entry({ onEnter, onFacilitator }) {
               </button>
             )}
           </div>
+        </div>
+        <div className="sl-field">
+          <label className="sl-label">Session code <span style={{ fontWeight: 300, fontSize: 11 }}>(provided by facilitator)</span></label>
+          <input type="text" className="sl-input" value={session} onChange={e => setSession(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && go()}
+            placeholder="e.g. FBaM-Mar26" />
         </div>
         <div className="sl-field">
           <label className="sl-label">Your name or group initials (e.g. AB+CD)</label>
@@ -2296,6 +2323,22 @@ function FacRev8({ ps }) {
 /* ── FACILITATOR VIEW ─────────────────────────────────────────────────────── */
 function FacilitatorView({ tick, onLogout }) {
   const [reset, setReset] = useState("");
+  const [sessionInput, setSessionInput] = useState(STORE.sessionId || "");
+  const [syncing, setSyncing] = useState(false);
+
+  // Poll Supabase every 4 seconds when session is active
+  useEffect(() => {
+    if (!STORE.sessionId) return;
+    const id = setInterval(() => { syncFromSupabase(); }, 4000);
+    return () => clearInterval(id);
+  }, [STORE.sessionId]);
+
+  const connectSession = () => {
+    STORE.sessionId = sessionInput.trim();
+    setSyncing(true);
+    syncFromSupabase().then(() => setSyncing(false));
+  };
+
   const participants = pAll();
 
   const advanceAll = () => {
@@ -2320,6 +2363,18 @@ function FacilitatorView({ tick, onLogout }) {
       <div className="sl-fac">
         <div className="sl-fac-h">Facilitator console</div>
 
+        {!STORE.sessionId && (
+          <div className="sl-adv-bar" style={{ flexDirection: "column", alignItems: "flex-start", gap: 12 }}>
+            <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, fontWeight: 600 }}>Connect to session</div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <input className="sl-input" style={{ width: 200, fontSize: 13 }} placeholder="Session code e.g. FBaM-Mar26"
+                value={sessionInput} onChange={e => setSessionInput(e.target.value)} />
+              <button className="sl-btn" style={{ fontSize: 12, padding: "8px 16px" }} onClick={connectSession}>
+                {syncing ? "Connecting…" : "Connect"}
+              </button>
+            </div>
+          </div>
+        )}
         <div className="sl-adv-bar">
           <div style={{ fontSize: 13, fontWeight: 600 }}>Current step: {STORE.step}</div>
           <button className="sl-btn" style={{ fontSize: 12, padding: "8px 16px" }} onClick={advanceAll} disabled={STORE.step >= 20}>
