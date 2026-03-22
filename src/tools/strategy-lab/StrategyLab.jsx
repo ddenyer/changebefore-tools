@@ -90,11 +90,11 @@ const PURPOSE_TENSIONS = [
   { key:"staffing",   l:"Flexible staffing",   r:"Fixed staffing",      desc:"Associates vs faculty and professional staff?" },
 ];
 
-async function callAI(prompt, timeoutMs = 8000) {
+async function callAI(prompt, timeoutMs = 15000) {
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
+    const res = await fetch("/api/stat-chat", {
       method: "POST",
       signal: controller.signal,
       headers: { "Content-Type": "application/json" },
