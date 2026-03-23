@@ -375,7 +375,7 @@ function Entry({ onEnter, onFacilitator }) {
   const [pwd, setPwd]   = useState("");
   const [showPwd, setShowPwd] = useState(false);
   const [name, setName] = useState("");
-  const [session, setSession] = useState("FBaM-Mar26");
+  const [session, setSession] = useState("Exec250326");
   const [word, setWord] = useState("");
   const [err, setErr]   = useState("");
   const canEnter = pwd === PART_PWD && name.trim().length > 0 && session.trim().length > 0;
@@ -1428,6 +1428,15 @@ Respond in this EXACT JSON format only — no text outside the JSON:
         </div>
       )}
 
+      {/* Own bullets */}
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, color: "#888", marginBottom: 8 }}>Your own moves (optional)</div>
+        <textarea className="sl-input" rows={4} value={stmt}
+          onChange={e => setStmt(e.target.value)}
+          placeholder={"- Grow exec ed to £12m by bringing in two new defence clients\n- Reduce associate spend by 15%\n- Exit open programmes by 2027"} />
+        <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#aaa", marginTop: 4 }}>Add your own bullet points. These will appear in your final output.</div>
+      </div>
+
       {/* Editable revenue/cost dashboard */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 24 }}>
         <div>
@@ -1579,6 +1588,7 @@ function Step18ThemePL({ pData, confirmed, onConfirm, onBack }) {
             {THEME_DATA.map(t => <th key={t.id} style={hdr}>{t.name.split(" ").slice(0, 2).join(" ")}</th>)}
             <th style={{ ...hdr, color: "#e07030" }}>Total</th>
             <th style={{ ...hdr, color: s17Revs ? "#e07030" : "#888" }}>Target</th>
+            <th style={{ ...hdr, color: "#888" }}>%</th>
           </tr></thead>
           <tbody>
             {REV_LINES.map(l => {
@@ -1597,6 +1607,7 @@ function Step18ThemePL({ pData, confirmed, onConfirm, onBack }) {
                   ))}
                   <td style={{ ...col, fontWeight: 600, color: Math.abs(diff) > 50 ? "#b83232" : "#1a1a1a", borderBottom: "1px solid #e8e4de" }}>{fmtK(lineTotal)}</td>
                   <td style={{ ...col, color: "#888", borderBottom: "1px solid #e8e4de" }}>{fmtK(lineTarget)}</td>
+                  <td style={{ ...col, color: "#888", borderBottom: "1px solid #e8e4de" }}>{totalRevF > 0 ? (lineTotal / totalRevF * 100).toFixed(0) + "%" : "—"}</td>
                 </tr>
               );
             })}
@@ -1606,6 +1617,7 @@ function Step18ThemePL({ pData, confirmed, onConfirm, onBack }) {
             {THEME_DATA.map(t => <td key={t.id} style={{ ...col, fontWeight: 600, color: "#e07030", borderTop: "2px solid #1a1a1a" }}>{fmtK(themeRev(t.id))}</td>)}
             <td style={{ ...col, fontWeight: 600, color: "#e07030", borderTop: "2px solid #1a1a1a" }}>{fmtK(THEME_DATA.reduce((s, t) => s + themeRev(t.id), 0))}</td>
             <td style={{ ...col, color: "#888", borderTop: "2px solid #1a1a1a" }}>{fmtK(totalRevF)}</td>
+            <td style={{ ...col, color: "#888", borderTop: "2px solid #1a1a1a" }}>100%</td>
           </tr></tfoot>
         </table>
       </div>
@@ -1619,6 +1631,7 @@ function Step18ThemePL({ pData, confirmed, onConfirm, onBack }) {
             {THEME_DATA.map(t => <th key={t.id} style={hdr}>{t.name.split(" ").slice(0, 2).join(" ")}</th>)}
             <th style={{ ...hdr, color: "#e07030" }}>Total</th>
             <th style={{ ...hdr, color: s17Costs ? "#e07030" : "#888" }}>Target</th>
+            <th style={{ ...hdr, color: "#888" }}>%</th>
           </tr></thead>
           <tbody>
             {COST_LINES.map(l => {
@@ -1637,6 +1650,7 @@ function Step18ThemePL({ pData, confirmed, onConfirm, onBack }) {
                   ))}
                   <td style={{ ...col, fontWeight: 600, color: Math.abs(diff) > 50 ? "#b83232" : "#1a1a1a", borderBottom: "1px solid #e8e4de" }}>{fmtK(lineTotal)}</td>
                   <td style={{ ...col, color: "#888", borderBottom: "1px solid #e8e4de" }}>{fmtK(lineTarget)}</td>
+                  <td style={{ ...col, color: "#888", borderBottom: "1px solid #e8e4de" }}>{totalCostF > 0 ? (lineTotal / totalCostF * 100).toFixed(0) + "%" : "—"}</td>
                 </tr>
               );
             })}
@@ -1646,6 +1660,7 @@ function Step18ThemePL({ pData, confirmed, onConfirm, onBack }) {
             {THEME_DATA.map(t => <td key={t.id} style={{ ...col, fontWeight: 600, color: "#e07030", borderTop: "2px solid #1a1a1a" }}>{fmtK(themeCost(t.id))}</td>)}
             <td style={{ ...col, fontWeight: 600, color: "#e07030", borderTop: "2px solid #1a1a1a" }}>{fmtK(THEME_DATA.reduce((s, t) => s + themeCost(t.id), 0))}</td>
             <td style={{ ...col, color: "#888", borderTop: "2px solid #1a1a1a" }}>{fmtK(totalCostF)}</td>
+            <td style={{ ...col, color: "#888", borderTop: "2px solid #1a1a1a" }}>100%</td>
           </tr></tfoot>
         </table>
       </div>
@@ -1870,10 +1885,10 @@ function PurposeStep8({ pData, confirmed, onConfirm, onBack }) {
             <tr key={g}>
               <td className="tbl-name">{g}</td>
               <td>
-                <div style={{ display: "flex", gap: 4, justifyContent: "flex-end", flexWrap: "wrap" }}>
+                <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "nowrap" }}>
                   {[1,2,3,4,5,6,7,8,9].map(n => (
                     <button key={n}
-                      style={{ padding: "4px 8px", border: `1px solid ${nv(groups[g]) === n ? "#e07030" : "#d8d3cb"}`, borderRadius: 4, background: nv(groups[g]) === n ? "#e07030" : "#f0ede8", color: nv(groups[g]) === n ? "#fff" : "#1a1a1a", fontFamily: "'DM Sans',sans-serif", fontSize: 12, cursor: "pointer", minWidth: 28 }}
+                      style={{ padding: "4px 0", border: `1px solid ${nv(groups[g]) === n ? "#e07030" : "#d8d3cb"}`, borderRadius: 4, background: nv(groups[g]) === n ? "#e07030" : "#f0ede8", color: nv(groups[g]) === n ? "#fff" : "#1a1a1a", fontFamily: "'DM Sans',sans-serif", fontSize: 12, cursor: "pointer", width: 30, textAlign: "center" }}
                       onClick={() => setGroups(prev => ({ ...prev, [g]: n }))}
                     >{n}</button>
                   ))}
@@ -1885,10 +1900,10 @@ function PurposeStep8({ pData, confirmed, onConfirm, onBack }) {
             <tr key={`other-${i}`}>
               <td><input type="text" className="sl-input" style={{ fontSize: 13 }} placeholder="Add another group…" value={o.label} onChange={e => setOthers(arr => arr.map((x, j) => j === i ? { ...x, label: e.target.value } : x))} /></td>
               <td>
-                <div style={{ display: "flex", gap: 4, justifyContent: "flex-end", flexWrap: "wrap" }}>
+                <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "nowrap" }}>
                   {[1,2,3,4,5,6,7,8,9].map(n => (
                     <button key={n}
-                      style={{ padding: "4px 8px", border: `1px solid ${o.score === n ? "#e07030" : "#d8d3cb"}`, borderRadius: 4, background: o.score === n ? "#e07030" : "#f0ede8", color: o.score === n ? "#fff" : "#1a1a1a", fontFamily: "'DM Sans',sans-serif", fontSize: 12, cursor: "pointer", minWidth: 28 }}
+                      style={{ padding: "4px 0", border: `1px solid ${o.score === n ? "#e07030" : "#d8d3cb"}`, borderRadius: 4, background: o.score === n ? "#e07030" : "#f0ede8", color: o.score === n ? "#fff" : "#1a1a1a", fontFamily: "'DM Sans',sans-serif", fontSize: 12, cursor: "pointer", width: 30, textAlign: "center" }}
                       onClick={() => setOthers(arr => arr.map((x, j) => j === i ? { ...x, score: n } : x))}
                     >{n}</button>
                   ))}
