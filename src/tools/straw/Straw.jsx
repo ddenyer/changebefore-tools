@@ -1307,12 +1307,10 @@ function Step11Changes({ pData, confirmed, onConfirm, onBack }) {
       ? `
 
 Already selected (keep these in mind, do NOT repeat them):
-${keepStatements.map((s,i) => `${i+1}. ${s.text}`).join("
-")}`
+${keepStatements.map((s,i) => `${i+1}. ${s.text}`).join("\n")}`
       : "";
     const serviceChargeNote = isCostFocused
-      ? "
-- The user has positioned FBaM toward cost reduction. INCLUDE a service charge renegotiation option (e.g. 'Renegotiate the university service charge from £10.3m to £Xm — without this the contribution target cannot be reached without eliminating entire programme areas.')."
+      ? "\n- The user has positioned FBaM toward cost reduction. INCLUDE a service charge renegotiation option (e.g. 'Renegotiate the university service charge from £10.3m to £Xm — without this the contribution target cannot be reached without eliminating entire programme areas.')."
       : `
 - The user has positioned FBaM toward revenue growth. Only include service charge renegotiation if the gap of £${Math.round(gap)}k cannot plausibly be closed by revenue alone.`;
 
@@ -1473,8 +1471,7 @@ function Step12CloseGap({ pData, confirmed, onConfirm, onBack }) {
     const groups = getGroupSummary(pData.purposeGroups || {});
     const changesCtx = selectedChanges.length > 0
       ? `Selected strategic changes:
-${selectedChanges.map((s,i) => `${i+1}. ${s.text}`).join("
-")}`
+${selectedChanges.map((s,i) => `${i+1}. ${s.text}`).join("\n")}`
       : "No strategic changes selected.";
     const profitSlider = nv(pData.purposeTensions?.profit, 50);
     return `You are simultaneously a world-leading strategy consultant, a world-leading management accountant, a world-leading finance expert, and a world-leading accountant advising Cranfield University's Faculty of Business and Management (FBaM).
