@@ -1345,8 +1345,7 @@ Format: number each 1-10, one per line, no other text.`;
     setLoading(true);
     try {
       const txt = await callAI(buildPrompt(keep), 20000);
-      const lines = txt.split("
-")
+      const lines = txt.split("\n")
         .map(l => l.replace(/^\d+\.\s*/, "").trim())
         .filter(l => l.length > 10)
         .slice(0, 10);
