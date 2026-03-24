@@ -429,13 +429,18 @@ function Entry({ onEnter }) {
         <div className="sl-brand-sub">STRAWPERSON Scenario Tool</div>
         <div className="sl-brand-org">Cranfield University — Faculty of Business and Management</div>
         <div className="sl-overview">
+          <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 20, color: "#1a1a1a", lineHeight: 1.6, marginBottom: 20, paddingBottom: 16, borderBottom: "1px solid #d8d3cb" }}>
+            <span style={{ fontStyle: "italic" }}>"All models are wrong, but some are useful."</span>
+            <span style={{ display: "block", fontFamily: "'DM Sans',sans-serif", fontSize: 12, color: "#888", marginTop: 6 }}>— George Box (1976)</span>
+            <span style={{ display: "block", fontFamily: "'DM Sans',sans-serif", fontSize: 14, color: "#666", lineHeight: 1.7, marginTop: 10 }}>Instead of seeking perfectly accurate models — which is often impossible — we should focus on using simplified models that are good enough to be helpful.</span>
+          </div>
           <p>Strategic conversations often feel more aligned than they are. Each person at the table carries a different sense of what the financial future looks like — different assumptions about what revenues are achievable, what costs are controllable, and what the structural shifts already in motion actually mean. When those assumptions stay implicit, it is easy to mistake surface agreement for genuine alignment. This tool surfaces the assumptions before they become decisions.</p>
           <ul className="sl-bullets">
-            <li>Build a complete financial scenario from current actuals to a target surplus</li>
+            <li>Build a high level financial strawperson</li>
             <li>Work through revenues, costs, and the structural shifts already in motion</li>
             <li>Close the gap between the do-nothing trajectory and a position you can defend</li>
             <li>Compare your scenario with the rest of the group — the disagreements are the conversation</li>
-            <li>— takes around 60–90 minutes</li>
+            <li>takes around 60–90 minutes</li>
           </ul>
           <p className="sl-disc"><strong>IMPORTANT — THIS IS NOT A FINANCIAL MODEL.</strong> It is a management tool to support thinking — treat it like a map. A financial model is 1:25,000 scale (OS Explorer — individual buildings visible). This tool is 1:250,000 scale (OS Road Map — cities and main roads only). Figures are estimates. Any scenario that emerges must be tested against accurate financial modelling before decisions are made.</p>
         </div>
@@ -1336,7 +1341,9 @@ Generate exactly 10 strategic direction statements that would help close this ga
 - Stay at the WHAT and WHY level — no specific course names, no programme titles, no operational detail
 - Name the revenue stream or activity TYPE (e.g. "executive education", "open programmes", "research income") but NEVER name specific programmes
 - Include scale — say by how much (e.g. "grow executive education by approximately 40%", "reduce headcount cost by £Xm")
-- Include market reality: if a revenue stream has low CAGR (e.g. award-bearing, open programmes) explicitly note that growth requires taking market share, not a growing market
+- Include market reality: if a revenue stream has low CAGR (e.g. award-bearing FT MSc, open programmes) explicitly note that growth requires taking market share, not a growing market
+- IMPORTANT: Customised and Executive Education is a HIGH GROWTH sector (+6% to +9% sector CAGR). The overall exec_ed line looks poor because it includes SLEP/Non-Award Bearing income that is ending (£2,798k) and levy income going to zero. The underlying CED customised and cabinet office income is healthy. When suggesting exec ed growth, be clear that the sector is growing strongly and this is a realistic opportunity — but growth must compensate for the structural SLEP/levy loss on top of hitting the gap target
+- If the growth required is very large, flag the scale of ambition required explicitly
 - If exec ed growth is needed to compensate for levy income loss, say so explicitly
 - If a change is substantial (e.g. doubling exec ed), flag the scale of ambition required
 - Be directionally honest — not optimistic generic statements
@@ -2066,7 +2073,7 @@ function Step18ThemePL({ pData, confirmed, onConfirm, onBack }) {
       <div className="sl-step-h">Theme P&L</div>
       <div className="sl-prompt">Each theme has a different product mix. Use the sliders to show what each theme does more or less of. Lock a category to pin it while adjusting others. The total always stays at 100%.</div>
       <div className="sl-note-box">
-        Sliders are compositionally constrained — moving one redistributes the others. Lock 🔒 a category to protect it from redistribution. Revenue allocations below are editable.
+        Sliders are compositionally constrained — moving one redistributes the others. Lock 🔒 a category to protect it from redistribution. The initial revenue split between themes is based on headcount (FTE): BTG 27, PSL 10, SCPSS 25 = 65 total. You can adjust the allocation below — changing one theme's revenue will automatically rebalance the other two so the school total stays on target.
       </div>
 
       {/* Product mix sliders — 3 theme cards */}
@@ -2095,17 +2102,39 @@ function Step18ThemePL({ pData, confirmed, onConfirm, onBack }) {
         ))}
       </div>
 
-      {/* Revenue allocation per theme */}
+      {/* Revenue allocation per theme — constrained to total */}
       <div style={{ marginBottom: 24 }}>
-        <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, color: "#1a1a1a", marginBottom: 10 }}>Theme revenue allocation (£k)</div>
+        <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, color: "#1a1a1a", marginBottom: 6 }}>Theme revenue allocation (£k)</div>
+        <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, color: "#888", marginBottom: 10 }}>Initial split is by headcount. Adjust each theme — the other two rebalance automatically to keep the school total on target.</div>
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-          {THEME_DATA.map(t => (
+          {THEME_DATA.map((t, idx) => (
             <div key={t.id} style={{ flex: 1, minWidth: 140 }}>
               <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#888", marginBottom: 4 }}>{t.name.split(" ").slice(0,3).join(" ")}</div>
               <input type="number" className="sl-num-input" style={{ width: "100%" }}
-                value={revAlloc[t.id]} onChange={e => setRevAlloc(a => ({ ...a, [t.id]: nv(e.target.value) }))} />
+                value={revAlloc[t.id]}
+                onChange={e => {
+                  const newVal = nv(e.target.value);
+                  const total = Object.values(revAlloc).reduce((a, b) => a + b, 0);
+                  const others = THEME_DATA.filter((_, i) => i !== idx);
+                  const otherTotal = others.reduce((s, o) => s + revAlloc[o.id], 0);
+                  const delta = newVal - revAlloc[t.id];
+                  const newAlloc = { ...revAlloc, [t.id]: newVal };
+                  if (otherTotal > 0) {
+                    others.forEach(o => {
+                      newAlloc[o.id] = Math.max(0, Math.round(revAlloc[o.id] - delta * (revAlloc[o.id] / otherTotal)));
+                    });
+                    // Fix rounding: adjust last other to preserve exact total
+                    const newSum = Object.values(newAlloc).reduce((a, b) => a + b, 0);
+                    newAlloc[others[others.length-1].id] += (total - newSum);
+                  }
+                  setRevAlloc(newAlloc);
+                }}
+              />
             </div>
           ))}
+        </div>
+        <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#888", marginTop: 8 }}>
+          School total: <strong style={{ fontFamily: "'IBM Plex Mono',monospace" }}>£{Math.round(totalRev).toLocaleString()}k</strong>
         </div>
       </div>
 
@@ -2136,20 +2165,20 @@ function Step18ThemePL({ pData, confirmed, onConfirm, onBack }) {
             {[
               { label: "Revenue", fn: (tid) => revAlloc[tid] || 0, total: totalRev },
               { label: "Costs",   fn: (tid) => costAlloc[tid] || 0, total: totalCost },
-              { label: "Margin",  fn: (tid) => (revAlloc[tid] || 0) - (costAlloc[tid] || 0), total: totalMargin },
+              { label: "Contribution (margin)",  fn: (tid) => (revAlloc[tid] || 0) - (costAlloc[tid] || 0), total: totalMargin },
             ].map(row => (
               <tr key={row.label}>
                 <td style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, fontWeight: 600, padding: "10px 12px", borderBottom: "1px solid #e8e4de" }}>{row.label}</td>
                 {THEME_DATA.map(t => {
                   const val = row.fn(t.id);
-                  const isMargin = row.label === "Margin";
+                  const isMargin = row.label === "Contribution (margin)";
                   return (
                     <td key={t.id} style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 13, padding: "10px 12px", textAlign: "right", borderBottom: "1px solid #e8e4de", color: isMargin ? (val >= 0 ? "#2d7d46" : "#b83232") : "#1a1a1a" }}>
                       £{Math.round(val).toLocaleString()}k
                     </td>
                   );
                 })}
-                <td style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 13, fontWeight: 700, padding: "10px 12px", textAlign: "right", borderBottom: "1px solid #e8e4de", color: row.label === "Margin" ? (row.total >= 0 ? "#2d7d46" : "#b83232") : "#1a1a1a" }}>
+                <td style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 13, fontWeight: 700, padding: "10px 12px", textAlign: "right", borderBottom: "1px solid #e8e4de", color: row.label === "Contribution (margin)" ? (row.total >= 0 ? "#2d7d46" : "#b83232") : "#1a1a1a" }}>
                   £{Math.round(row.total).toLocaleString()}k
                 </td>
               </tr>
@@ -3057,9 +3086,7 @@ function Step19Comparison({ pData, onConfirm, onBack }) {
 
 /* ── STEP 20: FINALISE ────────────────────────────────────────────────────── */
 function Step20Finalise({ pData, onBack }) {
-  const [sending, setSending] = useState(false);
-  const [sent, setSent]       = useState(false);
-  const [err, setErr]         = useState("");
+  const [sent, setSent] = useState(false);
 
   const buildSummary = () => {
     const tgt   = nv(pData.targetPct, 7.5);
@@ -3073,62 +3100,209 @@ function Step20Finalise({ pData, onBack }) {
     return { tgt, why, how, what, s17R, s17C, s17S, s17P };
   };
 
-  const sendViaResend = async () => {
-    setSending(true); setErr("");
+  const buildEmailHtml = () => {
     const { tgt, why, how, what, s17R, s17C, s17S, s17P } = buildSummary();
-    const html = `
-<h2>FBaM Strategy Lab — ${pData.name}</h2>
-<p><strong>Target:</strong> ${tgt}%</p>
-<p><strong>Scenario:</strong> Revenue ${fmtK(s17R)} | Costs ${fmtK(s17C)} | Surplus ${fmtK(s17S)} (${s17P}%)</p>
-<h3>WHY / HOW / WHAT</h3>
+    // Current position
+    const curRevTotal  = REV_LINES.reduce((s, l) => s + nv(pData.revenues?.[l.id], l.prefillK), 0);
+    const curCostTotal = COST_LINES.reduce((s, l) => s + nv(pData.costs?.[l.id], l.baseK), 0);
+    const curSurplus   = curRevTotal - curCostTotal;
+    // Do-nothing trajectory
+    const { predRevs, total: predRev } = calcPredRevs(pData);
+    const { predCosts, total: predCost } = calcPredCosts(pData);
+    const predSurplus = predRev - predCost;
+    // Market rates
+    const marketRates = pData.marketRates || {};
+    // Strategic positioning
+    const tensions = pData.purposeTensions || {};
+    const positionRows = PURPOSE_TENSIONS.map(t => {
+      const v = nv(tensions[t.key], 50);
+      const label = v < 33 ? t.l : v > 66 ? t.r : `Balanced`;
+      return `<tr><td style="padding:4px 8px;border-bottom:1px solid #eee">${t.desc}</td><td style="padding:4px 8px;border-bottom:1px solid #eee"><strong>${label}</strong> (${v})</td></tr>`;
+    }).join("");
+    // Stakeholder groups
+    const groups = pData.purposeGroups || {};
+    const groupRows = PURPOSE_GROUPS.map(g => {
+      const score = nv(groups[g], "—");
+      return `<tr><td style="padding:4px 8px;border-bottom:1px solid #eee">${g}</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right"><strong>${score}</strong></td></tr>`;
+    }).join("");
+    // Selected changes
+    const changes = pData.s11Selected || pData.s11Statements?.filter(s => s.checked || s.own) || [];
+    // Theme P&L
+    const themeRows = THEME_DATA.map(t => {
+      const rev  = nv(pData.s18RevAlloc?.[t.id], 0);
+      const cost = nv(pData.s18CostAlloc?.[t.id], 0);
+      const margin = rev - cost;
+      return `<tr><td style="padding:4px 8px;border-bottom:1px solid #eee">${t.name}</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fmtK(rev)}</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fmtK(cost)}</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right;color:${margin>=0?"#2d7d46":"#b83232"}">${fmtK(margin)}</td></tr>`;
+    }).join("");
+
+    return `
+<div style="font-family:Arial,sans-serif;max-width:700px;color:#1a1a1a">
+<h1 style="font-size:22px;border-bottom:3px solid #e07030;padding-bottom:8px">FBaM Strategy Lab — ${pData.name}</h1>
+<p style="color:#888;font-size:12px">Session: ${STORE.sessionId} &nbsp;·&nbsp; ${new Date().toLocaleDateString("en-GB", {day:"numeric",month:"long",year:"numeric"})}</p>
+
+<h2 style="font-size:16px;color:#e07030;margin-top:28px">1. Target</h2>
+<p>Operating surplus target: <strong>${tgt >= 0 ? "+" : ""}${tgt.toFixed(1)}%</strong></p>
+
+<h2 style="font-size:16px;color:#e07030;margin-top:28px">2. Current position (Q2 2025/26)</h2>
+<table style="border-collapse:collapse;width:100%">
+<tr><th style="text-align:left;padding:4px 8px;border-bottom:2px solid #ccc">Revenue line</th><th style="text-align:right;padding:4px 8px;border-bottom:2px solid #ccc">£k</th></tr>
+${REV_LINES.map(l => `<tr><td style="padding:4px 8px;border-bottom:1px solid #eee">${l.name}</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fmtK(nv(pData.revenues?.[l.id], l.prefillK))}</td></tr>`).join("")}
+<tr style="font-weight:700"><td style="padding:4px 8px">Total revenue</td><td style="padding:4px 8px;text-align:right">${fmtK(curRevTotal)}</td></tr>
+</table>
+<table style="border-collapse:collapse;width:100%;margin-top:12px">
+<tr><th style="text-align:left;padding:4px 8px;border-bottom:2px solid #ccc">Cost line</th><th style="text-align:right;padding:4px 8px;border-bottom:2px solid #ccc">£k</th></tr>
+${COST_LINES.map(l => `<tr><td style="padding:4px 8px;border-bottom:1px solid #eee">${l.name}</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fmtK(nv(pData.costs?.[l.id], l.baseK))}</td></tr>`).join("")}
+<tr style="font-weight:700"><td style="padding:4px 8px">Total costs</td><td style="padding:4px 8px;text-align:right">${fmtK(curCostTotal)}</td></tr>
+</table>
+<p><strong>Net surplus: ${fmtK(curSurplus)} (${curRevTotal > 0 ? ((curSurplus/curRevTotal)*100).toFixed(1) : "—"}%)</strong></p>
+
+<h2 style="font-size:16px;color:#e07030;margin-top:28px">3. Do-nothing trajectory by July 2028</h2>
+<table style="border-collapse:collapse;width:100%">
+<tr><th style="text-align:left;padding:4px 8px;border-bottom:2px solid #ccc">Revenue line</th><th style="text-align:right;padding:4px 8px;border-bottom:2px solid #ccc">CAGR %</th><th style="text-align:right;padding:4px 8px;border-bottom:2px solid #ccc">Predicted £k</th></tr>
+${REV_LINES.map(l => `<tr><td style="padding:4px 8px;border-bottom:1px solid #eee">${l.name}</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${nv(pData.revRates?.[l.id] ?? marketRates[l.id] ?? 0).toFixed(1)}%</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fmtK(nv(predRevs[l.id]))}</td></tr>`).join("")}
+<tr style="font-weight:700"><td style="padding:4px 8px">Total</td><td></td><td style="padding:4px 8px;text-align:right">${fmtK(predRev)}</td></tr>
+</table>
+<p><strong>Do-nothing surplus: ${fmtK(predSurplus)} (${predRev > 0 ? ((predSurplus/predRev)*100).toFixed(1) : "—"}%) — Gap to target: ${fmtK((predRev * tgt / 100) - predSurplus)}</strong></p>
+
+<h2 style="font-size:16px;color:#e07030;margin-top:28px">4. Who FBaM should serve</h2>
+<table style="border-collapse:collapse;width:100%">
+<tr><th style="text-align:left;padding:4px 8px;border-bottom:2px solid #ccc">Stakeholder</th><th style="text-align:right;padding:4px 8px;border-bottom:2px solid #ccc">Importance (1–9)</th></tr>
+${groupRows}
+</table>
+
+<h2 style="font-size:16px;color:#e07030;margin-top:28px">5. Strategic positioning</h2>
+<table style="border-collapse:collapse;width:100%">
+<tr><th style="text-align:left;padding:4px 8px;border-bottom:2px solid #ccc">Dimension</th><th style="text-align:left;padding:4px 8px;border-bottom:2px solid #ccc">Position</th></tr>
+${positionRows}
+</table>
+
+<h2 style="font-size:16px;color:#e07030;margin-top:28px">6. Selected changes</h2>
+${changes.length > 0 ? `<ol>${changes.map(s => `<li style="margin-bottom:6px">${s.text}</li>`).join("")}</ol>` : "<p>None selected.</p>"}
+
+<h2 style="font-size:16px;color:#e07030;margin-top:28px">7. Strawperson scenario by July 2028</h2>
+<table style="border-collapse:collapse;width:100%">
+<tr><th style="text-align:left;padding:4px 8px;border-bottom:2px solid #ccc">Revenue line</th><th style="text-align:right;padding:4px 8px;border-bottom:2px solid #ccc">£k</th></tr>
+${REV_LINES.map(l => `<tr><td style="padding:4px 8px;border-bottom:1px solid #eee">${l.name}</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fmtK(nv(pData.s17Revs?.[l.id]))}</td></tr>`).join("")}
+<tr style="font-weight:700"><td style="padding:4px 8px">Total revenue</td><td style="padding:4px 8px;text-align:right">${fmtK(s17R)}</td></tr>
+</table>
+<table style="border-collapse:collapse;width:100%;margin-top:12px">
+<tr><th style="text-align:left;padding:4px 8px;border-bottom:2px solid #ccc">Cost line</th><th style="text-align:right;padding:4px 8px;border-bottom:2px solid #ccc">£k</th></tr>
+${COST_LINES.map(l => `<tr><td style="padding:4px 8px;border-bottom:1px solid #eee">${l.name}</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fmtK(nv(pData.s17Costs?.[l.id]))}</td></tr>`).join("")}
+<tr style="font-weight:700"><td style="padding:4px 8px">Total costs</td><td style="padding:4px 8px;text-align:right">${fmtK(s17C)}</td></tr>
+</table>
+<p><strong>Surplus: ${fmtK(s17S)} (${s17P}%)</strong></p>
+
+<h2 style="font-size:16px;color:#e07030;margin-top:28px">8. Theme P&L</h2>
+<table style="border-collapse:collapse;width:100%">
+<tr><th style="text-align:left;padding:4px 8px;border-bottom:2px solid #ccc">Theme</th><th style="text-align:right;padding:4px 8px;border-bottom:2px solid #ccc">Revenue</th><th style="text-align:right;padding:4px 8px;border-bottom:2px solid #ccc">Costs</th><th style="text-align:right;padding:4px 8px;border-bottom:2px solid #ccc">Margin</th></tr>
+${themeRows}
+</table>
+
+<h2 style="font-size:16px;color:#e07030;margin-top:28px">9. WHY / HOW / WHAT</h2>
 <p><strong>WHY:</strong> ${why}</p>
 <p><strong>HOW:</strong> ${how}</p>
 <p><strong>WHAT:</strong> ${what}</p>
-<h3>Revenue by July 2028</h3>
-<table border="1" cellpadding="4" style="border-collapse:collapse">
-${REV_LINES.map(l => `<tr><td>${l.name}</td><td>${fmtK(nv(pData.s17Revs?.[l.id]))}</td></tr>`).join("")}
-<tr><td><strong>Total</strong></td><td><strong>${fmtK(s17R)}</strong></td></tr>
-</table>
-<h3>Costs by July 2028</h3>
-<table border="1" cellpadding="4" style="border-collapse:collapse">
-${COST_LINES.map(l => `<tr><td>${l.name}</td><td>${fmtK(nv(pData.s17Costs?.[l.id]))}</td></tr>`).join("")}
-<tr><td><strong>Total</strong></td><td><strong>${fmtK(s17C)}</strong></td></tr>
-</table>
-<h3>Selected changes</h3>
-<ul>${(pData.s11Selected || []).map(s => `<li>${s.text}</li>`).join("")}</ul>`;
+</div>`;
+  };
 
+  const fireEmail = async () => {
     try {
-      const res = await fetch("/api/send-results", {
+      await fetch("/api/send-results", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           to: "results@changebefore.com",
-          subject: `FBaM Strategy Lab — ${pData.name}`,
-          html,
+          subject: `FBaM Strategy Lab — ${pData.name} — ${new Date().toLocaleDateString("en-GB")}`,
+          html: buildEmailHtml(),
         }),
       });
-      if (!res.ok) throw new Error("Send failed");
-      setSent(true);
-    } catch (e) {
-      setErr("Could not send — please download the PDF instead.");
-    }
-    setSending(false);
+    } catch (e) { /* silent — print still works */ }
   };
 
-  const printAllPages = () => {
-    // Inject a print-all stylesheet that forces page breaks between steps
-    const style = document.createElement("style");
-    style.id = "print-all-override";
-    style.innerHTML = `
-      @media print {
-        .sl-shell { display: block !important; }
-        .sl-content, .sl-submitted { page-break-after: always; display: block !important; }
-        .no-print, .sl-header, .sl-tabs, .sl-back { display: none !important; }
-      }
-    `;
-    document.head.appendChild(style);
-    window.print();
-    setTimeout(() => { const s = document.getElementById("print-all-override"); if (s) s.remove(); }, 1500);
+  const printAllSections = () => {
+    // Build a full printable HTML document with all sections rendered
+    const { tgt, why, how, what, s17R, s17C, s17S, s17P } = buildSummary();
+    const curRevTotal  = REV_LINES.reduce((s, l) => s + nv(pData.revenues?.[l.id], l.prefillK), 0);
+    const curCostTotal = COST_LINES.reduce((s, l) => s + nv(pData.costs?.[l.id], l.baseK), 0);
+    const curSurplus   = curRevTotal - curCostTotal;
+    const { predRevs, total: predRev } = calcPredRevs(pData);
+    const { predCosts, total: predCost } = calcPredCosts(pData);
+    const predSurplus  = predRev - predCost;
+    const changes = pData.s11Selected || pData.s11Statements?.filter(s => s.checked || s.own) || [];
+    const tensions = pData.purposeTensions || {};
+    const groups = pData.purposeGroups || {};
+
+    const tbl = (rows) => `<table style="width:100%;border-collapse:collapse;margin-bottom:12px;font-size:12px">${rows}</table>`;
+    const th = (t, align="left") => `<th style="padding:4px 6px;border-bottom:2px solid #ccc;text-align:${align}">${t}</th>`;
+    const td = (t, align="left", bold=false, color="") => `<td style="padding:3px 6px;border-bottom:1px solid #eee;text-align:${align};${bold?"font-weight:700;":""}${color?`color:${color};`:""}">${t}</td>`;
+
+    const printHTML = `<!DOCTYPE html><html><head><meta charset="utf-8">
+<title>FBaM Strategy Lab — ${pData.name}</title>
+<style>
+  body{font-family:Arial,sans-serif;color:#1a1a1a;font-size:12px;margin:20px 30px}
+  h1{font-size:18px;border-bottom:3px solid #e07030;padding-bottom:6px;margin-top:0}
+  h2{font-size:13px;color:#e07030;margin-top:20px;margin-bottom:8px;text-transform:uppercase;letter-spacing:1px}
+  .meta{color:#888;font-size:10px;margin-bottom:16px}
+  .kpi-row{display:flex;gap:16px;margin-bottom:16px}
+  .kpi{flex:1;border:1px solid #ccc;border-radius:3px;padding:8px;text-align:center}
+  .kpi .v{font-size:18px;font-weight:700;color:#e07030}
+  .kpi .l{font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#888;margin-top:3px}
+  table{width:100%;border-collapse:collapse;margin-bottom:12px}
+  th{text-align:left;padding:4px 6px;border-bottom:2px solid #ccc;font-size:11px}
+  td{padding:3px 6px;border-bottom:1px solid #eee}
+  .page-break{page-break-after:always}
+  ol{margin:0;padding-left:18px}
+  ol li{margin-bottom:4px}
+  @media print{body{margin:10px 16px}.no-print{display:none}}
+</style></head><body>
+<h1>FBaM Strategy Lab — ${pData.name}</h1>
+<div class="meta">Session: ${STORE.sessionId} &nbsp;·&nbsp; ${new Date().toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"})}</div>
+
+<div class="kpi-row">
+  <div class="kpi"><div class="v">${tgt >= 0 ? "+" : ""}${tgt.toFixed(1)}%</div><div class="l">Target surplus</div></div>
+  <div class="kpi"><div class="v">${fmtK(s17R)}</div><div class="l">Scenario revenue</div></div>
+  <div class="kpi"><div class="v">${fmtK(s17C)}</div><div class="l">Scenario costs</div></div>
+  <div class="kpi"><div class="v" style="color:${parseFloat(s17P)>=tgt?"#2d7d46":"#b83232"}">${s17P}%</div><div class="l">Surplus %</div></div>
+</div>
+
+<h2>Current position (Q2 2025/26)</h2>
+${tbl(`<tr>${th("Revenue line")}${th("£k","right")}</tr>${REV_LINES.map(l=>`<tr>${td(l.name)}${td(fmtK(nv(pData.revenues?.[l.id],l.prefillK)),"right")}</tr>`).join("")}<tr>${td("Total revenue","left",true)}${td(fmtK(curRevTotal),"right",true)}</tr>
+<tr>${td("&nbsp;")}</tr><tr>${th("Cost line")}${th("£k","right")}</tr>${COST_LINES.map(l=>`<tr>${td(l.name)}${td(fmtK(nv(pData.costs?.[l.id],l.baseK)),"right")}</tr>`).join("")}<tr>${td("Total costs","left",true)}${td(fmtK(curCostTotal),"right",true)}</tr><tr>${td("Net surplus","left",true)}${td(fmtK(curSurplus),"right",true,curSurplus>=0?"#2d7d46":"#b83232")}</tr>`)}
+
+<h2>Do-nothing trajectory by July 2028</h2>
+${tbl(`<tr>${th("Revenue line")}${th("CAGR %","right")}${th("Predicted £k","right")}</tr>${REV_LINES.map(l=>`<tr>${td(l.name)}${td(nv(pData.revRates?.[l.id]??pData.marketRates?.[l.id]??0).toFixed(1)+"%","right")}${td(fmtK(nv(predRevs[l.id])),"right")}</tr>`).join("")}<tr>${td("Total","left",true)}${td("")}${td(fmtK(predRev),"right",true)}</tr><tr>${td("Do-nothing surplus","left",true)}${td("")}${td(fmtK(predSurplus),"right",true,predSurplus>=0?"#2d7d46":"#b83232")}</tr>`)}
+
+<h2>Who FBaM should serve</h2>
+${tbl(`<tr>${th("Stakeholder")}${th("Score","right")}</tr>${PURPOSE_GROUPS.map(g=>`<tr>${td(g)}${td(nv(groups[g],"—"),"right",false,nv(groups[g])>=8?"#e07030":"")}</tr>`).join("")}`)}
+
+<h2>Strategic positioning</h2>
+${tbl(`<tr>${th("Dimension")}${th("Position")}</tr>${PURPOSE_TENSIONS.map(t=>{const v=nv(tensions[t.key],50);const label=v<33?t.l:v>66?t.r:"Balanced";return`<tr>${td(t.desc)}${td(`<strong>${label}</strong> (${v})`)}</tr>`;}).join("")}`)}
+
+<h2>Selected changes</h2>
+${changes.length>0?`<ol>${changes.map(s=>`<li>${s.text}</li>`).join("")}</ol>`:"<p>None selected.</p>"}
+
+<h2>Strawperson scenario by July 2028</h2>
+${tbl(`<tr>${th("Revenue line")}${th("£k","right")}</tr>${REV_LINES.map(l=>`<tr>${td(l.name)}${td(fmtK(nv(pData.s17Revs?.[l.id])),"right")}</tr>`).join("")}<tr>${td("Total revenue","left",true)}${td(fmtK(s17R),"right",true)}</tr>
+<tr>${td("&nbsp;")}</tr><tr>${th("Cost line")}${th("£k","right")}</tr>${COST_LINES.map(l=>`<tr>${td(l.name)}${td(fmtK(nv(pData.s17Costs?.[l.id])),"right")}</tr>`).join("")}<tr>${td("Total costs","left",true)}${td(fmtK(s17C),"right",true)}</tr><tr>${td("Surplus","left",true)}${td(fmtK(s17S),"right",true,s17S>=0?"#2d7d46":"#b83232")}</tr>`)}
+
+<h2>Theme P&L</h2>
+${tbl(`<tr>${th("Theme")}${th("Revenue","right")}${th("Costs","right")}${th("Contribution (margin)","right")}</tr>${THEME_DATA.map(t=>{const r=nv(pData.s18RevAlloc?.[t.id],0);const c=nv(pData.s18CostAlloc?.[t.id],0);const m=r-c;return`<tr>${td(t.name)}${td(fmtK(r),"right")}${td(fmtK(c),"right")}${td(fmtK(m),"right",false,m>=0?"#2d7d46":"#b83232")}</tr>`;}).join("")}`)}
+
+<h2>WHY / HOW / WHAT</h2>
+<p><strong>WHY:</strong> ${why}</p>
+<p><strong>HOW:</strong> ${how}</p>
+<p><strong>WHAT:</strong> ${what}</p>
+</body></html>`;
+
+    const win = window.open("", "_blank");
+    win.document.write(printHTML);
+    win.document.close();
+    win.focus();
+    setTimeout(() => {
+      win.print();
+      // Fire email silently after print dialog opens
+      fireEmail().then(() => setSent(true));
+    }, 400);
   };
 
   return (
@@ -3138,18 +3312,14 @@ ${COST_LINES.map(l => `<tr><td>${l.name}</td><td>${fmtK(nv(pData.s17Costs?.[l.id
 
       {/* Unsaved warning */}
       <div style={{ background: "#fff9f0", border: "1px solid #e07030", borderRadius: 4, padding: "12px 16px", marginBottom: 24, fontFamily: "'DM Sans',sans-serif", fontSize: 14, color: "#b85020", lineHeight: 1.6 }}>
-        ⚠️ <strong>Results are not saved automatically.</strong> Download as a PDF or use the send button below to keep a record of your scenario.
+        ⚠️ <strong>Results are not saved automatically.</strong> Click the button below to download a PDF of all sections — this will also send a copy to ChangeBefore.
       </div>
 
       <div style={{ display: "flex", gap: 12, alignItems: "flex-start", flexWrap: "wrap", marginBottom: 16 }}>
-        <button className="sl-btn no-print" onClick={printAllPages}>Download all pages as PDF</button>
-        <button className="sl-btn sl-btn-outline no-print" disabled={sending || sent} onClick={sendViaResend}>
-          {sending ? "Sending…" : sent ? "✓ Sent to results@changebefore.com" : "Email results to ChangeBefore"}
-        </button>
+        <button className="sl-btn no-print" onClick={printAllSections}>Download all sections as PDF</button>
       </div>
 
-      {err  && <div className="sl-err">{err}</div>}
-      {sent && <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, color: "#2d7d46" }}>✓ Results sent to results@changebefore.com</div>}
+      {sent && <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, color: "#2d7d46", marginBottom: 16 }}>✓ Copy sent to results@changebefore.com</div>}
 
       {/* Summary for on-screen review */}
       <div style={{ marginTop: 24 }}>
