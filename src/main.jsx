@@ -5,7 +5,6 @@ import StatTool from './tools/stat/StatTool'
 import DefineTool from './tools/define/DefineTool'
 import StrategyLab from './tools/strategy-lab/StrategyLab'
 import StrawTool from './tools/straw/Straw'
-import PurposeTool from './tools/purpose/Purpose'
 
 function App() {
   return (
@@ -15,7 +14,6 @@ function App() {
         <Route path="/define" element={<DefineTool />} />
         <Route path="/strategy-lab" element={<StrategyLab />} />
         <Route path="/straw" element={<StrawTool />} />
-        <Route path="/purpose" element={<PurposeTool />} />
         <Route path="/" element={<div style={{ padding: '2rem' }}><h1>ChangeBefore Tools</h1></div>} />
       </Routes>
     </BrowserRouter>
