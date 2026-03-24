@@ -67,7 +67,7 @@ const STEP_NAMES    = ["1. Set goal","2. Revenue","3. Costs","4. Current positio
 /* ── PURPOSE TOOL DATA ──────────────────────────────────────────────────── */
 const PURPOSE_GROUPS = [
   "FT students (MSc, MBA)",
-  "PT / exec students",
+  "Exec education delegates",
   "Organisations commissioning exec ed",
   "Research partners and funders",
   "Doctoral students",
@@ -3090,118 +3090,125 @@ function Step20Finalise({ pData, onBack }) {
 
   const buildSummary = () => {
     const tgt   = nv(pData.targetPct, 7.5);
-    const why   = pData.purposeWhy || "—";
-    const how   = pData.purposeHow || "—";
-    const what  = pData.purposeWhat || "—";
-    const s17R  = pData.s17Revs  ? REV_LINES.reduce((s, l) => s + nv(pData.s17Revs[l.id]),  0) : 0;
-    const s17C  = pData.s17Costs ? COST_LINES.reduce((s, l) => s + nv(pData.s17Costs[l.id]), 0) : 0;
+    const why   = pData.purposeWhy || "";
+    const how   = pData.purposeHow || "";
+    const what  = pData.purposeWhat || "";
+    // Use s12Revs as fallback if s17Revs not yet set
+    const scenRevs  = pData.s17Revs  || pData.s12Revs;
+    const scenCosts = pData.s17Costs || pData.s12Costs;
+    const s17R  = scenRevs  ? REV_LINES.reduce((s, l) => s + nv(scenRevs[l.id]),  0) : 0;
+    const s17C  = scenCosts ? COST_LINES.reduce((s, l) => s + nv(scenCosts[l.id]), 0) : 0;
     const s17S  = s17R - s17C;
     const s17P  = s17R > 0 ? (s17S / s17R * 100).toFixed(1) : "—";
-    return { tgt, why, how, what, s17R, s17C, s17S, s17P };
+    return { tgt, why, how, what, s17R, s17C, s17S, s17P, scenRevs, scenCosts };
   };
 
-  const buildEmailHtml = () => {
-    const { tgt, why, how, what, s17R, s17C, s17S, s17P } = buildSummary();
-    // Current position
+  const buildPrintData = () => {
+    const { tgt, why, how, what, s17R, s17C, s17S, s17P, scenRevs, scenCosts } = buildSummary();
     const curRevTotal  = REV_LINES.reduce((s, l) => s + nv(pData.revenues?.[l.id], l.prefillK), 0);
     const curCostTotal = COST_LINES.reduce((s, l) => s + nv(pData.costs?.[l.id], l.baseK), 0);
     const curSurplus   = curRevTotal - curCostTotal;
-    // Do-nothing trajectory
     const { predRevs, total: predRev } = calcPredRevs(pData);
     const { predCosts, total: predCost } = calcPredCosts(pData);
-    const predSurplus = predRev - predCost;
-    // Market rates
-    const marketRates = pData.marketRates || {};
-    // Strategic positioning
-    const tensions = pData.purposeTensions || {};
-    const positionRows = PURPOSE_TENSIONS.map(t => {
-      const v = nv(tensions[t.key], 50);
-      const label = v < 33 ? t.l : v > 66 ? t.r : `Balanced`;
-      return `<tr><td style="padding:4px 8px;border-bottom:1px solid #eee">${t.desc}</td><td style="padding:4px 8px;border-bottom:1px solid #eee"><strong>${label}</strong> (${v})</td></tr>`;
-    }).join("");
-    // Stakeholder groups
-    const groups = pData.purposeGroups || {};
-    const groupRows = PURPOSE_GROUPS.map(g => {
-      const score = nv(groups[g], "—");
-      return `<tr><td style="padding:4px 8px;border-bottom:1px solid #eee">${g}</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right"><strong>${score}</strong></td></tr>`;
-    }).join("");
-    // Selected changes
-    const changes = pData.s11Selected || pData.s11Statements?.filter(s => s.checked || s.own) || [];
-    // Theme P&L
-    const themeRows = THEME_DATA.map(t => {
-      const rev  = nv(pData.s18RevAlloc?.[t.id], 0);
-      const cost = nv(pData.s18CostAlloc?.[t.id], 0);
-      const margin = rev - cost;
-      return `<tr><td style="padding:4px 8px;border-bottom:1px solid #eee">${t.name}</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fmtK(rev)}</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fmtK(cost)}</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right;color:${margin>=0?"#2d7d46":"#b83232"}">${fmtK(margin)}</td></tr>`;
-    }).join("");
+    const predSurplus  = predRev - predCost;
+    const predGap      = (predRev * tgt / 100) - predSurplus;
+    const changes      = pData.s11Selected || pData.s11Statements?.filter(s => s.checked || s.own) || [];
+    const tensions     = pData.purposeTensions || {};
+    const groups       = pData.purposeGroups   || {};
+    const mixes        = pData.s18Mixes        || {};
+    const date         = new Date().toLocaleDateString("en-GB", { day:"numeric", month:"long", year:"numeric" });
+    // Use REV_DEF_RATES as final fallback for CAGR display
+    const getRevRate   = (id) => pData.revRates?.[id] ?? pData.marketRates?.[id] ?? REV_DEF_RATES[id] ?? 0;
+    return { tgt, why, how, what, s17R, s17C, s17S, s17P, scenRevs, scenCosts,
+             curRevTotal, curCostTotal, curSurplus, predRevs, predCosts, predRev, predCost,
+             predSurplus, predGap, changes, tensions, groups, mixes, date, getRevRate };
+  };
 
-    return `
-<div style="font-family:Arial,sans-serif;max-width:700px;color:#1a1a1a">
-<h1 style="font-size:22px;border-bottom:3px solid #e07030;padding-bottom:8px">FBaM Strategy Lab — ${pData.name}</h1>
-<p style="color:#888;font-size:12px">Session: ${STORE.sessionId} &nbsp;·&nbsp; ${new Date().toLocaleDateString("en-GB", {day:"numeric",month:"long",year:"numeric"})}</p>
+  const buildEmailHtml = () => {
+    const d = buildPrintData();
+    const { tgt, why, how, what, s17R, s17C, s17S, s17P, scenRevs, scenCosts,
+            curRevTotal, curCostTotal, curSurplus, predRevs, predRev, predCost,
+            predSurplus, predGap, changes, tensions, groups, date, getRevRate } = d;
 
-<h2 style="font-size:16px;color:#e07030;margin-top:28px">1. Target</h2>
-<p>Operating surplus target: <strong>${tgt >= 0 ? "+" : ""}${tgt.toFixed(1)}%</strong></p>
+    const H2 = (t) => `<h2 style="font-size:15px;color:#e07030;margin-top:24px;margin-bottom:8px;border-bottom:1px solid #f0ede8;padding-bottom:4px">${t}</h2>`;
+    const tbl = (headers, rows) => `<table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:12px">
+      <thead><tr>${headers.map(([h,a])=>`<th style="text-align:${a||"left"};padding:4px 8px;border-bottom:2px solid #ccc">${h}</th>`).join("")}</tr></thead>
+      <tbody>${rows}</tbody></table>`;
+    const tr = (cells) => `<tr>${cells.map(([v,a,bold,color])=>`<td style="padding:3px 8px;border-bottom:1px solid #eee;text-align:${a||"left"};${bold?"font-weight:700;":""}${color?`color:${color};`:""}">${v}</td>`).join("")}</tr>`;
 
-<h2 style="font-size:16px;color:#e07030;margin-top:28px">2. Current position (Q2 2025/26)</h2>
-<table style="border-collapse:collapse;width:100%">
-<tr><th style="text-align:left;padding:4px 8px;border-bottom:2px solid #ccc">Revenue line</th><th style="text-align:right;padding:4px 8px;border-bottom:2px solid #ccc">£k</th></tr>
-${REV_LINES.map(l => `<tr><td style="padding:4px 8px;border-bottom:1px solid #eee">${l.name}</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fmtK(nv(pData.revenues?.[l.id], l.prefillK))}</td></tr>`).join("")}
-<tr style="font-weight:700"><td style="padding:4px 8px">Total revenue</td><td style="padding:4px 8px;text-align:right">${fmtK(curRevTotal)}</td></tr>
-</table>
-<table style="border-collapse:collapse;width:100%;margin-top:12px">
-<tr><th style="text-align:left;padding:4px 8px;border-bottom:2px solid #ccc">Cost line</th><th style="text-align:right;padding:4px 8px;border-bottom:2px solid #ccc">£k</th></tr>
-${COST_LINES.map(l => `<tr><td style="padding:4px 8px;border-bottom:1px solid #eee">${l.name}</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fmtK(nv(pData.costs?.[l.id], l.baseK))}</td></tr>`).join("")}
-<tr style="font-weight:700"><td style="padding:4px 8px">Total costs</td><td style="padding:4px 8px;text-align:right">${fmtK(curCostTotal)}</td></tr>
-</table>
-<p><strong>Net surplus: ${fmtK(curSurplus)} (${curRevTotal > 0 ? ((curSurplus/curRevTotal)*100).toFixed(1) : "—"}%)</strong></p>
+    return `<div style="font-family:Arial,sans-serif;max-width:680px;color:#1a1a1a;line-height:1.5">
+<h1 style="font-size:20px;border-bottom:3px solid #e07030;padding-bottom:8px;margin-bottom:4px">FBaM Strategy Lab — ${pData.name}</h1>
+<p style="color:#888;font-size:11px;margin-bottom:20px">Session: ${STORE.sessionId} &nbsp;·&nbsp; ${date}</p>
 
-<h2 style="font-size:16px;color:#e07030;margin-top:28px">3. Do-nothing trajectory by July 2028</h2>
-<table style="border-collapse:collapse;width:100%">
-<tr><th style="text-align:left;padding:4px 8px;border-bottom:2px solid #ccc">Revenue line</th><th style="text-align:right;padding:4px 8px;border-bottom:2px solid #ccc">CAGR %</th><th style="text-align:right;padding:4px 8px;border-bottom:2px solid #ccc">Predicted £k</th></tr>
-${REV_LINES.map(l => `<tr><td style="padding:4px 8px;border-bottom:1px solid #eee">${l.name}</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${nv(pData.revRates?.[l.id] ?? marketRates[l.id] ?? 0).toFixed(1)}%</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fmtK(nv(predRevs[l.id]))}</td></tr>`).join("")}
-<tr style="font-weight:700"><td style="padding:4px 8px">Total</td><td></td><td style="padding:4px 8px;text-align:right">${fmtK(predRev)}</td></tr>
-</table>
-<p><strong>Do-nothing surplus: ${fmtK(predSurplus)} (${predRev > 0 ? ((predSurplus/predRev)*100).toFixed(1) : "—"}%) — Gap to target: ${fmtK((predRev * tgt / 100) - predSurplus)}</strong></p>
+<div style="display:flex;gap:12px;margin-bottom:20px">
+${[
+  [`${tgt>=0?"+":""}${tgt.toFixed(1)}%`,"Target surplus",""],
+  [s17R>0?fmtK(s17R):"Not completed","Scenario revenue",""],
+  [s17C>0?fmtK(s17C):"Not completed","Scenario costs",""],
+  [s17R>0?`${s17P}%`:"Not completed","Surplus %", s17R>0?(parseFloat(s17P)>=tgt?"#2d7d46":"#b83232"):"#888"],
+].map(([v,l,c])=>`<div style="flex:1;border:1px solid #e07030;border-radius:3px;padding:8px;text-align:center"><div style="font-size:16px;font-weight:700;color:${c||"#e07030"}">${v}</div><div style="font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#888;margin-top:3px">${l}</div></div>`).join("")}
+</div>
 
-<h2 style="font-size:16px;color:#e07030;margin-top:28px">4. Who FBaM should serve</h2>
-<table style="border-collapse:collapse;width:100%">
-<tr><th style="text-align:left;padding:4px 8px;border-bottom:2px solid #ccc">Stakeholder</th><th style="text-align:right;padding:4px 8px;border-bottom:2px solid #ccc">Importance (1–9)</th></tr>
-${groupRows}
-</table>
+${H2("1. Target")}
+<p style="font-size:13px">Operating surplus target: <strong>${tgt>=0?"+":""}${tgt.toFixed(1)}%</strong> by 31 July 2028</p>
 
-<h2 style="font-size:16px;color:#e07030;margin-top:28px">5. Strategic positioning</h2>
-<table style="border-collapse:collapse;width:100%">
-<tr><th style="text-align:left;padding:4px 8px;border-bottom:2px solid #ccc">Dimension</th><th style="text-align:left;padding:4px 8px;border-bottom:2px solid #ccc">Position</th></tr>
-${positionRows}
-</table>
+${H2("2. Current revenue (Q2 2025/26)")}
+${tbl([["Revenue line"],["£k","right"]],
+  REV_LINES.map(l=>tr([[l.name],[ fmtK(nv(pData.revenues?.[l.id],l.prefillK)),"right"]])).join("")+
+  tr([["Total revenue","left",true],[fmtK(curRevTotal),"right",true]])+
+  tr([["—"]]) +
+  tr([["Cost line","left",true],["£k","right",true]])+
+  COST_LINES.map(l=>tr([[l.name],[fmtK(nv(pData.costs?.[l.id],l.baseK)),"right"]])).join("")+
+  tr([["Total costs","left",true],[fmtK(curCostTotal),"right",true]])+
+  tr([["Net surplus","left",true],[fmtK(curSurplus),"right",true,curSurplus>=0?"#2d7d46":"#b83232"]])
+)}
 
-<h2 style="font-size:16px;color:#e07030;margin-top:28px">6. Selected changes</h2>
-${changes.length > 0 ? `<ol>${changes.map(s => `<li style="margin-bottom:6px">${s.text}</li>`).join("")}</ol>` : "<p>None selected.</p>"}
+${H2("3. Do-nothing trajectory by July 2028")}
+${tbl([["Revenue line"],["CAGR applied","right"],["Predicted £k","right"]],
+  REV_LINES.map(l=>tr([[l.name],[`${nv(getRevRate(l.id)).toFixed(1)}%`,"right"],[fmtK(nv(predRevs[l.id])),"right"]])).join("")+
+  tr([["Total revenue","left",true],["","right"],[fmtK(predRev),"right",true]])+
+  tr([["—"]]) +
+  tr([["Cost line","left",true],["","right"],["Predicted £k","right",true]])+
+  COST_LINES.map(l=>tr([[l.name],["","right"],[fmtK(nv(predCosts[l.id])),"right"]])).join("")+
+  tr([["Total costs","left",true],["","right"],[fmtK(predCost),"right",true]])+
+  tr([["Do-nothing surplus","left",true],["","right"],[fmtK(predSurplus),"right",true,predSurplus>=0?"#2d7d46":"#b83232"]])+
+  tr([["Gap to target","left",true],["","right"],[predGap>0?fmtK(predGap):"None","right",true,predGap>0?"#b83232":"#2d7d46"]])
+)}
 
-<h2 style="font-size:16px;color:#e07030;margin-top:28px">7. Strawperson scenario by July 2028</h2>
-<table style="border-collapse:collapse;width:100%">
-<tr><th style="text-align:left;padding:4px 8px;border-bottom:2px solid #ccc">Revenue line</th><th style="text-align:right;padding:4px 8px;border-bottom:2px solid #ccc">£k</th></tr>
-${REV_LINES.map(l => `<tr><td style="padding:4px 8px;border-bottom:1px solid #eee">${l.name}</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fmtK(nv(pData.s17Revs?.[l.id]))}</td></tr>`).join("")}
-<tr style="font-weight:700"><td style="padding:4px 8px">Total revenue</td><td style="padding:4px 8px;text-align:right">${fmtK(s17R)}</td></tr>
-</table>
-<table style="border-collapse:collapse;width:100%;margin-top:12px">
-<tr><th style="text-align:left;padding:4px 8px;border-bottom:2px solid #ccc">Cost line</th><th style="text-align:right;padding:4px 8px;border-bottom:2px solid #ccc">£k</th></tr>
-${COST_LINES.map(l => `<tr><td style="padding:4px 8px;border-bottom:1px solid #eee">${l.name}</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fmtK(nv(pData.s17Costs?.[l.id]))}</td></tr>`).join("")}
-<tr style="font-weight:700"><td style="padding:4px 8px">Total costs</td><td style="padding:4px 8px;text-align:right">${fmtK(s17C)}</td></tr>
-</table>
-<p><strong>Surplus: ${fmtK(s17S)} (${s17P}%)</strong></p>
+${H2("4. Who FBaM should serve")}
+${tbl([["Stakeholder"],["Score","right"]],
+  PURPOSE_GROUPS.map(g=>tr([[g],[nv(groups[g])||"—","right",false,nv(groups[g])>=8?"#e07030":""]])).join("")
+)}
 
-<h2 style="font-size:16px;color:#e07030;margin-top:28px">8. Theme P&L</h2>
-<table style="border-collapse:collapse;width:100%">
-<tr><th style="text-align:left;padding:4px 8px;border-bottom:2px solid #ccc">Theme</th><th style="text-align:right;padding:4px 8px;border-bottom:2px solid #ccc">Revenue</th><th style="text-align:right;padding:4px 8px;border-bottom:2px solid #ccc">Costs</th><th style="text-align:right;padding:4px 8px;border-bottom:2px solid #ccc">Margin</th></tr>
-${themeRows}
-</table>
+${H2("5. Strategic positioning")}
+${tbl([["Dimension"],["Position"]],
+  PURPOSE_TENSIONS.map(t=>{const v=nv(tensions[t.key],50);const label=v<33?t.l:v>66?t.r:"Balanced";return tr([[t.desc],[`<strong>${label}</strong> (${v})`]]);}).join("")
+)}
 
-<h2 style="font-size:16px;color:#e07030;margin-top:28px">9. WHY / HOW / WHAT</h2>
-<p><strong>WHY:</strong> ${why}</p>
-<p><strong>HOW:</strong> ${how}</p>
-<p><strong>WHAT:</strong> ${what}</p>
+${H2("6. Selected changes")}
+${changes.length>0?`<ol style="font-size:12px;padding-left:18px">${changes.map(s=>`<li style="margin-bottom:5px">${s.text}</li>`).join("")}</ol>`:"<p style='font-size:12px;color:#888'>None selected.</p>"}
+
+${H2("7. Strawperson scenario by July 2028")}
+${scenRevs ? tbl([["Revenue line"],["£k","right"]],
+  REV_LINES.map(l=>tr([[l.name],[fmtK(nv(scenRevs[l.id])),"right"]])).join("")+
+  tr([["Total revenue","left",true],[fmtK(s17R),"right",true]])+
+  tr([["—"]]) +
+  tr([["Cost line","left",true],["£k","right",true]])+
+  COST_LINES.map(l=>tr([[l.name],[fmtK(nv(scenCosts[l.id])),"right"]])).join("")+
+  tr([["Total costs","left",true],[fmtK(s17C),"right",true]])+
+  tr([["Surplus","left",true],[fmtK(s17S),"right",true,s17S>=0?"#2d7d46":"#b83232"]])
+) : "<p style='font-size:12px;color:#888'>Scenario not yet completed.</p>"}
+
+${H2("8. Theme P&L")}
+${tbl([["Theme"],["Revenue","right"],["Costs","right"],["Contribution (margin)","right"]],
+  THEME_DATA.map(t=>{const r=nv(pData.s18RevAlloc?.[t.id],0);const c=nv(pData.s18CostAlloc?.[t.id],0);const m=r-c;return tr([[t.name],[fmtK(r),"right"],[fmtK(c),"right"],[fmtK(m),"right",false,m>=0?"#2d7d46":"#b83232"]]);}).join("")
+)}
+
+${H2("9. WHY / HOW / WHAT")}
+${why ? `<p style="font-size:12px"><strong>WHY:</strong> ${why}</p>` : ""}
+${how ? `<p style="font-size:12px"><strong>HOW:</strong> ${how}</p>` : ""}
+${what ? `<p style="font-size:12px"><strong>WHAT:</strong> ${what}</p>` : ""}
+${!why && !how && !what ? `<p style="font-size:12px;color:#888">Purpose section not yet completed.</p>` : ""}
 </div>`;
   };
 
@@ -3220,78 +3227,150 @@ ${themeRows}
   };
 
   const printAllSections = () => {
-    // Build a full printable HTML document with all sections rendered
-    const { tgt, why, how, what, s17R, s17C, s17S, s17P } = buildSummary();
-    const curRevTotal  = REV_LINES.reduce((s, l) => s + nv(pData.revenues?.[l.id], l.prefillK), 0);
-    const curCostTotal = COST_LINES.reduce((s, l) => s + nv(pData.costs?.[l.id], l.baseK), 0);
-    const curSurplus   = curRevTotal - curCostTotal;
-    const { predRevs, total: predRev } = calcPredRevs(pData);
-    const { predCosts, total: predCost } = calcPredCosts(pData);
-    const predSurplus  = predRev - predCost;
-    const changes = pData.s11Selected || pData.s11Statements?.filter(s => s.checked || s.own) || [];
-    const tensions = pData.purposeTensions || {};
-    const groups = pData.purposeGroups || {};
+    const d = buildPrintData();
+    const { tgt, why, how, what, s17R, s17C, s17S, s17P, scenRevs, scenCosts,
+            curRevTotal, curCostTotal, curSurplus, predRevs, predCosts, predRev, predCost,
+            predSurplus, predGap, changes, tensions, groups, mixes, date, getRevRate } = d;
 
-    const tbl = (rows) => `<table style="width:100%;border-collapse:collapse;margin-bottom:12px;font-size:12px">${rows}</table>`;
-    const th = (t, align="left") => `<th style="padding:4px 6px;border-bottom:2px solid #ccc;text-align:${align}">${t}</th>`;
-    const td = (t, align="left", bold=false, color="") => `<td style="padding:3px 6px;border-bottom:1px solid #eee;text-align:${align};${bold?"font-weight:700;":""}${color?`color:${color};`:""}">${t}</td>`;
+    const PAGE = (title, stepNum, content) =>
+      `<div class="page"><div class="step-label">Step ${stepNum}</div><h2>${title}</h2>${content}</div>`;
+    const tbl = (headers, rows) =>
+      `<table><thead><tr>${headers.map(([h,a])=>`<th style="text-align:${a||"left"}">${h}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table>`;
+    const tr = (cells) =>
+      `<tr>${cells.map(([v,a,bold,color])=>`<td style="text-align:${a||"left"};${bold?"font-weight:700;":""}${color?`color:${color};`:""}">${v}</td>`).join("")}</tr>`;
+    const kpi = (v, l, c) =>
+      `<div class="kpi"><div class="kv" style="color:${c||"#e07030"}">${v}</div><div class="kl">${l}</div></div>`;
+
+    const pages = [
+      PAGE("1. Set Goal", 1, `
+        <p>Operating surplus target by 31 July 2028:</p>
+        <div class="big-number">${tgt>=0?"+":""}${tgt.toFixed(1)}%</div>
+        <p class="note">31 July 2028 is FBaM's year end. Levy funding should have ended post EPA submissions.</p>
+      `),
+      PAGE("2. Revenue — Current position", 2, tbl(
+        [["Revenue line"],["Q2 2025/26 £k","right"]],
+        REV_LINES.map(l=>tr([[l.name],[fmtK(nv(pData.revenues?.[l.id],l.prefillK)),"right"]])).join("")+
+        tr([["Total revenue","left",true],[fmtK(curRevTotal),"right",true]])
+      )),
+      PAGE("3. Costs — Current position", 3, tbl(
+        [["Cost line"],["Q2 2025/26 £k","right"]],
+        COST_LINES.map(l=>tr([[l.name],[fmtK(nv(pData.costs?.[l.id],l.baseK)),"right"]])).join("")+
+        tr([["Total costs","left",true],[fmtK(curCostTotal),"right",true]])+
+        tr([["Net surplus","left",true],[fmtK(curSurplus),"right",true,curSurplus>=0?"#2d7d46":"#b83232"]])
+      )),
+      PAGE("4. Current position — Summary", 4, `
+        <div class="kpi-row">
+          ${kpi(fmtK(curRevTotal),"Total revenue")}
+          ${kpi(fmtK(curCostTotal),"Total costs")}
+          ${kpi(fmtK(curSurplus),"Net surplus",curSurplus>=0?"#2d7d46":"#b83232")}
+          ${kpi(`${curRevTotal>0?((curSurplus/curRevTotal)*100).toFixed(1):0}%`,"Surplus %")}
+        </div>
+        <p class="note">Target: ${tgt>=0?"+":""}${tgt.toFixed(1)}%</p>
+      `),
+      PAGE("5. Market context", 5, tbl(
+        [["Revenue stream"],["Sector CAGR"],["FBaM CAGR applied","right"]],
+        MARKET_BENCHMARKS.map(b=>tr([[b.label],[b.range],[`${nv(getRevRate(b.id)).toFixed(1)}%`,"right"]])).join("")
+      )),
+      PAGE("6. Predicted revenues by July 2028", 6, tbl(
+        [["Revenue line"],["CAGR %","right"],["Current £k","right"],["Predicted £k","right"]],
+        REV_LINES.map(l=>{const base=nv(l.prefillK);const pred=nv(predRevs[l.id]);return tr([[l.name],[`${nv(getRevRate(l.id)).toFixed(1)}%`,"right"],[fmtK(base),"right"],[fmtK(pred),"right",false,pred<base?"#b83232":"#2d7d46"]]);}).join("")+
+        tr([["Total","left",true],["","right"],[fmtK(REV_LINES.reduce((s,l)=>s+nv(l.prefillK),0)),"right",true],[fmtK(predRev),"right",true]])
+      )),
+      PAGE("7. Predicted costs by July 2028", 7, tbl(
+        [["Cost line"],["CAGR %","right"],["Current £k","right"],["Predicted £k","right"]],
+        COST_LINES.map(l=>{const base=nv(l.baseK);const pred=nv(predCosts[l.id]);return tr([[l.name],[`${nv(pData.costRates?.[l.id]||0).toFixed(1)}%`,"right"],[fmtK(base),"right"],[fmtK(pred),"right"]]);}).join("")+
+        tr([["Total","left",true],["","right"],[fmtK(COST_LINES.reduce((s,l)=>s+nv(l.baseK),0)),"right",true],[fmtK(predCost),"right",true]])
+      )),
+      PAGE("8. Prognosis — Do-nothing trajectory", 8, `
+        <div class="kpi-row">
+          ${kpi(fmtK(predRev),"Predicted revenue")}
+          ${kpi(fmtK(predCost),"Predicted costs")}
+          ${kpi(fmtK(predSurplus),"Predicted surplus",predSurplus>=0?"#2d7d46":"#b83232")}
+          ${kpi(predGap>0?fmtK(predGap):"None","Gap to target",predGap>0?"#b83232":"#2d7d46")}
+        </div>
+        <p class="note">${predGap>0?`Gap of ${fmtK(predGap)} to close to reach the ${tgt}% target.`:`Do-nothing scenario already meets the ${tgt}% target.`}</p>
+      `),
+      PAGE("Section one complete", "→", `
+        <p class="transition-body">You have worked through the current financial position and built a do-nothing trajectory to July 2028. You can see the gap between where FBaM is heading and where it needs to be.</p>
+        <p class="transition-body">In section two we shift from diagnosis to direction — who FBaM should serve, where it should position itself, and what its purpose is.</p>
+      `),
+      PAGE("10. Who FBaM should serve", 10, tbl(
+        [["Stakeholder group"],["Importance (1–9)","right"]],
+        PURPOSE_GROUPS.map(g=>{const s=nv(groups[g]);return tr([[g],[s||"—","right",false,s>=8?"#e07030":s>=6?"#b87a20":""]]);}).join("")
+      )),
+      PAGE("11. Strategic positioning", 11, tbl(
+        [["Dimension"],["Position"]],
+        PURPOSE_TENSIONS.map(t=>{const v=nv(tensions[t.key],50);const label=v<33?`← ${t.l}`:v>66?`${t.r} →`:"Balanced";return tr([[t.desc],[`<strong>${label}</strong>`]]);}).join("")
+      )),
+      PAGE("12. Selected changes", 12, changes.length>0
+        ? `<ol>${changes.map(s=>`<li>${s.text}</li>`).join("")}</ol>`
+        : `<p class="note">No changes selected yet.</p>`
+      ),
+      PAGE("Section two complete", "→", `
+        <p class="transition-body">You have considered who FBaM should serve, where it should position itself, and which changes would make the most difference.</p>
+        <p class="transition-body">In section three you build the strawperson financial scenario — a complete revenue and cost structure that is both coherent with your strategic choices and financially viable by July 2028.</p>
+      `),
+      PAGE("14. Close the gap — Strawperson scenario", 14, scenRevs ? tbl(
+        [["Revenue line"],["£k","right"]],
+        REV_LINES.map(l=>tr([[l.name],[fmtK(nv(scenRevs[l.id])),"right"]])).join("")+
+        tr([["Total revenue","left",true],[fmtK(s17R),"right",true]])+
+        tr([["—"]]) +
+        tr([["Cost line","left",true],["£k","right",true]])+
+        COST_LINES.map(l=>tr([[l.name],[fmtK(nv(scenCosts[l.id])),"right"]])).join("")+
+        tr([["Total costs","left",true],[fmtK(s17C),"right",true]])+
+        tr([["Surplus","left",true],[fmtK(s17S),"right",true,s17S>=0?"#2d7d46":"#b83232"]])
+      ) : `<p class="note">Scenario not yet completed.</p>`),
+      PAGE("15. Theme P&L", 15, tbl(
+        [["Theme"],["Revenue","right"],["Costs","right"],["Contribution (margin)","right"]],
+        THEME_DATA.map(t=>{const r=nv(pData.s18RevAlloc?.[t.id],0);const c=nv(pData.s18CostAlloc?.[t.id],0);const m=r-c;return tr([[t.name],[fmtK(r),"right"],[fmtK(c),"right"],[fmtK(m),"right",false,m>=0?"#2d7d46":"#b83232"]]);}).join("")+
+        tr([["School total","left",true],[fmtK(s17R),"right",true],[fmtK(s17C),"right",true],[fmtK(s17S),"right",true,s17S>=0?"#2d7d46":"#b83232"]])
+      )),
+      PAGE("17. Finalise — Summary", 17, `
+        <div class="kpi-row">
+          ${kpi(`${tgt>=0?"+":""}${tgt.toFixed(1)}%`,"Target surplus")}
+          ${kpi(s17R>0?fmtK(s17R):"—","Scenario revenue")}
+          ${kpi(s17C>0?fmtK(s17C):"—","Scenario costs")}
+          ${kpi(s17R>0?`${s17P}%`:"—","Surplus %",s17R>0?(parseFloat(s17P)>=tgt?"#2d7d46":"#b83232"):"#888")}
+        </div>
+        ${why?`<div class="why-box"><div class="why-label">WHY</div><p>${why}</p></div>`:""}
+        ${how?`<div class="why-box"><div class="why-label">HOW</div><p>${how}</p></div>`:""}
+        ${what?`<div class="why-box"><div class="why-label">WHAT</div><p>${what}</p></div>`:""}
+      `),
+    ];
 
     const printHTML = `<!DOCTYPE html><html><head><meta charset="utf-8">
 <title>FBaM Strategy Lab — ${pData.name}</title>
 <style>
-  body{font-family:Arial,sans-serif;color:#1a1a1a;font-size:12px;margin:20px 30px}
-  h1{font-size:18px;border-bottom:3px solid #e07030;padding-bottom:6px;margin-top:0}
-  h2{font-size:13px;color:#e07030;margin-top:20px;margin-bottom:8px;text-transform:uppercase;letter-spacing:1px}
-  .meta{color:#888;font-size:10px;margin-bottom:16px}
-  .kpi-row{display:flex;gap:16px;margin-bottom:16px}
-  .kpi{flex:1;border:1px solid #ccc;border-radius:3px;padding:8px;text-align:center}
-  .kpi .v{font-size:18px;font-weight:700;color:#e07030}
-  .kpi .l{font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#888;margin-top:3px}
-  table{width:100%;border-collapse:collapse;margin-bottom:12px}
-  th{text-align:left;padding:4px 6px;border-bottom:2px solid #ccc;font-size:11px}
-  td{padding:3px 6px;border-bottom:1px solid #eee}
-  .page-break{page-break-after:always}
-  ol{margin:0;padding-left:18px}
-  ol li{margin-bottom:4px}
-  @media print{body{margin:10px 16px}.no-print{display:none}}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Arial,sans-serif;color:#1a1a1a;font-size:12px}
+  .page{padding:24px 28px;min-height:100vh;page-break-after:always;display:flex;flex-direction:column}
+  .page:last-child{page-break-after:auto}
+  .step-label{font-size:10px;text-transform:uppercase;letter-spacing:2px;color:#aaa;margin-bottom:6px}
+  h2{font-size:18px;font-weight:700;color:#1a1a1a;margin-bottom:16px;padding-bottom:8px;border-bottom:2px solid #e07030}
+  .meta{font-size:10px;color:#888;margin-bottom:20px}
+  .big-number{font-size:56px;font-weight:700;color:#e07030;text-align:center;margin:32px 0}
+  table{width:100%;border-collapse:collapse;margin-bottom:12px;font-size:12px}
+  th{text-align:left;padding:5px 8px;border-bottom:2px solid #ccc;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#888}
+  td{padding:4px 8px;border-bottom:1px solid #eee}
+  .kpi-row{display:flex;gap:12px;margin-bottom:16px}
+  .kpi{flex:1;border:1px solid #e07030;border-radius:3px;padding:10px;text-align:center}
+  .kv{font-size:20px;font-weight:700}
+  .kl{font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#888;margin-top:4px}
+  .note{font-size:11px;color:#666;margin-top:10px;line-height:1.6}
+  .transition-body{font-size:14px;color:#444;line-height:1.8;margin-bottom:16px;padding:0 16px}
+  ol{padding-left:20px}
+  ol li{margin-bottom:6px;line-height:1.5}
+  .why-box{border:1px solid #e8e4de;border-radius:3px;padding:10px 14px;margin-bottom:10px}
+  .why-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#e07030;margin-bottom:4px}
+  .cover{background:#1a1a1a;color:#f0ede8;padding:48px}
+  @media print{body{margin:0}.page{padding:16px 20px}}
 </style></head><body>
-<h1>FBaM Strategy Lab — ${pData.name}</h1>
-<div class="meta">Session: ${STORE.sessionId} &nbsp;·&nbsp; ${new Date().toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"})}</div>
-
-<div class="kpi-row">
-  <div class="kpi"><div class="v">${tgt >= 0 ? "+" : ""}${tgt.toFixed(1)}%</div><div class="l">Target surplus</div></div>
-  <div class="kpi"><div class="v">${fmtK(s17R)}</div><div class="l">Scenario revenue</div></div>
-  <div class="kpi"><div class="v">${fmtK(s17C)}</div><div class="l">Scenario costs</div></div>
-  <div class="kpi"><div class="v" style="color:${parseFloat(s17P)>=tgt?"#2d7d46":"#b83232"}">${s17P}%</div><div class="l">Surplus %</div></div>
+<div class="page cover" style="background:#1a1a1a;color:#f0ede8;justify-content:center">
+  <div style="font-size:11px;text-transform:uppercase;letter-spacing:3px;color:#e07030;margin-bottom:12px">FBaM Strategy Lab</div>
+  <div style="font-size:32px;font-weight:700;margin-bottom:8px">${pData.name}</div>
+  <div style="font-size:14px;color:#aaa">${date} &nbsp;·&nbsp; Session: ${STORE.sessionId}</div>
 </div>
-
-<h2>Current position (Q2 2025/26)</h2>
-${tbl(`<tr>${th("Revenue line")}${th("£k","right")}</tr>${REV_LINES.map(l=>`<tr>${td(l.name)}${td(fmtK(nv(pData.revenues?.[l.id],l.prefillK)),"right")}</tr>`).join("")}<tr>${td("Total revenue","left",true)}${td(fmtK(curRevTotal),"right",true)}</tr>
-<tr>${td("&nbsp;")}</tr><tr>${th("Cost line")}${th("£k","right")}</tr>${COST_LINES.map(l=>`<tr>${td(l.name)}${td(fmtK(nv(pData.costs?.[l.id],l.baseK)),"right")}</tr>`).join("")}<tr>${td("Total costs","left",true)}${td(fmtK(curCostTotal),"right",true)}</tr><tr>${td("Net surplus","left",true)}${td(fmtK(curSurplus),"right",true,curSurplus>=0?"#2d7d46":"#b83232")}</tr>`)}
-
-<h2>Do-nothing trajectory by July 2028</h2>
-${tbl(`<tr>${th("Revenue line")}${th("CAGR %","right")}${th("Predicted £k","right")}</tr>${REV_LINES.map(l=>`<tr>${td(l.name)}${td(nv(pData.revRates?.[l.id]??pData.marketRates?.[l.id]??0).toFixed(1)+"%","right")}${td(fmtK(nv(predRevs[l.id])),"right")}</tr>`).join("")}<tr>${td("Total","left",true)}${td("")}${td(fmtK(predRev),"right",true)}</tr><tr>${td("Do-nothing surplus","left",true)}${td("")}${td(fmtK(predSurplus),"right",true,predSurplus>=0?"#2d7d46":"#b83232")}</tr>`)}
-
-<h2>Who FBaM should serve</h2>
-${tbl(`<tr>${th("Stakeholder")}${th("Score","right")}</tr>${PURPOSE_GROUPS.map(g=>`<tr>${td(g)}${td(nv(groups[g],"—"),"right",false,nv(groups[g])>=8?"#e07030":"")}</tr>`).join("")}`)}
-
-<h2>Strategic positioning</h2>
-${tbl(`<tr>${th("Dimension")}${th("Position")}</tr>${PURPOSE_TENSIONS.map(t=>{const v=nv(tensions[t.key],50);const label=v<33?t.l:v>66?t.r:"Balanced";return`<tr>${td(t.desc)}${td(`<strong>${label}</strong> (${v})`)}</tr>`;}).join("")}`)}
-
-<h2>Selected changes</h2>
-${changes.length>0?`<ol>${changes.map(s=>`<li>${s.text}</li>`).join("")}</ol>`:"<p>None selected.</p>"}
-
-<h2>Strawperson scenario by July 2028</h2>
-${tbl(`<tr>${th("Revenue line")}${th("£k","right")}</tr>${REV_LINES.map(l=>`<tr>${td(l.name)}${td(fmtK(nv(pData.s17Revs?.[l.id])),"right")}</tr>`).join("")}<tr>${td("Total revenue","left",true)}${td(fmtK(s17R),"right",true)}</tr>
-<tr>${td("&nbsp;")}</tr><tr>${th("Cost line")}${th("£k","right")}</tr>${COST_LINES.map(l=>`<tr>${td(l.name)}${td(fmtK(nv(pData.s17Costs?.[l.id])),"right")}</tr>`).join("")}<tr>${td("Total costs","left",true)}${td(fmtK(s17C),"right",true)}</tr><tr>${td("Surplus","left",true)}${td(fmtK(s17S),"right",true,s17S>=0?"#2d7d46":"#b83232")}</tr>`)}
-
-<h2>Theme P&L</h2>
-${tbl(`<tr>${th("Theme")}${th("Revenue","right")}${th("Costs","right")}${th("Contribution (margin)","right")}</tr>${THEME_DATA.map(t=>{const r=nv(pData.s18RevAlloc?.[t.id],0);const c=nv(pData.s18CostAlloc?.[t.id],0);const m=r-c;return`<tr>${td(t.name)}${td(fmtK(r),"right")}${td(fmtK(c),"right")}${td(fmtK(m),"right",false,m>=0?"#2d7d46":"#b83232")}</tr>`;}).join("")}`)}
-
-<h2>WHY / HOW / WHAT</h2>
-<p><strong>WHY:</strong> ${why}</p>
-<p><strong>HOW:</strong> ${how}</p>
-<p><strong>WHAT:</strong> ${what}</p>
+${pages.join("")}
 </body></html>`;
 
     const win = window.open("", "_blank");
@@ -3300,9 +3379,8 @@ ${tbl(`<tr>${th("Theme")}${th("Revenue","right")}${th("Costs","right")}${th("Con
     win.focus();
     setTimeout(() => {
       win.print();
-      // Fire email silently after print dialog opens
       fireEmail().then(() => setSent(true));
-    }, 400);
+    }, 500);
   };
 
   return (
