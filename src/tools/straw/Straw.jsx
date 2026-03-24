@@ -62,7 +62,7 @@ const COST_LINES = [
 const VARIABLE_COST_IDS = ["associates", "prog_costs"];
 const REV_DEF_RATES = { ft_msc: 0, pt_levy: -100, exec_ed: -13.214, open: 0, research_dd: 0, hefce: 0, residences: -6.7374, other_rev: 0 };
 const COST_DRIVERS  = { academic_staff: "Pay award", support_staff: "Pay award", associates: "Day rate / volume", prog_costs: "Intake volume", ops_overhead: "Inflation / recharge", uni_charge: "TRAC / university allocation" };
-const STEP_NAMES    = ["1. Set goal","2. Revenue","3. Costs","4. Current position","5. Market context","6. Predicted revenues","7. Predicted costs","8. Prognosis","9. Who FBaM serves","10. Positioning","11. Purpose","12. Close the gap","13. Theme P&L","14. Comparison","15. Finalise"];
+const STEP_NAMES    = ["1. Set goal","2. Revenue","3. Costs","4. Current position","5. Market context","6. Predicted revenues","7. Predicted costs","8. Prognosis","→ Section one","10. Who FBaM serves","11. Positioning","12. Changes","→ Section two","14. Close the gap","15. Theme P&L","16. Comparison","17. Finalise"];
 
 /* ── PURPOSE TOOL DATA ──────────────────────────────────────────────────── */
 const PURPOSE_GROUPS = [
@@ -80,14 +80,14 @@ const PURPOSE_GROUPS = [
 
 // Left (0) → Right (100). 9 = extremely important on scale.
 const PURPOSE_TENSIONS = [
-  { key:"research",   l:"Teaching intensive",  r:"Research intensive",  desc:"Where does FBaM invest most?" },
-  { key:"theory",     l:"Applied / impact",    r:"Theory led",          desc:"How is knowledge generated and shared?" },
-  { key:"experience", l:"Post-experience",     r:"Pre-experience",      desc:"Who are the primary customers?" },
-  { key:"market",     l:"High-end executive",  r:"Mass market",         desc:"Which end of the market?" },
-  { key:"geography",  l:"International",       r:"Domestic",            desc:"Where is the focus?" },
-  { key:"profit",     l:"Grow revenue",        r:"Cut cost base",       desc:"Primary route to improved financial position?" },
-  { key:"breadth",    l:"Focused depth",       r:"Wide portfolio",      desc:"Many programmes or fewer done exceptionally?" },
-  { key:"staffing",   l:"Flexible staffing",   r:"Fixed staffing",      desc:"Associates vs faculty and professional staff?" },
+  { key:"research",   l:"Teaching intensive",  r:"Research intensive",  desc:"Where should FBaM invest most?" },
+  { key:"theory",     l:"Applied / impact",    r:"Theory led",          desc:"How should knowledge be generated and shared?" },
+  { key:"experience", l:"Post-experience",     r:"Pre-experience",      desc:"Who should be the primary customers?" },
+  { key:"market",     l:"High-end executive",  r:"Mass market",         desc:"Which end of the market should FBaM target?" },
+  { key:"geography",  l:"International",       r:"Domestic",            desc:"Where should the focus be?" },
+  { key:"profit",     l:"Grow revenue",        r:"Cut cost base",       desc:"What should be the primary route to improved financial position?" },
+  { key:"breadth",    l:"Focused depth",       r:"Wide portfolio",      desc:"Should FBaM offer many programmes or fewer done exceptionally?" },
+  { key:"staffing",   l:"Flexible staffing",   r:"Fixed staffing",      desc:"Should FBaM rely more on associates or invest in faculty and professional staff?" },
 ];
 
 async function callAI(prompt, timeoutMs = 15000) {
@@ -141,24 +141,55 @@ const THEMES        = ["Business Transformation and Growth","People, Skills and 
 
 /* ── MARKET BENCHMARKS — UK business schools 2024→2028 ─────────────────── */
 const MARKET_BENCHMARKS = [
-  { id: "ft_msc",      label: "Postgraduate MSc & MBA (FT)",         range: "−2% to 0% CAGR",          mid: -1,     direction: "Declining",          dirColor: "#b83232",
-    context: "Graduate Route reducing to 18 months from Jan 2027 suppresses demand. £925 international student levy lands August 2028. Mid-tier schools structurally most exposed." },
-  { id: "pt_levy",     label: "Apprenticeships / Levy",               range: "Eliminated",               mid: -100,   direction: "Eliminated",         dirColor: "#b83232",
-    context: "Level 7 defunded Jan 2026. Level 3/5/6 management defunded Sept 2026. Revenue at or near zero by mid-2027. Any residual is marginal employer self-funded activity." },
-  { id: "exec_ed",     label: "Customised & Executive Education",     range: "+6% to +9% sector CAGR",   mid: -13.2,  direction: "FBaM: Declining",    dirColor: "#b83232",
-    context: "Sector growing strongly (UNICON 2025) but FBaM loses SLEP/Non-Award Bearing (£2,798k). Default reflects FBaM-specific position. Adjust if you disagree with SLEP assumption." },
-  { id: "open",        label: "Open Programmes",                      range: "+6% to +9% CAGR",          mid: 7.5,    direction: "Growing",            dirColor: "#2d7d46",
-    context: "UNICON 2024: 13% growth. In-person recovery embedded above 60%. Middle East and SE Asia demand growing. Partially absorbed demand displaced from apprenticeship pipeline." },
-  { id: "research_dd", label: "Research, Design & Development",       range: "+1% to +2% nominal CAGR",  mid: 1.5,    direction: "Flat (real terms)",  dirColor: "#b87a20",
-    context: "UKRI four-year settlement provides ~2% nominal annual growth, matching inflation. Business schools hold 1.3% of UKRI funding with no structural improvement in sight." },
-  { id: "hefce",       label: "HEFCE & Allocated Research Funding",   range: "+1% to +2% nominal CAGR",  mid: 1.5,    direction: "Flat (real terms)",  dirColor: "#b87a20",
-    context: "QR and allocated research funding broadly flat in real terms through 2028. ESRC applicant-led calls modestly expanding from April 2026." },
-  { id: "residences",  label: "Residences & Conference Facilities",   range: "Linked to exec ed volume",  mid: -6.7,   direction: "Declining",          dirColor: "#b83232",
-    context: "Moves directly with customised programme volume. Default reflects loss of SLEP residential programmes. Adjust in line with your exec ed assumption." },
-  { id: "other_rev",   label: "Other income",                         range: "0% to +2%",                mid: 0,      direction: "Stable",             dirColor: "#888",
-    context: "Endowment, interest, miscellaneous income. Broadly stable through the period." },
+  { id: "ft_msc",      label: "Postgraduate MSc & MBA (FT)",
+    range: "−2% to 0% CAGR",
+    fbamTrend: "Peaked £21.9m (22/23), now £16.3m — declining",
+    fbamCurrent: "−26% vs last year. Poor Jan 2026 intake (4 students vs 10 forecast). Withdrawals continuing.",
+    mid: -8,
+    context: "Sector declining due to Graduate Route compression and £925 international student levy (Aug 2028). FBaM performing significantly below sector — Jan intake shortfall and withdrawal rate suggest structural demand problem, not cyclical. FBaM 5-year trend peaked 22/23 and is now reversing sharply. CAGR of −8% reflects continuation of current trajectory with modest stabilisation." },
+  { id: "pt_levy",     label: "Apprenticeships / Levy",
+    range: "Eliminated",
+    fbamTrend: "Structural decline — last intakes completed",
+    fbamCurrent: "Going to zero. Final Level 7 SLA intakes done. No further cohorts planned.",
+    mid: -100,
+    context: "Level 7 defunded Jan 2026. This income does not exist by 2028. Revenue at zero by mid-2027 at latest. Any residual is marginal employer self-funded activity." },
+  { id: "exec_ed",     label: "Customised & Executive Education",
+    range: "+6% to +9% sector CAGR",
+    fbamTrend: "Consistent growth 18/19→24/25, +4.8% CAGR — but SLEP at risk",
+    fbamCurrent: "−11% vs last year. 86% confirmed. SLEP/Non-Award Bearing (£2,798k) ending. PLP contract at risk at rebid 2026.",
+    mid: -13,
+    context: "Sector growing strongly (UNICON 2025) but FBaM loses SLEP/Non-Award Bearing (£2,798k) and faces PLP rebid risk. 5-year growth trend reverses sharply once these structural losses land. CAGR of −13% reflects confirmed SLEP loss and current confirmed income at only 86%. Adjust if you believe new contracts will replace SLEP volume." },
+  { id: "open",        label: "Open Programmes",
+    range: "+6% to +9% CAGR",
+    fbamTrend: "Recovering from Covid low — below sector pace",
+    fbamCurrent: "−11% vs last year. Below sector recovery trajectory.",
+    mid: 4,
+    context: "Sector growing strongly (UNICON 2024: 13% growth). FBaM recovering from Covid low but underperforming sector. Current trajectory −11% suggests execution constraints. CAGR of +4% reflects modest recovery below sector pace — adjust upward if you believe FBaM can close the gap to sector performance." },
+  { id: "research_dd", label: "Research, Design & Development",
+    range: "+1% to +2% nominal CAGR",
+    fbamTrend: "+4.4% CAGR 18/19→24/25 — flat in real terms",
+    fbamCurrent: "+40% vs last year (delivery risk — tight year-end delivery). UKRI settlement positive.",
+    mid: 1,
+    context: "UKRI four-year settlement provides ~2% nominal growth. Q2 shows +40% but year-end delivery flagged as tight by finance team — this may not land. FBaM holds 1.3% of UKRI funding with no structural improvement in sight. CAGR of +1% reflects long-run flat trajectory in real terms once Q2 delivery risk is discounted." },
+  { id: "hefce",       label: "HEFCE & Allocated Research Funding",
+    range: "+1% to +2% nominal CAGR",
+    fbamTrend: "Flat 18/19→24/25",
+    fbamCurrent: "−11% vs last year. QR allocated funding unlikely to be fully spent before year end.",
+    mid: 1,
+    context: "QR and allocated research funding broadly flat in real terms through 2028. Current year underspend does not signal structural decline — but equally there is no catalyst for material growth. CAGR of +1% reflects nominal funding settlement." },
+  { id: "residences",  label: "Residences & Conference Facilities",
+    range: "Linked to exec ed volume",
+    fbamTrend: "−2.1% CAGR 18/19→24/25",
+    fbamCurrent: "Follows exec ed — declining with customised programme volume.",
+    mid: -8,
+    context: "Residences moves directly with customised programme volume. Default of −8% reflects loss of SLEP residential programmes and overall exec ed decline. If you believe exec ed recovers, revise this upward in line with your exec ed assumption." },
+  { id: "other_rev",   label: "Other income",
+    range: "0% to +2%",
+    fbamTrend: "Broadly stable",
+    fbamCurrent: "Stable. Endowment, interest, miscellaneous income.",
+    mid: 0,
+    context: "Endowment, interest, Gift Aid, miscellaneous income. Broadly stable through the period. No structural change anticipated." },
 ];
-const FAC_PWD       = "fbam2026";
 const PART_PWD      = "FBAM-straw-03!";
 const PERIODS       = 2.33;
 
@@ -213,6 +244,9 @@ body{background:#f0ede8;font-family:'DM Sans',sans-serif;color:#1a1a1a;}
 .sl-brand-org{font-family:'DM Sans',sans-serif;font-weight:400;font-size:13px;color:#888;margin-bottom:32px;}
 .sl-overview{margin-bottom:32px;}
 .sl-overview p{font-family:'DM Sans',sans-serif;font-weight:400;font-size:17px;line-height:1.7;color:#444;margin-bottom:16px;}
+.sl-bullets{font-family:'DM Sans',sans-serif;font-weight:400;font-size:17px;line-height:1.7;color:#444;margin-bottom:20px;padding-left:0;list-style:none;}
+.sl-bullets li{padding:4px 0 4px 20px;position:relative;}
+.sl-bullets li:before{content:"—";position:absolute;left:0;color:#e07030;}
 .sl-overview strong{font-family:'DM Sans',sans-serif;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:#1a1a1a;}
 .sl-overview .sl-disc{border-top:1px solid #d8d3cb;padding-top:16px;margin-top:4px;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:400;color:#888;line-height:1.7;}
 .sl-overview .sl-disc strong{font-size:11px;font-weight:600;color:#1a1a1a;}
@@ -371,7 +405,7 @@ function NumInput({ value, onChange, min, max, step = 1, width = 90 }) {
 }
 
 /* ── ENTRY SCREEN ─────────────────────────────────────────────────────────── */
-function Entry({ onEnter, onFacilitator }) {
+function Entry({ onEnter }) {
   const [pwd, setPwd]   = useState("");
   const [showPwd, setShowPwd] = useState(false);
   const [name, setName] = useState("");
@@ -395,6 +429,13 @@ function Entry({ onEnter, onFacilitator }) {
         <div className="sl-brand-sub">STRAWPERSON Scenario Tool</div>
         <div className="sl-brand-org">Cranfield University — Faculty of Business and Management</div>
         <div className="sl-overview">
+          <p>Strategic conversations often feel more aligned than they are. Each person at the table carries a different sense of what the financial future looks like — different assumptions about what revenues are achievable, what costs are controllable, and what the structural shifts already in motion actually mean. When those assumptions stay implicit, it is easy to mistake surface agreement for genuine alignment. This tool surfaces the assumptions before they become decisions.</p>
+          <ul className="sl-bullets">
+            <li>Build a complete financial scenario from current actuals to a target surplus — takes around 60–90 minutes</li>
+            <li>Work through revenues, costs, and the structural shifts already in motion</li>
+            <li>Close the gap between the do-nothing trajectory and a position you can defend</li>
+            <li>Compare your scenario with the rest of the group — the disagreements are the conversation</li>
+          </ul>
           <p className="sl-disc"><strong>IMPORTANT — THIS IS NOT A FINANCIAL MODEL.</strong> It is a management tool to support thinking — treat it like a map. A financial model is 1:25,000 scale (OS Explorer — individual buildings visible). This tool is 1:250,000 scale (OS Road Map — cities and main roads only). Figures are estimates. Any scenario that emerges must be tested against accurate financial modelling before decisions are made.</p>
         </div>
         <hr className="sl-rule"/>
@@ -427,36 +468,9 @@ function Entry({ onEnter, onFacilitator }) {
 
         {err && <div className="sl-err">{err}</div>}
         <button className="sl-btn" disabled={!canEnter} onClick={go}>Enter the workshop</button>
-        <div style={{ marginTop: 24, textAlign: "center" }}>
-          <button style={{ background: "none", border: "none", fontSize: 11, color: "#ccc", cursor: "pointer", textDecoration: "none" }} onClick={onFacilitator}>facilitator</button>
-        </div>
+
       </div>
     </div>
-  );
-}
-
-/* ── FACILITATOR LOGIN ────────────────────────────────────────────────────── */
-function FacilitatorLogin({ onLogin, onBack }) {
-  const [pwd, setPwd] = useState("");
-  const [err, setErr] = useState(false);
-  const go = () => { if (pwd === FAC_PWD) onLogin(); else setErr(true); };
-  return (
-    <div className="sl"><div className="sl-entry">
-      <div className="sl-brand-sub">Facilitator access</div>
-      <hr className="sl-rule" />
-      <div className="sl-field">
-        <label className="sl-label">Password</label>
-        <input type="password" className="sl-input" value={pwd}
-          onChange={e => { setPwd(e.target.value); setErr(false); }}
-          onKeyDown={e => e.key === "Enter" && go()}
-          placeholder="Facilitator password" autoFocus />
-        {err && <div className="sl-err">Incorrect password.</div>}
-      </div>
-      <div style={{ display: "flex", gap: 12 }}>
-        <button className="sl-btn" onClick={go}>Enter facilitator view</button>
-        <button className="sl-btn sl-btn-outline" onClick={onBack}>Back</button>
-      </div>
-    </div></div>
   );
 }
 
@@ -492,7 +506,7 @@ function Step1({ pData, confirmed, onConfirm, onBack }) {
           onChange={e => setVal(parseFloat(e.target.value))} />
         <div className="sl-slider-range"><span>−10%</span><span>0%</span><span>+10%</span></div>
       </div>
-      <button className="sl-btn" onClick={doConfirm}>Confirm target → Step 2</button>
+      <button className="sl-btn" onClick={doConfirm}>Confirm target → Step 2: Revenue</button>
     </div>
   );
 }
@@ -514,8 +528,9 @@ function Step2({ pData, confirmed, onConfirm, onBack }) {
       <BackBtn onClick={onBack} />
       {confirmed && <ConfirmedBanner stepN={2} />}
       <div className="sl-step-h">Current situation: Revenue</div>
-      <div className="sl-prompt">These are the Q2 2025/26 actuals. Change any figure you think is inaccurate — differences in how people read the current position are themselves diagnostic.</div>
-      <div className="sl-note-box">All figures are Q2 2025/26 actuals (£k). Edit any line you disagree with.</div>
+      <div className="sl-prompt">These are the Q2 2025/26 forecasts. Please check the figures and change any figures you think are inaccurate or are likely to change.</div>
+      <div className="sl-note-box">All figures are Q2 2025/26 forecasts (£k). Edit any line you disagree with.</div>
+      <ForecastImageRef />
       <table className="sl-tbl">
         <thead><tr>
           <th>Revenue line</th>
@@ -535,7 +550,7 @@ function Step2({ pData, confirmed, onConfirm, onBack }) {
           </div>
         </td></tr></tfoot>
       </table>
-      <button className="sl-btn" onClick={doConfirm}>Lock Revenue → Step 3</button>
+      <button className="sl-btn" onClick={doConfirm}>Lock Revenue → Step 3: Costs</button>
     </div>
   );
 }
@@ -563,8 +578,7 @@ function Step3({ pData, confirmed, onConfirm, onBack }) {
       <BackBtn onClick={onBack} />
       {confirmed && <ConfirmedBanner stepN={3} />}
       <div className="sl-step-h">Current situation: Costs</div>
-      <div className="sl-prompt">These are Q2 2025/26 actuals. The university service charge is the final line — the TRAC adjusted service charge is not yet available.</div>
-      <div className="sl-note-box">All figures are Q2 2025/26 actuals (£k). Edit any line you disagree with.</div>
+      <div className="sl-prompt">These are the Q2 2025/26 forecasts. Please check the figures and change any figures you think are inaccurate or are likely to change. The university service charge is the final line — the TRAC adjusted service charge is not yet available.</div>
       <table className="sl-tbl">
         <thead><tr>
           <th>Cost line</th><th className="right">£k</th>
@@ -599,7 +613,7 @@ function Step3({ pData, confirmed, onConfirm, onBack }) {
         </div>
         <div className="sl-gap-statement">University service charge of {fmtK(uniCharge)} converts the contribution surplus to a net surplus of {fmtK(fullyLoaded)}.</div>
       </div>
-      <button className="sl-btn" onClick={doConfirm}>Lock Costs → Step 4</button>
+      <button className="sl-btn" onClick={doConfirm}>Lock Costs → Step 4: Current position</button>
     </div>
   );
 }
@@ -654,7 +668,7 @@ function Step4({ pData, confirmed, onConfirm, onBack }) {
           Contribution surplus: {fmtK(contribS)} ({revTotal > 0 ? ((contribS / revTotal) * 100).toFixed(1) : "0.0"}%). Service charge of {fmtK(uniCharge)} converts this to a net surplus of {fmtK(fullyLoaded)} ({revTotal > 0 ? ((fullyLoaded / revTotal) * 100).toFixed(1) : "0.0"}%). Your target is {tgt >= 0 ? "+" : ""}{tgt.toFixed(1)}%.
         </div>
       </div>
-      <button className="sl-btn" onClick={doConfirm}>Lock Current → Step 5: Market context</button>
+      <button className="sl-btn" onClick={doConfirm}>Lock current position → Step 5: Market trends</button>
     </div>
   );
 }
@@ -680,53 +694,55 @@ function Step5MarketContext({ pData, confirmed, onConfirm, onBack }) {
     <div className="sl-content">
       <BackBtn onClick={onBack} />
       {confirmed && <ConfirmedBanner stepN={5} />}
-      <div className="sl-step-h">Market context: UK business schools 2024–2028</div>
-      <div className="sl-prompt">Before you predict FBaM's revenues, review what is happening to each income stream across the sector. The mid-point rate is pre-filled — adjust any figure you disagree with. These rates carry forward into Step 6. Click the arrows on the left to reveal the assumptions behind each benchmark.</div>
-      <div className="sl-note-box">Sector benchmarks based on HESA, UKRI, UNICON and OfS data. Rates are cumulative % change over the full period (Jul 2025 → Jul 2028), not annual. Edit any rate — your figures carry into the predicted revenues step.</div>
+      <div className="sl-step-h">Market trends and FBaM trajectory</div>
+      <div className="sl-prompt">This section shows sector trends on CAGR (compound annual growth rate). It also shows longer term and recent FBaM trends.</div>
+      <div className="sl-note-box">Sector benchmarks based on HESA, UKRI, UNICON and OfS data.</div>
 
-      <table className="sl-tbl">
-        <thead><tr>
-          <th>Revenue stream</th>
-          <th className="right" style={{ width: 120 }}>Sector range</th>
-          <th className="right" style={{ width: 80 }}>Direction</th>
-          <th className="right" style={{ width: 100 }}>Your rate %</th>
-        </tr></thead>
-        <tbody>
-          {MARKET_BENCHMARKS.map(b => (
-            <>
-              <tr key={b.id} style={{ cursor: "pointer" }} onClick={() => setExpanded(e => ({ ...e, [b.id]: !e[b.id] }))}>
-                <td>
-                  <div className="tbl-name" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <span style={{ fontSize: 10, color: "#aaa" }}>{expanded[b.id] ? "▲" : "▼"}</span>
-                    {b.label}
-                  </div>
-                </td>
-                <td style={{ textAlign: "right", fontFamily: "'IBM Plex Mono',monospace", fontSize: 11, color: "#888" }}>{b.range}</td>
-                <td style={{ textAlign: "right" }}>
-                  <span style={{ fontSize: 10, fontWeight: 600, color: b.dirColor, textTransform: "uppercase", letterSpacing: 0.5 }}>{b.direction}</span>
-                </td>
-                <td style={{ textAlign: "right" }} onClick={e => e.stopPropagation()}>
-                  <input type="number" className="sl-pred-input" step="0.5"
-                    value={rates[b.id]}
-                    onChange={e => setRates(r => ({ ...r, [b.id]: e.target.value }))}
-                    style={{ width: 80 }}
-                  />
-                </td>
-              </tr>
-              {expanded[b.id] && (
-                <tr key={`${b.id}-ctx`}>
-                  <td colSpan={4} style={{ background: "#ebe7e1", padding: "8px 12px" }}>
-                    <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, color: "#666", lineHeight: 1.6 }}>{b.context}</div>
+      <div style={{ overflowX: "auto" }}>
+        <table className="sl-tbl" style={{ minWidth: 700 }}>
+          <thead><tr>
+            <th style={{ minWidth: 160 }}>Revenue stream</th>
+            <th className="right" style={{ width: 120 }}>Sector CAGR</th>
+            <th className="right" style={{ width: 150 }}>FBaM 5-year trend</th>
+            <th className="right" style={{ width: 160 }}>FBaM current trajectory</th>
+            <th className="right" style={{ width: 90 }}>FBaM CAGR %</th>
+          </tr></thead>
+          <tbody>
+            {MARKET_BENCHMARKS.map(b => (
+              <>
+                <tr key={b.id} style={{ cursor: "pointer" }} onClick={() => setExpanded(e => ({ ...e, [b.id]: !e[b.id] }))}>
+                  <td>
+                    <div className="tbl-name" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <span style={{ fontSize: 10, color: "#aaa" }}>{expanded[b.id] ? "▲" : "▼"}</span>
+                      {b.label}
+                    </div>
+                  </td>
+                  <td style={{ textAlign: "right", fontFamily: "'IBM Plex Mono',monospace", fontSize: 11, color: "#888", verticalAlign: "top" }}>{b.range}</td>
+                  <td style={{ textAlign: "right", fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#666", verticalAlign: "top" }}>{b.fbamTrend}</td>
+                  <td style={{ textAlign: "right", fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#666", verticalAlign: "top" }}>{b.fbamCurrent}</td>
+                  <td style={{ textAlign: "right", verticalAlign: "top" }} onClick={e => e.stopPropagation()}>
+                    <input type="number" className="sl-pred-input" step="0.5"
+                      value={rates[b.id]}
+                      onChange={e => setRates(r => ({ ...r, [b.id]: e.target.value }))}
+                      style={{ width: 80 }}
+                    />
                   </td>
                 </tr>
-              )}
-            </>
-          ))}
-        </tbody>
-      </table>
+                {expanded[b.id] && (
+                  <tr key={`${b.id}-ctx`}>
+                    <td colSpan={5} style={{ background: "#ebe7e1", padding: "8px 12px" }}>
+                      <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, color: "#666", lineHeight: 1.6 }}><strong>Benchmark context:</strong> {b.context}</div>
+                    </td>
+                  </tr>
+                )}
+              </>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       <div className="sl-note-box" style={{ marginTop: 8 }}>
-        31 July 2028 is chosen as it is FBaM's year end and levy funding should have ended post EPA submissions.
+        Edit any FBaM CAGR figure. Your rates carry forward into predicted revenues (Step 6). CAGR = compound annual growth rate — the rate applied over the period Jul 2025 → Jul 2028.
       </div>
       <button className="sl-btn" onClick={doConfirm}>Confirm market context → Step 6: Predicted revenues</button>
     </div>
@@ -924,7 +940,7 @@ function Step7({ pData, confirmed, onConfirm, onBack }) {
         </div>
         <div className="sl-gap-statement">{stmtText()}</div>
       </div>
-      <button className="sl-btn" onClick={doConfirm}>Confirm prognosis → Step 8</button>
+      <button className="sl-btn" onClick={doConfirm}>Confirm prognosis → Section one complete</button>
     </div>
   );
 }
@@ -1240,6 +1256,433 @@ function Step10({ pData, onConfirm, onBack, confirmed }) {
   );
 }
 
+
+/* ── FORECAST IMAGE REF (Step 2) ──────────────────────────────────────────── */
+function ForecastImageRef() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ marginBottom: 20 }}>
+      <button className="sl-btn sl-btn-outline" style={{ fontSize: 12, padding: "8px 14px" }} onClick={() => setOpen(o => !o)}>
+        {open ? "▲ Hide forecast" : "▼ SOM QTR 2 FORECAST 2025/2026"}
+      </button>
+      {open && (
+        <div style={{ marginTop: 12, border: "1px solid #d8d3cb", borderRadius: 4, overflow: "hidden" }}>
+          <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, color: "#888", padding: "8px 12px", background: "#ebe7e1" }}>SOM QTR 2 FORECAST 2025/2026</div>
+          <img src="/fbam-q2-forecast.png" alt="SOM Q2 Forecast 2025/26" style={{ width: "100%", display: "block" }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── TRANSITION SCREEN ────────────────────────────────────────────────────── */
+function TransitionScreen({ heading, body, onContinue, continueLabel }) {
+  return (
+    <div className="sl-content" style={{ maxWidth: 600, paddingTop: 80 }}>
+      <div style={{ fontFamily: "'Cormorant Garamond',serif", fontWeight: 400, fontSize: 36, color: "#1a1a1a", marginBottom: 24 }}>{heading}</div>
+      <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 17, color: "#444", lineHeight: 1.7, marginBottom: 40 }}>{body}</div>
+      <button className="sl-btn" onClick={onContinue}>{continueLabel || "Continue →"}</button>
+    </div>
+  );
+}
+
+/* ── STEP 11: CHANGES ─────────────────────────────────────────────────────── */
+function Step11Changes({ pData, confirmed, onConfirm, onBack }) {
+  const [statements, setStatements] = useState(pData.s11Statements || []);
+  const [ownText, setOwnText] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [generated, setGenerated] = useState(pData.s11Statements?.length > 0);
+
+  const tgt = nv(pData.targetPct, 7.5);
+  const { total: predRev } = calcPredRevs(pData);
+  const { total: predCost } = calcPredCosts(pData);
+  const gap = (predRev * tgt / 100) - (predRev - predCost);
+  const profitSlider = nv(pData.purposeTensions?.profit, 50);
+  const isCostFocused = profitSlider > 55;
+
+  const buildPrompt = (keepStatements) => {
+    const pos = pData.purposeTensions ? getPositionSummary(pData.purposeTensions) : "not specified";
+    const groups = getGroupSummary(pData.purposeGroups || {});
+    const keepContext = keepStatements.length > 0
+      ? `
+
+Already selected (keep these in mind, do NOT repeat them):
+${keepStatements.map((s,i) => `${i+1}. ${s.text}`).join("
+")}`
+      : "";
+    const serviceChargeNote = isCostFocused
+      ? "
+- The user has positioned FBaM toward cost reduction. INCLUDE a service charge renegotiation option (e.g. 'Renegotiate the university service charge from £10.3m to £Xm — without this the contribution target cannot be reached without eliminating entire programme areas.')."
+      : `
+- The user has positioned FBaM toward revenue growth. Only include service charge renegotiation if the gap of £${Math.round(gap)}k cannot plausibly be closed by revenue alone.`;
+
+    return `You are simultaneously a world-leading strategy consultant, a world-leading management accountant, a world-leading finance expert, and a world-leading accountant advising Cranfield University's Faculty of Business and Management (FBaM).
+
+FINANCIAL CONTEXT:
+- Do-nothing revenue by July 2028: £${Math.round(predRev)}k
+- Do-nothing costs: £${Math.round(predCost)}k
+- Do-nothing surplus: £${Math.round(predRev - predCost)}k (${predRev > 0 ? ((predRev - predCost)/predRev*100).toFixed(1) : 0}%)
+- Target surplus: ${tgt}%
+- Gap to close: £${Math.round(gap)}k
+
+STRATEGIC CHOICES:
+- Positioning: ${pos}
+- Priority stakeholders (8-9 rated): ${groups}
+- Strategic orientation: ${isCostFocused ? "COST REDUCTION focused" : "REVENUE GROWTH focused"}
+${serviceChargeNote}${keepContext}
+
+Generate exactly 10 specific, actionable change statements that would help close this gap. Each statement must:
+- Be max 40 words
+- Be directly coherent with the user's positioning choices (if exec-ed focused positioning, suggest exec-ed growth; if cost-focused, suggest cost reduction)
+- Reference specific FBaM context (programmes, income lines, headcount, Cranfield context)
+- Be a concrete recommendation, not a generic observation
+- Numbers should be specific where possible (e.g. "grow exec ed to £12m" not "grow exec ed")
+
+Format: number each 1-10, one per line, no other text.`;
+  };
+
+  const generate = async (keep) => {
+    setLoading(true);
+    try {
+      const txt = await callAI(buildPrompt(keep), 20000);
+      const lines = txt.split("
+")
+        .map(l => l.replace(/^\d+\.\s*/, "").trim())
+        .filter(l => l.length > 10)
+        .slice(0, 10);
+      const needed = Math.max(0, 10 - keep.length);
+      const newStmts = lines.slice(0, needed).map(text => ({ text, checked: false, own: false }));
+      setStatements([...keep, ...newStmts]);
+      setGenerated(true);
+    } catch (e) {
+      setStatements([...keep, { text: "Could not generate — check your connection and try again.", checked: false, own: false }]);
+    }
+    setLoading(false);
+  };
+
+  const toggleCheck = (i) => {
+    setStatements(prev => prev.map((s, j) => j === i ? { ...s, checked: !s.checked } : s));
+  };
+
+  const handleGenerate = () => {
+    const keep = statements.filter(s => s.checked || s.own);
+    generate(keep);
+  };
+
+  const addOwn = () => {
+    if (!ownText.trim()) return;
+    setStatements(prev => [...prev, { text: ownText.trim(), checked: true, own: true }]);
+    setOwnText("");
+  };
+
+  const doConfirm = () => {
+    const selected = statements.filter(s => s.checked || s.own);
+    pSave(pData.name, { s11Statements: statements, s11Selected: selected, step11Confirmed: true });
+    onConfirm();
+  };
+
+  return (
+    <div className="sl-content">
+      <BackBtn onClick={onBack} />
+      {confirmed && <ConfirmedBanner stepN={11} />}
+      <div className="sl-step-h">Changes</div>
+      <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 14, fontWeight: 600, color: "#888", textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Suggested changes</div>
+      <div className="sl-prompt">Based on your inputs so far — here are a set of changes that could help to close the gap from the current position to the July 2028 desirable position.</div>
+      <div className="sl-note-box">Tick the changes you agree with. Click Generate to replace unchecked items with new suggestions — your ticked items are kept. You can also add your own — they will be automatically selected.</div>
+
+      {!generated && !loading && (
+        <button className="sl-btn" style={{ marginBottom: 24 }} onClick={() => generate([])}>
+          Generate suggested changes
+        </button>
+      )}
+
+      {loading && (
+        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "20px 0", fontFamily: "'DM Sans',sans-serif", fontSize: 13, color: "#888" }}>
+          <div style={{ width: 16, height: 16, border: "2px solid #d8d3cb", borderTopColor: "#e07030", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+          Analysing your strategic choices and financial position…
+        </div>
+      )}
+
+      {generated && !loading && (
+        <div style={{ marginBottom: 24 }}>
+          {statements.map((s, i) => (
+            <div key={i} style={{ display: "flex", gap: 12, alignItems: "flex-start", marginBottom: 10, padding: "12px 14px", background: s.checked || s.own ? "#f0faf4" : "#f0ede8", border: `1px solid ${s.checked || s.own ? "#2d7d46" : "#d8d3cb"}`, borderRadius: 4 }}>
+              <input type="checkbox" checked={s.checked || s.own} onChange={() => !s.own && toggleCheck(i)}
+                style={{ marginTop: 3, flexShrink: 0, accentColor: "#e07030", width: 16, height: 16 }} />
+              <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 14, color: "#1a1a1a", lineHeight: 1.6 }}>
+                {s.own && <span style={{ fontSize: 10, fontWeight: 600, color: "#e07030", textTransform: "uppercase", letterSpacing: 1, marginRight: 8 }}>Yours</span>}
+                {s.text}
+              </span>
+            </div>
+          ))}
+
+          <div style={{ display: "flex", gap: 8, marginTop: 16, marginBottom: 8 }}>
+            <button className="sl-btn sl-btn-outline" style={{ fontSize: 12, padding: "8px 14px" }} onClick={handleGenerate}>
+              Generate new suggestions
+            </button>
+          </div>
+          <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#aaa" }}>Ticked items are kept. Unticked items are replaced with new suggestions.</div>
+        </div>
+      )}
+
+      {generated && (
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, fontWeight: 600, color: "#1a1a1a", marginBottom: 8 }}>Add your own</div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input type="text" className="sl-input" style={{ flex: 1 }}
+              placeholder="Type a change you want to add — it will be automatically selected…"
+              value={ownText} onChange={e => setOwnText(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && addOwn()} />
+            <button className="sl-btn" style={{ fontSize: 12, padding: "8px 16px", flexShrink: 0 }} onClick={addOwn}>Add</button>
+          </div>
+        </div>
+      )}
+
+      {generated && (
+        <button className="sl-btn" onClick={doConfirm}
+          disabled={statements.filter(s => s.checked || s.own).length === 0}>
+          Confirm changes → Section two complete
+        </button>
+      )}
+    </div>
+  );
+}
+
+/* ── STEP 12: CLOSE THE GAP (AI-built P&L) ────────────────────────────────── */
+function Step12CloseGap({ pData, confirmed, onConfirm, onBack }) {
+  const { total: predRev, predRevs } = calcPredRevs(pData);
+  const { total: predCost, predCosts } = calcPredCosts(pData);
+  const tgt = nv(pData.targetPct, 7.5);
+  const baseGap = (predRev * tgt / 100) - (predRev - predCost);
+
+  const [aiNarrative, setAiNarrative] = useState(pData.s12Narrative || null);
+  const [revs, setRevs] = useState(pData.s12Revs || null);
+  const [costs, setCosts] = useState(pData.s12Costs || null);
+  const [loading, setLoading] = useState(false);
+  const [loadStarted, setLoadStarted] = useState(false);
+
+  const selectedChanges = pData.s11Selected || pData.s11Statements?.filter(s => s.checked || s.own) || [];
+
+  const totalRev  = revs ? REV_LINES.reduce((s, l) => s + nv(revs[l.id]), 0) : predRev;
+  const totalCost = costs ? COST_LINES.reduce((s, l) => s + nv(costs[l.id]), 0) : predCost;
+  const surplus    = totalRev - totalCost;
+  const surplusPct = totalRev > 0 ? (surplus / totalRev * 100) : 0;
+  const gap        = (totalRev * tgt / 100) - surplus;
+
+  const buildPrompt = () => {
+    const pos = pData.purposeTensions ? getPositionSummary(pData.purposeTensions) : "not specified";
+    const groups = getGroupSummary(pData.purposeGroups || {});
+    const changesCtx = selectedChanges.length > 0
+      ? `Selected strategic changes:
+${selectedChanges.map((s,i) => `${i+1}. ${s.text}`).join("
+")}`
+      : "No strategic changes selected.";
+    const profitSlider = nv(pData.purposeTensions?.profit, 50);
+    return `You are simultaneously a world-leading strategy consultant, a world-leading management accountant, a world-leading finance expert, and a world-leading accountant advising Cranfield University's Faculty of Business and Management (FBaM).
+
+Build a complete financially viable P&L for FBaM by July 2028.
+
+CRITICAL FINANCIAL TARGET:
+- Net surplus as % of total revenue (after ALL costs including university service charge) must be at least ${tgt}%
+- Required surplus: £${Math.round(predRev * tgt / 100)}k
+- Gap to close from do-nothing trajectory: £${Math.round(baseGap)}k
+
+DO-NOTHING TRAJECTORY:
+- Revenue: ${REV_LINES.map(l => `${l.name} £${Math.round(nv(predRevs[l.id]))}k`).join(", ")}
+- Total revenue: £${Math.round(predRev)}k
+- Costs: ${COST_LINES.map(l => `${l.name} £${Math.round(nv(predCosts[l.id]))}k`).join(", ")}
+- Total costs: £${Math.round(predCost)}k
+- Do-nothing surplus: £${Math.round(predRev - predCost)}k (${predRev > 0 ? ((predRev - predCost)/predRev*100).toFixed(1) : 0}%)
+
+STRATEGIC CONTEXT:
+- Positioning: ${pos}
+- Priority stakeholders: ${groups}
+- Strategic orientation: ${profitSlider > 55 ? "COST REDUCTION focused" : "REVENUE GROWTH focused"}
+
+${changesCtx}
+
+HARD CONSTRAINTS:
+- pt_levy MUST be 0 (Level 7 eliminated)
+- The model must be internally coherent with the strategic positioning
+- All figures must be positive integers in £k
+- The sum of all revenue lines minus sum of all cost lines must be at least £${Math.round(predRev * tgt / 100)}k
+
+Respond ONLY in this exact JSON format:
+{
+  "narrative": "2-3 sentence explanation of the strategic logic — which revenue lines were grown and why, which costs were cut and why, how this is coherent with the positioning choices",
+  "revs": {
+    "ft_msc": <integer £k>,
+    "pt_levy": 0,
+    "exec_ed": <integer £k>,
+    "open": <integer £k>,
+    "research_dd": <integer £k>,
+    "hefce": <integer £k>,
+    "residences": <integer £k>,
+    "other_rev": <integer £k>
+  },
+  "costs": {
+    "academic_staff": <integer £k>,
+    "support_staff": <integer £k>,
+    "associates": <integer £k>,
+    "prog_costs": <integer £k>,
+    "ops_overhead": <integer £k>,
+    "uni_charge": <integer £k>
+  }
+}`;
+  };
+
+  const generateModel = async () => {
+    setLoading(true);
+    try {
+      const txt = await callAI(buildPrompt(), 25000);
+      const clean = txt.replace(/\`\`\`json|\`\`\`/g, "").trim();
+      const parsed = JSON.parse(clean);
+      const newRevs = {}; REV_LINES.forEach(l => newRevs[l.id] = String(Math.round(nv(parsed.revs?.[l.id], nv(predRevs[l.id])))));
+      const newCosts = {}; COST_LINES.forEach(l => newCosts[l.id] = String(Math.round(nv(parsed.costs?.[l.id], nv(predCosts[l.id])))));
+      newRevs["pt_levy"] = "0";
+      // Verify surplus meets target
+      const aiRev = REV_LINES.reduce((s, l) => s + nv(newRevs[l.id]), 0);
+      const aiCost = COST_LINES.reduce((s, l) => s + nv(newCosts[l.id]), 0);
+      const aiSurplus = aiRev - aiCost;
+      const reqSurplus = aiRev * tgt / 100;
+      if (aiSurplus < reqSurplus) {
+        const shortfall = Math.ceil(reqSurplus - aiSurplus) + 50;
+        newRevs["exec_ed"] = String(nv(newRevs["exec_ed"]) + shortfall);
+      }
+      setRevs(newRevs);
+      setCosts(newCosts);
+      setAiNarrative(parsed.narrative || "Strategic scenario built based on your inputs.");
+      pSave(pData.name, { s12Revs: newRevs, s12Costs: newCosts, s12Narrative: parsed.narrative });
+    } catch (e) {
+      setAiNarrative("Could not build model automatically — please adjust the figures below manually.");
+      const initRevs = {}; REV_LINES.forEach(l => initRevs[l.id] = String(Math.round(nv(predRevs[l.id]))));
+      const initCosts = {}; COST_LINES.forEach(l => initCosts[l.id] = String(Math.round(nv(predCosts[l.id]))));
+      setRevs(initRevs);
+      setCosts(initCosts);
+    }
+    setLoading(false);
+  };
+
+  // Auto-generate on mount if no existing data
+  if (!loadStarted && !revs && !loading) {
+    setLoadStarted(true);
+    generateModel();
+  }
+
+  const applyToStore = () => {
+    pSave(pData.name, { s17Revs: revs, s17Costs: costs, s12Revs: revs, s12Costs: costs, s12Narrative: aiNarrative, step17Confirmed: true });
+    onConfirm();
+  };
+
+  const KpiTile = ({ label, value, sub, color }) => (
+    <div style={{ background: "#ebe7e1", border: "1px solid #d8d3cb", borderRadius: 4, padding: "14px 16px", textAlign: "center" }}>
+      <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 22, fontWeight: 500, color: color || "#1a1a1a" }}>{value}</div>
+      {sub && <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 13, color: "#888", marginTop: 2 }}>{sub}</div>}
+      <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 10, textTransform: "uppercase", letterSpacing: 1, color: "#888", marginTop: 4 }}>{label}</div>
+    </div>
+  );
+
+  return (
+    <div className="sl-content">
+      <BackBtn onClick={onBack} />
+      {confirmed && <ConfirmedBanner stepN={12} />}
+      <div className="sl-step-h">Close the gap</div>
+      <div className="sl-prompt">Based on your strategic choices, here is your strawperson revenue and cost structure to ensure both coherence and financial viability by July 2028. You can edit the figures.</div>
+
+      {loading && (
+        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "32px 0", fontFamily: "'DM Sans',sans-serif", fontSize: 13, color: "#888" }}>
+          <div style={{ width: 16, height: 16, border: "2px solid #d8d3cb", borderTopColor: "#e07030", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+          Building your strawperson financial model…
+        </div>
+      )}
+
+      {!loading && revs && (
+        <>
+          {/* Narrative */}
+          {aiNarrative && (
+            <div style={{ background: "#ebe7e1", borderLeft: "3px solid #e07030", padding: "14px 16px", marginBottom: 20, fontFamily: "'DM Sans',sans-serif", fontSize: 14, color: "#444", lineHeight: 1.7 }}>
+              {aiNarrative}
+            </div>
+          )}
+
+          {/* Selected changes reference */}
+          {selectedChanges.length > 0 && (
+            <div style={{ marginBottom: 20, padding: "12px 14px", background: "#f0faf4", border: "1px solid #d8d3cb", borderRadius: 4 }}>
+              <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, color: "#888", marginBottom: 8 }}>Selected changes (from Step 11)</div>
+              {selectedChanges.map((s, i) => (
+                <div key={i} style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, color: "#444", lineHeight: 1.5, marginBottom: 4 }}>
+                  <span style={{ color: "#e07030", marginRight: 6 }}>→</span>{s.text}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* KPI strip */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 24 }}>
+            <KpiTile label="Total revenue" value={revs ? `£${Math.round(totalRev/1000).toLocaleString()}m` : "—"} color="#1a1a1a" />
+            <KpiTile label="Total costs" value={costs ? `£${Math.round(totalCost/1000).toLocaleString()}m` : "—"} color="#1a1a1a" />
+            <KpiTile label="Surplus" value={revs ? `£${Math.round(surplus).toLocaleString()}k` : "—"} sub={surplusPct.toFixed(1) + "%"} color={surplus >= 0 ? "#2d7d46" : "#b83232"} />
+            <KpiTile label={gap > 0 ? "Gap remaining" : "Over target"} value={revs ? `£${Math.round(Math.abs(gap)).toLocaleString()}k` : "—"} color={gap > 0 ? "#b83232" : "#2d7d46"} />
+          </div>
+
+          {/* Editable tables */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 24 }}>
+            <div>
+              <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, color: "#888", marginBottom: 10 }}>Revenue by July 2028 (£k)</div>
+              {REV_LINES.map(l => {
+                const base = nv(predRevs[l.id]);
+                const cur  = revs ? nv(revs[l.id]) : base;
+                const diff = cur - base;
+                return (
+                  <div key={l.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, paddingBottom: 8, borderBottom: "1px solid #e8e4de" }}>
+                    <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, color: "#1a1a1a", flex: 1 }}>{l.name}</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      {diff !== 0 && <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 10, color: diff > 0 ? "#2d7d46" : "#b83232" }}>{diff > 0 ? "+" : ""}{Math.round(diff)}</span>}
+                      <input type="number" className="sl-pred-input" value={revs ? revs[l.id] : ""} onChange={e => setRevs(r => ({ ...r, [l.id]: e.target.value }))} style={{ width: 75 }} />
+                    </div>
+                  </div>
+                );
+              })}
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderTop: "2px solid #1a1a1a" }}>
+                <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, fontWeight: 600 }}>Total</span>
+                <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontWeight: 700, color: "#1a1a1a" }}>{revs ? `£${Math.round(totalRev).toLocaleString()}k` : "—"}</span>
+              </div>
+            </div>
+            <div>
+              <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, color: "#888", marginBottom: 10 }}>Costs by July 2028 (£k)</div>
+              {COST_LINES.map(l => {
+                const base = nv(predCosts[l.id]);
+                const cur  = costs ? nv(costs[l.id]) : base;
+                const diff = cur - base;
+                return (
+                  <div key={l.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, paddingBottom: 8, borderBottom: "1px solid #e8e4de" }}>
+                    <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, color: "#1a1a1a", flex: 1 }}>{l.name}</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      {diff !== 0 && <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 10, color: diff > 0 ? "#b83232" : "#2d7d46" }}>{diff > 0 ? "+" : ""}{Math.round(diff)}</span>}
+                      <input type="number" className="sl-pred-input" value={costs ? costs[l.id] : ""} onChange={e => setCosts(d => ({ ...d, [l.id]: e.target.value }))} style={{ width: 75 }} />
+                    </div>
+                  </div>
+                );
+              })}
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderTop: "2px solid #1a1a1a" }}>
+                <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, fontWeight: 600 }}>Total</span>
+                <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontWeight: 700, color: "#1a1a1a" }}>{costs ? `£${Math.round(totalCost).toLocaleString()}k` : "—"}</span>
+              </div>
+            </div>
+          </div>
+
+          {gap > 500 && <div className="sl-note-box" style={{ borderColor: "#e07030" }}>Gap still open: £{Math.round(gap).toLocaleString()}k. Adjust figures above or regenerate the model.</div>}
+
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+            <button className="sl-btn sl-btn-outline" style={{ fontSize: 12, padding: "8px 14px" }} onClick={generateModel}>Regenerate model</button>
+            <button className="sl-btn" onClick={applyToStore}>Confirm scenario → Step 13: Theme P&L</button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 /* ── STEP 17: CLOSE THE GAP — AI CONSULTANT DASHBOARD ───────────────────── */
 
 const STAFF_DATA = {
@@ -1495,53 +1938,36 @@ const THEME_DATA = [
 ];
 
 function Step18ThemePL({ pData, confirmed, onConfirm, onBack }) {
-  // Use Step17 final figures if available, otherwise predicted
-  const s17Revs   = pData.s17Revs;
-  const s17Costs  = pData.s17Costs;
-  const { predRevs, total: totalRevBase } = calcPredRevs(pData);
-  const { predCosts, total: totalCostBase } = calcPredCosts(pData);
+  const s12Revs  = pData.s12Revs || pData.s17Revs;
+  const s12Costs = pData.s12Costs || pData.s17Costs;
+  const { predRevs } = calcPredRevs(pData);
+  const { predCosts } = calcPredCosts(pData);
 
-  const totalRevF  = s17Revs  ? REV_LINES.reduce((s, l) => s + nv(s17Revs[l.id]), 0)  : totalRevBase;
-  const totalCostF = s17Costs ? COST_LINES.reduce((s, l) => s + nv(s17Costs[l.id]), 0) : totalCostBase;
-  const totalFTE   = 65; // post-leavers
-
-  // Allocate revenue and costs by FTE share initially, then let user edit
+  const totalFTE = 65;
   const initAlloc = (total) => {
     const alloc = {};
     THEME_DATA.forEach(t => { alloc[t.id] = Math.round(total * t.fteFinal / totalFTE); });
-    // Adjust last to match total exactly
     const sum = Object.values(alloc).reduce((a, b) => a + b, 0);
-    alloc[THEME_DATA[THEME_DATA.length - 1].id] += (Math.round(total) - sum);
+    alloc[THEME_DATA[THEME_DATA.length-1].id] += (Math.round(total) - sum);
     return alloc;
   };
 
-  // Per-line revenue allocation
-  const initRevAlloc = () => {
-    const alloc = {};
-    REV_LINES.forEach(l => {
-      const lineTotal = s17Revs ? nv(s17Revs[l.id]) : nv(predRevs[l.id]);
-      alloc[l.id] = initAlloc(lineTotal);
-    });
-    return alloc;
-  };
-
-  const [revAlloc,  setRevAlloc]  = useState(pData.s18RevAlloc  || initRevAlloc());
-  const [costAlloc, setCostAlloc] = useState(pData.s18CostAlloc || (() => {
-    const alloc = {};
-    COST_LINES.forEach(l => {
-      const lineTotal = s17Costs ? nv(s17Costs[l.id]) : nv(predCosts[l.id]);
-      alloc[l.id] = initAlloc(lineTotal);
-    });
-    return alloc;
+  const [revAlloc, setRevAlloc] = useState(pData.s18RevAlloc || (() => {
+    const a = {}; REV_LINES.forEach(l => { const v = s12Revs ? nv(s12Revs[l.id]) : nv(predRevs[l.id]); a[l.id] = initAlloc(v); }); return a;
   })());
+  const [costAlloc, setCostAlloc] = useState(pData.s18CostAlloc || (() => {
+    const a = {}; COST_LINES.forEach(l => { const v = s12Costs ? nv(s12Costs[l.id]) : nv(predCosts[l.id]); a[l.id] = initAlloc(v); }); return a;
+  })());
+  const [showSummary, setShowSummary] = useState(false);
 
   const themeRev  = (tid) => REV_LINES.reduce((s, l)  => s + nv(revAlloc[l.id]?.[tid]),  0);
   const themeCost = (tid) => COST_LINES.reduce((s, l) => s + nv(costAlloc[l.id]?.[tid]), 0);
+  const totalRevAll  = THEME_DATA.reduce((s, t) => s + themeRev(t.id),  0);
+  const totalCostAll = THEME_DATA.reduce((s, t) => s + themeCost(t.id), 0);
 
-  const revLineTotal  = (lid) => THEME_DATA.reduce((s, t) => s + nv(revAlloc[lid]?.[t.id]),  0);
-  const costLineTotal = (lid) => THEME_DATA.reduce((s, t) => s + nv(costAlloc[lid]?.[t.id]), 0);
+  const REV_COLORS = { ft_msc:"#1a4fa0", pt_levy:"#999", exec_ed:"#e07030", open:"#2d7d46", research_dd:"#b87a20", hefce:"#6a3d9a", residences:"#888", other_rev:"#bbb" };
 
-  const updateRevAlloc  = (lid, tid, val) => setRevAlloc(a  => ({ ...a, [lid]:  { ...a[lid],  [tid]: nv(val) } }));
+  const updateRevAlloc  = (lid, tid, val) => setRevAlloc(a  => ({ ...a, [lid]: { ...a[lid],  [tid]: nv(val) } }));
   const updateCostAlloc = (lid, tid, val) => setCostAlloc(a => ({ ...a, [lid]: { ...a[lid], [tid]: nv(val) } }));
 
   const doConfirm = () => {
@@ -1549,135 +1975,145 @@ function Step18ThemePL({ pData, confirmed, onConfirm, onBack }) {
     onConfirm();
   };
 
-  const col = { fontFamily: "'IBM Plex Mono',monospace", fontSize: 12, textAlign: "right", padding: "6px 8px" };
-  const hdr = { fontFamily: "'DM Sans',sans-serif", fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, color: "#888", padding: "8px 8px", textAlign: "right", borderBottom: "2px solid #d8d3cb", background: "#f0ede8" };
-
   return (
     <div className="sl-content">
       <BackBtn onClick={onBack} />
-      {confirmed && <ConfirmedBanner stepN={18} />}
-      <div className="sl-step-h">Theme P&L dashboard</div>
-      <div className="sl-prompt">Adjust the figures for your scenario. How does the revenue and cost picture break down across the three themes?</div>
+      {confirmed && <ConfirmedBanner stepN={13} />}
+      <div className="sl-step-h">Theme P&L</div>
+      <div className="sl-prompt">In this section your strawperson is split across the three FBaM themes. The initial split is according to headcount. Adjust the figures for your scenario.</div>
       <div className="sl-note-box">
-        Figures in £k. Seeded by FTE share (post-leavers: BTG 27, PSL 10, SCPSS 25). Edit any cell — row totals must match your Step 17 scenario. Totals update live.
-        <div style={{ marginTop: 8, display: "flex", gap: 20 }}>
-          {THEME_DATA.map(t => (
-            <span key={t.id} style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11 }}>
-              <strong>{t.name.split(" ")[0]}:</strong> {t.fteFinal} FTE post-leavers ({((t.fteFinal / totalFTE) * 100).toFixed(0)}%)
-            </span>
-          ))}
-        </div>
+        Figures in £k. Initial split by FTE (post-leavers: BTG 27, PSL 10, SCPSS 25 = 65 total). Adjust each line across the three themes — the split shows where activity and cost sits.
       </div>
 
-      {/* Revenue allocation table */}
-      <div style={{ marginBottom: 24 }}>
-        <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, color: "#1a1a1a", marginBottom: 8 }}>Revenue</div>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead><tr>
-            <th style={{ ...hdr, textAlign: "left" }}>Line</th>
-            {THEME_DATA.map(t => <th key={t.id} style={hdr}>{t.name.split(" ").slice(0, 2).join(" ")}</th>)}
-            <th style={{ ...hdr, color: "#e07030" }}>Total</th>
-            <th style={{ ...hdr, color: s17Revs ? "#e07030" : "#888" }}>Target</th>
-            <th style={{ ...hdr, color: "#888" }}>%</th>
-          </tr></thead>
-          <tbody>
-            {REV_LINES.map(l => {
-              const lineTarget = s17Revs ? nv(s17Revs[l.id]) : nv(predRevs[l.id]);
-              const lineTotal  = revLineTotal(l.id);
-              const diff = lineTotal - Math.round(lineTarget);
-              return (
-                <tr key={l.id}>
-                  <td style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, padding: "6px 8px", borderBottom: "1px solid #e8e4de" }}>{l.name}</td>
-                  {THEME_DATA.map(t => (
-                    <td key={t.id} style={{ padding: "4px 4px", borderBottom: "1px solid #e8e4de" }}>
-                      <input type="number" className="sl-pred-input" style={{ width: 72 }}
-                        value={revAlloc[l.id]?.[t.id] ?? ""}
-                        onChange={e => updateRevAlloc(l.id, t.id, e.target.value)} />
-                    </td>
-                  ))}
-                  <td style={{ ...col, fontWeight: 600, color: Math.abs(diff) > 50 ? "#b83232" : "#1a1a1a", borderBottom: "1px solid #e8e4de" }}>{fmtK(lineTotal)}</td>
-                  <td style={{ ...col, color: "#888", borderBottom: "1px solid #e8e4de" }}>{fmtK(lineTarget)}</td>
-                  <td style={{ ...col, color: "#888", borderBottom: "1px solid #e8e4de" }}>{totalRevF > 0 ? (lineTotal / totalRevF * 100).toFixed(0) + "%" : "—"}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-          <tfoot><tr>
-            <td style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, fontWeight: 600, padding: "8px 8px", borderTop: "2px solid #1a1a1a" }}>Total</td>
-            {THEME_DATA.map(t => <td key={t.id} style={{ ...col, fontWeight: 600, color: "#e07030", borderTop: "2px solid #1a1a1a" }}>{fmtK(themeRev(t.id))}</td>)}
-            <td style={{ ...col, fontWeight: 600, color: "#e07030", borderTop: "2px solid #1a1a1a" }}>{fmtK(THEME_DATA.reduce((s, t) => s + themeRev(t.id), 0))}</td>
-            <td style={{ ...col, color: "#888", borderTop: "2px solid #1a1a1a" }}>{fmtK(totalRevF)}</td>
-            <td style={{ ...col, color: "#888", borderTop: "2px solid #1a1a1a" }}>100%</td>
-          </tr></tfoot>
-        </table>
-      </div>
-
-      {/* Cost allocation table */}
-      <div style={{ marginBottom: 24 }}>
-        <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, color: "#1a1a1a", marginBottom: 8 }}>Costs</div>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead><tr>
-            <th style={{ ...hdr, textAlign: "left" }}>Line</th>
-            {THEME_DATA.map(t => <th key={t.id} style={hdr}>{t.name.split(" ").slice(0, 2).join(" ")}</th>)}
-            <th style={{ ...hdr, color: "#e07030" }}>Total</th>
-            <th style={{ ...hdr, color: s17Costs ? "#e07030" : "#888" }}>Target</th>
-            <th style={{ ...hdr, color: "#888" }}>%</th>
-          </tr></thead>
-          <tbody>
-            {COST_LINES.map(l => {
-              const lineTarget = s17Costs ? nv(s17Costs[l.id]) : nv(predCosts[l.id]);
-              const lineTotal  = costLineTotal(l.id);
-              const diff = lineTotal - Math.round(lineTarget);
-              return (
-                <tr key={l.id}>
-                  <td style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, padding: "6px 8px", borderBottom: "1px solid #e8e4de" }}>{l.name}</td>
-                  {THEME_DATA.map(t => (
-                    <td key={t.id} style={{ padding: "4px 4px", borderBottom: "1px solid #e8e4de" }}>
-                      <input type="number" className="sl-pred-input" style={{ width: 72 }}
-                        value={costAlloc[l.id]?.[t.id] ?? ""}
-                        onChange={e => updateCostAlloc(l.id, t.id, e.target.value)} />
-                    </td>
-                  ))}
-                  <td style={{ ...col, fontWeight: 600, color: Math.abs(diff) > 50 ? "#b83232" : "#1a1a1a", borderBottom: "1px solid #e8e4de" }}>{fmtK(lineTotal)}</td>
-                  <td style={{ ...col, color: "#888", borderBottom: "1px solid #e8e4de" }}>{fmtK(lineTarget)}</td>
-                  <td style={{ ...col, color: "#888", borderBottom: "1px solid #e8e4de" }}>{totalCostF > 0 ? (lineTotal / totalCostF * 100).toFixed(0) + "%" : "—"}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-          <tfoot><tr>
-            <td style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, fontWeight: 600, padding: "8px 8px", borderTop: "2px solid #1a1a1a" }}>Total</td>
-            {THEME_DATA.map(t => <td key={t.id} style={{ ...col, fontWeight: 600, color: "#e07030", borderTop: "2px solid #1a1a1a" }}>{fmtK(themeCost(t.id))}</td>)}
-            <td style={{ ...col, fontWeight: 600, color: "#e07030", borderTop: "2px solid #1a1a1a" }}>{fmtK(THEME_DATA.reduce((s, t) => s + themeCost(t.id), 0))}</td>
-            <td style={{ ...col, color: "#888", borderTop: "2px solid #1a1a1a" }}>{fmtK(totalCostF)}</td>
-            <td style={{ ...col, color: "#888", borderTop: "2px solid #1a1a1a" }}>100%</td>
-          </tr></tfoot>
-        </table>
-      </div>
-
-      {/* Theme surplus summary */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: 24 }}>
+      {/* Three theme cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 16, marginBottom: 28 }}>
         {THEME_DATA.map(t => {
           const rev  = themeRev(t.id);
           const cost = themeCost(t.id);
           const sur  = rev - cost;
-          const surPct = rev > 0 ? ((sur / rev) * 100) : 0;
-          const revPct = THEME_DATA.reduce((s, x) => s + themeRev(x.id), 0) > 0
-            ? (rev / THEME_DATA.reduce((s, x) => s + themeRev(x.id), 0) * 100) : 0;
+          const surPct = rev > 0 ? (sur / rev * 100) : 0;
+          const revTotal = totalRevAll || 1;
+          const revShare = (rev / revTotal * 100);
+
+          // Stacked bar data for revenue
+          const revBarData = REV_LINES.map(l => ({
+            id: l.id, label: l.name.split(" ").slice(0,2).join(" "),
+            val: nv(revAlloc[l.id]?.[t.id], 0),
+            color: REV_COLORS[l.id]
+          })).filter(x => x.val > 0);
+          const revBarTotal = revBarData.reduce((s, x) => s + x.val, 0) || 1;
+
           return (
-            <div key={t.id} style={{ background: "#ebe7e1", border: "1px solid #d8d3cb", borderRadius: 4, padding: 14 }}>
-              <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 600, color: "#1a1a1a", marginBottom: 8 }}>{t.name}</div>
-              <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 20, color: sur >= 0 ? "#2d7d46" : "#b83232", marginBottom: 2 }}>{fmtK(sur)}</div>
-              <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 13, color: sur >= 0 ? "#2d7d46" : "#b83232", marginBottom: 4 }}>{surPct.toFixed(1)}% surplus margin</div>
-              <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 10, color: "#888" }}>
-                Rev {fmtK(rev)} ({revPct.toFixed(0)}% of school) · {t.fteFinal} FTE
+            <div key={t.id} style={{ border: "1px solid #d8d3cb", borderRadius: 4, padding: 14, background: "#f0ede8" }}>
+              <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 600, color: "#1a1a1a", marginBottom: 10 }}>{t.name}</div>
+
+              {/* Revenue stacked bar */}
+              <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 10, color: "#888", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Revenue</div>
+              <div style={{ height: 16, display: "flex", borderRadius: 2, overflow: "hidden", marginBottom: 4 }}>
+                {revBarData.map(seg => (
+                  <div key={seg.id} title={`${seg.label}: £${Math.round(seg.val)}k`}
+                    style={{ width: (seg.val / revBarTotal * 100) + "%", background: seg.color }} />
+                ))}
+              </div>
+              <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 13, fontWeight: 600, color: "#1a1a1a", marginBottom: 10 }}>£{Math.round(rev).toLocaleString()}k</div>
+
+              {/* Cost indicator */}
+              <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 10, color: "#888", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Costs</div>
+              <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 13, fontWeight: 600, color: "#1a1a1a", marginBottom: 10 }}>£{Math.round(cost).toLocaleString()}k</div>
+
+              {/* Surplus */}
+              <div style={{ borderTop: "1px solid #d8d3cb", paddingTop: 8 }}>
+                <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 16, fontWeight: 600, color: sur >= 0 ? "#2d7d46" : "#b83232" }}>£{Math.round(sur).toLocaleString()}k</div>
+                <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 10, color: "#888", marginTop: 2 }}>{surPct.toFixed(1)}% margin · {revShare.toFixed(0)}% of school revenue</div>
               </div>
             </div>
           );
         })}
       </div>
 
-      <button className="sl-btn" onClick={doConfirm}>Confirm theme P&L</button>
+      {/* Allocation inputs */}
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, color: "#1a1a1a", marginBottom: 8 }}>Revenue allocation (£k)</div>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 500 }}>
+            <thead><tr>
+              <th style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 10, fontWeight: 600, color: "#888", padding: "6px 8px", textAlign: "left", borderBottom: "2px solid #d8d3cb" }}>Line</th>
+              {THEME_DATA.map(t => <th key={t.id} style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 10, fontWeight: 600, color: "#888", padding: "6px 8px", textAlign: "right", borderBottom: "2px solid #d8d3cb", width: 90 }}>{t.name.split(" ").slice(0,2).join(" ")}</th>)}
+            </tr></thead>
+            <tbody>
+              {REV_LINES.map(l => (
+                <tr key={l.id}>
+                  <td style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, padding: "5px 8px", borderBottom: "1px solid #e8e4de" }}>{l.name}</td>
+                  {THEME_DATA.map(t => (
+                    <td key={t.id} style={{ padding: "3px 4px", borderBottom: "1px solid #e8e4de" }}>
+                      <input type="number" className="sl-pred-input" style={{ width: 80 }}
+                        value={revAlloc[l.id]?.[t.id] ?? ""} onChange={e => updateRevAlloc(l.id, t.id, e.target.value)} />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div style={{ marginBottom: 28 }}>
+        <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, color: "#1a1a1a", marginBottom: 8 }}>Cost allocation (£k)</div>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 500 }}>
+            <thead><tr>
+              <th style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 10, fontWeight: 600, color: "#888", padding: "6px 8px", textAlign: "left", borderBottom: "2px solid #d8d3cb" }}>Line</th>
+              {THEME_DATA.map(t => <th key={t.id} style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 10, fontWeight: 600, color: "#888", padding: "6px 8px", textAlign: "right", borderBottom: "2px solid #d8d3cb", width: 90 }}>{t.name.split(" ").slice(0,2).join(" ")}</th>)}
+            </tr></thead>
+            <tbody>
+              {COST_LINES.map(l => (
+                <tr key={l.id}>
+                  <td style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, padding: "5px 8px", borderBottom: "1px solid #e8e4de" }}>{l.name}</td>
+                  {THEME_DATA.map(t => (
+                    <td key={t.id} style={{ padding: "3px 4px", borderBottom: "1px solid #e8e4de" }}>
+                      <input type="number" className="sl-pred-input" style={{ width: 80 }}
+                        value={costAlloc[l.id]?.[t.id] ?? ""} onChange={e => updateCostAlloc(l.id, t.id, e.target.value)} />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Summary table */}
+      <div style={{ marginBottom: 24, border: "1px solid #d8d3cb", borderRadius: 4, overflow: "hidden" }}>
+        <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, color: "#888", padding: "10px 14px", background: "#ebe7e1" }}>Summary by theme</div>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead><tr>
+            <th style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 10, fontWeight: 600, color: "#888", padding: "8px 12px", textAlign: "left", borderBottom: "1px solid #d8d3cb" }}></th>
+            {THEME_DATA.map(t => <th key={t.id} style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 10, fontWeight: 600, color: "#1a1a1a", padding: "8px 12px", textAlign: "right", borderBottom: "1px solid #d8d3cb" }}>{t.name}</th>)}
+          </tr></thead>
+          <tbody>
+            {[
+              { label: "Revenue", fn: themeRev },
+              { label: "Costs", fn: themeCost },
+              { label: "Margin", fn: (tid) => themeRev(tid) - themeCost(tid) },
+            ].map(row => (
+              <tr key={row.label}>
+                <td style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, fontWeight: 600, padding: "10px 12px", borderBottom: "1px solid #e8e4de" }}>{row.label}</td>
+                {THEME_DATA.map(t => {
+                  const val = row.fn(t.id);
+                  const isMargin = row.label === "Margin";
+                  return (
+                    <td key={t.id} style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 13, padding: "10px 12px", textAlign: "right", borderBottom: "1px solid #e8e4de", color: isMargin ? (val >= 0 ? "#2d7d46" : "#b83232") : "#1a1a1a" }}>
+                      £{Math.round(val).toLocaleString()}k
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <button className="sl-btn" onClick={doConfirm}>Confirm themes → Step 14: Comparison</button>
     </div>
   );
 }
@@ -1694,7 +2130,7 @@ function ParticipantView({ name, tick, onLogout }) {
   const pData = () => pGet(name);
   const pd    = pData();
 
-  const advance = () => { if (displayStep < 15) setDisplayStep(s => s + 1); };
+  const advance = () => { if (displayStep < 17) setDisplayStep(s => s + 1); };
   const go      = (n) => setDisplayStep(n);
 
   const tabs = STEP_NAMES.map((sn, i) => {
@@ -1721,8 +2157,8 @@ function ParticipantView({ name, tick, onLogout }) {
         <PredStep
           stepN={6} lines={REV_LINES} defRates={pd.marketRates || REV_DEF_RATES} lineRates={revRates} setLineRates={setRevRates}
           heading="Current trajectory: Predicted revenues by July 2028"
-          note="31 July 2028 is chosen as it is FBaM's year end and levy funding should have ended post EPA submissions."
-          confirmLabel="Confirm and continue → Step 7"
+          note="31 July 2028 is chosen as it is FBaM's year end and levy funding should have ended post EPA submissions. Initial figures are based on CAGR from Step 5."
+          confirmLabel="Confirm predicted revenues → Step 7: Predicted costs"
           isCost={false} confirmed={pd.step6Confirmed}
           onConfirm={(rates) => { pSave(name, { revRates: rates, step6Confirmed: true }); advance(); }}
           onBack={() => go(5)}
@@ -1733,7 +2169,7 @@ function ParticipantView({ name, tick, onLogout }) {
           stepN={7} lines={COST_LINES} defRates={{}} lineRates={{}} setLineRates={() => {}}
           heading="Current trajectory: Predicted costs by July 2028"
           note="Enter your predicted % change for each cost line. Pay awards, TRAC changes, and headcount reductions all apply here."
-          confirmLabel="Confirm and continue → Step 8"
+          confirmLabel="Confirm predicted costs → Step 8: Prognosis"
           isCost={true} confirmed={pd.step7Confirmed}
           onConfirm={(rates) => { pSave(name, { costRates: rates, step7Confirmed: true }); advance(); }}
           onBack={() => go(6)}
@@ -1741,35 +2177,41 @@ function ParticipantView({ name, tick, onLogout }) {
       )}
       {displayStep === 8 && <Step7 pData={pd} confirmed={pd.step8Confirmed} onConfirm={() => { pSave(name, { step8Confirmed: true }); advance(); }} onBack={() => go(7)} />}
 
-      {/* ── PURPOSE TOOL: Steps 9–16 ── */}
-      {displayStep === 9 && <PurposeStep8 pData={pd} confirmed={pd.step9Confirmed} onConfirm={advance} onBack={() => go(8)} />}
-      {displayStep === 10 && <PurposeStep9 pData={pd} confirmed={pd.step10Confirmed} onConfirm={(t) => { pSave(name, { purposeTensions: t, step10Confirmed: true }); advance(); }} onBack={() => go(9)} />}
-      {displayStep === 11 && (
-        <PurposeOptionsStep
-          stepN={11} heading="What is FBaM for?" confirmed={pd.step11Confirmed}
-          prompt="In July 2028 FBaM exists to…"
-          pData={pd} stateKey="purposeOptions" rankKey="purposeRanked" ownKey="purposeOwn"
-          fallbackKey="purpose" singleChoice={false}
-          genFn={async (p) => callAI(`You are a world-class strategy consultant and marketing expert. Generate exactly 4 short purpose statements for Cranfield University's Faculty of Business and Management (FBaM), completing the sentence "In July 2028, FBaM exists to…"
-
-Primary stakeholders (rated 1-9): ${getGroupSummary(p.purposeGroups || {})}
-Strategic positioning: ${getPositionSummary(p.purposeTensions || {})}
-
-Requirements:
-- Each statement completes the sentence — do NOT include those words, do NOT add preamble like "here are" or "based on"
-- Each is 1 sentence, specific to FBaM's actual context (technology management, Cranfield campus, defence/aerospace clients)
-- Range from mission-level to impact-level
-- Number each 1-4, one per line, no other commentary`)}
-          confirmLabel="Confirm → Step 12: Close the gap"
-          onConfirm={advance} onBack={() => go(10)}
+      {/* ── TRANSITION: Section one complete ── */}
+      {displayStep === 9 && (
+        <TransitionScreen
+          heading="Section one complete."
+          body="You have worked through the current financial position and built a do-nothing trajectory to July 2028. You can see the gap between where FBaM is heading and where it needs to be. In section two we will shift from diagnosis to direction. You will consider who FBaM should serve, where it should position itself, and what its purpose is. These choices will shape the scenario you build in section three."
+          onContinue={advance}
+          continueLabel="Continue → Step 10: Who FBaM serves"
         />
       )}
 
-      {/* ── FINANCIAL CLOSE: Steps 12–14 ── */}
-      {displayStep === 12 && <Step17CloseGap pData={pd} confirmed={pd.step17Confirmed} onConfirm={() => { pSave(name, { step17Confirmed: true }); advance(); }} onBack={() => go(11)} />}
-      {displayStep === 13 && <Step18ThemePL pData={pd} confirmed={pd.step18Confirmed} onConfirm={() => { pSave(name, { step18Confirmed: true }); advance(); }} onBack={() => go(12)} />}
-      {displayStep === 14 && <Step19Comparison pData={pd} onConfirm={() => { pSave(name, { step19Confirmed: true }); advance(); }} onBack={() => go(13)} />}
-      {displayStep === 15 && <Step20Finalise pData={pd} onBack={() => go(14)} />}
+      {/* ── SECTION TWO: Steps 10–12 ── */}
+      {displayStep === 10 && <PurposeStep8 pData={pd} confirmed={pd.step9Confirmed} onConfirm={() => { pSave(name, { step9Confirmed: true }); advance(); }} onBack={() => go(9)} />}
+      {displayStep === 11 && <PurposeStep9 pData={pd} confirmed={pd.step10Confirmed} onConfirm={(t) => { pSave(name, { purposeTensions: t, step10Confirmed: true }); advance(); }} onBack={() => go(10)} />}
+      {displayStep === 12 && (
+        <Step11Changes pData={pd} confirmed={pd.step11Confirmed}
+          onConfirm={() => { pSave(name, { step11Confirmed: true }); advance(); }}
+          onBack={() => go(11)}
+        />
+      )}
+
+      {/* ── TRANSITION: Section two complete ── */}
+      {displayStep === 13 && (
+        <TransitionScreen
+          heading="Section two complete."
+          body="You have considered who FBaM should serve, where it should position itself, and which changes would make the most difference. In section three we move to the numbers. You will build a strawperson financial scenario — a complete revenue and cost structure that is both coherent with your strategic choices and financially viable by July 2028. The scenarios will then be compared across the group."
+          onContinue={advance}
+          continueLabel="Continue → Step 14: Close the gap"
+        />
+      )}
+
+      {/* ── SECTION THREE: Steps 14–17 ── */}
+      {displayStep === 14 && <Step12CloseGap pData={pd} confirmed={pd.step17Confirmed} onConfirm={() => { pSave(name, { step17Confirmed: true }); advance(); }} onBack={() => go(13)} />}
+      {displayStep === 15 && <Step18ThemePL pData={pd} confirmed={pd.step18Confirmed} onConfirm={() => { pSave(name, { step18Confirmed: true }); advance(); }} onBack={() => go(14)} />}
+      {displayStep === 16 && <Step19Comparison pData={pd} onConfirm={() => { pSave(name, { step19Confirmed: true }); advance(); }} onBack={() => go(15)} />}
+      {displayStep === 17 && <Step20Finalise pData={pd} onBack={() => go(16)} />}
     </div>
   );
 }
@@ -1793,6 +2235,22 @@ function PurposeStep8({ pData, confirmed, onConfirm, onBack }) {
   const [groups, setGroups] = useState(init);
   const [others, setOthers] = useState(pData.purposeGroupOthers || [{ label: "", score: 5 }]);
 
+  const MAX_HIGH = 3;
+  const highCount = Object.values(groups).filter(v => nv(v) >= 8).length
+    + others.filter(o => nv(o.score) >= 8).length;
+
+  const setGroupScore = (g, n) => {
+    const current = nv(groups[g]);
+    if (n >= 8 && current < 8 && highCount >= MAX_HIGH) return; // block if slots full
+    setGroups(prev => ({ ...prev, [g]: n }));
+  };
+
+  const setOtherScore = (i, n) => {
+    const current = nv(others[i]?.score);
+    if (n >= 8 && current < 8 && highCount >= MAX_HIGH) return;
+    setOthers(arr => arr.map((x, j) => j === i ? { ...x, score: n } : x));
+  };
+
   const doConfirm = () => {
     pSave(pData.name, { purposeGroups: groups, purposeGroupOthers: others, step9Confirmed: true });
     onConfirm();
@@ -1803,8 +2261,13 @@ function PurposeStep8({ pData, confirmed, onConfirm, onBack }) {
       <BackBtn onClick={onBack} />
       {confirmed && <ConfirmedBanner stepN={9} />}
       <div className="sl-step-h">Who should FBaM serve in July 2028?</div>
-      <div className="sl-prompt">These are prompts — write your own if none of these fit. Rate each stakeholder by importance to FBaM's purpose in the future. 9 = extremely important.</div>
-      <div className="sl-note-box">Rate 1–9. 9 = extremely important. These ratings inform the purpose and mission options in later steps.</div>
+      <div className="sl-prompt">Rate each stakeholder group by importance to FBaM's future. If everything scores 9, nothing is a priority — be honest about where FBaM would make hard choices.</div>
+      <div className="sl-note-box" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span>Rate 1–9. Maximum 3 groups can score 8 or 9 — use your high priority slots deliberately.</span>
+        <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 13, fontWeight: 600, color: highCount >= MAX_HIGH ? "#e07030" : "#2d7d46", whiteSpace: "nowrap", marginLeft: 16 }}>
+          High priority slots used: {highCount} of {MAX_HIGH}
+        </span>
+      </div>
       <table className="sl-tbl">
         <thead><tr><th>Stakeholder</th><th className="right" style={{ width: 200 }}>Importance (1 = low, 9 = high)</th></tr></thead>
         <tbody>
@@ -1813,12 +2276,17 @@ function PurposeStep8({ pData, confirmed, onConfirm, onBack }) {
               <td className="tbl-name">{g}</td>
               <td>
                 <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "nowrap" }}>
-                  {[1,2,3,4,5,6,7,8,9].map(n => (
-                    <button key={n}
-                      style={{ padding: "4px 0", border: `1px solid ${nv(groups[g]) === n ? "#e07030" : "#d8d3cb"}`, borderRadius: 4, background: nv(groups[g]) === n ? "#e07030" : "#f0ede8", color: nv(groups[g]) === n ? "#fff" : "#1a1a1a", fontFamily: "'DM Sans',sans-serif", fontSize: 12, cursor: "pointer", width: 30, textAlign: "center" }}
-                      onClick={() => setGroups(prev => ({ ...prev, [g]: n }))}
-                    >{n}</button>
-                  ))}
+                  {[1,2,3,4,5,6,7,8,9].map(n => {
+                    const isSelected = nv(groups[g]) === n;
+                    const isBlocked = n >= 8 && !isSelected && nv(groups[g]) < 8 && highCount >= MAX_HIGH;
+                    return (
+                      <button key={n}
+                        style={{ padding: "4px 0", border: `1px solid ${isSelected ? "#e07030" : "#d8d3cb"}`, borderRadius: 4, background: isSelected ? "#e07030" : isBlocked ? "#f5f3f0" : "#f0ede8", color: isSelected ? "#fff" : isBlocked ? "#ccc" : "#1a1a1a", fontFamily: "'DM Sans',sans-serif", fontSize: 12, cursor: isBlocked ? "not-allowed" : "pointer", width: 30, textAlign: "center" }}
+                        onClick={() => setGroupScore(g, n)}
+                        disabled={isBlocked}
+                      >{n}</button>
+                    );
+                  })}
                 </div>
               </td>
             </tr>
@@ -1828,12 +2296,17 @@ function PurposeStep8({ pData, confirmed, onConfirm, onBack }) {
               <td><input type="text" className="sl-input" style={{ fontSize: 13 }} placeholder="Add another group…" value={o.label} onChange={e => setOthers(arr => arr.map((x, j) => j === i ? { ...x, label: e.target.value } : x))} /></td>
               <td>
                 <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "nowrap" }}>
-                  {[1,2,3,4,5,6,7,8,9].map(n => (
-                    <button key={n}
-                      style={{ padding: "4px 0", border: `1px solid ${o.score === n ? "#e07030" : "#d8d3cb"}`, borderRadius: 4, background: o.score === n ? "#e07030" : "#f0ede8", color: o.score === n ? "#fff" : "#1a1a1a", fontFamily: "'DM Sans',sans-serif", fontSize: 12, cursor: "pointer", width: 30, textAlign: "center" }}
-                      onClick={() => setOthers(arr => arr.map((x, j) => j === i ? { ...x, score: n } : x))}
-                    >{n}</button>
-                  ))}
+                  {[1,2,3,4,5,6,7,8,9].map(n => {
+                    const isSelected = nv(o.score) === n;
+                    const isBlocked = n >= 8 && !isSelected && nv(o.score) < 8 && highCount >= MAX_HIGH;
+                    return (
+                      <button key={n}
+                        style={{ padding: "4px 0", border: `1px solid ${isSelected ? "#e07030" : "#d8d3cb"}`, borderRadius: 4, background: isSelected ? "#e07030" : isBlocked ? "#f5f3f0" : "#f0ede8", color: isSelected ? "#fff" : isBlocked ? "#ccc" : "#1a1a1a", fontFamily: "'DM Sans',sans-serif", fontSize: 12, cursor: isBlocked ? "not-allowed" : "pointer", width: 30, textAlign: "center" }}
+                        onClick={() => setOtherScore(i, n)}
+                        disabled={isBlocked}
+                      >{n}</button>
+                    );
+                  })}
                 </div>
               </td>
             </tr>
@@ -1843,7 +2316,7 @@ function PurposeStep8({ pData, confirmed, onConfirm, onBack }) {
       <button className="sl-btn sl-btn-outline" style={{ fontSize: 12, padding: "8px 14px", marginBottom: 20 }}
         onClick={() => setOthers(arr => [...arr, { label: "", score: 5 }])}>+ Add stakeholder</button>
       <div style={{ marginTop: 8 }}>
-        <button className="sl-btn" onClick={doConfirm}>Confirm → Step 9: Strategic positioning</button>
+        <button className="sl-btn" onClick={doConfirm}>Confirm → Step 10: Positioning</button>
       </div>
     </div>
   );
@@ -1864,7 +2337,7 @@ function PurposeStep9({ pData, confirmed, onConfirm, onBack }) {
       <BackBtn onClick={onBack} />
       {confirmed && <ConfirmedBanner stepN={10} />}
       <div className="sl-step-h">Strategic positioning</div>
-      <div className="sl-prompt">These sliders define where you believe FBaM should sit in July 2028. They will shape the purpose and mission options generated next. Set each to your honest view.</div>
+      <div className="sl-prompt">These sliders define where you believe FBaM should position itself by July 2028. They shape the strategic changes generated in the next step. Set each to your honest view — the disagreements across the group are the conversation.</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 28, marginBottom: 32 }}>
         {PURPOSE_TENSIONS.map(t => {
           const v = nv(tensions[t.key], 50);
@@ -1881,7 +2354,7 @@ function PurposeStep9({ pData, confirmed, onConfirm, onBack }) {
           );
         })}
       </div>
-      <button className="sl-btn" onClick={doConfirm}>Confirm → Step 11: Purpose</button>
+      <button className="sl-btn" onClick={doConfirm}>Confirm positioning → Step 11: Changes</button>
     </div>
   );
 }
@@ -2262,208 +2735,19 @@ function FacRev8({ ps }) {
   );
 }
 
-/* ── FACILITATOR VIEW ─────────────────────────────────────────────────────── */
-function FacilitatorView({ tick, onLogout }) {
-  const [reset, setReset] = useState("");
-  const [sessionInput, setSessionInput] = useState(STORE.sessionId || "");
-  const [syncing, setSyncing] = useState(false);
-
-  // Poll Supabase every 4 seconds when session is active
-  useEffect(() => {
-    if (!STORE.sessionId) return;
-    const id = setInterval(() => { syncFromSupabase(); }, 4000);
-    return () => clearInterval(id);
-  }, [STORE.sessionId]);
-
-  const connectSession = () => {
-    STORE.sessionId = sessionInput.trim();
-    setSyncing(true);
-    syncFromSupabase().then(() => setSyncing(false));
-  };
-
-  const participants = pAll();
-
-  const advanceAll = () => {
-    if (STORE.step < 15) STORE.step++;
-  };
-
-  const doReset = () => {
-    if (reset === "RESET") {
-      Object.keys(STORE.participants).forEach(k => delete STORE.participants[k]);
-      STORE.step = 1;
-      Object.keys(STORE.revealed).forEach(k => delete STORE.revealed[k]);
-      setReset("");
-    }
-  };
-
-  return (
-    <div className="sl-shell">
-      <div className="sl-header">
-        <div className="sl-header-title">Facilitator — Financial Viability Scenario Tool</div>
-        <button style={{ background: "none", border: "none", fontSize: 11, color: "#888", cursor: "pointer", textDecoration: "underline" }} onClick={onLogout}>Exit</button>
-      </div>
-      <div className="sl-fac">
-        <div className="sl-fac-h">Facilitator console</div>
-
-        {!STORE.sessionId && (
-          <div className="sl-adv-bar" style={{ flexDirection: "column", alignItems: "flex-start", gap: 12 }}>
-            <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, fontWeight: 600 }}>Connect to session</div>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <input className="sl-input" style={{ width: 200, fontSize: 13 }} placeholder="Session code e.g. FBaM-Mar26"
-                value={sessionInput} onChange={e => setSessionInput(e.target.value)} />
-              <button className="sl-btn" style={{ fontSize: 12, padding: "8px 16px" }} onClick={connectSession}>
-                {syncing ? "Connecting…" : "Connect"}
-              </button>
-            </div>
-          </div>
-        )}
-        <div className="sl-adv-bar">
-          <div style={{ fontSize: 13, fontWeight: 600 }}>Current step: {STORE.step}</div>
-          <button className="sl-btn" style={{ fontSize: 12, padding: "8px 16px" }} onClick={advanceAll} disabled={STORE.step >= 15}>
-            Advance all → Step {Math.min(STORE.step + 1, 15)}
-          </button>
-          <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
-            <input className="sl-input" style={{ width: 120, fontSize: 12 }} placeholder="Type RESET" value={reset} onChange={e => setReset(e.target.value)} />
-            <button className="sl-btn" style={{ fontSize: 12, padding: "8px 12px", background: "#b83232" }} onClick={doReset} disabled={reset !== "RESET"}>Reset session</button>
-          </div>
-        </div>
-
-        <div style={{ marginBottom: 16 }}>
-          <div className="sl-label" style={{ marginBottom: 8 }}>Participants ({participants.length})</div>
-          <div className="sl-pax-grid">
-            {participants.length === 0 && <div style={{ color: "#aaa", fontSize: 13 }}>No participants yet. Share the session password: <strong>{PART_PWD}</strong></div>}
-            {participants.map(p => {
-              const confirmed = STEP_NAMES.filter((_, i) => p[`step${i + 1}Confirmed`]).length;
-              return (
-                <div className="sl-pax-card" key={p.name}>
-                  <div className="sl-pax-name">{p.name}</div>
-                  <div className="sl-pax-status">{confirmed} step(s) confirmed {p.submitted ? <span className="sl-pax-ok">· Submitted</span> : ""}</div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="sl-label" style={{ marginBottom: 8 }}>Reveal responses by step</div>
-        <RevBlock stepN={1} label="Set goal"><FacRev1 ps={participants} /></RevBlock>
-        <RevBlock stepN={2} label="Revenue"><FacRev2 ps={participants} /></RevBlock>
-        <RevBlock stepN={3} label="Costs">
-          <table className="sl-tbl" style={{ fontSize: 11 }}>
-            <thead><tr><th>Participant</th>{COST_LINES.map(l => <th key={l.id} className="right" style={{ fontSize: 10 }}>{l.name.split(" ").slice(0, 2).join(" ")}</th>)}</tr></thead>
-            <tbody>{participants.map(p => <tr key={p.name}>
-              <td>{p.name}</td>
-              {COST_LINES.map(l => <td key={l.id} style={{ textAlign: "right", fontFamily: "IBM Plex Mono" }}>{nv(p.costs?.[l.id], l.baseK).toLocaleString()}</td>)}
-            </tr>)}</tbody>
-          </table>
-        </RevBlock>
-        <RevBlock stepN={4} label="Current position">
-          <table className="sl-tbl" style={{ fontSize: 11 }}>
-            <thead><tr><th>Participant</th><th className="right">Rev</th><th className="right">Contrib surplus</th><th className="right">Net</th></tr></thead>
-            <tbody>{participants.map(p => {
-              const r = REV_LINES.reduce((s, l) => s + nv(p.revenues?.[l.id], l.prefillK), 0);
-              const cc = COST_LINES.filter(l => l.id !== "uni_charge").reduce((s, l) => s + nv(p.costs?.[l.id], l.baseK), 0);
-              const uc = nv(p.costs?.uni_charge, 10325);
-              return <tr key={p.name}><td>{p.name}</td><td style={{ textAlign: "right", fontFamily: "IBM Plex Mono" }}>{fmtK(r)}</td><td style={{ textAlign: "right", fontFamily: "IBM Plex Mono" }}>{fmtK(r - cc)}</td><td style={{ textAlign: "right", fontFamily: "IBM Plex Mono", color: r - cc - uc >= 0 ? "#2d7d46" : "#b83232" }}>{fmtK(r - cc - uc)}</td></tr>;
-            })}</tbody>
-          </table>
-        </RevBlock>
-        <RevBlock stepN={5} label="Predicted revenues">
-          <table className="sl-tbl" style={{ fontSize: 11 }}>
-            <thead><tr><th>Participant</th>{REV_LINES.map(l => <th key={l.id} className="right" style={{ fontSize: 10 }}>{l.name.split(" ").slice(0, 2).join(" ")}</th>)}<th className="right">Total</th></tr></thead>
-            <tbody>{participants.map(p => { const { predRevs, total } = calcPredRevs(p); return <tr key={p.name}><td>{p.name}</td>{REV_LINES.map(l => <td key={l.id} style={{ textAlign: "right", fontFamily: "IBM Plex Mono" }}>{fmtK(nv(predRevs[l.id]))}</td>)}<td style={{ textAlign: "right", fontFamily: "IBM Plex Mono", fontWeight: 600 }}>{fmtK(total)}</td></tr>; })}</tbody>
-          </table>
-        </RevBlock>
-        <RevBlock stepN={6} label="Predicted costs">
-          <table className="sl-tbl" style={{ fontSize: 11 }}>
-            <thead><tr><th>Participant</th>{COST_LINES.map(l => <th key={l.id} className="right" style={{ fontSize: 10 }}>{l.name.split(" ").slice(0, 2).join(" ")}</th>)}<th className="right">Total</th></tr></thead>
-            <tbody>{participants.map(p => { const { predCosts, total } = calcPredCosts(p); return <tr key={p.name}><td>{p.name}</td>{COST_LINES.map(l => <td key={l.id} style={{ textAlign: "right", fontFamily: "IBM Plex Mono" }}>{fmtK(nv(predCosts[l.id]))}</td>)}<td style={{ textAlign: "right", fontFamily: "IBM Plex Mono", fontWeight: 600 }}>{fmtK(total)}</td></tr>; })}</tbody>
-          </table>
-        </RevBlock>
-        <RevBlock stepN={7} label="Prognosis"><FacRev7 ps={participants} /></RevBlock>
-        <RevBlock stepN={8} label="Who FBaM serves">
-          <table className="sl-tbl" style={{ fontSize: 11 }}>
-            <thead><tr><th>Participant</th>{PURPOSE_GROUPS.map(g => <th key={g} className="right" style={{ fontSize: 9 }}>{g.split(" ").slice(0, 2).join(" ")}</th>)}</tr></thead>
-            <tbody>{participants.map(p => <tr key={p.name}><td>{p.name}</td>{PURPOSE_GROUPS.map(g => <td key={g} style={{ textAlign: "right", fontFamily: "IBM Plex Mono", color: nv(p.purposeGroups?.[g]) >= 8 ? "#e07030" : "#1a1a1a" }}>{nv(p.purposeGroups?.[g], "—")}</td>)}</tr>)}</tbody>
-          </table>
-        </RevBlock>
-        <RevBlock stepN={9} label="Strategic positioning">
-          {participants.map(p => (
-            <div key={p.name} style={{ marginBottom: 16 }}>
-              <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 6 }}>{p.name}</div>
-              {PURPOSE_TENSIONS.map(t => {
-                const v = nv(p.purposeTensions?.[t.key], 50);
-                return <div key={t.key} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                  <span style={{ fontSize: 10, color: "#888", width: 100, textAlign: "right" }}>{t.l}</span>
-                  <div style={{ flex: 1, height: 4, background: "#d8d3cb", borderRadius: 2, position: "relative" }}>
-                    <div style={{ position: "absolute", left: `${v}%`, top: "50%", transform: "translate(-50%,-50%)", width: 10, height: 10, borderRadius: "50%", background: "#e07030" }} />
-                  </div>
-                  <span style={{ fontSize: 10, color: "#888", width: 100 }}>{t.r}</span>
-                </div>;
-              })}
-            </div>
-          ))}
-        </RevBlock>
-        <RevBlock stepN={10} label="Purpose">
-          <table className="sl-tbl" style={{ fontSize: 12 }}>
-            <thead><tr><th>Participant</th><th>Top choice</th><th>Own statement</th></tr></thead>
-            <tbody>{participants.map(p => <tr key={p.name}><td>{p.name}</td><td style={{ fontSize: 11 }}>{(p.purposeRanked || [])[0] || "—"}</td><td style={{ fontSize: 11, color: "#888" }}>{p.purposeOwn || "—"}</td></tr>)}</tbody>
-          </table>
-        </RevBlock>
-        <RevBlock stepN={11} label="Mission">
-          <table className="sl-tbl" style={{ fontSize: 12 }}>
-            <thead><tr><th>Participant</th><th>Top choice</th></tr></thead>
-            <tbody>{participants.map(p => <tr key={p.name}><td>{p.name}</td><td style={{ fontSize: 11 }}>{(p.purposeMissionRanked || [])[0] || p.purposeMissionOwn || "—"}</td></tr>)}</tbody>
-          </table>
-        </RevBlock>
-        <RevBlock stepN={12} label="Distinctiveness">
-          <table className="sl-tbl" style={{ fontSize: 12 }}>
-            <thead><tr><th>Participant</th><th>Top choice</th></tr></thead>
-            <tbody>{participants.map(p => <tr key={p.name}><td>{p.name}</td><td style={{ fontSize: 11 }}>{(p.purposeUniqueRanked || [])[0] || p.purposeUniqueOwn || "—"}</td></tr>)}</tbody>
-          </table>
-        </RevBlock>
-        <RevBlock stepN={13} label="VRIN verdict">
-          <table className="sl-tbl" style={{ fontSize: 12 }}>
-            <thead><tr><th>Participant</th><th>Verdict</th></tr></thead>
-            <tbody>{participants.map(p => <tr key={p.name}><td>{p.name}</td><td style={{ fontSize: 11 }}>{p.purposeVerdict || "—"}</td></tr>)}</tbody>
-          </table>
-        </RevBlock>
-        <RevBlock stepN={14} label="Disappearance">
-          <table className="sl-tbl" style={{ fontSize: 12 }}>
-            <thead><tr><th>Participant</th><th>Choice</th></tr></thead>
-            <tbody>{participants.map(p => <tr key={p.name}><td>{p.name}</td><td style={{ fontSize: 11 }}>{(p.purposeDisappearRanked || [])[0] || "—"}</td></tr>)}</tbody>
-          </table>
-        </RevBlock>
-        <RevBlock stepN={15} label="WHY / HOW / WHAT">
-          {participants.map(p => p.purposeWhy ? (
-            <div key={p.name} style={{ marginBottom: 20, padding: 12, border: "1px solid #d8d3cb", borderRadius: 4 }}>
-              <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8 }}>{p.name}</div>
-              {[["WHY", p.purposeWhy], ["HOW", p.purposeHow], ["WHAT", p.purposeWhat]].map(([l, v]) => v ? (
-                <div key={l} style={{ marginBottom: 8 }}>
-                  <div style={{ fontSize: 10, fontWeight: 600, color: "#e07030", textTransform: "uppercase", letterSpacing: 1, marginBottom: 3 }}>{l}</div>
-                  <div style={{ fontSize: 12, color: "#1a1a1a", lineHeight: 1.5 }}>{v}</div>
-                </div>
-              ) : null)}
-            </div>
-          ) : null)}
-        </RevBlock>
-        <RevBlock stepN={16} label="Submitted scenarios"><FacRev8 ps={participants} /></RevBlock>
-        <RevBlock stepN={17} label="Rankings">
-          <div style={{ fontSize: 12, color: "#888" }}>Rankings visible after participants complete Step 17.</div>
-        </RevBlock>
-        <RevBlock stepN={18} label="Themes">
-          <div style={{ fontSize: 12, color: "#888" }}>Theme declarations visible after participants complete Step 18.</div>
-        </RevBlock>
-      </div>
-    </div>
-  );
-}
-
 /* ── STEP 19: COMPARISON DASHBOARD ───────────────────────────────────────── */
 const PAX_COLORS = ["#1a4fa0","#e07030","#2d7d46","#b87a20","#b83232","#6a3d9a","#555"];
 
 function Step19Comparison({ pData, onConfirm, onBack }) {
-  const [tab, setTab] = useState("gap");
-  const participants = pAll().filter(p => p.step17Confirmed || p.submitted);
+  const [tab, setTab] = useState("financial");
+  const participants = pAll().filter(p => p.step12Confirmed || p.step17Confirmed || p.submitted);
+  const [tick2, setTick2] = useState(0);
+
+  // Poll every 4s for new participants
+  useEffect(() => {
+    const id = setInterval(() => { syncFromSupabase().then(() => setTick2(t => t + 1)); }, 4000);
+    return () => clearInterval(id);
+  }, []);
 
   const TabBtn = ({ id, label }) => (
     <button onClick={() => setTab(id)} style={{
@@ -2475,38 +2759,59 @@ function Step19Comparison({ pData, onConfirm, onBack }) {
   );
 
   const REV_SEGS = [
-    { id: "ft_msc",      label: "FT MSc & MBA",  color: "#1a4fa0" },
-    { id: "exec_ed",     label: "Exec ed",        color: "#e07030" },
-    { id: "open",        label: "Open",           color: "#2d7d46" },
-    { id: "research_dd", label: "Research",       color: "#b87a20" },
-    { id: "hefce",       label: "HEFCE",          color: "#6a3d9a" },
-    { id: "residences",  label: "Residences",     color: "#888" },
-    { id: "other_rev",   label: "Other",          color: "#bbb" },
+    { id: "ft_msc",      label: "FT MSc",   color: "#1a4fa0" },
+    { id: "exec_ed",     label: "Exec ed",  color: "#e07030" },
+    { id: "open",        label: "Open",     color: "#2d7d46" },
+    { id: "research_dd", label: "Research", color: "#b87a20" },
+    { id: "hefce",       label: "HEFCE",    color: "#6a3d9a" },
+    { id: "residences",  label: "Residences", color: "#888" },
+    { id: "other_rev",   label: "Other",    color: "#bbb" },
   ];
+
+  // Compute similarities and differences in selected changes
+  const changesSimilarities = () => {
+    if (participants.length < 2) return { all: [], some: [], none: [] };
+    const allSelected = participants.map(p => (p.s11Selected || p.s11Statements?.filter(s => s.checked || s.own) || []).map(s => s.text));
+    // Group by theme tag (simple keyword matching)
+    const allTexts = allSelected.flat();
+    // Find texts selected by all
+    const allCount = (text) => allSelected.filter(arr => arr.some(t => t === text || t.toLowerCase().includes(text.toLowerCase().substring(0,20)))).length;
+    const unique = [...new Set(allTexts)];
+    const byCount = unique.map(text => ({ text, count: allCount(text), participants: participants.filter((p, i) => allSelected[i]?.some(t => t === text || t.toLowerCase().includes(text.toLowerCase().substring(0,20)))).map(p => p.name) }));
+    byCount.sort((a, b) => b.count - a.count);
+    return {
+      all: byCount.filter(x => x.count === participants.length),
+      some: byCount.filter(x => x.count > 0 && x.count < participants.length),
+      none: [] // changes nobody selected — harder to compute without full list
+    };
+  };
+
+  const changeGroups = changesSimilarities();
 
   return (
     <div className="sl-content">
       <BackBtn onClick={onBack} />
       <div className="sl-step-h">Comparison</div>
-      <div className="sl-prompt">How do the scenarios compare? Where did you agree — and where did you diverge?</div>
+      <div className="sl-prompt">How do the scenarios compare? This view shows where the group aligned and where they diverged — across strategic choices, financials, and selected changes.</div>
 
       {participants.length < 2 && (
         <div className="sl-note-box" style={{ borderColor: "#e07030" }}>
-          Comparison shows when at least 2 participants have completed Step 17. Currently {participants.length} participant(s) visible in this session.
+          Comparison shows when at least 2 participants have completed Step 12. Currently {participants.length} participant(s) visible. Polling every 4 seconds…
         </div>
       )}
 
       {/* Tabs */}
-      <div style={{ display: "flex", borderBottom: "1px solid #d8d3cb", marginBottom: 24 }}>
-        <TabBtn id="gap"      label="The gap" />
-        <TabBtn id="revmix"   label="Revenue mix" />
-        <TabBtn id="tensions" label="Strategic tensions" />
+      <div style={{ display: "flex", borderBottom: "1px solid #d8d3cb", marginBottom: 24, flexWrap: "wrap" }}>
+        <TabBtn id="financial"  label="Financial" />
+        <TabBtn id="strategic"  label="Strategic choices" />
+        <TabBtn id="changes"    label="Selected changes" />
       </div>
 
-      {/* ── TAB 1: THE GAP ── */}
-      {tab === "gap" && (
+      {/* ── TAB 1: FINANCIAL ── */}
+      {tab === "financial" && (
         <div>
-          <table className="sl-tbl" style={{ fontSize: 12 }}>
+          <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, fontWeight: 600, color: "#888", textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Gap and target</div>
+          <table className="sl-tbl" style={{ fontSize: 12, marginBottom: 28 }}>
             <thead><tr>
               <th>Participant</th>
               <th className="right">Target %</th>
@@ -2514,7 +2819,7 @@ function Step19Comparison({ pData, onConfirm, onBack }) {
               <th className="right">Gap to close</th>
               <th className="right">Scenario surplus</th>
               <th className="right">Scenario %</th>
-              <th className="right">Met target?</th>
+              <th className="right">Met?</th>
             </tr></thead>
             <tbody>
               {participants.map((p, i) => {
@@ -2523,10 +2828,12 @@ function Step19Comparison({ pData, onConfirm, onBack }) {
                 const tgt = nv(p.targetPct, 7.5);
                 const doNothingSurplus = predRev - predCost;
                 const gap = (predRev * tgt / 100) - doNothingSurplus;
-                const sRevs  = p.s17Revs  ? REV_LINES.reduce((s, l) => s + nv(p.s17Revs[l.id]), 0)  : (p.s8 ? nv(p.s8.totalRevFinal) : 0);
-                const sCosts = p.s17Costs ? COST_LINES.reduce((s, l) => s + nv(p.s17Costs[l.id]), 0) : (p.s8 ? nv(p.s8.totalCostFinal) : 0);
-                const sSurplus = sRevs - sCosts;
-                const sPct = sRevs > 0 ? (sSurplus / sRevs * 100) : 0;
+                const sRevs  = p.s12Revs || p.s17Revs;
+                const sCosts = p.s12Costs || p.s17Costs;
+                const sRev   = sRevs  ? REV_LINES.reduce((s, l) => s + nv(sRevs[l.id]), 0)  : 0;
+                const sCost  = sCosts ? COST_LINES.reduce((s, l) => s + nv(sCosts[l.id]), 0) : 0;
+                const sSurplus = sRev - sCost;
+                const sPct = sRev > 0 ? (sSurplus / sRev * 100) : 0;
                 const met = sPct >= tgt;
                 return (
                   <tr key={p.name}>
@@ -2534,34 +2841,29 @@ function Step19Comparison({ pData, onConfirm, onBack }) {
                       <span style={{ width: 10, height: 10, borderRadius: "50%", background: PAX_COLORS[i % PAX_COLORS.length], display: "inline-block", flexShrink: 0 }} />
                       {p.name}
                     </td>
-                    <td style={{ textAlign: "right", fontFamily: "IBM Plex Mono" }}>{tgt >= 0 ? "+" : ""}{tgt.toFixed(1)}%</td>
+                    <td style={{ textAlign: "right", fontFamily: "IBM Plex Mono" }}>{tgt.toFixed(1)}%</td>
                     <td style={{ textAlign: "right", fontFamily: "IBM Plex Mono", color: doNothingSurplus < 0 ? "#b83232" : "#2d7d46" }}>{fmtK(doNothingSurplus)}</td>
                     <td style={{ textAlign: "right", fontFamily: "IBM Plex Mono", color: "#b87a20" }}>{gap > 0 ? fmtK(gap) : "None"}</td>
-                    <td style={{ textAlign: "right", fontFamily: "IBM Plex Mono", color: sSurplus >= 0 ? "#2d7d46" : "#b83232" }}>{fmtK(sSurplus)}</td>
-                    <td style={{ textAlign: "right", fontFamily: "IBM Plex Mono", color: sPct >= tgt ? "#2d7d46" : "#b83232" }}>{sPct >= 0 ? "+" : ""}{sPct.toFixed(1)}%</td>
-                    <td style={{ textAlign: "right", fontWeight: 600, color: met ? "#2d7d46" : "#b83232" }}>{met ? "✓" : "✗"}</td>
+                    <td style={{ textAlign: "right", fontFamily: "IBM Plex Mono", color: sSurplus >= 0 ? "#2d7d46" : "#b83232" }}>{sRev > 0 ? fmtK(sSurplus) : "—"}</td>
+                    <td style={{ textAlign: "right", fontFamily: "IBM Plex Mono", color: sPct >= tgt ? "#2d7d46" : "#b83232" }}>{sRev > 0 ? sPct.toFixed(1) + "%" : "—"}</td>
+                    <td style={{ textAlign: "right", fontWeight: 600, color: met ? "#2d7d46" : "#b83232" }}>{sRev > 0 ? (met ? "✓" : "✗") : "—"}</td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
-        </div>
-      )}
 
-      {/* ── TAB 2: REVENUE MIX ── */}
-      {tab === "revmix" && (
-        <div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 16 }}>
+          <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, fontWeight: 600, color: "#888", textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Revenue mix</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 10 }}>
             {REV_SEGS.map(s => (
               <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "#888" }}>
-                <div style={{ width: 10, height: 10, borderRadius: 2, background: s.color, flexShrink: 0 }} />
-                {s.label}
+                <div style={{ width: 10, height: 10, borderRadius: 2, background: s.color, flexShrink: 0 }} />{s.label}
               </div>
             ))}
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {participants.map((p, i) => {
-              const revs = p.s17Revs || {};
+              const revs = p.s12Revs || p.s17Revs || {};
               const total = REV_SEGS.reduce((s, seg) => s + nv(revs[seg.id]), 0) || 1;
               return (
                 <div key={p.name} style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -2569,10 +2871,10 @@ function Step19Comparison({ pData, onConfirm, onBack }) {
                     <span style={{ width: 10, height: 10, borderRadius: "50%", background: PAX_COLORS[i % PAX_COLORS.length], flexShrink: 0 }} />
                     <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, color: "#666" }}>{p.name}</span>
                   </div>
-                  <div style={{ flex: 1, display: "flex", height: 22, borderRadius: 3, overflow: "hidden" }}>
+                  <div style={{ flex: 1, display: "flex", height: 20, borderRadius: 3, overflow: "hidden" }}>
                     {REV_SEGS.map(seg => {
                       const pct = (nv(revs[seg.id]) / total) * 100;
-                      return pct > 0.5 ? <div key={seg.id} style={{ width: pct + "%", background: seg.color, height: "100%" }} title={`${seg.label}: ${pct.toFixed(0)}%`} /> : null;
+                      return pct > 0.5 ? <div key={seg.id} style={{ width: pct + "%", background: seg.color }} title={`${seg.label}: ${pct.toFixed(0)}%`} /> : null;
                     })}
                   </div>
                   <div style={{ fontFamily: "IBM Plex Mono", fontSize: 11, color: "#888", width: 60, textAlign: "right", flexShrink: 0 }}>{fmtK(total)}</div>
@@ -2583,10 +2885,33 @@ function Step19Comparison({ pData, onConfirm, onBack }) {
         </div>
       )}
 
-      {/* ── TAB 3: STRATEGIC TENSIONS ── */}
-      {tab === "tensions" && (
+      {/* ── TAB 2: STRATEGIC CHOICES ── */}
+      {tab === "strategic" && (
         <div>
-          <div style={{ fontSize: 11, color: "#888", marginBottom: 16 }}>Each dot = one participant. Spread = contested. Clustered = consensus.</div>
+          <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, fontWeight: 600, color: "#888", textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Who FBaM serves (Step 9 ratings)</div>
+          <div style={{ overflowX: "auto", marginBottom: 28 }}>
+            <table className="sl-tbl" style={{ fontSize: 11, minWidth: 600 }}>
+              <thead><tr>
+                <th>Participant</th>
+                {PURPOSE_GROUPS.map(g => <th key={g} className="right" style={{ fontSize: 9 }}>{g.split(" ").slice(0,3).join(" ")}</th>)}
+              </tr></thead>
+              <tbody>
+                {participants.map(p => (
+                  <tr key={p.name}>
+                    <td>{p.name}</td>
+                    {PURPOSE_GROUPS.map(g => (
+                      <td key={g} style={{ textAlign: "right", fontFamily: "IBM Plex Mono", color: nv(p.purposeGroups?.[g]) >= 8 ? "#e07030" : nv(p.purposeGroups?.[g]) >= 6 ? "#b87a20" : "#1a1a1a", fontWeight: nv(p.purposeGroups?.[g]) >= 8 ? 700 : 400 }}>
+                        {p.purposeGroups ? nv(p.purposeGroups[g], "—") : "—"}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, fontWeight: 600, color: "#888", textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Strategic positioning (Step 10)</div>
+          <div style={{ fontSize: 11, color: "#888", marginBottom: 12 }}>Each dot = one participant. Spread = contested. Clustered = consensus.</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             {PURPOSE_TENSIONS.map(t => {
               const vals = participants.map(p => nv(p.purposeTensions?.[t.key], 50));
@@ -2606,9 +2931,7 @@ function Step19Comparison({ pData, onConfirm, onBack }) {
                       <div style={{ position: "absolute", top: "50%", left: 0, right: 0, height: 1, background: "#d8d3cb" }} />
                       {participants.map((p, i) => {
                         const v = nv(p.purposeTensions?.[t.key], 50);
-                        return (
-                          <div key={p.name} title={p.name} style={{ position: "absolute", left: v + "%", top: "50%", width: 12, height: 12, borderRadius: "50%", background: PAX_COLORS[i % PAX_COLORS.length], transform: "translate(-50%,-50%)", opacity: 0.9 }} />
-                        );
+                        return <div key={p.name} title={p.name} style={{ position: "absolute", left: v + "%", top: "50%", width: 12, height: 12, borderRadius: "50%", background: PAX_COLORS[i % PAX_COLORS.length], transform: "translate(-50%,-50%)", opacity: 0.9 }} />;
                       })}
                     </div>
                     <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, width: 110, color: "#888", flexShrink: 0 }}>{t.r}</span>
@@ -2620,16 +2943,57 @@ function Step19Comparison({ pData, onConfirm, onBack }) {
           <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 20 }}>
             {participants.map((p, i) => (
               <div key={p.name} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "#888" }}>
-                <div style={{ width: 10, height: 10, borderRadius: "50%", background: PAX_COLORS[i % PAX_COLORS.length] }} />
-                {p.name}
+                <div style={{ width: 10, height: 10, borderRadius: "50%", background: PAX_COLORS[i % PAX_COLORS.length] }} />{p.name}
               </div>
             ))}
           </div>
         </div>
       )}
 
+      {/* ── TAB 3: SELECTED CHANGES ── */}
+      {tab === "changes" && (
+        <div>
+          {participants.length < 2 && (
+            <div className="sl-note-box">Complete Step 11 with at least 2 participants to see change comparisons.</div>
+          )}
+
+          {changeGroups.all.length > 0 && (
+            <div style={{ marginBottom: 24 }}>
+              <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, color: "#2d7d46", marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ width: 12, height: 12, borderRadius: "50%", background: "#2d7d46", display: "inline-block" }} />
+                Consensus — selected by all
+              </div>
+              {changeGroups.all.map((item, i) => (
+                <div key={i} style={{ padding: "10px 14px", background: "#f0faf4", border: "1px solid #2d7d46", borderRadius: 4, marginBottom: 8, fontFamily: "'DM Sans',sans-serif", fontSize: 13, color: "#1a1a1a", lineHeight: 1.5 }}>
+                  {item.text}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {changeGroups.some.length > 0 && (
+            <div style={{ marginBottom: 24 }}>
+              <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, color: "#b87a20", marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ width: 12, height: 12, borderRadius: "50%", background: "#b87a20", display: "inline-block" }} />
+                Differences — selected by some
+              </div>
+              {changeGroups.some.map((item, i) => (
+                <div key={i} style={{ padding: "10px 14px", background: "#fffbf0", border: "1px solid #b87a20", borderRadius: 4, marginBottom: 8 }}>
+                  <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, color: "#1a1a1a", lineHeight: 1.5, marginBottom: 4 }}>{item.text}</div>
+                  <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#888" }}>Selected by: {item.participants.join(", ")}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {changeGroups.all.length === 0 && changeGroups.some.length === 0 && participants.length >= 2 && (
+            <div className="sl-note-box">No matching change statements found yet. Complete Step 11 to see comparisons.</div>
+          )}
+        </div>
+      )}
+
       <div style={{ marginTop: 32 }}>
-        <button className="sl-btn" onClick={onConfirm}>Continue → Step 20: Finalise</button>
+        <button className="sl-btn" onClick={onConfirm}>Continue → Step 15: Finalise</button>
       </div>
     </div>
   );
@@ -2695,10 +3059,8 @@ export default function StrawTool() {
   return (
     <>
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
-      {view === "entry" && <Entry onEnter={n => { setPName(n); setView("participant"); }} onFacilitator={() => setView("facLogin")} />}
-      {view === "facLogin" && <FacilitatorLogin onLogin={() => setView("facilitator")} onBack={() => setView("entry")} />}
+      {view === "entry" && <Entry onEnter={n => { setPName(n); setView("participant"); }} />}
       {view === "participant" && <ParticipantView name={pName} tick={tick} onLogout={() => setView("entry")} />}
-      {view === "facilitator" && <FacilitatorView tick={tick} onLogout={() => setView("entry")} />}
     </>
   );
 }
