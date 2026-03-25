@@ -18,6 +18,9 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "RESEND_API_KEY not configured" });
   }
 
+  // Accept either a string or an array of recipients
+  const recipients = Array.isArray(to) ? to : [to];
+
   try {
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -27,7 +30,7 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         from: "FBaM Strategy Lab <noreply@changebefore.com>",
-        to: [to],
+        to: recipients,
         subject,
         html,
       }),
