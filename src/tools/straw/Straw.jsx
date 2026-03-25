@@ -20,7 +20,7 @@ const syncFromSupabase = async () => {
     const resp = await fetch("/api/sl-load?sessionId=" + encodeURIComponent(STORE.sessionId));
     if (!resp.ok) return;
     const { participants } = await resp.json();
-    participants.forEach(p => { if (p.name) STORE.participants[p.name] = p; });
+    participants.forEach(p => { if (p.name && !p._wiped) STORE.participants[p.name] = p; });
   } catch (e) {}
 };
 
@@ -3386,17 +3386,87 @@ ${!why && !how && !what ? `<p style="font-size:12px;color:#888">Purpose section 
         tr([["Total costs","left",true],[fmtK(s17C),"right",true]])+
         tr([["Surplus","left",true],[fmtK(s17S),"right",true,s17S>=0?"#2d7d46":"#b83232"]])
       ) : `<p class="note">Scenario not yet completed.</p>`),
-      PAGE("15. Theme P&L", 15, tbl(
-        [["Theme"],["Revenue","right"],["Costs","right"],["Contribution (margin)","right"]],
-        THEME_DATA.map(t=>{const r=nv(pData.s18RevAlloc?.[t.id],0);const c=nv(pData.s18CostAlloc?.[t.id],0);const m=r-c;return tr([[t.name],[fmtK(r),"right"],[fmtK(c),"right"],[fmtK(m),"right",false,m>=0?"#2d7d46":"#b83232"]]);}).join("")+
-        tr([["School total","left",true],[fmtK(s17R),"right",true],[fmtK(s17C),"right",true],[fmtK(s17S),"right",true,s17S>=0?"#2d7d46":"#b83232"]])
-      )),
+      PAGE("15. Theme P&L", 15, (() => {
+        const themeTotal = THEME_DATA.reduce((s,t)=>s+nv(pData.s18RevAlloc?.[t.id],0),0);
+        const hasData = themeTotal > 0;
+        if (!hasData) return `<p class="note">Theme P&L not yet completed. Complete Step 15 to see the product mix and contribution by theme.</p>`;
+        return tbl(
+          [["Theme"],["Revenue","right"],["Costs","right"],["Contribution (margin)","right"]],
+          THEME_DATA.map(t=>{const r=nv(pData.s18RevAlloc?.[t.id],0);const c=nv(pData.s18CostAlloc?.[t.id],0);const m=r-c;return tr([[t.name],[fmtK(r),"right"],[fmtK(c),"right"],[fmtK(m),"right",false,m>=0?"#2d7d46":"#b83232"]]);}).join("")+
+          tr([["School total","left",true],[fmtK(s17R),"right",true],[fmtK(s17C),"right",true],[fmtK(s17S),"right",true,s17S>=0?"#2d7d46":"#b83232"]])
+        ) + (() => {
+          // Product mix bars per theme
+          const mixes = pData.s18Mixes || {};
+          return THEME_DATA.map(t => {
+            const mix = mixes[t.id];
+            if (!mix) return "";
+            return `<div style="margin-top:10px"><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#888;margin-bottom:4px">${t.name} — product mix</div>
+            <div style="display:flex;height:12px;border-radius:2px;overflow:hidden;margin-bottom:3px">
+              ${PRODUCT_CATS.map(c=>`<div style="width:${(mix[c.id]||0).toFixed(0)}%;background:${c.color}" title="${c.label}: ${(mix[c.id]||0).toFixed(0)}%"></div>`).join("")}
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px">
+              ${PRODUCT_CATS.map(c=>`<span style="font-size:9px;color:#666"><span style="display:inline-block;width:8px;height:8px;background:${c.color};border-radius:1px;margin-right:3px"></span>${c.label} ${(mix[c.id]||0).toFixed(0)}%</span>`).join("")}
+            </div></div>`;
+          }).join("");
+        })();
+      })()),
+      PAGE("16. Comparison", 16, (() => {
+        const all = pAll().filter(p => p.step12Confirmed || p.step17Confirmed || p.submitted);
+        if (all.length < 2) return `<p class="note">Comparison requires at least 2 participants to have completed Step 14. ${all.length === 1 ? "Only 1 participant found in this session." : "No participants found."}</p>`;
+        const PAX_COLORS = ["#1a4fa0","#e07030","#2d7d46","#b87a20","#b83232","#6a3d9a","#555"];
+        return `
+        <p style="font-size:11px;color:#666;margin-bottom:16px">All participants who completed Step 14 in session ${STORE.sessionId}.</p>
+        <table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:20px">
+          <thead><tr>
+            <th style="text-align:left;padding:5px 8px;border-bottom:2px solid #ccc">Participant</th>
+            <th style="text-align:right;padding:5px 8px;border-bottom:2px solid #ccc">Target %</th>
+            <th style="text-align:right;padding:5px 8px;border-bottom:2px solid #ccc">Scenario revenue</th>
+            <th style="text-align:right;padding:5px 8px;border-bottom:2px solid #ccc">Scenario costs</th>
+            <th style="text-align:right;padding:5px 8px;border-bottom:2px solid #ccc">Surplus</th>
+            <th style="text-align:right;padding:5px 8px;border-bottom:2px solid #ccc">Surplus %</th>
+            <th style="text-align:right;padding:5px 8px;border-bottom:2px solid #ccc">Met?</th>
+          </tr></thead>
+          <tbody>${all.map((p,i)=>{
+            const tgt2=nv(p.targetPct,7.5);
+            const sr=p.s12Revs||p.s17Revs;
+            const sc=p.s12Costs||p.s17Costs;
+            const sR=sr?REV_LINES.reduce((s,l)=>s+nv(sr[l.id]),0):0;
+            const sC=sc?COST_LINES.reduce((s,l)=>s+nv(sc[l.id]),0):0;
+            const sS=sR-sC;
+            const sPct=sR>0?(sS/sR*100).toFixed(1):"—";
+            const met=sR>0&&parseFloat(sPct)>=tgt2;
+            return `<tr>
+              <td style="padding:4px 8px;border-bottom:1px solid #eee"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${PAX_COLORS[i%7]};margin-right:6px"></span>${p.name}</td>
+              <td style="text-align:right;padding:4px 8px;border-bottom:1px solid #eee">${tgt2>=0?"+":""}${tgt2.toFixed(1)}%</td>
+              <td style="text-align:right;padding:4px 8px;border-bottom:1px solid #eee">${sR>0?fmtK(sR):"—"}</td>
+              <td style="text-align:right;padding:4px 8px;border-bottom:1px solid #eee">${sC>0?fmtK(sC):"—"}</td>
+              <td style="text-align:right;padding:4px 8px;border-bottom:1px solid #eee;color:${sS>=0?"#2d7d46":"#b83232"}">${sR>0?fmtK(sS):"—"}</td>
+              <td style="text-align:right;padding:4px 8px;border-bottom:1px solid #eee;color:${met?"#2d7d46":"#b83232"}">${sR>0?sPct+"%":"—"}</td>
+              <td style="text-align:right;padding:4px 8px;border-bottom:1px solid #eee;font-weight:700;color:${met?"#2d7d46":"#b83232"}">${sR>0?(met?"✓":"✗"):"—"}</td>
+            </tr>`;
+          }).join("")}</tbody>
+        </table>
+        <div style="margin-bottom:16px"><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#888;margin-bottom:8px">Revenue mix comparison</div>
+        ${all.map((p,i)=>{
+          const sr=p.s12Revs||p.s17Revs||{};
+          const total=REV_LINES.reduce((s,l)=>s+nv(sr[l.id]),0)||1;
+          const REV_COLORS_M={"ft_msc":"#1a4fa0","exec_ed":"#e07030","open":"#2d7d46","research_dd":"#b87a20","hefce":"#6a3d9a","residences":"#888","other_rev":"#bbb","pt_levy":"#999"};
+          return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
+            <span style="font-size:10px;width:80px;flex-shrink:0"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${PAX_COLORS[i%7]};margin-right:4px"></span>${p.name}</span>
+            <div style="flex:1;display:flex;height:14px;border-radius:2px;overflow:hidden">
+              ${REV_LINES.filter(l=>nv(sr[l.id])>0).map(l=>`<div style="width:${(nv(sr[l.id])/total*100).toFixed(0)}%;background:${REV_COLORS_M[l.id]||"#ccc"}" title="${l.name}"></div>`).join("")}
+            </div>
+            <span style="font-size:10px;color:#888;width:60px;text-align:right">${fmtK(total)}</span>
+          </div>`;
+        }).join("")}
+        </div>`;
+      })()),
       PAGE("17. Finalise — Summary", 17, `
         <div class="kpi-row">
           ${kpi(`${tgt>=0?"+":""}${tgt.toFixed(1)}%`,"Target surplus")}
-          ${kpi(s17R>0?fmtK(s17R):"—","Scenario revenue")}
-          ${kpi(s17C>0?fmtK(s17C):"—","Scenario costs")}
-          ${kpi(s17R>0?`${s17P}%`:"—","Surplus %",s17R>0?(parseFloat(s17P)>=tgt?"#2d7d46":"#b83232"):"#888")}
+          ${kpi(s17R>0?fmtK(s17R):"Not completed","Scenario revenue")}
+          ${kpi(s17C>0?fmtK(s17C):"Not completed","Scenario costs")}
+          ${kpi(s17R>0?`${s17P}%`:"Not completed","Surplus %",s17R>0?(parseFloat(s17P)>=tgt?"#2d7d46":"#b83232"):"#888")}
         </div>
         ${why?`<div class="why-box"><div class="why-label">WHY</div><p>${why}</p></div>`:""}
         ${how?`<div class="why-box"><div class="why-label">HOW</div><p>${how}</p></div>`:""}
@@ -3408,35 +3478,55 @@ ${!why && !how && !what ? `<p style="font-size:12px;color:#888">Purpose section 
 <title>FBaM Strategy Lab — ${pData.name}</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:Arial,sans-serif;color:#1a1a1a;font-size:12px}
-  .page{padding:24px 28px;min-height:100vh;page-break-after:always;display:flex;flex-direction:column}
+  body{font-family:'Helvetica Neue',Arial,sans-serif;color:#1a1a1a;font-size:12px;background:#fff}
+  .page{padding:28px 32px;min-height:100vh;page-break-after:always;display:flex;flex-direction:column;position:relative}
   .page:last-child{page-break-after:auto}
-  .step-label{font-size:10px;text-transform:uppercase;letter-spacing:2px;color:#aaa;margin-bottom:6px}
-  h2{font-size:18px;font-weight:700;color:#1a1a1a;margin-bottom:16px;padding-bottom:8px;border-bottom:2px solid #e07030}
-  .meta{font-size:10px;color:#888;margin-bottom:20px}
-  .big-number{font-size:56px;font-weight:700;color:#e07030;text-align:center;margin:32px 0}
-  table{width:100%;border-collapse:collapse;margin-bottom:12px;font-size:12px}
-  th{text-align:left;padding:5px 8px;border-bottom:2px solid #ccc;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#888}
-  td{padding:4px 8px;border-bottom:1px solid #eee}
-  .kpi-row{display:flex;gap:12px;margin-bottom:16px}
-  .kpi{flex:1;border:1px solid #e07030;border-radius:3px;padding:10px;text-align:center}
-  .kv{font-size:20px;font-weight:700}
-  .kl{font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#888;margin-top:4px}
-  .note{font-size:11px;color:#666;margin-top:10px;line-height:1.6}
-  .transition-body{font-size:14px;color:#444;line-height:1.8;margin-bottom:16px;padding:0 16px}
+  .page-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;padding-bottom:10px;border-bottom:1px solid #e8e4de}
+  .page-header-left{font-size:9px;text-transform:uppercase;letter-spacing:2px;color:#aaa}
+  .page-header-right{font-size:9px;color:#ccc}
+  .step-label{font-size:9px;text-transform:uppercase;letter-spacing:2px;color:#e07030;margin-bottom:5px;font-weight:600}
+  h2{font-size:20px;font-weight:700;color:#1a1a1a;margin-bottom:18px;line-height:1.2}
+  .accent-line{width:32px;height:3px;background:#e07030;margin-bottom:18px}
+  .big-number{font-size:64px;font-weight:700;color:#e07030;text-align:center;margin:32px 0;letter-spacing:-2px}
+  table{width:100%;border-collapse:collapse;margin-bottom:14px;font-size:11.5px}
+  th{text-align:left;padding:6px 8px;border-bottom:2px solid #1a1a1a;font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#888;font-weight:600}
+  td{padding:5px 8px;border-bottom:1px solid #f0ede8}
+  tr:last-child td{border-bottom:none}
+  .kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px}
+  .kpi{border:1px solid #e8e4de;border-radius:4px;padding:12px 10px;text-align:center;background:#fafaf8}
+  .kpi.highlight{border-color:#e07030;background:#fff9f5}
+  .kv{font-size:22px;font-weight:700;line-height:1}
+  .kl{font-size:8px;text-transform:uppercase;letter-spacing:1px;color:#888;margin-top:5px}
+  .note{font-size:11px;color:#888;margin-top:12px;line-height:1.7;font-style:italic;padding:10px 14px;background:#f8f7f5;border-radius:3px;border-left:3px solid #e07030}
+  .transition-body{font-size:14px;color:#444;line-height:1.9;margin-bottom:14px}
   ol{padding-left:20px}
-  ol li{margin-bottom:6px;line-height:1.5}
-  .why-box{border:1px solid #e8e4de;border-radius:3px;padding:10px 14px;margin-bottom:10px}
-  .why-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#e07030;margin-bottom:4px}
-  .cover{background:#1a1a1a;color:#f0ede8;padding:48px}
-  @media print{body{margin:0}.page{padding:16px 20px}}
+  ol li{margin-bottom:7px;line-height:1.6;font-size:12px}
+  .why-box{border:1px solid #e8e4de;border-radius:4px;padding:12px 14px;margin-bottom:10px;background:#fafaf8}
+  .why-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#e07030;margin-bottom:5px}
+  .why-box p{font-size:12px;line-height:1.7;color:#333}
+  @media print{body{margin:0}.page{padding:20px 24px}}
 </style></head><body>
-<div class="page cover" style="background:#1a1a1a;color:#f0ede8;justify-content:center">
-  <div style="font-size:11px;text-transform:uppercase;letter-spacing:3px;color:#e07030;margin-bottom:12px">FBaM Strategy Lab</div>
-  <div style="font-size:32px;font-weight:700;margin-bottom:8px">${pData.name}</div>
-  <div style="font-size:14px;color:#aaa">${date} &nbsp;·&nbsp; Session: ${STORE.sessionId}</div>
+<div class="page" style="background:#1a1a1a;color:#f0ede8;justify-content:flex-end;padding:48px">
+  <div style="margin-bottom:auto;padding-top:40px">
+    <div style="font-size:10px;text-transform:uppercase;letter-spacing:4px;color:#e07030;margin-bottom:16px">FBaM · Strategy Lab</div>
+    <div style="font-size:48px;font-weight:700;line-height:1.1;margin-bottom:12px;letter-spacing:-1px">${pData.name}</div>
+    <div style="width:48px;height:3px;background:#e07030;margin-bottom:20px"></div>
+    <div style="font-size:14px;color:#888;line-height:1.8">${date}</div>
+    <div style="font-size:14px;color:#888">Session: ${STORE.sessionId}</div>
+  </div>
+  <div style="padding-top:60px;border-top:1px solid #333;margin-top:60px">
+    <div style="font-size:10px;color:#555;text-transform:uppercase;letter-spacing:2px">Section overview</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:12px">
+      ${[["Section one","Financial position & trajectory","Steps 1–8"],["Section two","Strategic direction","Steps 10–12"],["Section three","Strawperson scenario","Steps 14–17"]].map(([t,d,s])=>`
+      <div style="padding:12px;border:1px solid #333;border-radius:4px">
+        <div style="font-size:9px;color:#e07030;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">${s}</div>
+        <div style="font-size:12px;font-weight:600;color:#f0ede8;margin-bottom:2px">${t}</div>
+        <div style="font-size:10px;color:#666">${d}</div>
+      </div>`).join("")}
+    </div>
+  </div>
 </div>
-${pages.join("")}
+${pages.map(p => p.replace('<div class="page">', `<div class="page"><div class="page-header"><span class="page-header-left">FBaM Strategy Lab · ${pData.name}</span><span class="page-header-right">${date}</span></div>`)).join("")}
 </body></html>`;
 
     const win = window.open("", "_blank");
