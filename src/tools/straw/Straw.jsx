@@ -17,7 +17,7 @@ const pAll  = () => Object.values(STORE.participants);
 const syncFromSupabase = async () => {
   if (!STORE.sessionId) return;
   try {
-    const resp = await fetch("/api/sl-load?sessionId=" + encodeURIComponent(STORE.sessionId));
+    const resp = await fetch("/api/sl-load?sessionId=" + encodeURIComponent(STORE.sessionId) + "&t=" + Date.now());
     if (!resp.ok) return;
     const { participants } = await resp.json();
     participants.forEach(p => {
