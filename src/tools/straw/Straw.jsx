@@ -21,10 +21,11 @@ const syncFromSupabase = async () => {
     if (!resp.ok) return;
     const { participants } = await resp.json();
     participants.forEach(p => {
-      // Only add participants not already in local store — never overwrite existing data
-      if (p.name && !p._wiped && !STORE.participants[p.name]) {
-        STORE.participants[p.name] = p;
-      }
+      if (!p.name || p._wiped) return;
+      // Never overwrite your own data (STORE.myName set on login)
+      if (p.name === STORE.myName) return;
+      // For everyone else — always update from Supabase so comparison stays live
+      STORE.participants[p.name] = p;
     });
   } catch (e) {}
 };
@@ -3885,7 +3886,12 @@ function ObserverView({ tick, onLogout }) {
       {view === "entry" && <Entry onEnter={n => {
         setPName(n);
         // "admin" (any case) → observer view, never registered as participant
-        setView(n.toLowerCase() === "admin" ? "observer" : "participant");
+        if (n.toLowerCase() === "admin") {
+          setView("observer");
+        } else {
+          STORE.myName = n; // protect this user's data from sync overwrite
+          setView("participant");
+        }
       }} />}
       {view === "participant" && <ParticipantView name={pName} tick={tick} onLogout={() => setView("entry")} />}
       {view === "observer" && <ObserverView tick={tick} onLogout={() => setView("entry")} />}
