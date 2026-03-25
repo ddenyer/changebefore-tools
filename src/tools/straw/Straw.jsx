@@ -67,6 +67,7 @@ const STEP_NAMES    = ["1. Set goal","2. Revenue","3. Costs","4. Current positio
 /* ── PURPOSE TOOL DATA ──────────────────────────────────────────────────── */
 const PURPOSE_GROUPS = [
   "FT students (MSc, MBA)",
+  "PT students (MSc MBA)",
   "Exec education delegates",
   "Organisations commissioning exec ed",
   "Research partners and funders",
@@ -2827,6 +2828,28 @@ function Step19Comparison({ pData, onConfirm, onBack }) {
   const [tab, setTab] = useState("financial");
   const participants = pAll().filter(p => p.step12Confirmed || p.step17Confirmed || p.submitted || p.name === pData.name);
   const [tick2, setTick2] = useState(0);
+  const [showWipe, setShowWipe] = useState(false);
+  const [wipePwd, setWipePwd]   = useState("");
+  const [wipeErr, setWipeErr]   = useState("");
+  const [wiped,   setWiped]     = useState(false);
+
+  const doWipe = () => {
+    if (wipePwd !== "ADMIN") { setWipeErr("Incorrect password."); return; }
+    // Clear all participants from STORE
+    Object.keys(STORE.participants).forEach(k => delete STORE.participants[k]);
+    // Re-save blank to Supabase for each known participant
+    if (STORE.sessionId) {
+      pAll().forEach(p => {
+        fetch("/api/sl-save", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionId: STORE.sessionId, participantName: p.name, data: { name: p.name, _wiped: true } }),
+        }).catch(() => {});
+      });
+    }
+    setWiped(true);
+    setShowWipe(false);
+  };
 
   // Poll every 4s for new participants
   useEffect(() => {
@@ -2876,7 +2899,24 @@ function Step19Comparison({ pData, onConfirm, onBack }) {
   return (
     <div className="sl-content">
       <BackBtn onClick={onBack} />
-      <div className="sl-step-h">Comparison</div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12, marginBottom: 16 }}>
+        <div className="sl-step-h" style={{ marginBottom: 0 }}>Comparison</div>
+        <button onClick={() => { setShowWipe(s => !s); setWipeErr(""); setWipePwd(""); }}
+          style={{ background: "none", border: "1px solid #d8d3cb", borderRadius: 4, padding: "6px 12px", fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#aaa", cursor: "pointer" }}>
+          🗑 Reset all inputs
+        </button>
+      </div>
+      {wiped && <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, color: "#2d7d46", marginBottom: 12 }}>✓ All inputs cleared.</div>}
+      {showWipe && !wiped && (
+        <div style={{ background: "#fff9f0", border: "1px solid #e07030", borderRadius: 4, padding: "14px 16px", marginBottom: 20, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, color: "#b85020" }}>Admin password required to wipe all session data:</span>
+          <input type="password" className="sl-input" style={{ width: 160 }} placeholder="Password"
+            value={wipePwd} onChange={e => { setWipePwd(e.target.value); setWipeErr(""); }}
+            onKeyDown={e => e.key === "Enter" && doWipe()} />
+          <button className="sl-btn" style={{ background: "#b83232", fontSize: 12, padding: "8px 14px" }} onClick={doWipe}>Wipe all data</button>
+          {wipeErr && <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, color: "#b83232" }}>{wipeErr}</span>}
+        </div>
+      )}
       <div className="sl-prompt">How do the scenarios compare? This view shows where the group aligned and where they diverged — across strategic choices, financials, and selected changes.</div>
 
       {participants.length < 2 && (
@@ -3086,6 +3126,8 @@ function Step19Comparison({ pData, onConfirm, onBack }) {
 
 /* ── STEP 20: FINALISE ────────────────────────────────────────────────────── */
 function Step20Finalise({ pData, onBack }) {
+  const [selfEmail, setSelfEmail] = useState("");
+  const [emailErr, setEmailErr]   = useState("");
   const [sent, setSent] = useState(false);
 
   const buildSummary = () => {
@@ -3212,18 +3254,27 @@ ${!why && !how && !what ? `<p style="font-size:12px;color:#888">Purpose section 
 </div>`;
   };
 
-  const fireEmail = async () => {
+  const fireEmail = async (extraTo) => {
+    const recipients = ["results@changebefore.com"];
+    if (extraTo && extraTo.includes("@")) recipients.push(extraTo);
     try {
       await fetch("/api/send-results", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          to: "results@changebefore.com",
+          to: recipients,
           subject: `FBaM Strategy Lab — ${pData.name} — ${new Date().toLocaleDateString("en-GB")}`,
           html: buildEmailHtml(),
         }),
       });
     } catch (e) { /* silent — print still works */ }
+  };
+
+  const handleSendToSelf = async () => {
+    if (!selfEmail.includes("@")) { setEmailErr("Please enter a valid email address."); return; }
+    setEmailErr("");
+    await fireEmail(selfEmail);
+    setSent(true);
   };
 
   const printAllSections = () => {
@@ -3379,7 +3430,7 @@ ${pages.join("")}
     win.focus();
     setTimeout(() => {
       win.print();
-      fireEmail().then(() => setSent(true));
+      fireEmail(selfEmail).then(() => setSent(true));
     }, 500);
   };
 
@@ -3393,9 +3444,15 @@ ${pages.join("")}
         ⚠️ <strong>Results are not saved automatically.</strong> Click the button below to download a PDF of all sections — this will also send a copy to ChangeBefore.
       </div>
 
-      <div style={{ display: "flex", gap: 12, alignItems: "flex-start", flexWrap: "wrap", marginBottom: 16 }}>
+      <div style={{ display: "flex", gap: 12, alignItems: "flex-start", flexWrap: "wrap", marginBottom: 8 }}>
         <button className="sl-btn no-print" onClick={printAllSections}>Download all sections as PDF</button>
       </div>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 16, flexWrap: "wrap" }}>
+        <input type="email" className="sl-input" style={{ maxWidth: 260 }} placeholder="Email results to yourself…"
+          value={selfEmail} onChange={e => { setSelfEmail(e.target.value); setEmailErr(""); }} />
+        <button className="sl-btn sl-btn-outline no-print" onClick={handleSendToSelf}>Send</button>
+      </div>
+      {emailErr && <div className="sl-err" style={{ marginBottom: 8 }}>{emailErr}</div>}
 
       {sent && <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, color: "#2d7d46", marginBottom: 16 }}>✓ Copy sent to results@changebefore.com</div>}
 
