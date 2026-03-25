@@ -24,6 +24,8 @@ const syncFromSupabase = async () => {
       if (!p.name || p._wiped) return;
       // Never overwrite your own data (STORE.myName set on login)
       if (p.name === STORE.myName) return;
+      // Never overwrite a local tombstone — wipe may not have landed on Supabase yet
+      if (STORE.participants[p.name]?._wiped) return;
       // For everyone else — always update from Supabase so comparison stays live
       STORE.participants[p.name] = p;
     });
@@ -2859,8 +2861,9 @@ function Step19Comparison({ pData, onConfirm, onBack }) {
     setRemovePwd("");
   };
 
-  // Poll every 4s for new participants
+  // Sync immediately on mount, then poll every 4s
   useEffect(() => {
+    syncFromSupabase().then(() => setTick2(t => t + 1));
     const id = setInterval(() => { syncFromSupabase().then(() => setTick2(t => t + 1)); }, 4000);
     return () => clearInterval(id);
   }, []);
@@ -3608,8 +3611,9 @@ function ObserverView({ tick, onLogout }) {
   const [tab, setTab] = useState("overview");
   const [selectedName, setSelectedName] = useState(null);
 
-  // Poll every 4s for new data
+  // Sync immediately on mount, then poll every 4s
   useEffect(() => {
+    syncFromSupabase();
     const id = setInterval(() => syncFromSupabase(), 4000);
     return () => clearInterval(id);
   }, []);
