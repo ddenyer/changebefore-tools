@@ -25,37 +25,58 @@ export default async function handler(req, res) {
       { headers }
     );
 
-    let mergedData = { ...data };
-
-    if (fetchRes.ok) {
-      const rows = await fetchRes.json();
-      if (rows.length > 0 && rows[0].data) {
-        const existing = rows[0].data;
-        // If already wiped and incoming is NOT a wipe — refuse silently
-        // Prevents active participant overwriting their own tombstone
-        if (existing._wiped && !data._wiped) {
-          return res.status(200).json({ ok: true, skipped: 'record is wiped' });
-        }
-        // Deep merge: existing + incoming update
-        mergedData = { ...existing, ...data };
-      }
+    if (!fetchRes.ok) {
+      const err = await fetchRes.text();
+      return res.status(fetchRes.status).json({ error: err });
     }
 
-    // Upsert merged record
-    const upsertRes = await fetch(`${supabaseUrl}/rest/v1/sl_participants`, {
-      method: 'POST',
-      headers: { ...headers, 'Prefer': 'resolution=merge-duplicates,return=minimal' },
-      body: JSON.stringify({
-        session_id: sessionId,
-        participant_name: participantName,
-        data: mergedData,
-        updated_at: new Date().toISOString(),
-      }),
-    });
+    const rows = await fetchRes.json();
+    const exists = rows.length > 0;
+    let mergedData = { ...data };
 
-    if (!upsertRes.ok) {
-      const err = await upsertRes.text();
-      return res.status(upsertRes.status).json({ error: err });
+    if (exists && rows[0].data) {
+      const existing = rows[0].data;
+      // If already wiped and incoming is NOT a wipe — refuse silently
+      if (existing._wiped && !data._wiped) {
+        return res.status(200).json({ ok: true, skipped: 'record is wiped' });
+      }
+      // Deep merge: existing + incoming
+      mergedData = { ...existing, ...data };
+    }
+
+    const payload = {
+      data: mergedData,
+      updated_at: new Date().toISOString(),
+    };
+
+    let writeRes;
+
+    if (exists) {
+      // UPDATE existing record via PATCH
+      writeRes = await fetch(
+        `${supabaseUrl}/rest/v1/sl_participants?session_id=eq.${encodeURIComponent(sessionId)}&participant_name=eq.${encodeURIComponent(participantName)}`,
+        {
+          method: 'PATCH',
+          headers: { ...headers, 'Prefer': 'return=minimal' },
+          body: JSON.stringify(payload),
+        }
+      );
+    } else {
+      // INSERT new record
+      writeRes = await fetch(`${supabaseUrl}/rest/v1/sl_participants`, {
+        method: 'POST',
+        headers: { ...headers, 'Prefer': 'return=minimal' },
+        body: JSON.stringify({
+          session_id: sessionId,
+          participant_name: participantName,
+          ...payload,
+        }),
+      });
+    }
+
+    if (!writeRes.ok) {
+      const err = await writeRes.text();
+      return res.status(writeRes.status).json({ error: err });
     }
 
     return res.status(200).json({ ok: true });
