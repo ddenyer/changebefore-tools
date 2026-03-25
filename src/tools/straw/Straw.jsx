@@ -3874,6 +3874,7 @@ function ObserverView({ tick, onLogout }) {
 }
 
 
+export default function StrawTool() {
   const [view, setView]   = useState("entry");
   const [pName, setPName] = useState("");
   const [tick, setTick]   = useState(0);
@@ -3885,11 +3886,10 @@ function ObserverView({ tick, onLogout }) {
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
       {view === "entry" && <Entry onEnter={n => {
         setPName(n);
-        // "admin" (any case) → observer view, never registered as participant
         if (n.toLowerCase() === "admin") {
           setView("observer");
         } else {
-          STORE.myName = n; // protect this user's data from sync overwrite
+          STORE.myName = n;
           setView("participant");
         }
       }} />}
