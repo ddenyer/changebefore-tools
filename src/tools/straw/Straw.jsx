@@ -2834,13 +2834,14 @@ const PAX_COLORS = ["#1a4fa0","#e07030","#2d7d46","#b87a20","#b83232","#6a3d9a",
 
 function Step19Comparison({ pData, onConfirm, onBack }) {
   const [tab, setTab] = useState("financial");
-  const participants = pAll().filter(p => !p._wiped && p.name);
-  const [tick2, setTick2] = useState(0);
+  const [participants, setParticipants] = useState(() => pAll().filter(p => !p._wiped && p.name));
   const [showRemove, setShowRemove] = useState(false);
   const [removePwd,  setRemovePwd]  = useState("");
   const [removeErr,  setRemoveErr]  = useState("");
   const [removeTarget, setRemoveTarget] = useState("");
   const [removed, setRemoved]       = useState([]);
+
+  const refreshParticipants = () => setParticipants(pAll().filter(p => !p._wiped && p.name));
 
   const doRemove = () => {
     if (removePwd !== "ADMIN") { setRemoveErr("Incorrect password."); return; }
@@ -2859,12 +2860,13 @@ function Step19Comparison({ pData, onConfirm, onBack }) {
     setRemoveTarget("");
     setRemoveErr("");
     setRemovePwd("");
+    refreshParticipants();
   };
 
   // Sync immediately on mount, then poll every 4s
   useEffect(() => {
-    syncFromSupabase().then(() => setTick2(t => t + 1));
-    const id = setInterval(() => { syncFromSupabase().then(() => setTick2(t => t + 1)); }, 4000);
+    syncFromSupabase().then(refreshParticipants);
+    const id = setInterval(() => syncFromSupabase().then(refreshParticipants), 4000);
     return () => clearInterval(id);
   }, []);
 
@@ -3610,15 +3612,17 @@ ${pages.map(p => p.replace('<div class="page">', `<div class="page"><div class="
 function ObserverView({ tick, onLogout }) {
   const [tab, setTab] = useState("overview");
   const [selectedName, setSelectedName] = useState(null);
+  const [participants, setParticipants] = useState(() => pAll().filter(p => !p._wiped && p.name));
+
+  const refreshParticipants = () => setParticipants(pAll().filter(p => !p._wiped && p.name));
 
   // Sync immediately on mount, then poll every 4s
   useEffect(() => {
-    syncFromSupabase();
-    const id = setInterval(() => syncFromSupabase(), 4000);
+    syncFromSupabase().then(refreshParticipants);
+    const id = setInterval(() => syncFromSupabase().then(refreshParticipants), 4000);
     return () => clearInterval(id);
   }, []);
 
-  const participants = pAll().filter(p => !p._wiped && p.name);
   const PAX_COLORS   = ["#1a4fa0","#e07030","#2d7d46","#b87a20","#b83232","#6a3d9a","#555"];
 
   const TabBtn = ({ id, label }) => (
