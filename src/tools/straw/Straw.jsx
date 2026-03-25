@@ -22,11 +22,9 @@ const syncFromSupabase = async () => {
     const { participants } = await resp.json();
     participants.forEach(p => {
       if (!p.name || p._wiped) return;
-      // Never overwrite your own data (STORE.myName set on login)
       if (p.name === STORE.myName) return;
       // Never overwrite a local tombstone — wipe may not have landed on Supabase yet
       if (STORE.participants[p.name]?._wiped) return;
-      // For everyone else — always update from Supabase so comparison stays live
       STORE.participants[p.name] = p;
     });
   } catch (e) {}
