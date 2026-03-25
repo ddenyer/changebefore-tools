@@ -2831,7 +2831,7 @@ const PAX_COLORS = ["#1a4fa0","#e07030","#2d7d46","#b87a20","#b83232","#6a3d9a",
 
 function Step19Comparison({ pData, onConfirm, onBack }) {
   const [tab, setTab] = useState("financial");
-  const participants = pAll().filter(p => p.step12Confirmed || p.step17Confirmed || p.submitted || p.name === pData.name);
+  const participants = pAll().filter(p => !p._wiped && (p.step12Confirmed || p.step17Confirmed || p.submitted || p.name === pData.name));
   const [tick2, setTick2] = useState(0);
   const [showRemove, setShowRemove] = useState(false);
   const [removePwd,  setRemovePwd]  = useState("");
@@ -2842,9 +2842,9 @@ function Step19Comparison({ pData, onConfirm, onBack }) {
   const doRemove = () => {
     if (removePwd !== "ADMIN") { setRemoveErr("Incorrect password."); return; }
     if (!removeTarget) { setRemoveErr("Select a participant first."); return; }
-    // Remove from STORE
-    delete STORE.participants[removeTarget];
-    // Push a blank/wiped record to Supabase
+    // Mark as wiped in local STORE (tombstone) — this prevents syncFromSupabase re-adding them
+    STORE.participants[removeTarget] = { name: removeTarget, _wiped: true };
+    // Push wiped record to Supabase
     if (STORE.sessionId) {
       fetch("/api/sl-save", {
         method: "POST",
@@ -2925,7 +2925,7 @@ function Step19Comparison({ pData, onConfirm, onBack }) {
             <select value={removeTarget} onChange={e => { setRemoveTarget(e.target.value); setRemoveErr(""); }}
               style={{ padding: "8px 12px", border: "1px solid #d8d3cb", borderRadius: 4, fontFamily: "'DM Sans',sans-serif", fontSize: 13, background: "#f0ede8", color: "#1a1a1a", minWidth: 180 }}>
               <option value="">Select participant…</option>
-              {pAll().map(p => (
+              {pAll().filter(p => !p._wiped).map(p => (
                 <option key={p.name} value={p.name}>{p.name}</option>
               ))}
             </select>
@@ -3484,49 +3484,57 @@ ${!why && !how && !what ? `<p style="font-size:12px;color:#888">Purpose section 
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:'Helvetica Neue',Arial,sans-serif;color:#1a1a1a;font-size:12px;background:#fff}
-  .page{padding:28px 32px;min-height:100vh;page-break-after:always;display:flex;flex-direction:column;position:relative}
-  .page:last-child{page-break-after:auto}
-  .page-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;padding-bottom:10px;border-bottom:1px solid #e8e4de}
-  .page-header-left{font-size:9px;text-transform:uppercase;letter-spacing:2px;color:#aaa}
-  .page-header-right{font-size:9px;color:#ccc}
-  .step-label{font-size:9px;text-transform:uppercase;letter-spacing:2px;color:#e07030;margin-bottom:5px;font-weight:600}
-  h2{font-size:20px;font-weight:700;color:#1a1a1a;margin-bottom:18px;line-height:1.2}
-  .accent-line{width:32px;height:3px;background:#e07030;margin-bottom:18px}
-  .big-number{font-size:64px;font-weight:700;color:#e07030;text-align:center;margin:32px 0;letter-spacing:-2px}
-  table{width:100%;border-collapse:collapse;margin-bottom:14px;font-size:11.5px}
-  th{text-align:left;padding:6px 8px;border-bottom:2px solid #1a1a1a;font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#888;font-weight:600}
-  td{padding:5px 8px;border-bottom:1px solid #f0ede8}
+  /* Cover page only gets a forced page break */
+  .cover{padding:48px;background:#1a1a1a;color:#f0ede8;page-break-after:always;min-height:100vh;display:flex;flex-direction:column}
+  /* Sections flow naturally — no forced breaks */
+  .page{padding:20px 28px 16px;position:relative}
+  /* Section divider — visible gap between steps */
+  .page + .page{border-top:2px solid #f0ede8;margin-top:4px;padding-top:20px}
+  /* Section headers get a subtle break hint but don't force a new page */
+  .section-break{page-break-before:auto;border-top:3px solid #e07030;margin-top:28px;padding-top:20px}
+  .page-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid #eee}
+  .page-header-left{font-size:8px;text-transform:uppercase;letter-spacing:2px;color:#bbb}
+  .page-header-right{font-size:8px;color:#ddd}
+  .step-label{font-size:8px;text-transform:uppercase;letter-spacing:2px;color:#e07030;margin-bottom:4px;font-weight:600}
+  h2{font-size:15px;font-weight:700;color:#1a1a1a;margin-bottom:12px;line-height:1.2}
+  .accent-line{width:24px;height:2px;background:#e07030;margin-bottom:12px}
+  table{width:100%;border-collapse:collapse;margin-bottom:10px;font-size:11px}
+  th{text-align:left;padding:5px 8px;border-bottom:2px solid #1a1a1a;font-size:8px;text-transform:uppercase;letter-spacing:1px;color:#888;font-weight:600}
+  td{padding:4px 8px;border-bottom:1px solid #f0ede8}
   tr:last-child td{border-bottom:none}
-  .kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px}
-  .kpi{border:1px solid #e8e4de;border-radius:4px;padding:12px 10px;text-align:center;background:#fafaf8}
-  .kpi.highlight{border-color:#e07030;background:#fff9f5}
-  .kv{font-size:22px;font-weight:700;line-height:1}
-  .kl{font-size:8px;text-transform:uppercase;letter-spacing:1px;color:#888;margin-top:5px}
-  .note{font-size:11px;color:#888;margin-top:12px;line-height:1.7;font-style:italic;padding:10px 14px;background:#f8f7f5;border-radius:3px;border-left:3px solid #e07030}
-  .transition-body{font-size:14px;color:#444;line-height:1.9;margin-bottom:14px}
-  ol{padding-left:20px}
-  ol li{margin-bottom:7px;line-height:1.6;font-size:12px}
-  .why-box{border:1px solid #e8e4de;border-radius:4px;padding:12px 14px;margin-bottom:10px;background:#fafaf8}
-  .why-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#e07030;margin-bottom:5px}
-  .why-box p{font-size:12px;line-height:1.7;color:#333}
-  @media print{body{margin:0}.page{padding:20px 24px}}
+  .kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}
+  .kpi{border:1px solid #e8e4de;border-radius:3px;padding:10px 8px;text-align:center;background:#fafaf8}
+  .kv{font-size:18px;font-weight:700;line-height:1}
+  .kl{font-size:7px;text-transform:uppercase;letter-spacing:1px;color:#888;margin-top:4px}
+  .note{font-size:10px;color:#888;margin-top:8px;line-height:1.6;font-style:italic;padding:8px 12px;background:#f8f7f5;border-radius:3px;border-left:2px solid #e07030}
+  .transition-body{font-size:12px;color:#555;line-height:1.8;margin-bottom:10px;padding-left:12px;border-left:2px solid #e8e4de}
+  ol{padding-left:18px;margin-bottom:8px}
+  ol li{margin-bottom:5px;line-height:1.5;font-size:11px}
+  .why-box{border:1px solid #e8e4de;border-radius:3px;padding:10px 12px;margin-bottom:8px;background:#fafaf8}
+  .why-label{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#e07030;margin-bottom:4px}
+  .why-box p{font-size:11px;line-height:1.6;color:#333}
+  .big-number{font-size:48px;font-weight:700;color:#e07030;text-align:center;margin:20px 0;letter-spacing:-2px}
+  @media print{
+    body{margin:0}
+    .page{padding:14px 20px 10px}
+    .cover{padding:36px}
+  }
 </style></head><body>
-<div class="page" style="background:#1a1a1a;color:#f0ede8;justify-content:flex-end;padding:48px">
+<div class="cover">
   <div style="margin-bottom:auto;padding-top:40px">
-    <div style="font-size:10px;text-transform:uppercase;letter-spacing:4px;color:#e07030;margin-bottom:16px">FBaM · Strategy Lab</div>
-    <div style="font-size:48px;font-weight:700;line-height:1.1;margin-bottom:12px;letter-spacing:-1px">${pData.name}</div>
-    <div style="width:48px;height:3px;background:#e07030;margin-bottom:20px"></div>
-    <div style="font-size:14px;color:#888;line-height:1.8">${date}</div>
-    <div style="font-size:14px;color:#888">Session: ${STORE.sessionId}</div>
+    <div style="font-size:9px;text-transform:uppercase;letter-spacing:4px;color:#e07030;margin-bottom:14px">FBaM · Strategy Lab</div>
+    <div style="font-size:44px;font-weight:700;line-height:1.1;margin-bottom:10px;letter-spacing:-1px">${pData.name}</div>
+    <div style="width:40px;height:3px;background:#e07030;margin-bottom:18px"></div>
+    <div style="font-size:13px;color:#888;line-height:1.8">${date} &nbsp;·&nbsp; Session: ${STORE.sessionId}</div>
   </div>
-  <div style="padding-top:60px;border-top:1px solid #333;margin-top:60px">
-    <div style="font-size:10px;color:#555;text-transform:uppercase;letter-spacing:2px">Section overview</div>
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:12px">
+  <div style="padding-top:40px;border-top:1px solid #333;margin-top:40px">
+    <div style="font-size:9px;color:#555;text-transform:uppercase;letter-spacing:2px;margin-bottom:10px">Contents</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
       ${[["Section one","Financial position & trajectory","Steps 1–8"],["Section two","Strategic direction","Steps 10–12"],["Section three","Strawperson scenario","Steps 14–17"]].map(([t,d,s])=>`
-      <div style="padding:12px;border:1px solid #333;border-radius:4px">
-        <div style="font-size:9px;color:#e07030;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">${s}</div>
-        <div style="font-size:12px;font-weight:600;color:#f0ede8;margin-bottom:2px">${t}</div>
-        <div style="font-size:10px;color:#666">${d}</div>
+      <div style="padding:10px;border:1px solid #333;border-radius:3px">
+        <div style="font-size:8px;color:#e07030;text-transform:uppercase;letter-spacing:1px;margin-bottom:3px">${s}</div>
+        <div style="font-size:11px;font-weight:600;color:#f0ede8;margin-bottom:2px">${t}</div>
+        <div style="font-size:9px;color:#666">${d}</div>
       </div>`).join("")}
     </div>
   </div>
