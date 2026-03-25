@@ -2828,27 +2828,29 @@ function Step19Comparison({ pData, onConfirm, onBack }) {
   const [tab, setTab] = useState("financial");
   const participants = pAll().filter(p => p.step12Confirmed || p.step17Confirmed || p.submitted || p.name === pData.name);
   const [tick2, setTick2] = useState(0);
-  const [showWipe, setShowWipe] = useState(false);
-  const [wipePwd, setWipePwd]   = useState("");
-  const [wipeErr, setWipeErr]   = useState("");
-  const [wiped,   setWiped]     = useState(false);
+  const [showRemove, setShowRemove] = useState(false);
+  const [removePwd,  setRemovePwd]  = useState("");
+  const [removeErr,  setRemoveErr]  = useState("");
+  const [removeTarget, setRemoveTarget] = useState("");
+  const [removed, setRemoved]       = useState([]);
 
-  const doWipe = () => {
-    if (wipePwd !== "ADMIN") { setWipeErr("Incorrect password."); return; }
-    // Clear all participants from STORE
-    Object.keys(STORE.participants).forEach(k => delete STORE.participants[k]);
-    // Re-save blank to Supabase for each known participant
+  const doRemove = () => {
+    if (removePwd !== "ADMIN") { setRemoveErr("Incorrect password."); return; }
+    if (!removeTarget) { setRemoveErr("Select a participant first."); return; }
+    // Remove from STORE
+    delete STORE.participants[removeTarget];
+    // Push a blank/wiped record to Supabase
     if (STORE.sessionId) {
-      pAll().forEach(p => {
-        fetch("/api/sl-save", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sessionId: STORE.sessionId, participantName: p.name, data: { name: p.name, _wiped: true } }),
-        }).catch(() => {});
-      });
+      fetch("/api/sl-save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId: STORE.sessionId, participantName: removeTarget, data: { name: removeTarget, _wiped: true } }),
+      }).catch(() => {});
     }
-    setWiped(true);
-    setShowWipe(false);
+    setRemoved(r => [...r, removeTarget]);
+    setRemoveTarget("");
+    setRemoveErr("");
+    setRemovePwd("");
   };
 
   // Poll every 4s for new participants
@@ -2901,20 +2903,33 @@ function Step19Comparison({ pData, onConfirm, onBack }) {
       <BackBtn onClick={onBack} />
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12, marginBottom: 16 }}>
         <div className="sl-step-h" style={{ marginBottom: 0 }}>Comparison</div>
-        <button onClick={() => { setShowWipe(s => !s); setWipeErr(""); setWipePwd(""); }}
+        <button onClick={() => { setShowRemove(s => !s); setRemoveErr(""); setRemovePwd(""); setRemoveTarget(""); }}
           style={{ background: "none", border: "1px solid #d8d3cb", borderRadius: 4, padding: "6px 12px", fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#aaa", cursor: "pointer" }}>
-          🗑 Reset all inputs
+          👤 Remove participant
         </button>
       </div>
-      {wiped && <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, color: "#2d7d46", marginBottom: 12 }}>✓ All inputs cleared.</div>}
-      {showWipe && !wiped && (
-        <div style={{ background: "#fff9f0", border: "1px solid #e07030", borderRadius: 4, padding: "14px 16px", marginBottom: 20, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-          <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, color: "#b85020" }}>Admin password required to wipe all session data:</span>
-          <input type="password" className="sl-input" style={{ width: 160 }} placeholder="Password"
-            value={wipePwd} onChange={e => { setWipePwd(e.target.value); setWipeErr(""); }}
-            onKeyDown={e => e.key === "Enter" && doWipe()} />
-          <button className="sl-btn" style={{ background: "#b83232", fontSize: 12, padding: "8px 14px" }} onClick={doWipe}>Wipe all data</button>
-          {wipeErr && <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, color: "#b83232" }}>{wipeErr}</span>}
+      {removed.length > 0 && (
+        <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, color: "#2d7d46", marginBottom: 12 }}>
+          ✓ Removed: {removed.join(", ")}
+        </div>
+      )}
+      {showRemove && (
+        <div style={{ background: "#fff9f0", border: "1px solid #e07030", borderRadius: 4, padding: "14px 16px", marginBottom: 20 }}>
+          <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, fontWeight: 600, color: "#b85020", marginBottom: 12 }}>Remove participant data (admin only)</div>
+          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <select value={removeTarget} onChange={e => { setRemoveTarget(e.target.value); setRemoveErr(""); }}
+              style={{ padding: "8px 12px", border: "1px solid #d8d3cb", borderRadius: 4, fontFamily: "'DM Sans',sans-serif", fontSize: 13, background: "#f0ede8", color: "#1a1a1a", minWidth: 180 }}>
+              <option value="">Select participant…</option>
+              {pAll().map(p => (
+                <option key={p.name} value={p.name}>{p.name}</option>
+              ))}
+            </select>
+            <input type="password" className="sl-input" style={{ width: 160 }} placeholder="Admin password"
+              value={removePwd} onChange={e => { setRemovePwd(e.target.value); setRemoveErr(""); }}
+              onKeyDown={e => e.key === "Enter" && doRemove()} />
+            <button className="sl-btn" style={{ background: "#b83232", fontSize: 12, padding: "8px 14px" }} onClick={doRemove}>Remove</button>
+          </div>
+          {removeErr && <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, color: "#b83232", marginTop: 8 }}>{removeErr}</div>}
         </div>
       )}
       <div className="sl-prompt">How do the scenarios compare? This view shows where the group aligned and where they diverged — across strategic choices, financials, and selected changes.</div>
@@ -3169,7 +3184,7 @@ function Step20Finalise({ pData, onBack }) {
   const buildEmailHtml = () => {
     const d = buildPrintData();
     const { tgt, why, how, what, s17R, s17C, s17S, s17P, scenRevs, scenCosts,
-            curRevTotal, curCostTotal, curSurplus, predRevs, predRev, predCost,
+            curRevTotal, curCostTotal, curSurplus, predRevs, predCosts, predRev, predCost,
             predSurplus, predGap, changes, tensions, groups, date, getRevRate } = d;
 
     const H2 = (t) => `<h2 style="font-size:15px;color:#e07030;margin-top:24px;margin-bottom:8px;border-bottom:1px solid #f0ede8;padding-bottom:4px">${t}</h2>`;
