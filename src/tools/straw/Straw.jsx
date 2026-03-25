@@ -20,7 +20,12 @@ const syncFromSupabase = async () => {
     const resp = await fetch("/api/sl-load?sessionId=" + encodeURIComponent(STORE.sessionId));
     if (!resp.ok) return;
     const { participants } = await resp.json();
-    participants.forEach(p => { if (p.name && !p._wiped) STORE.participants[p.name] = p; });
+    participants.forEach(p => {
+      // Only add participants not already in local store — never overwrite existing data
+      if (p.name && !p._wiped && !STORE.participants[p.name]) {
+        STORE.participants[p.name] = p;
+      }
+    });
   } catch (e) {}
 };
 
