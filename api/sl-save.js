@@ -1,4 +1,3 @@
-
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -20,28 +19,32 @@ export default async function handler(req, res) {
   };
 
   try {
-    // Step 1: Fetch existing record for this participant
+    // Fetch existing record
     const fetchRes = await fetch(
       `${supabaseUrl}/rest/v1/sl_participants?session_id=eq.${encodeURIComponent(sessionId)}&participant_name=eq.${encodeURIComponent(participantName)}&select=data`,
       { headers }
     );
 
     let mergedData = { ...data };
+
     if (fetchRes.ok) {
       const rows = await fetchRes.json();
       if (rows.length > 0 && rows[0].data) {
-        // Deep merge: existing record + incoming update
-        mergedData = { ...rows[0].data, ...data };
+        const existing = rows[0].data;
+        // If already wiped and incoming is NOT a wipe — refuse silently
+        // Prevents active participant overwriting their own tombstone
+        if (existing._wiped && !data._wiped) {
+          return res.status(200).json({ ok: true, skipped: 'record is wiped' });
+        }
+        // Deep merge: existing + incoming update
+        mergedData = { ...existing, ...data };
       }
     }
 
-    // Step 2: Upsert the merged record
+    // Upsert merged record
     const upsertRes = await fetch(`${supabaseUrl}/rest/v1/sl_participants`, {
       method: 'POST',
-      headers: {
-        ...headers,
-        'Prefer': 'resolution=merge-duplicates,return=minimal',
-      },
+      headers: { ...headers, 'Prefer': 'resolution=merge-duplicates,return=minimal' },
       body: JSON.stringify({
         session_id: sessionId,
         participant_name: participantName,
