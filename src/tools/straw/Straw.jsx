@@ -2831,7 +2831,7 @@ const PAX_COLORS = ["#1a4fa0","#e07030","#2d7d46","#b87a20","#b83232","#6a3d9a",
 
 function Step19Comparison({ pData, onConfirm, onBack }) {
   const [tab, setTab] = useState("financial");
-  const participants = pAll().filter(p => !p._wiped && (p.step12Confirmed || p.step17Confirmed || p.submitted || p.name === pData.name));
+  const participants = pAll().filter(p => !p._wiped && p.name);
   const [tick2, setTick2] = useState(0);
   const [showRemove, setShowRemove] = useState(false);
   const [removePwd,  setRemovePwd]  = useState("");
@@ -2941,7 +2941,7 @@ function Step19Comparison({ pData, onConfirm, onBack }) {
 
       {participants.length < 2 && (
         <div className="sl-note-box">
-          Your scenario is shown below. Comparison view updates in real time as others complete Step 12. Currently {participants.length} participant(s) visible.
+          Your scenario is shown. Others will appear here in real time as they join the session.
         </div>
       )}
 
@@ -3416,7 +3416,7 @@ ${!why && !how && !what ? `<p style="font-size:12px;color:#888">Purpose section 
         })();
       })()),
       PAGE("16. Comparison", 16, (() => {
-        const all = pAll().filter(p => p.step12Confirmed || p.step17Confirmed || p.submitted);
+        const all = pAll().filter(p => !p._wiped && p.name);
         if (all.length < 2) return `<p class="note">Comparison requires at least 2 participants to have completed Step 14. ${all.length === 1 ? "Only 1 participant found in this session." : "No participants found."}</p>`;
         const PAX_COLORS = ["#1a4fa0","#e07030","#2d7d46","#b87a20","#b83232","#6a3d9a","#555"];
         return `
@@ -3602,7 +3602,277 @@ ${pages.map(p => p.replace('<div class="page">', `<div class="page"><div class="
 }
 
 
-export default function StrawTool() {
+/* ── OBSERVER VIEW ────────────────────────────────────────────────────────── */
+function ObserverView({ tick, onLogout }) {
+  const [tab, setTab] = useState("overview");
+  const [selectedName, setSelectedName] = useState(null);
+
+  // Poll every 4s for new data
+  useEffect(() => {
+    const id = setInterval(() => syncFromSupabase(), 4000);
+    return () => clearInterval(id);
+  }, []);
+
+  const participants = pAll().filter(p => !p._wiped && p.name);
+  const PAX_COLORS   = ["#1a4fa0","#e07030","#2d7d46","#b87a20","#b83232","#6a3d9a","#555"];
+
+  const TabBtn = ({ id, label }) => (
+    <button onClick={() => setTab(id)} style={{
+      padding: "10px 18px", fontSize: 12, fontWeight: 600, border: "none",
+      background: "transparent", cursor: "pointer", fontFamily: "'DM Sans',sans-serif",
+      color: tab === id ? "#e07030" : "#888",
+      borderBottom: tab === id ? "2px solid #e07030" : "2px solid transparent",
+    }}>{label}</button>
+  );
+
+  const Row = ({ label, value, color }) => (
+    <div style={{ display: "flex", justifyContent: "space-between", padding: "5px 0", borderBottom: "1px solid #e8e4de" }}>
+      <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, color: "#666" }}>{label}</span>
+      <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 12, color: color || "#1a1a1a" }}>{value}</span>
+    </div>
+  );
+
+  const selected = selectedName ? participants.find(p => p.name === selectedName) : null;
+
+  return (
+    <div className="sl-shell">
+      <div className="sl-header">
+        <div className="sl-header-title">Observer Mode — read only</div>
+        <div className="sl-header-right">
+          <span style={{ color: "#e07030", marginRight: 12 }}>👁 admin</span>
+          <button style={{ background: "none", border: "none", fontSize: 11, color: "#888", cursor: "pointer", textDecoration: "underline" }} onClick={onLogout}>Exit</button>
+        </div>
+      </div>
+
+      <div className="sl-tabs">
+        <TabBtn id="overview"  label="Overview" />
+        <TabBtn id="financial" label="Financial" />
+        <TabBtn id="strategic" label="Strategic" />
+        <TabBtn id="detail"    label="Participant detail" />
+      </div>
+
+      <div className="sl-content">
+        {participants.length === 0 && (
+          <div className="sl-note-box">No participants yet. Polling every 4 seconds…</div>
+        )}
+
+        {/* ── OVERVIEW TAB ── */}
+        {tab === "overview" && (
+          <div>
+            <div className="sl-step-h">Session overview</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: 12, marginBottom: 28 }}>
+              {participants.map((p, i) => {
+                const steps = Object.keys(p).filter(k => k.includes("Confirmed")).length;
+                const { total: predRev } = calcPredRevs(p);
+                const { total: predCost } = calcPredCosts(p);
+                const scenRevs  = p.s12Revs || p.s17Revs;
+                const sR = scenRevs ? REV_LINES.reduce((s,l)=>s+nv(scenRevs[l.id]),0) : 0;
+                return (
+                  <div key={p.name} style={{ border: `2px solid ${PAX_COLORS[i%7]}`, borderRadius: 4, padding: 14, background: "#f0ede8", cursor: "pointer" }}
+                    onClick={() => { setSelectedName(p.name); setTab("detail"); }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                      <div style={{ width: 10, height: 10, borderRadius: "50%", background: PAX_COLORS[i%7] }} />
+                      <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 14, fontWeight: 600 }}>{p.name}</div>
+                    </div>
+                    <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#888", marginBottom: 4 }}>{steps} steps confirmed</div>
+                    <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#888" }}>
+                      Target: <strong style={{ color: "#1a1a1a" }}>{p.targetPct >= 0 ? "+" : ""}{nv(p.targetPct, 7.5).toFixed(1)}%</strong>
+                    </div>
+                    {sR > 0 && <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#888", marginTop: 2 }}>
+                      Scenario rev: <strong style={{ color: "#1a1a1a" }}>{fmtK(sR)}</strong>
+                    </div>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ── FINANCIAL TAB ── */}
+        {tab === "financial" && (
+          <div>
+            <div className="sl-step-h">Financial comparison</div>
+            <div style={{ overflowX: "auto" }}>
+              <table className="sl-tbl" style={{ minWidth: 700 }}>
+                <thead><tr>
+                  <th>Participant</th>
+                  <th className="right">Target %</th>
+                  <th className="right">Do-nothing surplus</th>
+                  <th className="right">Gap</th>
+                  <th className="right">Scenario revenue</th>
+                  <th className="right">Scenario surplus</th>
+                  <th className="right">Surplus %</th>
+                  <th className="right">Met?</th>
+                </tr></thead>
+                <tbody>
+                  {participants.map((p, i) => {
+                    const { total: predRev } = calcPredRevs(p);
+                    const { total: predCost } = calcPredCosts(p);
+                    const tgt = nv(p.targetPct, 7.5);
+                    const doN = predRev - predCost;
+                    const gap = (predRev * tgt / 100) - doN;
+                    const sr = p.s12Revs || p.s17Revs;
+                    const sc = p.s12Costs || p.s17Costs;
+                    const sR = sr ? REV_LINES.reduce((s,l)=>s+nv(sr[l.id]),0) : 0;
+                    const sC = sc ? COST_LINES.reduce((s,l)=>s+nv(sc[l.id]),0) : 0;
+                    const sS = sR - sC;
+                    const sPct = sR > 0 ? (sS/sR*100) : 0;
+                    const met = sR > 0 && sPct >= tgt;
+                    return (
+                      <tr key={p.name} style={{ cursor: "pointer" }} onClick={() => { setSelectedName(p.name); setTab("detail"); }}>
+                        <td style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <div style={{ width: 8, height: 8, borderRadius: "50%", background: PAX_COLORS[i%7], flexShrink: 0 }} />{p.name}
+                        </td>
+                        <td style={{ textAlign: "right", fontFamily: "'IBM Plex Mono',monospace" }}>{tgt >= 0 ? "+" : ""}{tgt.toFixed(1)}%</td>
+                        <td style={{ textAlign: "right", fontFamily: "'IBM Plex Mono',monospace", color: doN < 0 ? "#b83232" : "#2d7d46" }}>{fmtK(doN)}</td>
+                        <td style={{ textAlign: "right", fontFamily: "'IBM Plex Mono',monospace", color: "#b87a20" }}>{gap > 0 ? fmtK(gap) : "None"}</td>
+                        <td style={{ textAlign: "right", fontFamily: "'IBM Plex Mono',monospace" }}>{sR > 0 ? fmtK(sR) : "—"}</td>
+                        <td style={{ textAlign: "right", fontFamily: "'IBM Plex Mono',monospace", color: sS >= 0 ? "#2d7d46" : "#b83232" }}>{sR > 0 ? fmtK(sS) : "—"}</td>
+                        <td style={{ textAlign: "right", fontFamily: "'IBM Plex Mono',monospace", color: met ? "#2d7d46" : "#b83232" }}>{sR > 0 ? sPct.toFixed(1) + "%" : "—"}</td>
+                        <td style={{ textAlign: "right", fontWeight: 600, color: met ? "#2d7d46" : "#b83232" }}>{sR > 0 ? (met ? "✓" : "✗") : "—"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ── STRATEGIC TAB ── */}
+        {tab === "strategic" && (
+          <div>
+            <div className="sl-step-h">Strategic positioning</div>
+            <div style={{ overflowX: "auto", marginBottom: 28 }}>
+              <table className="sl-tbl" style={{ minWidth: 600 }}>
+                <thead><tr>
+                  <th>Participant</th>
+                  {PURPOSE_GROUPS.map(g => <th key={g} className="right" style={{ fontSize: 9 }}>{g.split(" ").slice(0,3).join(" ")}</th>)}
+                </tr></thead>
+                <tbody>
+                  {participants.map(p => (
+                    <tr key={p.name}>
+                      <td>{p.name}</td>
+                      {PURPOSE_GROUPS.map(g => (
+                        <td key={g} style={{ textAlign: "right", fontFamily: "'IBM Plex Mono',monospace", color: nv(p.purposeGroups?.[g]) >= 8 ? "#e07030" : "#1a1a1a", fontWeight: nv(p.purposeGroups?.[g]) >= 8 ? 700 : 400 }}>
+                          {p.purposeGroups ? (nv(p.purposeGroups[g]) || "—") : "—"}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+              {PURPOSE_TENSIONS.map(t => {
+                const vals = participants.map(p => nv(p.purposeTensions?.[t.key], 50));
+                const spread = vals.length > 1 ? Math.max(...vals) - Math.min(...vals) : 0;
+                return (
+                  <div key={t.key}>
+                    <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, color: "#888", marginBottom: 6, display: "flex", alignItems: "center", gap: 8 }}>
+                      {t.desc}
+                      <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 3, background: spread > 30 ? "#fff3cd" : "#d1e7dd", color: spread > 30 ? "#856404" : "#0a5c36" }}>
+                        {spread > 30 ? "Contested" : "Consensus"}
+                      </span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, width: 110, textAlign: "right", color: "#888", flexShrink: 0 }}>{t.l}</span>
+                      <div style={{ flex: 1, position: "relative", height: 24 }}>
+                        <div style={{ position: "absolute", top: "50%", left: 0, right: 0, height: 1, background: "#d8d3cb" }} />
+                        {participants.map((p, i) => {
+                          const v = nv(p.purposeTensions?.[t.key], 50);
+                          return <div key={p.name} title={p.name} style={{ position: "absolute", left: v + "%", top: "50%", width: 12, height: 12, borderRadius: "50%", background: PAX_COLORS[i%7], transform: "translate(-50%,-50%)" }} />;
+                        })}
+                      </div>
+                      <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, width: 110, color: "#888", flexShrink: 0 }}>{t.r}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ── DETAIL TAB ── */}
+        {tab === "detail" && (
+          <div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 20 }}>
+              {participants.map((p, i) => (
+                <button key={p.name} onClick={() => setSelectedName(p.name)}
+                  style={{ padding: "6px 14px", border: `2px solid ${PAX_COLORS[i%7]}`, borderRadius: 4, fontFamily: "'DM Sans',sans-serif", fontSize: 12, fontWeight: 600, cursor: "pointer", background: selectedName === p.name ? PAX_COLORS[i%7] : "#f0ede8", color: selectedName === p.name ? "#fff" : "#1a1a1a" }}>
+                  {p.name}
+                </button>
+              ))}
+            </div>
+
+            {selected && (() => {
+              const { total: predRev } = calcPredRevs(selected);
+              const { total: predCost } = calcPredCosts(selected);
+              const sr = selected.s12Revs || selected.s17Revs;
+              const sc = selected.s12Costs || selected.s17Costs;
+              const sR = sr ? REV_LINES.reduce((s,l)=>s+nv(sr[l.id]),0) : 0;
+              const sC = sc ? COST_LINES.reduce((s,l)=>s+nv(sc[l.id]),0) : 0;
+              return (
+                <div>
+                  <div className="sl-step-h">{selected.name}</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+                    <div>
+                      <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, color: "#888", marginBottom: 10 }}>Financial summary</div>
+                      <Row label="Target surplus" value={`${nv(selected.targetPct,7.5)>=0?"+":""}${nv(selected.targetPct,7.5).toFixed(1)}%`} color="#e07030" />
+                      <Row label="Do-nothing revenue" value={fmtK(predRev)} />
+                      <Row label="Do-nothing surplus" value={fmtK(predRev-predCost)} color={(predRev-predCost)>=0?"#2d7d46":"#b83232"} />
+                      {sR > 0 && <>
+                        <Row label="Scenario revenue" value={fmtK(sR)} />
+                        <Row label="Scenario surplus" value={fmtK(sR-sC)} color={(sR-sC)>=0?"#2d7d46":"#b83232"} />
+                        <Row label="Surplus %" value={`${((sR-sC)/sR*100).toFixed(1)}%`} color={((sR-sC)/sR*100)>=nv(selected.targetPct,7.5)?"#2d7d46":"#b83232"} />
+                      </>}
+                    </div>
+                    <div>
+                      <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, color: "#888", marginBottom: 10 }}>Steps confirmed</div>
+                      {STEP_NAMES.map((sn, i) => {
+                        const n = i + 1;
+                        const done = selected[`step${n}Confirmed`];
+                        return (
+                          <div key={n} style={{ display: "flex", alignItems: "center", gap: 8, padding: "3px 0", borderBottom: "1px solid #e8e4de" }}>
+                            <span style={{ fontSize: 12, color: done ? "#2d7d46" : "#ddd" }}>{done ? "✓" : "○"}</span>
+                            <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: done ? "#1a1a1a" : "#aaa" }}>{sn}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {(selected.s11Selected || []).length > 0 && (
+                    <div style={{ marginTop: 20 }}>
+                      <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, color: "#888", marginBottom: 10 }}>Selected changes</div>
+                      {(selected.s11Selected || []).map((s, i) => (
+                        <div key={i} style={{ padding: "8px 12px", background: "#f0faf4", border: "1px solid #2d7d46", borderRadius: 3, marginBottom: 6, fontFamily: "'DM Sans',sans-serif", fontSize: 12, color: "#1a1a1a" }}>{s.text}</div>
+                      ))}
+                    </div>
+                  )}
+
+                  {sr && (
+                    <div style={{ marginTop: 20 }}>
+                      <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, color: "#888", marginBottom: 10 }}>Scenario revenue by July 2028</div>
+                      {REV_LINES.map(l => <Row key={l.id} label={l.name} value={fmtK(nv(sr[l.id]))} />)}
+                      <Row label="Total" value={fmtK(sR)} color="#e07030" />
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            {!selected && participants.length > 0 && (
+              <div className="sl-note-box">Select a participant above to see their detail.</div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
   const [view, setView]   = useState("entry");
   const [pName, setPName] = useState("");
   const [tick, setTick]   = useState(0);
@@ -3612,8 +3882,13 @@ export default function StrawTool() {
   return (
     <>
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
-      {view === "entry" && <Entry onEnter={n => { setPName(n); setView("participant"); }} />}
+      {view === "entry" && <Entry onEnter={n => {
+        setPName(n);
+        // "admin" (any case) → observer view, never registered as participant
+        setView(n.toLowerCase() === "admin" ? "observer" : "participant");
+      }} />}
       {view === "participant" && <ParticipantView name={pName} tick={tick} onLogout={() => setView("entry")} />}
+      {view === "observer" && <ObserverView tick={tick} onLogout={() => setView("entry")} />}
     </>
   );
 }
