@@ -21,9 +21,8 @@ const syncFromSupabase = async () => {
     if (!resp.ok) return;
     const { participants } = await resp.json();
     participants.forEach(p => {
-      if (!p.name || p._wiped) return;
+      if (!p.name || p._wiped || p.name === "__facilitator__") return;
       if (p.name === STORE.myName) return;
-      // Never overwrite a local tombstone — wipe may not have landed on Supabase yet
       if (STORE.participants[p.name]?._wiped) return;
       STORE.participants[p.name] = p;
     });
@@ -3612,16 +3611,40 @@ function ObserverView({ tick, onLogout }) {
   const [selectedName, setSelectedName] = useState(null);
   const [participants, setParticipants] = useState(() => pAll().filter(p => !p._wiped && p.name));
 
+  // Delete state
+  const [showRemove, setShowRemove]     = useState(false);
+  const [removePwd, setRemovePwd]       = useState("");
+  const [removeErr, setRemoveErr]       = useState("");
+  const [removeTarget, setRemoveTarget] = useState("");
+  const [removed, setRemoved]           = useState([]);
+
+  // Facilitator notes
+  const [notes, setNotes]       = useState("");
+  const [notesSaved, setNotesSaved] = useState(false);
+
+  // AI questions
+  const [aiQs, setAiQs]         = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+
   const refreshParticipants = () => setParticipants(pAll().filter(p => !p._wiped && p.name));
 
   // Sync immediately on mount, then poll every 4s
   useEffect(() => {
     syncFromSupabase().then(refreshParticipants);
     const id = setInterval(() => syncFromSupabase().then(refreshParticipants), 4000);
+    // Load facilitator notes from Supabase
+    if (STORE.sessionId) {
+      fetch("/api/sl-load?sessionId=" + encodeURIComponent(STORE.sessionId) + "&t=" + Date.now())
+        .then(r => r.json())
+        .then(d => {
+          const notesP = d.participants?.find(p => p.name === "__facilitator__");
+          if (notesP?.notes) setNotes(notesP.notes);
+        }).catch(() => {});
+    }
     return () => clearInterval(id);
   }, []);
 
-  const PAX_COLORS   = ["#1a4fa0","#e07030","#2d7d46","#b87a20","#b83232","#6a3d9a","#555"];
+  const PAX_COLORS = ["#1a4fa0","#e07030","#2d7d46","#b87a20","#b83232","#6a3d9a","#555"];
 
   const TabBtn = ({ id, label }) => (
     <button onClick={() => setTab(id)} style={{
@@ -3641,21 +3664,145 @@ function ObserverView({ tick, onLogout }) {
 
   const selected = selectedName ? participants.find(p => p.name === selectedName) : null;
 
+  // Delete participant
+  const doRemove = () => {
+    if (removePwd !== "ADMIN") { setRemoveErr("Incorrect password."); return; }
+    if (!removeTarget) { setRemoveErr("Select a participant first."); return; }
+    STORE.participants[removeTarget] = { name: removeTarget, _wiped: true };
+    if (STORE.sessionId) {
+      fetch("/api/sl-save", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId: STORE.sessionId, participantName: removeTarget, data: { name: removeTarget, _wiped: true } }),
+      }).catch(() => {});
+    }
+    setRemoved(r => [...r, removeTarget]);
+    setRemoveTarget(""); setRemoveErr(""); setRemovePwd("");
+    refreshParticipants();
+  };
+
+  // Save facilitator notes
+  const saveNotes = () => {
+    if (!STORE.sessionId) return;
+    fetch("/api/sl-save", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId: STORE.sessionId, participantName: "__facilitator__", data: { name: "__facilitator__", notes } }),
+    }).then(() => { setNotesSaved(true); setTimeout(() => setNotesSaved(false), 2000); }).catch(() => {});
+  };
+
+  // CSV export
+  const exportCSV = () => {
+    const headers = ["Name","Target %","Scenario Revenue","Scenario Costs","Surplus","Surplus %","Met?"];
+    const rows = participants.map(p => {
+      const sr = p.s12Revs || p.s17Revs;
+      const sc = p.s12Costs || p.s17Costs;
+      const sR = sr ? REV_LINES.reduce((s,l)=>s+nv(sr[l.id]),0) : 0;
+      const sC = sc ? COST_LINES.reduce((s,l)=>s+nv(sc[l.id]),0) : 0;
+      const sS = sR - sC;
+      const sPct = sR > 0 ? (sS/sR*100).toFixed(1) : "";
+      const tgt = nv(p.targetPct, 7.5);
+      const met = sR > 0 && parseFloat(sPct) >= tgt ? "Yes" : sR > 0 ? "No" : "";
+      return [p.name, tgt.toFixed(1), sR > 0 ? Math.round(sR) : "", sC > 0 ? Math.round(sC) : "", sR > 0 ? Math.round(sS) : "", sPct, met];
+    });
+    const csv = [headers, ...rows].map(r => r.join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `FBaM-StrategyLab-${STORE.sessionId || "export"}.csv`; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // AI questions
+  const generateQuestions = async () => {
+    setAiLoading(true);
+    const summary = participants.map(p => {
+      const sr = p.s12Revs || p.s17Revs;
+      const sc = p.s12Costs || p.s17Costs;
+      const sR = sr ? REV_LINES.reduce((s,l)=>s+nv(sr[l.id]),0) : 0;
+      const sC = sc ? COST_LINES.reduce((s,l)=>s+nv(sc[l.id]),0) : 0;
+      const changes = (p.s11Selected || []).map(s => s.text).join("; ");
+      const tensions = p.purposeTensions ? Object.entries(p.purposeTensions).map(([k,v]) => `${k}:${v}`).join(", ") : "";
+      return `${p.name}: target=${nv(p.targetPct,7.5)}%, scenRev=${fmtK(sR)}, scenCost=${fmtK(sC)}, surplus=${fmtK(sR-sC)}, changes=[${changes}], positioning=[${tensions}]`;
+    }).join("\n");
+    const prompt = `You are an expert business school facilitator running a financial scenario workshop with senior leaders at Cranfield University's Faculty of Business and Management (FBaM).
+
+Here is a summary of each participant's scenario for the session "${STORE.sessionId}":
+
+${summary}
+
+Based on the above, generate 6–8 incisive facilitator questions to surface the most important disagreements, assumptions, and tensions in the room. Focus on:
+1. Where scenarios diverge most sharply (financial assumptions, strategic choices)
+2. The most contested strategic positioning decisions
+3. Assumptions that seem optimistic or internally inconsistent
+4. Changes selected by some but not others that reveal strategic disagreement
+5. The hardest trade-offs no one has fully confronted
+
+Format as a numbered list. Each question should be specific to the data — not generic. Be direct and challenging.`;
+
+    try {
+      const res = await fetch("/api/stat-chat", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "claude-sonnet-4-5-20250929", max_tokens: 1000, messages: [{ role: "user", content: prompt }] }),
+      });
+      const data = await res.json();
+      setAiQs(data.content?.[0]?.text || "Could not generate questions.");
+    } catch (e) { setAiQs("Error generating questions — check connection."); }
+    setAiLoading(false);
+  };
+
+  // Changes analysis
+  const analyseChanges = () => {
+    const allSelected = participants.map(p => (p.s11Selected || []).map(s => s.text));
+    const allTexts = [...new Set(allSelected.flat())];
+    return allTexts.map(text => {
+      const selectors = participants.filter((p, i) => allSelected[i].some(t => t === text)).map(p => p.name);
+      const isOwn = !text.match(/^(Grow|Expand|Develop|Establish|Scale|Consolidate|Create|Launch|Introduce|Build|Reduce|Focus)/i);
+      return { text, count: selectors.length, selectors, isOwn };
+    }).sort((a, b) => b.count - a.count);
+  };
+
   return (
     <div className="sl-shell">
       <div className="sl-header">
-        <div className="sl-header-title">Observer Mode — read only</div>
+        <div className="sl-header-title">Facilitator Mode — {STORE.sessionId}</div>
         <div className="sl-header-right">
           <span style={{ color: "#e07030", marginRight: 12 }}>👁 admin</span>
+          <button style={{ background: "none", border: "none", fontSize: 11, color: "#888", cursor: "pointer", marginRight: 12 }} onClick={exportCSV}>⬇ Export CSV</button>
           <button style={{ background: "none", border: "none", fontSize: 11, color: "#888", cursor: "pointer", textDecoration: "underline" }} onClick={onLogout}>Exit</button>
         </div>
       </div>
 
+      {/* Delete panel */}
+      <div style={{ background: "#f8f7f5", borderBottom: "1px solid #e8e4de", padding: "8px 24px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <button onClick={() => { setShowRemove(s => !s); setRemoveErr(""); setRemovePwd(""); setRemoveTarget(""); }}
+          style={{ background: "none", border: "1px solid #d8d3cb", borderRadius: 4, padding: "4px 10px", fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#888", cursor: "pointer" }}>
+          👤 Remove participant
+        </button>
+        {removed.length > 0 && <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#2d7d46" }}>✓ Removed: {removed.join(", ")}</span>}
+        {showRemove && (
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <select value={removeTarget} onChange={e => { setRemoveTarget(e.target.value); setRemoveErr(""); }}
+              style={{ padding: "4px 8px", border: "1px solid #d8d3cb", borderRadius: 4, fontFamily: "'DM Sans',sans-serif", fontSize: 12, background: "#f0ede8" }}>
+              <option value="">Select participant…</option>
+              {pAll().filter(p => !p._wiped).map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
+            </select>
+            <input type="password" placeholder="Admin password" value={removePwd}
+              onChange={e => { setRemovePwd(e.target.value); setRemoveErr(""); }}
+              style={{ padding: "4px 8px", border: "1px solid #d8d3cb", borderRadius: 4, fontFamily: "'DM Sans',sans-serif", fontSize: 12, width: 140, background: "#f0ede8" }} />
+            <button onClick={doRemove} style={{ padding: "4px 10px", background: "#b83232", color: "#fff", border: "none", borderRadius: 4, fontFamily: "'DM Sans',sans-serif", fontSize: 12, cursor: "pointer" }}>Remove</button>
+            {removeErr && <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, color: "#b83232" }}>{removeErr}</span>}
+          </div>
+        )}
+      </div>
+
       <div className="sl-tabs">
-        <TabBtn id="overview"  label="Overview" />
-        <TabBtn id="financial" label="Financial" />
-        <TabBtn id="strategic" label="Strategic" />
-        <TabBtn id="detail"    label="Participant detail" />
+        <TabBtn id="overview"   label="Overview" />
+        <TabBtn id="progress"   label="Progress" />
+        <TabBtn id="financial"  label="Financial" />
+        <TabBtn id="changes"    label="Changes" />
+        <TabBtn id="strategic"  label="Strategic" />
+        <TabBtn id="questions"  label="AI Questions" />
+        <TabBtn id="notes"      label="Notes" />
+        <TabBtn id="detail"     label="Detail" />
       </div>
 
       <div className="sl-content">
@@ -3667,12 +3814,32 @@ function ObserverView({ tick, onLogout }) {
         {tab === "overview" && (
           <div>
             <div className="sl-step-h">Session overview</div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: 12, marginBottom: 28 }}>
+
+            {/* Financial range summary */}
+            {participants.some(p => p.s17Revs || p.s12Revs) && (() => {
+              const revs = participants.map(p => { const sr = p.s12Revs||p.s17Revs; return sr ? REV_LINES.reduce((s,l)=>s+nv(sr[l.id]),0) : null; }).filter(v => v !== null);
+              const surps = participants.map(p => { const sr = p.s12Revs||p.s17Revs; const sc = p.s12Costs||p.s17Costs; const sR = sr ? REV_LINES.reduce((s,l)=>s+nv(sr[l.id]),0) : 0; const sC = sc ? COST_LINES.reduce((s,l)=>s+nv(sc[l.id]),0) : 0; return sR > 0 ? (sR-sC)/sR*100 : null; }).filter(v => v !== null);
+              const targets = participants.map(p => nv(p.targetPct, 7.5));
+              return (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: 24 }}>
+                  {[
+                    { label: "Scenario revenue range", lo: fmtK(Math.min(...revs)), hi: fmtK(Math.max(...revs)) },
+                    { label: "Surplus % range", lo: Math.min(...surps).toFixed(1)+"%", hi: Math.max(...surps).toFixed(1)+"%" },
+                    { label: "Target % range", lo: Math.min(...targets).toFixed(1)+"%", hi: Math.max(...targets).toFixed(1)+"%" },
+                  ].map(({ label, lo, hi }) => (
+                    <div key={label} style={{ background: "#ebe7e1", border: "1px solid #d8d3cb", borderRadius: 4, padding: "12px 14px" }}>
+                      <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, color: "#888", marginBottom: 6 }}>{label}</div>
+                      <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 14, color: "#1a1a1a" }}>{lo} → {hi}</div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: 12 }}>
               {participants.map((p, i) => {
                 const steps = Object.keys(p).filter(k => k.includes("Confirmed")).length;
-                const { total: predRev } = calcPredRevs(p);
-                const { total: predCost } = calcPredCosts(p);
-                const scenRevs  = p.s12Revs || p.s17Revs;
+                const scenRevs = p.s12Revs || p.s17Revs;
                 const sR = scenRevs ? REV_LINES.reduce((s,l)=>s+nv(scenRevs[l.id]),0) : 0;
                 return (
                   <div key={p.name} style={{ border: `2px solid ${PAX_COLORS[i%7]}`, borderRadius: 4, padding: 14, background: "#f0ede8", cursor: "pointer" }}
@@ -3683,7 +3850,7 @@ function ObserverView({ tick, onLogout }) {
                     </div>
                     <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#888", marginBottom: 4 }}>{steps} steps confirmed</div>
                     <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#888" }}>
-                      Target: <strong style={{ color: "#1a1a1a" }}>{p.targetPct >= 0 ? "+" : ""}{nv(p.targetPct, 7.5).toFixed(1)}%</strong>
+                      Target: <strong style={{ color: "#1a1a1a" }}>{nv(p.targetPct, 7.5) >= 0 ? "+" : ""}{nv(p.targetPct, 7.5).toFixed(1)}%</strong>
                     </div>
                     {sR > 0 && <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#888", marginTop: 2 }}>
                       Scenario rev: <strong style={{ color: "#1a1a1a" }}>{fmtK(sR)}</strong>
@@ -3691,6 +3858,53 @@ function ObserverView({ tick, onLogout }) {
                   </div>
                 );
               })}
+            </div>
+          </div>
+        )}
+
+        {/* ── PROGRESS TAB ── */}
+        {tab === "progress" && (
+          <div>
+            <div className="sl-step-h">Step progress</div>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ borderCollapse: "collapse", minWidth: 600 }}>
+                <thead>
+                  <tr>
+                    <th style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 600, color: "#888", padding: "6px 10px", textAlign: "left", borderBottom: "2px solid #d8d3cb", whiteSpace: "nowrap" }}>Participant</th>
+                    {STEP_NAMES.map((sn, i) => (
+                      <th key={i} style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 9, fontWeight: 600, color: "#888", padding: "6px 6px", textAlign: "center", borderBottom: "2px solid #d8d3cb", whiteSpace: "nowrap", maxWidth: 60 }}
+                        title={sn}>{i + 1}</th>
+                    ))}
+                    <th style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 600, color: "#888", padding: "6px 10px", textAlign: "center", borderBottom: "2px solid #d8d3cb" }}>Done</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {participants.map((p, i) => {
+                    const confirmed = STEP_NAMES.map((_, j) => !!p[`step${j+1}Confirmed`]);
+                    const count = confirmed.filter(Boolean).length;
+                    return (
+                      <tr key={p.name} style={{ borderBottom: "1px solid #e8e4de" }}>
+                        <td style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, fontWeight: 600, padding: "6px 10px", display: "flex", alignItems: "center", gap: 6 }}>
+                          <div style={{ width: 8, height: 8, borderRadius: "50%", background: PAX_COLORS[i%7], flexShrink: 0 }} />{p.name}
+                        </td>
+                        {confirmed.map((done, j) => (
+                          <td key={j} style={{ textAlign: "center", padding: "6px 6px" }}>
+                            <div style={{ width: 16, height: 16, borderRadius: 3, background: done ? "#2d7d46" : "#e8e4de", margin: "0 auto" }} title={done ? `Step ${j+1} confirmed` : `Step ${j+1} not done`} />
+                          </td>
+                        ))}
+                        <td style={{ textAlign: "center", fontFamily: "'IBM Plex Mono',monospace", fontSize: 12, fontWeight: 600, color: count === STEP_NAMES.length ? "#2d7d46" : "#1a1a1a", padding: "6px 10px" }}>{count}/{STEP_NAMES.length}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div style={{ display: "flex", gap: 16, marginTop: 16, flexWrap: "wrap" }}>
+              {STEP_NAMES.map((sn, i) => (
+                <div key={i} style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#888" }}>
+                  <strong style={{ color: "#1a1a1a" }}>{i+1}</strong> {sn}
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -3746,6 +3960,51 @@ function ObserverView({ tick, onLogout }) {
           </div>
         )}
 
+        {/* ── CHANGES TAB ── */}
+        {tab === "changes" && (() => {
+          const changes = analyseChanges();
+          const consensus = changes.filter(c => c.count === participants.length);
+          const partial   = changes.filter(c => c.count > 0 && c.count < participants.length);
+          return (
+            <div>
+              <div className="sl-step-h">Selected changes</div>
+              {consensus.length > 0 && (
+                <div style={{ marginBottom: 28 }}>
+                  <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, color: "#2d7d46", marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ width: 12, height: 12, borderRadius: "50%", background: "#2d7d46", display: "inline-block" }} /> Consensus — selected by all
+                  </div>
+                  {consensus.map((c, i) => (
+                    <div key={i} style={{ padding: "10px 14px", background: "#f0faf4", border: "1px solid #2d7d46", borderRadius: 4, marginBottom: 8 }}>
+                      {c.isOwn && <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, color: "#b87a20", marginRight: 8, background: "#fff8e8", padding: "1px 5px", borderRadius: 2 }}>Own addition</span>}
+                      <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, color: "#1a1a1a", lineHeight: 1.5 }}>{c.text}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {partial.length > 0 && (
+                <div>
+                  <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, color: "#b87a20", marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ width: 12, height: 12, borderRadius: "50%", background: "#b87a20", display: "inline-block" }} /> Differences — selected by some
+                  </div>
+                  {partial.map((c, i) => (
+                    <div key={i} style={{ padding: "10px 14px", background: "#fffbf0", border: "1px solid #b87a20", borderRadius: 4, marginBottom: 8 }}>
+                      {c.isOwn && <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, color: "#b87a20", marginRight: 8, background: "#fff8e8", padding: "1px 5px", borderRadius: 2 }}>Own addition</span>}
+                      <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, color: "#1a1a1a", lineHeight: 1.5, marginBottom: 6 }}>{c.text}</div>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                        {c.selectors.map((name, j) => {
+                          const pi = participants.findIndex(p => p.name === name);
+                          return <span key={j} style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, padding: "2px 8px", borderRadius: 3, background: PAX_COLORS[pi%7], color: "#fff" }}>{name}</span>;
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {changes.length === 0 && <div className="sl-note-box">No changes selected yet.</div>}
+            </div>
+          );
+        })()}
+
         {/* ── STRATEGIC TAB ── */}
         {tab === "strategic" && (
           <div>
@@ -3770,8 +4029,14 @@ function ObserverView({ tick, onLogout }) {
                 </tbody>
               </table>
             </div>
+            {/* Tensions sorted by spread — most contested first */}
+            <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#888", marginBottom: 12 }}>Sorted by spread — most contested first</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-              {PURPOSE_TENSIONS.map(t => {
+              {[...PURPOSE_TENSIONS].sort((a, b) => {
+                const spreadA = participants.length > 1 ? Math.max(...participants.map(p => nv(p.purposeTensions?.[a.key], 50))) - Math.min(...participants.map(p => nv(p.purposeTensions?.[a.key], 50))) : 0;
+                const spreadB = participants.length > 1 ? Math.max(...participants.map(p => nv(p.purposeTensions?.[b.key], 50))) - Math.min(...participants.map(p => nv(p.purposeTensions?.[b.key], 50))) : 0;
+                return spreadB - spreadA;
+              }).map(t => {
                 const vals = participants.map(p => nv(p.purposeTensions?.[t.key], 50));
                 const spread = vals.length > 1 ? Math.max(...vals) - Math.min(...vals) : 0;
                 return (
@@ -3779,7 +4044,7 @@ function ObserverView({ tick, onLogout }) {
                     <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, color: "#888", marginBottom: 6, display: "flex", alignItems: "center", gap: 8 }}>
                       {t.desc}
                       <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 3, background: spread > 30 ? "#fff3cd" : "#d1e7dd", color: spread > 30 ? "#856404" : "#0a5c36" }}>
-                        {spread > 30 ? "Contested" : "Consensus"}
+                        {spread > 30 ? `Contested (${Math.round(spread)} pt spread)` : "Consensus"}
                       </span>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -3796,6 +4061,43 @@ function ObserverView({ tick, onLogout }) {
                   </div>
                 );
               })}
+            </div>
+          </div>
+        )}
+
+        {/* ── AI QUESTIONS TAB ── */}
+        {tab === "questions" && (
+          <div>
+            <div className="sl-step-h">Facilitator questions</div>
+            <div className="sl-note-box">AI reads all participant scenarios and generates targeted questions to surface disagreements, test assumptions, and open the most important conversations.</div>
+            {!aiQs && !aiLoading && (
+              <button className="sl-btn" onClick={generateQuestions}>Generate questions from session data</button>
+            )}
+            {aiLoading && (
+              <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "20px 0", fontFamily: "'DM Sans',sans-serif", fontSize: 13, color: "#888" }}>
+                <div style={{ width: 16, height: 16, border: "2px solid #d8d3cb", borderTopColor: "#e07030", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+                Reading all scenarios and generating questions…
+              </div>
+            )}
+            {aiQs && (
+              <div>
+                <div style={{ background: "#ebe7e1", borderLeft: "3px solid #e07030", padding: "16px 20px", borderRadius: 4, fontFamily: "'DM Sans',sans-serif", fontSize: 14, color: "#1a1a1a", lineHeight: 1.8, whiteSpace: "pre-wrap", marginBottom: 16 }}>{aiQs}</div>
+                <button className="sl-btn sl-btn-outline" style={{ fontSize: 12, padding: "8px 14px" }} onClick={generateQuestions}>Regenerate</button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── NOTES TAB ── */}
+        {tab === "notes" && (
+          <div>
+            <div className="sl-step-h">Facilitator notes</div>
+            <div className="sl-note-box">Notes are saved to the session and persist between logins. Visible only in facilitator mode.</div>
+            <textarea className="sl-input" rows={14} value={notes} onChange={e => { setNotes(e.target.value); setNotesSaved(false); }}
+              placeholder="Record key discussion points, decisions, themes emerging from the group…" />
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 12 }}>
+              <button className="sl-btn" onClick={saveNotes}>Save notes</button>
+              {notesSaved && <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, color: "#2d7d46" }}>✓ Saved</span>}
             </div>
           </div>
         )}
