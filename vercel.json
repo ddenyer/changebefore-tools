@@ -2,6 +2,7 @@
   "rewrites": [
     { "source": "/stat", "destination": "/stat.html" },
     { "source": "/define", "destination": "/define.html" },
+    { "source": "/pace2", "destination": "/pace2/index.html" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
