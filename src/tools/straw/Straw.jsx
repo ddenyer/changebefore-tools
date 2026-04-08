@@ -14,6 +14,17 @@ const pSave = (name, d) => {
 };
 const pGet  = n => STORE.participants[n] || { name: n };
 const pAll  = () => Object.values(STORE.participants);
+
+/* Auto-save hook — fires pSave 800ms after last state change */
+const useAutoSave = (name, getData) => {
+  useEffect(() => {
+    if (!name) return;
+    const timer = setTimeout(() => {
+      pSave(name, getData());
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [JSON.stringify(getData())]);
+};
 const syncFromSupabase = async () => {
   if (!STORE.sessionId) return;
   try {
@@ -21,8 +32,9 @@ const syncFromSupabase = async () => {
     if (!resp.ok) return;
     const { participants } = await resp.json();
     participants.forEach(p => {
-      if (!p.name || p._wiped || p.name === "__facilitator__") return;
+      if (!p.name || p._wiped) return;
       if (p.name === STORE.myName) return;
+      // Never overwrite a local tombstone — wipe may not have landed on Supabase yet
       if (STORE.participants[p.name]?._wiped) return;
       STORE.participants[p.name] = p;
     });
@@ -490,6 +502,8 @@ function Entry({ onEnter }) {
 function Step1({ pData, confirmed, onConfirm, onBack }) {
   const [val, setVal] = useState(nv(pData.targetPct, 7.5));
 
+  useAutoSave(pData.name, () => ({ targetPct: val }));
+
   const desc = () => {
     if (val <= -5) return "Significant managed deficit";
     if (val < 0)  return "Managed deficit";
@@ -529,6 +543,11 @@ function Step2({ pData, confirmed, onConfirm, onBack }) {
   const init = () => { const r = {}; REV_LINES.forEach(l => { r[l.id] = String(nv(pData.revenues?.[l.id], l.prefillK)); }); return r; };
   const [revs, setRevs] = useState(init);
   const total = REV_LINES.reduce((s, l) => s + nv(revs[l.id], l.prefillK), 0);
+
+  useAutoSave(pData.name, () => {
+    const revenues = {}; REV_LINES.forEach(l => revenues[l.id] = nv(revs[l.id], l.prefillK));
+    return { revenues };
+  });
 
   const doConfirm = () => {
     const revenues = {}; REV_LINES.forEach(l => revenues[l.id] = nv(revs[l.id], l.prefillK));
@@ -572,6 +591,11 @@ function Step2({ pData, confirmed, onConfirm, onBack }) {
 function Step3({ pData, confirmed, onConfirm, onBack }) {
   const init = () => { const c = {}; COST_LINES.forEach(l => { c[l.id] = String(nv(pData.costs?.[l.id], l.baseK)); }); return c; };
   const [costs, setCosts] = useState(init);
+
+  useAutoSave(pData.name, () => {
+    const c = {}; COST_LINES.forEach(l => c[l.id] = nv(costs[l.id], l.baseK));
+    return { costs: c };
+  });
 
   const contribTotal = COST_LINES.filter(l => l.id !== "uni_charge").reduce((s, l) => s + nv(costs[l.id], l.baseK), 0);
   const uniCharge    = nv(costs["uni_charge"], 10325);
@@ -696,6 +720,12 @@ function Step5MarketContext({ pData, confirmed, onConfirm, onBack }) {
   const [rates, setRates] = useState(init);
   const [expanded, setExpanded] = useState({});
 
+  useAutoSave(pData.name, () => {
+    const marketRates = {};
+    MARKET_BENCHMARKS.forEach(b => { marketRates[b.id] = nv(rates[b.id], b.mid); });
+    return { marketRates };
+  });
+
   const doConfirm = () => {
     const marketRates = {};
     MARKET_BENCHMARKS.forEach(b => { marketRates[b.id] = nv(rates[b.id], b.mid); });
@@ -763,7 +793,7 @@ function Step5MarketContext({ pData, confirmed, onConfirm, onBack }) {
 }
 
 /* ── STEP 5 & 6: PREDICTED (three-linked-column) ──────────────────────────── */
-function PredStep({ stepN, lines, defRates, lineRates, setLineRates, baseRevTotal, heading, note, confirmLabel, onConfirm, onBack, confirmed, isCost = false }) {
+function PredStep({ stepN, lines, defRates, lineRates, setLineRates, baseRevTotal, heading, note, confirmLabel, onConfirm, onBack, confirmed, isCost = false, autoSaveName = "" }) {
   const revTotal = REV_LINES.reduce((s, l) => s + nv(lines.find(x => x.id === l.id)?.prefillK ?? l.prefillK, 0), 0);
 
   const computePred = (base, pctTotal) => base * (1 + nv(pctTotal) / 100);
@@ -784,6 +814,12 @@ function PredStep({ stepN, lines, defRates, lineRates, setLineRates, baseRevTota
       };
     });
     return s;
+  });
+
+  useAutoSave(autoSaveName, () => {
+    const rates = {};
+    lines.forEach(l => { rates[l.id] = annlRate(nv(state[l.id]?.pctTotal, 0)); });
+    return isCost ? { costRates: rates } : { revRates: rates };
   });
 
   const updateFromPct = (id, pctTotal) => {
@@ -1721,6 +1757,8 @@ function Step17CloseGap({ pData, confirmed, onConfirm, onBack }) {
   const [costs, setCosts] = useState(pData.s17Costs || initCosts());
   const [stmt,  setStmt]  = useState(pData.s17Stmt  || "");
 
+  useAutoSave(pData.name, () => ({ s17Revs: revs, s17Costs: costs, s17Stmt: stmt }));
+
   const totalRev   = REV_LINES.reduce((s, l) => s + nv(revs[l.id]), 0);
   const totalCost  = COST_LINES.reduce((s, l) => s + nv(costs[l.id]), 0);
   const surplus    = totalRev - totalCost;
@@ -2060,6 +2098,8 @@ function Step18ThemePL({ pData, confirmed, onConfirm, onBack }) {
   const [mixes,     setMixes]     = useState(pData.s18Mixes     || { btg: { ...DEFAULT_MIXES.btg }, psl: { ...DEFAULT_MIXES.psl }, scpss: { ...DEFAULT_MIXES.scpss } });
   const [locked,    setLockedAll] = useState(pData.s18Locked    || { btg: {}, psl: {}, scpss: {} });
 
+  useAutoSave(pData.name, () => ({ s18RevAlloc: revAlloc, s18CostAlloc: costAlloc, s18Mixes: mixes }));
+
   const setMixForTheme = (tid, mix) => setMixes(m => ({ ...m, [tid]: mix }));
   const setLockedForTheme = (tid, setter) => setLockedAll(l => ({ ...l, [tid]: typeof setter === "function" ? setter(l[tid]) : setter }));
 
@@ -2249,6 +2289,7 @@ function ParticipantView({ name, tick, onLogout }) {
           note="31 July 2028 is chosen as it is FBaM's year end and levy funding should have ended post EPA submissions. Initial figures are based on CAGR from Step 5."
           confirmLabel="Confirm predicted revenues → Step 7: Predicted costs"
           isCost={false} confirmed={pd.step6Confirmed}
+          autoSaveName={name}
           onConfirm={(rates) => { pSave(name, { revRates: rates, step6Confirmed: true }); advance(); }}
           onBack={() => go(5)}
         />
@@ -2260,6 +2301,7 @@ function ParticipantView({ name, tick, onLogout }) {
           note="Enter your predicted % change for each cost line. Pay awards, TRAC changes, and headcount reductions all apply here."
           confirmLabel="Confirm predicted costs → Step 8: Prognosis"
           isCost={true} confirmed={pd.step7Confirmed}
+          autoSaveName={name}
           onConfirm={(rates) => { pSave(name, { costRates: rates, step7Confirmed: true }); advance(); }}
           onBack={() => go(6)}
         />
@@ -2325,6 +2367,8 @@ function PurposeStep8({ pData, confirmed, onConfirm, onBack }) {
   const init = () => { const g = {}; PURPOSE_GROUPS.forEach(k => g[k] = nv(pData.purposeGroups?.[k], 5)); return g; };
   const [groups, setGroups] = useState(init);
   const [others, setOthers] = useState(pData.purposeGroupOthers || [{ label: "", score: 5 }]);
+
+  useAutoSave(pData.name, () => ({ purposeGroups: groups, purposeGroupOthers: others }));
 
   const MAX_HIGH = 3;
   const highCount = Object.values(groups).filter(v => nv(v) >= 8).length
@@ -2417,6 +2461,8 @@ function PurposeStep8({ pData, confirmed, onConfirm, onBack }) {
 function PurposeStep9({ pData, confirmed, onConfirm, onBack }) {
   const init = () => { const t = {}; PURPOSE_TENSIONS.forEach(x => t[x.key] = nv(pData.purposeTensions?.[x.key], 50)); return t; };
   const [tensions, setTensions] = useState(init);
+
+  useAutoSave(pData.name, () => ({ purposeTensions: tensions }));
 
   const doConfirm = () => {
     pSave(pData.name, { purposeTensions: tensions, step10Confirmed: true });
@@ -3605,382 +3651,11 @@ ${pages.map(p => p.replace('<div class="page">', `<div class="page"><div class="
 }
 
 
-/* ── PARTICIPANT EDITOR (facilitator mode) ───────────────────────────────── */
-function ParticipantEditor({ participant, onSave, onCancel }) {
-  const p = participant;
-  const sLabel = { fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, color: "#888", marginBottom: 8, marginTop: 20 };
-  const sInput = { fontFamily: "'IBM Plex Mono',monospace", fontSize: 14, border: "1px solid #d8d3cb", borderRadius: 4, padding: "5px 8px", background: "#f0ede8", color: "#1a1a1a", width: 100, textAlign: "right" };
-  const sTens  = { fontFamily: "'DM Sans',sans-serif", fontSize: 12, width: 110, color: "#888", flexShrink: 0 };
-
-  // ── State initialised from participant data ──
-  const [targetPct,    setTargetPct]    = useState(nv(p.targetPct, 7.5));
-  const [revenues,     setRevenues]     = useState(() => { const r = {}; REV_LINES.forEach(l => r[l.id] = String(nv(p.revenues?.[l.id], l.prefillK))); return r; });
-  const [costs,        setCosts]        = useState(() => { const c = {}; COST_LINES.forEach(l => c[l.id] = String(nv(p.costs?.[l.id], l.baseK))); return c; });
-  const [revRates,     setRevRates]     = useState(() => { const r = {}; REV_LINES.forEach(l => r[l.id] = String(nv(p.revRates?.[l.id] ?? p.marketRates?.[l.id], 0))); return r; });
-  const [groups,       setGroups]       = useState(() => { const g = {}; PURPOSE_GROUPS.forEach(k => g[k] = nv(p.purposeGroups?.[k], 5)); return g; });
-  const [tensions,     setTensions]     = useState(() => { const t = {}; PURPOSE_TENSIONS.forEach(x => t[x.key] = nv(p.purposeTensions?.[x.key], 50)); return t; });
-  const [s11Selected,  setS11Selected]  = useState(() => (p.s11Selected || []).map(s => s.text));
-  const [s17Revs,      setS17Revs]      = useState(() => { const r = {}; REV_LINES.forEach(l => r[l.id] = String(nv((p.s17Revs||p.s12Revs)?.[l.id], 0))); return r; });
-  const [s17Costs,     setS17Costs]     = useState(() => { const c = {}; COST_LINES.forEach(l => c[l.id] = String(nv((p.s17Costs||p.s12Costs)?.[l.id], 0))); return c; });
-  const [s18RevAlloc,  setS18RevAlloc]  = useState(() => ({ btg: nv(p.s18RevAlloc?.btg,0), psl: nv(p.s18RevAlloc?.psl,0), scpss: nv(p.s18RevAlloc?.scpss,0) }));
-  const [s18CostAlloc, setS18CostAlloc] = useState(() => ({ btg: nv(p.s18CostAlloc?.btg,0), psl: nv(p.s18CostAlloc?.psl,0), scpss: nv(p.s18CostAlloc?.scpss,0) }));
-  const [why,          setWhy]          = useState(p.purposeWhy || "");
-  const [how,          setHow]          = useState(p.purposeHow || "");
-  const [what,         setWhat]         = useState(p.purposeWhat || "");
-  const [newChange,    setNewChange]    = useState("");
-  const [saving,       setSaving]       = useState(false);
-  const [saved,        setSaved]        = useState(false);
-  const [section,      setSection]      = useState("financial");
-
-  const totalCurRev  = REV_LINES.reduce((s,l) => s + nv(revenues[l.id]), 0);
-  const totalCurCost = COST_LINES.reduce((s,l) => s + nv(costs[l.id]), 0);
-  const totalSceRev  = REV_LINES.reduce((s,l) => s + nv(s17Revs[l.id]), 0);
-  const totalSceCost = COST_LINES.reduce((s,l) => s + nv(s17Costs[l.id]), 0);
-  const sceneSurplus = totalSceRev - totalSceCost;
-  const scenePct     = totalSceRev > 0 ? (sceneSurplus / totalSceRev * 100) : 0;
-
-  const THEME_DATA_EDIT = [
-    { id: "btg",   name: "Business Transformation & Growth" },
-    { id: "psl",   name: "People, Skills & Leadership" },
-    { id: "scpss", name: "Supply Chain, Projects & Sustainable Systems" },
-  ];
-
-  const doSave = async () => {
-    setSaving(true);
-    const revs = {}; REV_LINES.forEach(l => revs[l.id] = nv(revenues[l.id], l.prefillK));
-    const cs   = {}; COST_LINES.forEach(l => cs[l.id]  = nv(costs[l.id], l.baseK));
-    const rr   = {}; REV_LINES.forEach(l => rr[l.id]   = nv(revRates[l.id], 0));
-    const sr   = {}; REV_LINES.forEach(l => sr[l.id]   = nv(s17Revs[l.id], 0));
-    const sc   = {}; COST_LINES.forEach(l => sc[l.id]  = nv(s17Costs[l.id], 0));
-    const update = {
-      targetPct, revenues: revs, costs: cs, revRates: rr,
-      purposeGroups: groups, purposeTensions: tensions,
-      s11Selected: s11Selected.map(text => ({ text })),
-      s17Revs: sr, s17Costs: sc,
-      s18RevAlloc, s18CostAlloc,
-      purposeWhy: why, purposeHow: how, purposeWhat: what,
-      step1Confirmed: true, step2Confirmed: true, step3Confirmed: true,
-      step4Confirmed: true, step5Confirmed: true, step6Confirmed: true,
-      step7Confirmed: true, step9Confirmed: true, step10Confirmed: true,
-      step11Confirmed: true, step17Confirmed: true, step18Confirmed: true,
-    };
-    if (why || how || what) update.step16Confirmed = true;
-    try {
-      const res = await fetch("/api/sl-save", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId: STORE.sessionId, participantName: p.name, data: update }),
-      });
-      const d = await res.json();
-      if (d.ok) { setSaved(true); setTimeout(() => { setSaved(false); onSave(); }, 1200); }
-    } catch (e) {}
-    setSaving(false);
-  };
-
-  const SecBtn = ({ id, label }) => (
-    <button onClick={() => setSection(id)} style={{
-      padding: "8px 14px", fontSize: 12, fontWeight: 600, border: "none", background: "transparent",
-      cursor: "pointer", fontFamily: "'DM Sans',sans-serif",
-      color: section === id ? "#e07030" : "#888",
-      borderBottom: section === id ? "2px solid #e07030" : "2px solid transparent",
-    }}>{label}</button>
-  );
-
-  return (
-    <div style={{ border: "2px solid #e07030", borderRadius: 4, padding: 24, background: "#fdf5f0", marginTop: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-        <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 22, color: "#1a1a1a" }}>Editing: {p.name}</div>
-        <div style={{ display: "flex", gap: 10 }}>
-          <button onClick={onCancel} style={{ padding: "8px 16px", background: "none", border: "1px solid #d8d3cb", borderRadius: 4, fontFamily: "'DM Sans',sans-serif", fontSize: 12, cursor: "pointer", color: "#888" }}>Cancel</button>
-          <button onClick={doSave} disabled={saving} style={{ padding: "8px 16px", background: saved ? "#2d7d46" : "#e07030", color: "#fff", border: "none", borderRadius: 4, fontFamily: "'DM Sans',sans-serif", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
-            {saving ? "Saving…" : saved ? "✓ Saved" : "Save all changes"}
-          </button>
-        </div>
-      </div>
-
-      {/* Live KPI strip */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10, marginBottom: 20, padding: "12px 16px", background: "#1a1a1a", borderRadius: 4 }}>
-        {[
-          { v: `${targetPct >= 0 ? "+" : ""}${targetPct.toFixed(1)}%`, l: "Target" },
-          { v: fmtK(totalSceRev), l: "Scenario revenue" },
-          { v: fmtK(totalSceCost), l: "Scenario costs" },
-          { v: `${scenePct.toFixed(1)}%`, l: "Surplus %", c: scenePct >= targetPct ? "#2d7d46" : "#b83232" },
-        ].map(k => (
-          <div key={k.l} style={{ textAlign: "center" }}>
-            <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 18, fontWeight: 600, color: k.c || "#e07030" }}>{k.v}</div>
-            <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 9, textTransform: "uppercase", letterSpacing: 1, color: "#888", marginTop: 3 }}>{k.l}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Section tabs */}
-      <div style={{ display: "flex", borderBottom: "1px solid #d8d3cb", marginBottom: 24, flexWrap: "wrap" }}>
-        <SecBtn id="financial"   label="Financial" />
-        <SecBtn id="trajectory"  label="Trajectory" />
-        <SecBtn id="stakeholders" label="Stakeholders" />
-        <SecBtn id="positioning" label="Positioning" />
-        <SecBtn id="changes"     label="Changes" />
-        <SecBtn id="scenario"    label="Scenario" />
-        <SecBtn id="themes"      label="Themes" />
-        <SecBtn id="purpose"     label="Purpose" />
-      </div>
-
-      {/* ── FINANCIAL ── */}
-      {section === "financial" && (
-        <div>
-          <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 20 }}>
-            <div style={sLabel}>Target surplus %</div>
-            <input type="range" min="-10" max="10" step="0.5" value={targetPct}
-              onChange={e => setTargetPct(parseFloat(e.target.value))}
-              style={{ flex: 1, accentColor: "#e07030" }} />
-            <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 20, color: "#e07030", minWidth: 60 }}>{targetPct >= 0 ? "+" : ""}{targetPct.toFixed(1)}%</div>
-          </div>
-          <div style={sLabel}>Current revenue (£k)</div>
-          {REV_LINES.map(l => (
-            <div key={l.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: "1px solid #e8e4de" }}>
-              <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, flex: 1 }}>{l.name}</span>
-              <input type="number" style={sInput} value={revenues[l.id]} onChange={e => setRevenues(r => ({ ...r, [l.id]: e.target.value }))} />
-            </div>
-          ))}
-          <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderTop: "2px solid #1a1a1a", marginTop: 4 }}>
-            <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, fontWeight: 600 }}>Total revenue</span>
-            <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 14, fontWeight: 700 }}>{fmtK(totalCurRev)}</span>
-          </div>
-          <div style={sLabel}>Current costs (£k)</div>
-          {COST_LINES.map(l => (
-            <div key={l.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: "1px solid #e8e4de" }}>
-              <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, flex: 1 }}>{l.name}</span>
-              <input type="number" style={sInput} value={costs[l.id]} onChange={e => setCosts(c => ({ ...c, [l.id]: e.target.value }))} />
-            </div>
-          ))}
-          <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderTop: "2px solid #1a1a1a", marginTop: 4 }}>
-            <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, fontWeight: 600 }}>Total costs</span>
-            <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 14, fontWeight: 700 }}>{fmtK(totalCurCost)}</span>
-          </div>
-        </div>
-      )}
-
-      {/* ── TRAJECTORY ── */}
-      {section === "trajectory" && (
-        <div>
-          <div style={sLabel}>Revenue CAGR rates % (applied to July 2028 trajectory)</div>
-          {REV_LINES.map(l => (
-            <div key={l.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: "1px solid #e8e4de" }}>
-              <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, flex: 1 }}>{l.name}</span>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <input type="number" step="0.5" style={{ ...sInput, width: 80 }} value={revRates[l.id]} onChange={e => setRevRates(r => ({ ...r, [l.id]: e.target.value }))} />
-                <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, color: "#888" }}>%</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* ── STAKEHOLDERS ── */}
-      {section === "stakeholders" && (
-        <div>
-          <div style={sLabel}>Stakeholder importance (1–9)</div>
-          {PURPOSE_GROUPS.map(g => (
-            <div key={g} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #e8e4de" }}>
-              <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, flex: 1 }}>{g}</span>
-              <div style={{ display: "flex", gap: 5 }}>
-                {[1,2,3,4,5,6,7,8,9].map(n => (
-                  <button key={n} onClick={() => setGroups(prev => ({ ...prev, [g]: n }))}
-                    style={{ width: 28, height: 28, border: `1px solid ${groups[g] === n ? "#e07030" : "#d8d3cb"}`, borderRadius: 4, background: groups[g] === n ? "#e07030" : "#f0ede8", color: groups[g] === n ? "#fff" : "#1a1a1a", fontFamily: "'DM Sans',sans-serif", fontSize: 12, cursor: "pointer" }}>
-                    {n}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* ── POSITIONING ── */}
-      {section === "positioning" && (
-        <div>
-          <div style={sLabel}>Strategic positioning sliders</div>
-          {PURPOSE_TENSIONS.map(t => (
-            <div key={t.key} style={{ marginBottom: 20 }}>
-              <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, color: "#888", marginBottom: 8 }}>{t.desc}</div>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <span style={{ ...sTens, textAlign: "right", color: tensions[t.key] < 40 ? "#e07030" : "#aaa", fontWeight: tensions[t.key] < 40 ? 600 : 400 }}>{t.l}</span>
-                <input type="range" min="0" max="100" step="5" value={tensions[t.key]}
-                  onChange={e => setTensions(prev => ({ ...prev, [t.key]: parseInt(e.target.value) }))}
-                  style={{ flex: 1, accentColor: "#e07030" }} />
-                <span style={{ ...sTens, color: tensions[t.key] > 60 ? "#e07030" : "#aaa", fontWeight: tensions[t.key] > 60 ? 600 : 400 }}>{t.r}</span>
-                <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 12, color: "#888", minWidth: 30 }}>{tensions[t.key]}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* ── CHANGES ── */}
-      {section === "changes" && (
-        <div>
-          <div style={sLabel}>Selected changes</div>
-          {s11Selected.map((text, i) => (
-            <div key={i} style={{ display: "flex", gap: 8, alignItems: "flex-start", marginBottom: 8 }}>
-              <textarea value={text} onChange={e => setS11Selected(arr => arr.map((v, j) => j === i ? e.target.value : v))}
-                style={{ flex: 1, fontFamily: "'DM Sans',sans-serif", fontSize: 13, border: "1px solid #d8d3cb", borderRadius: 4, padding: "8px 10px", background: "#f0ede8", resize: "vertical", minHeight: 60 }} />
-              <button onClick={() => setS11Selected(arr => arr.filter((_, j) => j !== i))}
-                style={{ padding: "4px 8px", background: "#b83232", color: "#fff", border: "none", borderRadius: 4, cursor: "pointer", fontSize: 12, flexShrink: 0 }}>✕</button>
-            </div>
-          ))}
-          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-            <input value={newChange} onChange={e => setNewChange(e.target.value)}
-              placeholder="Add a change statement…"
-              style={{ flex: 1, fontFamily: "'DM Sans',sans-serif", fontSize: 13, border: "1px solid #d8d3cb", borderRadius: 4, padding: "8px 10px", background: "#f0ede8" }} />
-            <button onClick={() => { if (newChange.trim()) { setS11Selected(arr => [...arr, newChange.trim()]); setNewChange(""); } }}
-              style={{ padding: "8px 14px", background: "#e07030", color: "#fff", border: "none", borderRadius: 4, cursor: "pointer", fontFamily: "'DM Sans',sans-serif", fontSize: 12, fontWeight: 600 }}>Add</button>
-          </div>
-        </div>
-      )}
-
-      {/* ── SCENARIO ── */}
-      {section === "scenario" && (
-        <div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
-            <div>
-              <div style={sLabel}>Scenario revenue by July 2028 (£k)</div>
-              {REV_LINES.map(l => (
-                <div key={l.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: "1px solid #e8e4de" }}>
-                  <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, flex: 1 }}>{l.name}</span>
-                  <input type="number" style={sInput} value={s17Revs[l.id]} onChange={e => setS17Revs(r => ({ ...r, [l.id]: e.target.value }))} />
-                </div>
-              ))}
-              <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderTop: "2px solid #1a1a1a", marginTop: 4 }}>
-                <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, fontWeight: 600 }}>Total</span>
-                <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 14, fontWeight: 700, color: "#2d7d46" }}>{fmtK(totalSceRev)}</span>
-              </div>
-            </div>
-            <div>
-              <div style={sLabel}>Scenario costs by July 2028 (£k)</div>
-              {COST_LINES.map(l => (
-                <div key={l.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: "1px solid #e8e4de" }}>
-                  <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, flex: 1 }}>{l.name}</span>
-                  <input type="number" style={sInput} value={s17Costs[l.id]} onChange={e => setS17Costs(c => ({ ...c, [l.id]: e.target.value }))} />
-                </div>
-              ))}
-              <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderTop: "2px solid #1a1a1a", marginTop: 4 }}>
-                <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, fontWeight: 600 }}>Total</span>
-                <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 14, fontWeight: 700, color: "#b83232" }}>{fmtK(totalSceCost)}</span>
-              </div>
-            </div>
-          </div>
-          <div style={{ marginTop: 16, padding: "12px 16px", background: "#1a1a1a", borderRadius: 4, display: "flex", gap: 32 }}>
-            <div style={{ textAlign: "center" }}>
-              <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 20, color: sceneSurplus >= 0 ? "#2d7d46" : "#b83232", fontWeight: 600 }}>{fmtK(sceneSurplus)}</div>
-              <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 9, textTransform: "uppercase", letterSpacing: 1, color: "#888", marginTop: 3 }}>Surplus</div>
-            </div>
-            <div style={{ textAlign: "center" }}>
-              <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 20, color: scenePct >= targetPct ? "#2d7d46" : "#b83232", fontWeight: 600 }}>{scenePct.toFixed(1)}%</div>
-              <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 9, textTransform: "uppercase", letterSpacing: 1, color: "#888", marginTop: 3 }}>Surplus %</div>
-            </div>
-            <div style={{ textAlign: "center" }}>
-              <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 20, color: "#e07030", fontWeight: 600 }}>{targetPct >= 0 ? "+" : ""}{targetPct.toFixed(1)}%</div>
-              <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 9, textTransform: "uppercase", letterSpacing: 1, color: "#888", marginTop: 3 }}>Target</div>
-            </div>
-            <div style={{ textAlign: "center" }}>
-              <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 20, color: scenePct >= targetPct ? "#2d7d46" : "#b83232", fontWeight: 700 }}>{scenePct >= targetPct ? "✓" : "✗"}</div>
-              <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 9, textTransform: "uppercase", letterSpacing: 1, color: "#888", marginTop: 3 }}>Met?</div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── THEMES ── */}
-      {section === "themes" && (
-        <div>
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 16 }}>
-              <thead><tr>
-                <th style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#888", padding: "8px 12px", textAlign: "left", borderBottom: "2px solid #d8d3cb" }}>Theme</th>
-                <th style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#888", padding: "8px 12px", textAlign: "right", borderBottom: "2px solid #d8d3cb" }}>Revenue (£k)</th>
-                <th style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#888", padding: "8px 12px", textAlign: "right", borderBottom: "2px solid #d8d3cb" }}>Costs (£k)</th>
-                <th style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#888", padding: "8px 12px", textAlign: "right", borderBottom: "2px solid #d8d3cb" }}>Contribution</th>
-              </tr></thead>
-              <tbody>
-                {THEME_DATA_EDIT.map(t => {
-                  const rev  = nv(s18RevAlloc[t.id]);
-                  const cost = nv(s18CostAlloc[t.id]);
-                  const margin = rev - cost;
-                  return (
-                    <tr key={t.id} style={{ borderBottom: "1px solid #e8e4de" }}>
-                      <td style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, padding: "8px 12px" }}>{t.name}</td>
-                      <td style={{ padding: "8px 12px", textAlign: "right" }}>
-                        <input type="number" style={sInput} value={s18RevAlloc[t.id]}
-                          onChange={e => setS18RevAlloc(a => ({ ...a, [t.id]: nv(e.target.value) }))} />
-                      </td>
-                      <td style={{ padding: "8px 12px", textAlign: "right" }}>
-                        <input type="number" style={sInput} value={s18CostAlloc[t.id]}
-                          onChange={e => setS18CostAlloc(a => ({ ...a, [t.id]: nv(e.target.value) }))} />
-                      </td>
-                      <td style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 13, padding: "8px 12px", textAlign: "right", color: margin >= 0 ? "#2d7d46" : "#b83232" }}>{fmtK(margin)}</td>
-                    </tr>
-                  );
-                })}
-                <tr style={{ borderTop: "2px solid #1a1a1a" }}>
-                  <td style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, fontWeight: 600, padding: "8px 12px" }}>Total</td>
-                  <td style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 13, fontWeight: 700, padding: "8px 12px", textAlign: "right" }}>{fmtK(Object.values(s18RevAlloc).reduce((s,v)=>s+nv(v),0))}</td>
-                  <td style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 13, fontWeight: 700, padding: "8px 12px", textAlign: "right" }}>{fmtK(Object.values(s18CostAlloc).reduce((s,v)=>s+nv(v),0))}</td>
-                  <td style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 13, fontWeight: 700, padding: "8px 12px", textAlign: "right" }}>{fmtK(Object.values(s18RevAlloc).reduce((s,v)=>s+nv(v),0) - Object.values(s18CostAlloc).reduce((s,v)=>s+nv(v),0))}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* ── PURPOSE ── */}
-      {section === "purpose" && (
-        <div>
-          <div style={sLabel}>WHY / HOW / WHAT</div>
-          {[["WHY", why, setWhy, "The belief and conviction — why FBaM exists"],
-            ["HOW", how, setHow, "The specific differentiating practices and assets"],
-            ["WHAT", what, setWhat, "The programmes and services that follow"]
-          ].map(([label, val, setter, hint]) => (
-            <div key={label} style={{ marginBottom: 16 }}>
-              <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, fontWeight: 700, color: "#e07030", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>{label}</div>
-              <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#aaa", marginBottom: 6 }}>{hint}</div>
-              <textarea value={val} onChange={e => setter(e.target.value)} rows={3}
-                style={{ width: "100%", fontFamily: "'DM Sans',sans-serif", fontSize: 14, border: "1px solid #d8d3cb", borderRadius: 4, padding: "10px 12px", background: "#f0ede8", color: "#1a1a1a", resize: "vertical" }} />
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* ── Save bar ── */}
-      <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 24, paddingTop: 16, borderTop: "1px solid #d8d3cb" }}>
-        <button onClick={onCancel} style={{ padding: "10px 20px", background: "none", border: "1px solid #d8d3cb", borderRadius: 4, fontFamily: "'DM Sans',sans-serif", fontSize: 13, cursor: "pointer", color: "#888" }}>Cancel</button>
-        <button onClick={doSave} disabled={saving} style={{ padding: "10px 20px", background: saved ? "#2d7d46" : "#e07030", color: "#fff", border: "none", borderRadius: 4, fontFamily: "'DM Sans',sans-serif", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-          {saving ? "Saving…" : saved ? "✓ Saved" : "Save all changes"}
-        </button>
-      </div>
-    </div>
-  );
-}
-
 /* ── OBSERVER VIEW ────────────────────────────────────────────────────────── */
 function ObserverView({ tick, onLogout }) {
   const [tab, setTab] = useState("overview");
   const [selectedName, setSelectedName] = useState(null);
   const [participants, setParticipants] = useState(() => pAll().filter(p => !p._wiped && p.name));
-
-  const [editMode, setEditMode] = useState(false);
-  const [showRemove, setShowRemove]     = useState(false);
-  const [removePwd, setRemovePwd]       = useState("");
-  const [removeErr, setRemoveErr]       = useState("");
-  const [removeTarget, setRemoveTarget] = useState("");
-  const [removed, setRemoved]           = useState([]);
-
-  // Facilitator notes
-  const [notes, setNotes]       = useState("");
-  const [notesSaved, setNotesSaved] = useState(false);
-
-  // AI questions
-  const [aiQs, setAiQs]         = useState("");
-  const [aiLoading, setAiLoading] = useState(false);
 
   const refreshParticipants = () => setParticipants(pAll().filter(p => !p._wiped && p.name));
 
@@ -3988,19 +3663,10 @@ function ObserverView({ tick, onLogout }) {
   useEffect(() => {
     syncFromSupabase().then(refreshParticipants);
     const id = setInterval(() => syncFromSupabase().then(refreshParticipants), 4000);
-    // Load facilitator notes from Supabase
-    if (STORE.sessionId) {
-      fetch("/api/sl-load?sessionId=" + encodeURIComponent(STORE.sessionId) + "&t=" + Date.now())
-        .then(r => r.json())
-        .then(d => {
-          const notesP = d.participants?.find(p => p.name === "__facilitator__");
-          if (notesP?.notes) setNotes(notesP.notes);
-        }).catch(() => {});
-    }
     return () => clearInterval(id);
   }, []);
 
-  const PAX_COLORS = ["#1a4fa0","#e07030","#2d7d46","#b87a20","#b83232","#6a3d9a","#555"];
+  const PAX_COLORS   = ["#1a4fa0","#e07030","#2d7d46","#b87a20","#b83232","#6a3d9a","#555"];
 
   const TabBtn = ({ id, label }) => (
     <button onClick={() => setTab(id)} style={{
@@ -4020,145 +3686,21 @@ function ObserverView({ tick, onLogout }) {
 
   const selected = selectedName ? participants.find(p => p.name === selectedName) : null;
 
-  // Delete participant
-  const doRemove = () => {
-    if (removePwd !== "ADMIN") { setRemoveErr("Incorrect password."); return; }
-    if (!removeTarget) { setRemoveErr("Select a participant first."); return; }
-    STORE.participants[removeTarget] = { name: removeTarget, _wiped: true };
-    if (STORE.sessionId) {
-      fetch("/api/sl-save", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId: STORE.sessionId, participantName: removeTarget, data: { name: removeTarget, _wiped: true } }),
-      }).catch(() => {});
-    }
-    setRemoved(r => [...r, removeTarget]);
-    setRemoveTarget(""); setRemoveErr(""); setRemovePwd("");
-    refreshParticipants();
-  };
-
-  // Save facilitator notes
-  const saveNotes = () => {
-    if (!STORE.sessionId) return;
-    fetch("/api/sl-save", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sessionId: STORE.sessionId, participantName: "__facilitator__", data: { name: "__facilitator__", notes } }),
-    }).then(() => { setNotesSaved(true); setTimeout(() => setNotesSaved(false), 2000); }).catch(() => {});
-  };
-
-  // CSV export
-  const exportCSV = () => {
-    const headers = ["Name","Target %","Scenario Revenue","Scenario Costs","Surplus","Surplus %","Met?"];
-    const rows = participants.map(p => {
-      const sr = p.s12Revs || p.s17Revs;
-      const sc = p.s12Costs || p.s17Costs;
-      const sR = sr ? REV_LINES.reduce((s,l)=>s+nv(sr[l.id]),0) : 0;
-      const sC = sc ? COST_LINES.reduce((s,l)=>s+nv(sc[l.id]),0) : 0;
-      const sS = sR - sC;
-      const sPct = sR > 0 ? (sS/sR*100).toFixed(1) : "";
-      const tgt = nv(p.targetPct, 7.5);
-      const met = sR > 0 && parseFloat(sPct) >= tgt ? "Yes" : sR > 0 ? "No" : "";
-      return [p.name, tgt.toFixed(1), sR > 0 ? Math.round(sR) : "", sC > 0 ? Math.round(sC) : "", sR > 0 ? Math.round(sS) : "", sPct, met];
-    });
-    const csv = [headers, ...rows].map(r => r.join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = `FBaM-StrategyLab-${STORE.sessionId || "export"}.csv`; a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  // AI questions
-  const generateQuestions = async () => {
-    setAiLoading(true);
-    const summary = participants.map(p => {
-      const sr = p.s12Revs || p.s17Revs;
-      const sc = p.s12Costs || p.s17Costs;
-      const sR = sr ? REV_LINES.reduce((s,l)=>s+nv(sr[l.id]),0) : 0;
-      const sC = sc ? COST_LINES.reduce((s,l)=>s+nv(sc[l.id]),0) : 0;
-      const changes = (p.s11Selected || []).map(s => s.text).join("; ");
-      const tensions = p.purposeTensions ? Object.entries(p.purposeTensions).map(([k,v]) => `${k}:${v}`).join(", ") : "";
-      return `${p.name}: target=${nv(p.targetPct,7.5)}%, scenRev=${fmtK(sR)}, scenCost=${fmtK(sC)}, surplus=${fmtK(sR-sC)}, changes=[${changes}], positioning=[${tensions}]`;
-    }).join("\n");
-    const prompt = `You are an expert business school facilitator running a financial scenario workshop with senior leaders at Cranfield University's Faculty of Business and Management (FBaM).
-
-Here is a summary of each participant's scenario for the session "${STORE.sessionId}":
-
-${summary}
-
-Based on the above, generate 6–8 incisive facilitator questions to surface the most important disagreements, assumptions, and tensions in the room. Focus on:
-1. Where scenarios diverge most sharply (financial assumptions, strategic choices)
-2. The most contested strategic positioning decisions
-3. Assumptions that seem optimistic or internally inconsistent
-4. Changes selected by some but not others that reveal strategic disagreement
-5. The hardest trade-offs no one has fully confronted
-
-Format as a numbered list. Each question should be specific to the data — not generic. Be direct and challenging.`;
-
-    try {
-      const res = await fetch("/api/stat-chat", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "claude-sonnet-4-5-20250929", max_tokens: 1000, messages: [{ role: "user", content: prompt }] }),
-      });
-      const data = await res.json();
-      setAiQs(data.content?.[0]?.text || "Could not generate questions.");
-    } catch (e) { setAiQs("Error generating questions — check connection."); }
-    setAiLoading(false);
-  };
-
-  // Changes analysis
-  const analyseChanges = () => {
-    const allSelected = participants.map(p => (p.s11Selected || []).map(s => s.text));
-    const allTexts = [...new Set(allSelected.flat())];
-    return allTexts.map(text => {
-      const selectors = participants.filter((p, i) => allSelected[i].some(t => t === text)).map(p => p.name);
-      const isOwn = !text.match(/^(Grow|Expand|Develop|Establish|Scale|Consolidate|Create|Launch|Introduce|Build|Reduce|Focus)/i);
-      return { text, count: selectors.length, selectors, isOwn };
-    }).sort((a, b) => b.count - a.count);
-  };
-
   return (
     <div className="sl-shell">
       <div className="sl-header">
-        <div className="sl-header-title">Facilitator Mode — {STORE.sessionId}</div>
+        <div className="sl-header-title">Observer Mode — read only</div>
         <div className="sl-header-right">
           <span style={{ color: "#e07030", marginRight: 12 }}>👁 admin</span>
-          <button style={{ background: "none", border: "none", fontSize: 11, color: "#888", cursor: "pointer", marginRight: 12 }} onClick={exportCSV}>⬇ Export CSV</button>
           <button style={{ background: "none", border: "none", fontSize: 11, color: "#888", cursor: "pointer", textDecoration: "underline" }} onClick={onLogout}>Exit</button>
         </div>
       </div>
 
-      {/* Delete panel */}
-      <div style={{ background: "#f8f7f5", borderBottom: "1px solid #e8e4de", padding: "8px 24px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <button onClick={() => { setShowRemove(s => !s); setRemoveErr(""); setRemovePwd(""); setRemoveTarget(""); }}
-          style={{ background: "none", border: "1px solid #d8d3cb", borderRadius: 4, padding: "4px 10px", fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#888", cursor: "pointer" }}>
-          👤 Remove participant
-        </button>
-        {removed.length > 0 && <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#2d7d46" }}>✓ Removed: {removed.join(", ")}</span>}
-        {showRemove && (
-          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <select value={removeTarget} onChange={e => { setRemoveTarget(e.target.value); setRemoveErr(""); }}
-              style={{ padding: "4px 8px", border: "1px solid #d8d3cb", borderRadius: 4, fontFamily: "'DM Sans',sans-serif", fontSize: 12, background: "#f0ede8" }}>
-              <option value="">Select participant…</option>
-              {pAll().filter(p => !p._wiped).map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
-            </select>
-            <input type="password" placeholder="Admin password" value={removePwd}
-              onChange={e => { setRemovePwd(e.target.value); setRemoveErr(""); }}
-              style={{ padding: "4px 8px", border: "1px solid #d8d3cb", borderRadius: 4, fontFamily: "'DM Sans',sans-serif", fontSize: 12, width: 140, background: "#f0ede8" }} />
-            <button onClick={doRemove} style={{ padding: "4px 10px", background: "#b83232", color: "#fff", border: "none", borderRadius: 4, fontFamily: "'DM Sans',sans-serif", fontSize: 12, cursor: "pointer" }}>Remove</button>
-            {removeErr && <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, color: "#b83232" }}>{removeErr}</span>}
-          </div>
-        )}
-      </div>
-
       <div className="sl-tabs">
-        <TabBtn id="overview"   label="Overview" />
-        <TabBtn id="progress"   label="Progress" />
-        <TabBtn id="financial"  label="Financial" />
-        <TabBtn id="changes"    label="Changes" />
-        <TabBtn id="strategic"  label="Strategic" />
-        <TabBtn id="questions"  label="AI Questions" />
-        <TabBtn id="notes"      label="Notes" />
-        <TabBtn id="detail"     label="Detail" />
+        <TabBtn id="overview"  label="Overview" />
+        <TabBtn id="financial" label="Financial" />
+        <TabBtn id="strategic" label="Strategic" />
+        <TabBtn id="detail"    label="Participant detail" />
       </div>
 
       <div className="sl-content">
@@ -4170,32 +3712,12 @@ Format as a numbered list. Each question should be specific to the data — not 
         {tab === "overview" && (
           <div>
             <div className="sl-step-h">Session overview</div>
-
-            {/* Financial range summary */}
-            {participants.some(p => p.s17Revs || p.s12Revs) && (() => {
-              const revs = participants.map(p => { const sr = p.s12Revs||p.s17Revs; return sr ? REV_LINES.reduce((s,l)=>s+nv(sr[l.id]),0) : null; }).filter(v => v !== null);
-              const surps = participants.map(p => { const sr = p.s12Revs||p.s17Revs; const sc = p.s12Costs||p.s17Costs; const sR = sr ? REV_LINES.reduce((s,l)=>s+nv(sr[l.id]),0) : 0; const sC = sc ? COST_LINES.reduce((s,l)=>s+nv(sc[l.id]),0) : 0; return sR > 0 ? (sR-sC)/sR*100 : null; }).filter(v => v !== null);
-              const targets = participants.map(p => nv(p.targetPct, 7.5));
-              return (
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: 24 }}>
-                  {[
-                    { label: "Scenario revenue range", lo: fmtK(Math.min(...revs)), hi: fmtK(Math.max(...revs)) },
-                    { label: "Surplus % range", lo: Math.min(...surps).toFixed(1)+"%", hi: Math.max(...surps).toFixed(1)+"%" },
-                    { label: "Target % range", lo: Math.min(...targets).toFixed(1)+"%", hi: Math.max(...targets).toFixed(1)+"%" },
-                  ].map(({ label, lo, hi }) => (
-                    <div key={label} style={{ background: "#ebe7e1", border: "1px solid #d8d3cb", borderRadius: 4, padding: "12px 14px" }}>
-                      <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, color: "#888", marginBottom: 6 }}>{label}</div>
-                      <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 14, color: "#1a1a1a" }}>{lo} → {hi}</div>
-                    </div>
-                  ))}
-                </div>
-              );
-            })()}
-
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: 12 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: 12, marginBottom: 28 }}>
               {participants.map((p, i) => {
                 const steps = Object.keys(p).filter(k => k.includes("Confirmed")).length;
-                const scenRevs = p.s12Revs || p.s17Revs;
+                const { total: predRev } = calcPredRevs(p);
+                const { total: predCost } = calcPredCosts(p);
+                const scenRevs  = p.s12Revs || p.s17Revs;
                 const sR = scenRevs ? REV_LINES.reduce((s,l)=>s+nv(scenRevs[l.id]),0) : 0;
                 return (
                   <div key={p.name} style={{ border: `2px solid ${PAX_COLORS[i%7]}`, borderRadius: 4, padding: 14, background: "#f0ede8", cursor: "pointer" }}
@@ -4206,7 +3728,7 @@ Format as a numbered list. Each question should be specific to the data — not 
                     </div>
                     <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#888", marginBottom: 4 }}>{steps} steps confirmed</div>
                     <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#888" }}>
-                      Target: <strong style={{ color: "#1a1a1a" }}>{nv(p.targetPct, 7.5) >= 0 ? "+" : ""}{nv(p.targetPct, 7.5).toFixed(1)}%</strong>
+                      Target: <strong style={{ color: "#1a1a1a" }}>{p.targetPct >= 0 ? "+" : ""}{nv(p.targetPct, 7.5).toFixed(1)}%</strong>
                     </div>
                     {sR > 0 && <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#888", marginTop: 2 }}>
                       Scenario rev: <strong style={{ color: "#1a1a1a" }}>{fmtK(sR)}</strong>
@@ -4214,53 +3736,6 @@ Format as a numbered list. Each question should be specific to the data — not 
                   </div>
                 );
               })}
-            </div>
-          </div>
-        )}
-
-        {/* ── PROGRESS TAB ── */}
-        {tab === "progress" && (
-          <div>
-            <div className="sl-step-h">Step progress</div>
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ borderCollapse: "collapse", minWidth: 600 }}>
-                <thead>
-                  <tr>
-                    <th style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 600, color: "#888", padding: "6px 10px", textAlign: "left", borderBottom: "2px solid #d8d3cb", whiteSpace: "nowrap" }}>Participant</th>
-                    {STEP_NAMES.map((sn, i) => (
-                      <th key={i} style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 9, fontWeight: 600, color: "#888", padding: "6px 6px", textAlign: "center", borderBottom: "2px solid #d8d3cb", whiteSpace: "nowrap", maxWidth: 60 }}
-                        title={sn}>{i + 1}</th>
-                    ))}
-                    <th style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 600, color: "#888", padding: "6px 10px", textAlign: "center", borderBottom: "2px solid #d8d3cb" }}>Done</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {participants.map((p, i) => {
-                    const confirmed = STEP_NAMES.map((_, j) => !!p[`step${j+1}Confirmed`]);
-                    const count = confirmed.filter(Boolean).length;
-                    return (
-                      <tr key={p.name} style={{ borderBottom: "1px solid #e8e4de" }}>
-                        <td style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, fontWeight: 600, padding: "6px 10px", display: "flex", alignItems: "center", gap: 6 }}>
-                          <div style={{ width: 8, height: 8, borderRadius: "50%", background: PAX_COLORS[i%7], flexShrink: 0 }} />{p.name}
-                        </td>
-                        {confirmed.map((done, j) => (
-                          <td key={j} style={{ textAlign: "center", padding: "6px 6px" }}>
-                            <div style={{ width: 16, height: 16, borderRadius: 3, background: done ? "#2d7d46" : "#e8e4de", margin: "0 auto" }} title={done ? `Step ${j+1} confirmed` : `Step ${j+1} not done`} />
-                          </td>
-                        ))}
-                        <td style={{ textAlign: "center", fontFamily: "'IBM Plex Mono',monospace", fontSize: 12, fontWeight: 600, color: count === STEP_NAMES.length ? "#2d7d46" : "#1a1a1a", padding: "6px 10px" }}>{count}/{STEP_NAMES.length}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-            <div style={{ display: "flex", gap: 16, marginTop: 16, flexWrap: "wrap" }}>
-              {STEP_NAMES.map((sn, i) => (
-                <div key={i} style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#888" }}>
-                  <strong style={{ color: "#1a1a1a" }}>{i+1}</strong> {sn}
-                </div>
-              ))}
             </div>
           </div>
         )}
@@ -4316,51 +3791,6 @@ Format as a numbered list. Each question should be specific to the data — not 
           </div>
         )}
 
-        {/* ── CHANGES TAB ── */}
-        {tab === "changes" && (() => {
-          const changes = analyseChanges();
-          const consensus = changes.filter(c => c.count === participants.length);
-          const partial   = changes.filter(c => c.count > 0 && c.count < participants.length);
-          return (
-            <div>
-              <div className="sl-step-h">Selected changes</div>
-              {consensus.length > 0 && (
-                <div style={{ marginBottom: 28 }}>
-                  <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, color: "#2d7d46", marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ width: 12, height: 12, borderRadius: "50%", background: "#2d7d46", display: "inline-block" }} /> Consensus — selected by all
-                  </div>
-                  {consensus.map((c, i) => (
-                    <div key={i} style={{ padding: "10px 14px", background: "#f0faf4", border: "1px solid #2d7d46", borderRadius: 4, marginBottom: 8 }}>
-                      {c.isOwn && <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, color: "#b87a20", marginRight: 8, background: "#fff8e8", padding: "1px 5px", borderRadius: 2 }}>Own addition</span>}
-                      <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, color: "#1a1a1a", lineHeight: 1.5 }}>{c.text}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {partial.length > 0 && (
-                <div>
-                  <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, color: "#b87a20", marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ width: 12, height: 12, borderRadius: "50%", background: "#b87a20", display: "inline-block" }} /> Differences — selected by some
-                  </div>
-                  {partial.map((c, i) => (
-                    <div key={i} style={{ padding: "10px 14px", background: "#fffbf0", border: "1px solid #b87a20", borderRadius: 4, marginBottom: 8 }}>
-                      {c.isOwn && <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, color: "#b87a20", marginRight: 8, background: "#fff8e8", padding: "1px 5px", borderRadius: 2 }}>Own addition</span>}
-                      <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, color: "#1a1a1a", lineHeight: 1.5, marginBottom: 6 }}>{c.text}</div>
-                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                        {c.selectors.map((name, j) => {
-                          const pi = participants.findIndex(p => p.name === name);
-                          return <span key={j} style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, padding: "2px 8px", borderRadius: 3, background: PAX_COLORS[pi%7], color: "#fff" }}>{name}</span>;
-                        })}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {changes.length === 0 && <div className="sl-note-box">No changes selected yet.</div>}
-            </div>
-          );
-        })()}
-
         {/* ── STRATEGIC TAB ── */}
         {tab === "strategic" && (
           <div>
@@ -4385,14 +3815,8 @@ Format as a numbered list. Each question should be specific to the data — not 
                 </tbody>
               </table>
             </div>
-            {/* Tensions sorted by spread — most contested first */}
-            <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#888", marginBottom: 12 }}>Sorted by spread — most contested first</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-              {[...PURPOSE_TENSIONS].sort((a, b) => {
-                const spreadA = participants.length > 1 ? Math.max(...participants.map(p => nv(p.purposeTensions?.[a.key], 50))) - Math.min(...participants.map(p => nv(p.purposeTensions?.[a.key], 50))) : 0;
-                const spreadB = participants.length > 1 ? Math.max(...participants.map(p => nv(p.purposeTensions?.[b.key], 50))) - Math.min(...participants.map(p => nv(p.purposeTensions?.[b.key], 50))) : 0;
-                return spreadB - spreadA;
-              }).map(t => {
+              {PURPOSE_TENSIONS.map(t => {
                 const vals = participants.map(p => nv(p.purposeTensions?.[t.key], 50));
                 const spread = vals.length > 1 ? Math.max(...vals) - Math.min(...vals) : 0;
                 return (
@@ -4400,7 +3824,7 @@ Format as a numbered list. Each question should be specific to the data — not 
                     <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, color: "#888", marginBottom: 6, display: "flex", alignItems: "center", gap: 8 }}>
                       {t.desc}
                       <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 3, background: spread > 30 ? "#fff3cd" : "#d1e7dd", color: spread > 30 ? "#856404" : "#0a5c36" }}>
-                        {spread > 30 ? `Contested (${Math.round(spread)} pt spread)` : "Consensus"}
+                        {spread > 30 ? "Contested" : "Consensus"}
                       </span>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -4421,70 +3845,19 @@ Format as a numbered list. Each question should be specific to the data — not 
           </div>
         )}
 
-        {/* ── AI QUESTIONS TAB ── */}
-        {tab === "questions" && (
-          <div>
-            <div className="sl-step-h">Facilitator questions</div>
-            <div className="sl-note-box">AI reads all participant scenarios and generates targeted questions to surface disagreements, test assumptions, and open the most important conversations.</div>
-            {!aiQs && !aiLoading && (
-              <button className="sl-btn" onClick={generateQuestions}>Generate questions from session data</button>
-            )}
-            {aiLoading && (
-              <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "20px 0", fontFamily: "'DM Sans',sans-serif", fontSize: 13, color: "#888" }}>
-                <div style={{ width: 16, height: 16, border: "2px solid #d8d3cb", borderTopColor: "#e07030", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
-                Reading all scenarios and generating questions…
-              </div>
-            )}
-            {aiQs && (
-              <div>
-                <div style={{ background: "#ebe7e1", borderLeft: "3px solid #e07030", padding: "16px 20px", borderRadius: 4, fontFamily: "'DM Sans',sans-serif", fontSize: 14, color: "#1a1a1a", lineHeight: 1.8, whiteSpace: "pre-wrap", marginBottom: 16 }}>{aiQs}</div>
-                <button className="sl-btn sl-btn-outline" style={{ fontSize: 12, padding: "8px 14px" }} onClick={generateQuestions}>Regenerate</button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ── NOTES TAB ── */}
-        {tab === "notes" && (
-          <div>
-            <div className="sl-step-h">Facilitator notes</div>
-            <div className="sl-note-box">Notes are saved to the session and persist between logins. Visible only in facilitator mode.</div>
-            <textarea className="sl-input" rows={14} value={notes} onChange={e => { setNotes(e.target.value); setNotesSaved(false); }}
-              placeholder="Record key discussion points, decisions, themes emerging from the group…" />
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 12 }}>
-              <button className="sl-btn" onClick={saveNotes}>Save notes</button>
-              {notesSaved && <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, color: "#2d7d46" }}>✓ Saved</span>}
-            </div>
-          </div>
-        )}
-
         {/* ── DETAIL TAB ── */}
         {tab === "detail" && (
           <div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 20, alignItems: "center" }}>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 20 }}>
               {participants.map((p, i) => (
-                <button key={p.name} onClick={() => { setSelectedName(p.name); setEditMode(false); }}
+                <button key={p.name} onClick={() => setSelectedName(p.name)}
                   style={{ padding: "6px 14px", border: `2px solid ${PAX_COLORS[i%7]}`, borderRadius: 4, fontFamily: "'DM Sans',sans-serif", fontSize: 12, fontWeight: 600, cursor: "pointer", background: selectedName === p.name ? PAX_COLORS[i%7] : "#f0ede8", color: selectedName === p.name ? "#fff" : "#1a1a1a" }}>
                   {p.name}
                 </button>
               ))}
-              {selected && !editMode && (
-                <button onClick={() => setEditMode(true)}
-                  style={{ marginLeft: "auto", padding: "6px 16px", background: "#e07030", color: "#fff", border: "none", borderRadius: 4, fontFamily: "'DM Sans',sans-serif", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
-                  ✏ Edit data
-                </button>
-              )}
             </div>
 
-            {selected && editMode && (
-              <ParticipantEditor
-                participant={selected}
-                onSave={() => { syncFromSupabase().then(refreshParticipants); setEditMode(false); }}
-                onCancel={() => setEditMode(false)}
-              />
-            )}
-
-            {selected && !editMode && (() => {
+            {selected && (() => {
               const { total: predRev } = calcPredRevs(selected);
               const { total: predCost } = calcPredCosts(selected);
               const sr = selected.s12Revs || selected.s17Revs;
@@ -4535,18 +3908,6 @@ Format as a numbered list. Each question should be specific to the data — not 
                       <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, color: "#888", marginBottom: 10 }}>Scenario revenue by July 2028</div>
                       {REV_LINES.map(l => <Row key={l.id} label={l.name} value={fmtK(nv(sr[l.id]))} />)}
                       <Row label="Total" value={fmtK(sR)} color="#e07030" />
-                    </div>
-                  )}
-
-                  {(selected.purposeWhy || selected.purposeHow || selected.purposeWhat) && (
-                    <div style={{ marginTop: 20 }}>
-                      <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, color: "#888", marginBottom: 10 }}>WHY / HOW / WHAT</div>
-                      {[["WHY", selected.purposeWhy], ["HOW", selected.purposeHow], ["WHAT", selected.purposeWhat]].map(([label, val]) => val ? (
-                        <div key={label} style={{ marginBottom: 10, padding: "10px 14px", background: "#ebe7e1", borderRadius: 4 }}>
-                          <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 700, color: "#e07030", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>{label}</div>
-                          <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, color: "#1a1a1a", lineHeight: 1.6 }}>{val}</div>
-                        </div>
-                      ) : null)}
                     </div>
                   )}
                 </div>
