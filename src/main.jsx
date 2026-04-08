@@ -5,6 +5,7 @@ import StatTool from './tools/stat/StatTool'
 import DefineTool from './tools/define/DefineTool'
 import StrategyLab from './tools/strategy-lab/StrategyLab'
 import StrawTool from './tools/straw/Straw'
+import Straw2Tool from './tools/straw/Straw2'
 import PurposeTool from './tools/purpose/Purpose'
 
 const Home = () => (
@@ -15,6 +16,7 @@ const Home = () => (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {[
           { path: '/straw', label: 'STRAWPERSON Scenario Tool', desc: 'Financial viability scenario — 15 steps' },
+          { path: '/straw2', label: 'STRAWPERSON Scenario Tool v2', desc: 'Financial viability scenario — expanded revenue lines' },
           { path: '/purpose', label: 'Purpose Tool', desc: 'Purpose, mission and distinctiveness — 9 steps' },
           { path: '/stat', label: 'STAT', desc: 'Strategic assessment tool' },
           { path: '/strategy-lab', label: 'Strategy Lab', desc: 'Full financial viability scenario tool' },
@@ -37,6 +39,7 @@ function App() {
         <Route path="/define" element={<DefineTool />} />
         <Route path="/strategy-lab" element={<StrategyLab />} />
         <Route path="/straw" element={<StrawTool />} />
+        <Route path="/straw2" element={<Straw2Tool />} />
         <Route path="/purpose" element={<PurposeTool />} />
         <Route path="/" element={<Home />} />
       </Routes>
