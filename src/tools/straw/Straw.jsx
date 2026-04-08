@@ -3605,13 +3605,369 @@ ${pages.map(p => p.replace('<div class="page">', `<div class="page"><div class="
 }
 
 
+/* ── PARTICIPANT EDITOR (facilitator mode) ───────────────────────────────── */
+function ParticipantEditor({ participant, onSave, onCancel }) {
+  const p = participant;
+  const sLabel = { fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, color: "#888", marginBottom: 8, marginTop: 20 };
+  const sInput = { fontFamily: "'IBM Plex Mono',monospace", fontSize: 14, border: "1px solid #d8d3cb", borderRadius: 4, padding: "5px 8px", background: "#f0ede8", color: "#1a1a1a", width: 100, textAlign: "right" };
+  const sTens  = { fontFamily: "'DM Sans',sans-serif", fontSize: 12, width: 110, color: "#888", flexShrink: 0 };
+
+  // ── State initialised from participant data ──
+  const [targetPct,    setTargetPct]    = useState(nv(p.targetPct, 7.5));
+  const [revenues,     setRevenues]     = useState(() => { const r = {}; REV_LINES.forEach(l => r[l.id] = String(nv(p.revenues?.[l.id], l.prefillK))); return r; });
+  const [costs,        setCosts]        = useState(() => { const c = {}; COST_LINES.forEach(l => c[l.id] = String(nv(p.costs?.[l.id], l.baseK))); return c; });
+  const [revRates,     setRevRates]     = useState(() => { const r = {}; REV_LINES.forEach(l => r[l.id] = String(nv(p.revRates?.[l.id] ?? p.marketRates?.[l.id], 0))); return r; });
+  const [groups,       setGroups]       = useState(() => { const g = {}; PURPOSE_GROUPS.forEach(k => g[k] = nv(p.purposeGroups?.[k], 5)); return g; });
+  const [tensions,     setTensions]     = useState(() => { const t = {}; PURPOSE_TENSIONS.forEach(x => t[x.key] = nv(p.purposeTensions?.[x.key], 50)); return t; });
+  const [s11Selected,  setS11Selected]  = useState(() => (p.s11Selected || []).map(s => s.text));
+  const [s17Revs,      setS17Revs]      = useState(() => { const r = {}; REV_LINES.forEach(l => r[l.id] = String(nv((p.s17Revs||p.s12Revs)?.[l.id], 0))); return r; });
+  const [s17Costs,     setS17Costs]     = useState(() => { const c = {}; COST_LINES.forEach(l => c[l.id] = String(nv((p.s17Costs||p.s12Costs)?.[l.id], 0))); return c; });
+  const [s18RevAlloc,  setS18RevAlloc]  = useState(() => ({ btg: nv(p.s18RevAlloc?.btg,0), psl: nv(p.s18RevAlloc?.psl,0), scpss: nv(p.s18RevAlloc?.scpss,0) }));
+  const [s18CostAlloc, setS18CostAlloc] = useState(() => ({ btg: nv(p.s18CostAlloc?.btg,0), psl: nv(p.s18CostAlloc?.psl,0), scpss: nv(p.s18CostAlloc?.scpss,0) }));
+  const [why,          setWhy]          = useState(p.purposeWhy || "");
+  const [how,          setHow]          = useState(p.purposeHow || "");
+  const [what,         setWhat]         = useState(p.purposeWhat || "");
+  const [newChange,    setNewChange]    = useState("");
+  const [saving,       setSaving]       = useState(false);
+  const [saved,        setSaved]        = useState(false);
+  const [section,      setSection]      = useState("financial");
+
+  const totalCurRev  = REV_LINES.reduce((s,l) => s + nv(revenues[l.id]), 0);
+  const totalCurCost = COST_LINES.reduce((s,l) => s + nv(costs[l.id]), 0);
+  const totalSceRev  = REV_LINES.reduce((s,l) => s + nv(s17Revs[l.id]), 0);
+  const totalSceCost = COST_LINES.reduce((s,l) => s + nv(s17Costs[l.id]), 0);
+  const sceneSurplus = totalSceRev - totalSceCost;
+  const scenePct     = totalSceRev > 0 ? (sceneSurplus / totalSceRev * 100) : 0;
+
+  const THEME_DATA_EDIT = [
+    { id: "btg",   name: "Business Transformation & Growth" },
+    { id: "psl",   name: "People, Skills & Leadership" },
+    { id: "scpss", name: "Supply Chain, Projects & Sustainable Systems" },
+  ];
+
+  const doSave = async () => {
+    setSaving(true);
+    const revs = {}; REV_LINES.forEach(l => revs[l.id] = nv(revenues[l.id], l.prefillK));
+    const cs   = {}; COST_LINES.forEach(l => cs[l.id]  = nv(costs[l.id], l.baseK));
+    const rr   = {}; REV_LINES.forEach(l => rr[l.id]   = nv(revRates[l.id], 0));
+    const sr   = {}; REV_LINES.forEach(l => sr[l.id]   = nv(s17Revs[l.id], 0));
+    const sc   = {}; COST_LINES.forEach(l => sc[l.id]  = nv(s17Costs[l.id], 0));
+    const update = {
+      targetPct, revenues: revs, costs: cs, revRates: rr,
+      purposeGroups: groups, purposeTensions: tensions,
+      s11Selected: s11Selected.map(text => ({ text })),
+      s17Revs: sr, s17Costs: sc,
+      s18RevAlloc, s18CostAlloc,
+      purposeWhy: why, purposeHow: how, purposeWhat: what,
+      step1Confirmed: true, step2Confirmed: true, step3Confirmed: true,
+      step4Confirmed: true, step5Confirmed: true, step6Confirmed: true,
+      step7Confirmed: true, step9Confirmed: true, step10Confirmed: true,
+      step11Confirmed: true, step17Confirmed: true, step18Confirmed: true,
+    };
+    if (why || how || what) update.step16Confirmed = true;
+    try {
+      const res = await fetch("/api/sl-save", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId: STORE.sessionId, participantName: p.name, data: update }),
+      });
+      const d = await res.json();
+      if (d.ok) { setSaved(true); setTimeout(() => { setSaved(false); onSave(); }, 1200); }
+    } catch (e) {}
+    setSaving(false);
+  };
+
+  const SecBtn = ({ id, label }) => (
+    <button onClick={() => setSection(id)} style={{
+      padding: "8px 14px", fontSize: 12, fontWeight: 600, border: "none", background: "transparent",
+      cursor: "pointer", fontFamily: "'DM Sans',sans-serif",
+      color: section === id ? "#e07030" : "#888",
+      borderBottom: section === id ? "2px solid #e07030" : "2px solid transparent",
+    }}>{label}</button>
+  );
+
+  return (
+    <div style={{ border: "2px solid #e07030", borderRadius: 4, padding: 24, background: "#fdf5f0", marginTop: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 22, color: "#1a1a1a" }}>Editing: {p.name}</div>
+        <div style={{ display: "flex", gap: 10 }}>
+          <button onClick={onCancel} style={{ padding: "8px 16px", background: "none", border: "1px solid #d8d3cb", borderRadius: 4, fontFamily: "'DM Sans',sans-serif", fontSize: 12, cursor: "pointer", color: "#888" }}>Cancel</button>
+          <button onClick={doSave} disabled={saving} style={{ padding: "8px 16px", background: saved ? "#2d7d46" : "#e07030", color: "#fff", border: "none", borderRadius: 4, fontFamily: "'DM Sans',sans-serif", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+            {saving ? "Saving…" : saved ? "✓ Saved" : "Save all changes"}
+          </button>
+        </div>
+      </div>
+
+      {/* Live KPI strip */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10, marginBottom: 20, padding: "12px 16px", background: "#1a1a1a", borderRadius: 4 }}>
+        {[
+          { v: `${targetPct >= 0 ? "+" : ""}${targetPct.toFixed(1)}%`, l: "Target" },
+          { v: fmtK(totalSceRev), l: "Scenario revenue" },
+          { v: fmtK(totalSceCost), l: "Scenario costs" },
+          { v: `${scenePct.toFixed(1)}%`, l: "Surplus %", c: scenePct >= targetPct ? "#2d7d46" : "#b83232" },
+        ].map(k => (
+          <div key={k.l} style={{ textAlign: "center" }}>
+            <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 18, fontWeight: 600, color: k.c || "#e07030" }}>{k.v}</div>
+            <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 9, textTransform: "uppercase", letterSpacing: 1, color: "#888", marginTop: 3 }}>{k.l}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Section tabs */}
+      <div style={{ display: "flex", borderBottom: "1px solid #d8d3cb", marginBottom: 24, flexWrap: "wrap" }}>
+        <SecBtn id="financial"   label="Financial" />
+        <SecBtn id="trajectory"  label="Trajectory" />
+        <SecBtn id="stakeholders" label="Stakeholders" />
+        <SecBtn id="positioning" label="Positioning" />
+        <SecBtn id="changes"     label="Changes" />
+        <SecBtn id="scenario"    label="Scenario" />
+        <SecBtn id="themes"      label="Themes" />
+        <SecBtn id="purpose"     label="Purpose" />
+      </div>
+
+      {/* ── FINANCIAL ── */}
+      {section === "financial" && (
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 20 }}>
+            <div style={sLabel}>Target surplus %</div>
+            <input type="range" min="-10" max="10" step="0.5" value={targetPct}
+              onChange={e => setTargetPct(parseFloat(e.target.value))}
+              style={{ flex: 1, accentColor: "#e07030" }} />
+            <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 20, color: "#e07030", minWidth: 60 }}>{targetPct >= 0 ? "+" : ""}{targetPct.toFixed(1)}%</div>
+          </div>
+          <div style={sLabel}>Current revenue (£k)</div>
+          {REV_LINES.map(l => (
+            <div key={l.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: "1px solid #e8e4de" }}>
+              <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, flex: 1 }}>{l.name}</span>
+              <input type="number" style={sInput} value={revenues[l.id]} onChange={e => setRevenues(r => ({ ...r, [l.id]: e.target.value }))} />
+            </div>
+          ))}
+          <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderTop: "2px solid #1a1a1a", marginTop: 4 }}>
+            <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, fontWeight: 600 }}>Total revenue</span>
+            <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 14, fontWeight: 700 }}>{fmtK(totalCurRev)}</span>
+          </div>
+          <div style={sLabel}>Current costs (£k)</div>
+          {COST_LINES.map(l => (
+            <div key={l.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: "1px solid #e8e4de" }}>
+              <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, flex: 1 }}>{l.name}</span>
+              <input type="number" style={sInput} value={costs[l.id]} onChange={e => setCosts(c => ({ ...c, [l.id]: e.target.value }))} />
+            </div>
+          ))}
+          <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderTop: "2px solid #1a1a1a", marginTop: 4 }}>
+            <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, fontWeight: 600 }}>Total costs</span>
+            <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 14, fontWeight: 700 }}>{fmtK(totalCurCost)}</span>
+          </div>
+        </div>
+      )}
+
+      {/* ── TRAJECTORY ── */}
+      {section === "trajectory" && (
+        <div>
+          <div style={sLabel}>Revenue CAGR rates % (applied to July 2028 trajectory)</div>
+          {REV_LINES.map(l => (
+            <div key={l.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: "1px solid #e8e4de" }}>
+              <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, flex: 1 }}>{l.name}</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <input type="number" step="0.5" style={{ ...sInput, width: 80 }} value={revRates[l.id]} onChange={e => setRevRates(r => ({ ...r, [l.id]: e.target.value }))} />
+                <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, color: "#888" }}>%</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── STAKEHOLDERS ── */}
+      {section === "stakeholders" && (
+        <div>
+          <div style={sLabel}>Stakeholder importance (1–9)</div>
+          {PURPOSE_GROUPS.map(g => (
+            <div key={g} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #e8e4de" }}>
+              <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, flex: 1 }}>{g}</span>
+              <div style={{ display: "flex", gap: 5 }}>
+                {[1,2,3,4,5,6,7,8,9].map(n => (
+                  <button key={n} onClick={() => setGroups(prev => ({ ...prev, [g]: n }))}
+                    style={{ width: 28, height: 28, border: `1px solid ${groups[g] === n ? "#e07030" : "#d8d3cb"}`, borderRadius: 4, background: groups[g] === n ? "#e07030" : "#f0ede8", color: groups[g] === n ? "#fff" : "#1a1a1a", fontFamily: "'DM Sans',sans-serif", fontSize: 12, cursor: "pointer" }}>
+                    {n}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── POSITIONING ── */}
+      {section === "positioning" && (
+        <div>
+          <div style={sLabel}>Strategic positioning sliders</div>
+          {PURPOSE_TENSIONS.map(t => (
+            <div key={t.key} style={{ marginBottom: 20 }}>
+              <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, color: "#888", marginBottom: 8 }}>{t.desc}</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <span style={{ ...sTens, textAlign: "right", color: tensions[t.key] < 40 ? "#e07030" : "#aaa", fontWeight: tensions[t.key] < 40 ? 600 : 400 }}>{t.l}</span>
+                <input type="range" min="0" max="100" step="5" value={tensions[t.key]}
+                  onChange={e => setTensions(prev => ({ ...prev, [t.key]: parseInt(e.target.value) }))}
+                  style={{ flex: 1, accentColor: "#e07030" }} />
+                <span style={{ ...sTens, color: tensions[t.key] > 60 ? "#e07030" : "#aaa", fontWeight: tensions[t.key] > 60 ? 600 : 400 }}>{t.r}</span>
+                <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 12, color: "#888", minWidth: 30 }}>{tensions[t.key]}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── CHANGES ── */}
+      {section === "changes" && (
+        <div>
+          <div style={sLabel}>Selected changes</div>
+          {s11Selected.map((text, i) => (
+            <div key={i} style={{ display: "flex", gap: 8, alignItems: "flex-start", marginBottom: 8 }}>
+              <textarea value={text} onChange={e => setS11Selected(arr => arr.map((v, j) => j === i ? e.target.value : v))}
+                style={{ flex: 1, fontFamily: "'DM Sans',sans-serif", fontSize: 13, border: "1px solid #d8d3cb", borderRadius: 4, padding: "8px 10px", background: "#f0ede8", resize: "vertical", minHeight: 60 }} />
+              <button onClick={() => setS11Selected(arr => arr.filter((_, j) => j !== i))}
+                style={{ padding: "4px 8px", background: "#b83232", color: "#fff", border: "none", borderRadius: 4, cursor: "pointer", fontSize: 12, flexShrink: 0 }}>✕</button>
+            </div>
+          ))}
+          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+            <input value={newChange} onChange={e => setNewChange(e.target.value)}
+              placeholder="Add a change statement…"
+              style={{ flex: 1, fontFamily: "'DM Sans',sans-serif", fontSize: 13, border: "1px solid #d8d3cb", borderRadius: 4, padding: "8px 10px", background: "#f0ede8" }} />
+            <button onClick={() => { if (newChange.trim()) { setS11Selected(arr => [...arr, newChange.trim()]); setNewChange(""); } }}
+              style={{ padding: "8px 14px", background: "#e07030", color: "#fff", border: "none", borderRadius: 4, cursor: "pointer", fontFamily: "'DM Sans',sans-serif", fontSize: 12, fontWeight: 600 }}>Add</button>
+          </div>
+        </div>
+      )}
+
+      {/* ── SCENARIO ── */}
+      {section === "scenario" && (
+        <div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+            <div>
+              <div style={sLabel}>Scenario revenue by July 2028 (£k)</div>
+              {REV_LINES.map(l => (
+                <div key={l.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: "1px solid #e8e4de" }}>
+                  <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, flex: 1 }}>{l.name}</span>
+                  <input type="number" style={sInput} value={s17Revs[l.id]} onChange={e => setS17Revs(r => ({ ...r, [l.id]: e.target.value }))} />
+                </div>
+              ))}
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderTop: "2px solid #1a1a1a", marginTop: 4 }}>
+                <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, fontWeight: 600 }}>Total</span>
+                <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 14, fontWeight: 700, color: "#2d7d46" }}>{fmtK(totalSceRev)}</span>
+              </div>
+            </div>
+            <div>
+              <div style={sLabel}>Scenario costs by July 2028 (£k)</div>
+              {COST_LINES.map(l => (
+                <div key={l.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: "1px solid #e8e4de" }}>
+                  <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, flex: 1 }}>{l.name}</span>
+                  <input type="number" style={sInput} value={s17Costs[l.id]} onChange={e => setS17Costs(c => ({ ...c, [l.id]: e.target.value }))} />
+                </div>
+              ))}
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderTop: "2px solid #1a1a1a", marginTop: 4 }}>
+                <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, fontWeight: 600 }}>Total</span>
+                <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 14, fontWeight: 700, color: "#b83232" }}>{fmtK(totalSceCost)}</span>
+              </div>
+            </div>
+          </div>
+          <div style={{ marginTop: 16, padding: "12px 16px", background: "#1a1a1a", borderRadius: 4, display: "flex", gap: 32 }}>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 20, color: sceneSurplus >= 0 ? "#2d7d46" : "#b83232", fontWeight: 600 }}>{fmtK(sceneSurplus)}</div>
+              <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 9, textTransform: "uppercase", letterSpacing: 1, color: "#888", marginTop: 3 }}>Surplus</div>
+            </div>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 20, color: scenePct >= targetPct ? "#2d7d46" : "#b83232", fontWeight: 600 }}>{scenePct.toFixed(1)}%</div>
+              <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 9, textTransform: "uppercase", letterSpacing: 1, color: "#888", marginTop: 3 }}>Surplus %</div>
+            </div>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 20, color: "#e07030", fontWeight: 600 }}>{targetPct >= 0 ? "+" : ""}{targetPct.toFixed(1)}%</div>
+              <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 9, textTransform: "uppercase", letterSpacing: 1, color: "#888", marginTop: 3 }}>Target</div>
+            </div>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 20, color: scenePct >= targetPct ? "#2d7d46" : "#b83232", fontWeight: 700 }}>{scenePct >= targetPct ? "✓" : "✗"}</div>
+              <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 9, textTransform: "uppercase", letterSpacing: 1, color: "#888", marginTop: 3 }}>Met?</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── THEMES ── */}
+      {section === "themes" && (
+        <div>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 16 }}>
+              <thead><tr>
+                <th style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#888", padding: "8px 12px", textAlign: "left", borderBottom: "2px solid #d8d3cb" }}>Theme</th>
+                <th style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#888", padding: "8px 12px", textAlign: "right", borderBottom: "2px solid #d8d3cb" }}>Revenue (£k)</th>
+                <th style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#888", padding: "8px 12px", textAlign: "right", borderBottom: "2px solid #d8d3cb" }}>Costs (£k)</th>
+                <th style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#888", padding: "8px 12px", textAlign: "right", borderBottom: "2px solid #d8d3cb" }}>Contribution</th>
+              </tr></thead>
+              <tbody>
+                {THEME_DATA_EDIT.map(t => {
+                  const rev  = nv(s18RevAlloc[t.id]);
+                  const cost = nv(s18CostAlloc[t.id]);
+                  const margin = rev - cost;
+                  return (
+                    <tr key={t.id} style={{ borderBottom: "1px solid #e8e4de" }}>
+                      <td style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, padding: "8px 12px" }}>{t.name}</td>
+                      <td style={{ padding: "8px 12px", textAlign: "right" }}>
+                        <input type="number" style={sInput} value={s18RevAlloc[t.id]}
+                          onChange={e => setS18RevAlloc(a => ({ ...a, [t.id]: nv(e.target.value) }))} />
+                      </td>
+                      <td style={{ padding: "8px 12px", textAlign: "right" }}>
+                        <input type="number" style={sInput} value={s18CostAlloc[t.id]}
+                          onChange={e => setS18CostAlloc(a => ({ ...a, [t.id]: nv(e.target.value) }))} />
+                      </td>
+                      <td style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 13, padding: "8px 12px", textAlign: "right", color: margin >= 0 ? "#2d7d46" : "#b83232" }}>{fmtK(margin)}</td>
+                    </tr>
+                  );
+                })}
+                <tr style={{ borderTop: "2px solid #1a1a1a" }}>
+                  <td style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, fontWeight: 600, padding: "8px 12px" }}>Total</td>
+                  <td style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 13, fontWeight: 700, padding: "8px 12px", textAlign: "right" }}>{fmtK(Object.values(s18RevAlloc).reduce((s,v)=>s+nv(v),0))}</td>
+                  <td style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 13, fontWeight: 700, padding: "8px 12px", textAlign: "right" }}>{fmtK(Object.values(s18CostAlloc).reduce((s,v)=>s+nv(v),0))}</td>
+                  <td style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 13, fontWeight: 700, padding: "8px 12px", textAlign: "right" }}>{fmtK(Object.values(s18RevAlloc).reduce((s,v)=>s+nv(v),0) - Object.values(s18CostAlloc).reduce((s,v)=>s+nv(v),0))}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── PURPOSE ── */}
+      {section === "purpose" && (
+        <div>
+          <div style={sLabel}>WHY / HOW / WHAT</div>
+          {[["WHY", why, setWhy, "The belief and conviction — why FBaM exists"],
+            ["HOW", how, setHow, "The specific differentiating practices and assets"],
+            ["WHAT", what, setWhat, "The programmes and services that follow"]
+          ].map(([label, val, setter, hint]) => (
+            <div key={label} style={{ marginBottom: 16 }}>
+              <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, fontWeight: 700, color: "#e07030", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>{label}</div>
+              <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#aaa", marginBottom: 6 }}>{hint}</div>
+              <textarea value={val} onChange={e => setter(e.target.value)} rows={3}
+                style={{ width: "100%", fontFamily: "'DM Sans',sans-serif", fontSize: 14, border: "1px solid #d8d3cb", borderRadius: 4, padding: "10px 12px", background: "#f0ede8", color: "#1a1a1a", resize: "vertical" }} />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Save bar ── */}
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 24, paddingTop: 16, borderTop: "1px solid #d8d3cb" }}>
+        <button onClick={onCancel} style={{ padding: "10px 20px", background: "none", border: "1px solid #d8d3cb", borderRadius: 4, fontFamily: "'DM Sans',sans-serif", fontSize: 13, cursor: "pointer", color: "#888" }}>Cancel</button>
+        <button onClick={doSave} disabled={saving} style={{ padding: "10px 20px", background: saved ? "#2d7d46" : "#e07030", color: "#fff", border: "none", borderRadius: 4, fontFamily: "'DM Sans',sans-serif", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+          {saving ? "Saving…" : saved ? "✓ Saved" : "Save all changes"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /* ── OBSERVER VIEW ────────────────────────────────────────────────────────── */
 function ObserverView({ tick, onLogout }) {
   const [tab, setTab] = useState("overview");
   const [selectedName, setSelectedName] = useState(null);
   const [participants, setParticipants] = useState(() => pAll().filter(p => !p._wiped && p.name));
 
-  // Delete state
+  const [editMode, setEditMode] = useState(false);
   const [showRemove, setShowRemove]     = useState(false);
   const [removePwd, setRemovePwd]       = useState("");
   const [removeErr, setRemoveErr]       = useState("");
@@ -4105,16 +4461,30 @@ Format as a numbered list. Each question should be specific to the data — not 
         {/* ── DETAIL TAB ── */}
         {tab === "detail" && (
           <div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 20 }}>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 20, alignItems: "center" }}>
               {participants.map((p, i) => (
-                <button key={p.name} onClick={() => setSelectedName(p.name)}
+                <button key={p.name} onClick={() => { setSelectedName(p.name); setEditMode(false); }}
                   style={{ padding: "6px 14px", border: `2px solid ${PAX_COLORS[i%7]}`, borderRadius: 4, fontFamily: "'DM Sans',sans-serif", fontSize: 12, fontWeight: 600, cursor: "pointer", background: selectedName === p.name ? PAX_COLORS[i%7] : "#f0ede8", color: selectedName === p.name ? "#fff" : "#1a1a1a" }}>
                   {p.name}
                 </button>
               ))}
+              {selected && !editMode && (
+                <button onClick={() => setEditMode(true)}
+                  style={{ marginLeft: "auto", padding: "6px 16px", background: "#e07030", color: "#fff", border: "none", borderRadius: 4, fontFamily: "'DM Sans',sans-serif", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                  ✏ Edit data
+                </button>
+              )}
             </div>
 
-            {selected && (() => {
+            {selected && editMode && (
+              <ParticipantEditor
+                participant={selected}
+                onSave={() => { syncFromSupabase().then(refreshParticipants); setEditMode(false); }}
+                onCancel={() => setEditMode(false)}
+              />
+            )}
+
+            {selected && !editMode && (() => {
               const { total: predRev } = calcPredRevs(selected);
               const { total: predCost } = calcPredCosts(selected);
               const sr = selected.s12Revs || selected.s17Revs;
@@ -4165,6 +4535,18 @@ Format as a numbered list. Each question should be specific to the data — not 
                       <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, color: "#888", marginBottom: 10 }}>Scenario revenue by July 2028</div>
                       {REV_LINES.map(l => <Row key={l.id} label={l.name} value={fmtK(nv(sr[l.id]))} />)}
                       <Row label="Total" value={fmtK(sR)} color="#e07030" />
+                    </div>
+                  )}
+
+                  {(selected.purposeWhy || selected.purposeHow || selected.purposeWhat) && (
+                    <div style={{ marginTop: 20 }}>
+                      <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, color: "#888", marginBottom: 10 }}>WHY / HOW / WHAT</div>
+                      {[["WHY", selected.purposeWhy], ["HOW", selected.purposeHow], ["WHAT", selected.purposeWhat]].map(([label, val]) => val ? (
+                        <div key={label} style={{ marginBottom: 10, padding: "10px 14px", background: "#ebe7e1", borderRadius: 4 }}>
+                          <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 700, color: "#e07030", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>{label}</div>
+                          <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, color: "#1a1a1a", lineHeight: 1.6 }}>{val}</div>
+                        </div>
+                      ) : null)}
                     </div>
                   )}
                 </div>
