@@ -14,6 +14,17 @@ const pSave = (name, d) => {
 };
 const pGet  = n => STORE.participants[n] || { name: n };
 const pAll  = () => Object.values(STORE.participants);
+
+/* Auto-save hook — fires pSave 800ms after last state change */
+const useAutoSave = (name, getData) => {
+  useEffect(() => {
+    if (!name) return;
+    const timer = setTimeout(() => {
+      pSave(name, getData());
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [JSON.stringify(getData())]);
+};
 const syncFromSupabase = async () => {
   if (!STORE.sessionId) return;
   try {
@@ -76,7 +87,7 @@ const COST_LINES = [
 ];
 
 const VARIABLE_COST_IDS = ["associates", "prog_costs"];
-const REV_DEF_RATES = { ft_mba: -8, ft_msc_prog: -8, pt_levy: -100, ced_custom: -13.214, slep: -80, cabinet: 20, ced_other: -13.214, micro_cred: 0, open: 0, research_dd: 0, hefce: 0, residences: -6.7374, other_rev: 0 };
+const REV_DEF_RATES = { ft_msc: 0, pt_levy: -100, exec_ed: -13.214, open: 0, research_dd: 0, hefce: 0, residences: -6.7374, other_rev: 0 };
 const COST_DRIVERS  = { academic_staff: "Pay award", support_staff: "Pay award", associates: "Day rate / volume", prog_costs: "Intake volume", ops_overhead: "Inflation / recharge", uni_charge: "TRAC / university allocation" };
 const STEP_NAMES    = ["1. Set goal","2. Revenue","3. Costs","4. Current position","5. Market context","6. Predicted revenues","7. Predicted costs","8. Prognosis","→ Section one","10. Who FBaM serves","11. Positioning","12. Changes","→ Section two","14. Close the gap","15. Theme P&L","16. Comparison","17. Finalise"];
 
@@ -163,11 +174,11 @@ const MARKET_BENCHMARKS = [
     fbamTrend: "Peaked, now declining with international market pressure",
     fbamCurrent: "Under pressure from Graduate Route compression and international levy.",
     mid: -8,
-    context: "MBA market under pressure from Graduate Route visa compression and the £925 international student levy from Aug 2028. Premium residential MBA retains some insulation due to peer network and campus model — but volume growth is unlikely." },
+    context: "MBA market under pressure from Graduate Route visa compression and the £925 international student levy from Aug 2028. Premium residential MBA retains some insulation due to peer network and campus model." },
   { id: "ft_msc_prog", label: "FT MSc programmes",
     range: "−2% to 0% CAGR",
     fbamTrend: "Peaked £21.9m (22/23) combined FT, now reversing sharply",
-    fbamCurrent: "Poor Jan 2026 intake (4 students vs 10 forecast for MSc Management). Withdrawals continuing.",
+    fbamCurrent: "Poor Jan 2026 intake (4 students vs 10 forecast). Withdrawals continuing.",
     mid: -8,
     context: "Sector declining due to Graduate Route compression. FBaM performing significantly below sector — Jan intake shortfall and withdrawal rate suggest structural demand problem, not cyclical. CAGR of −8% reflects continuation of current trajectory with modest stabilisation." },
   { id: "pt_levy",     label: "Apprenticeships / Levy",
@@ -181,7 +192,7 @@ const MARKET_BENCHMARKS = [
     fbamTrend: "Consistent growth 18/19→24/25 — main revenue growth lever",
     fbamCurrent: "Pipeline 86% confirmed. High-growth sector — this is where FBaM needs to win.",
     mid: -13,
-    context: "Sector growing strongly (UNICON 2025). CED Customised is the primary growth lever. Default CAGR of −13% reflects the structural drag from SLEP/levy loss built into the combined line — if modelling CED Customised alone and assuming growth, set a positive rate here." },
+    context: "Sector growing strongly (UNICON 2025). CED Customised is the primary growth lever. Default CAGR of −13% reflects structural drag from SLEP/levy loss — if modelling CED Customised alone and assuming growth, set a positive rate here." },
   { id: "slep",        label: "SLEP / Non-Award Bearing",
     range: "Structural elimination",
     fbamTrend: "Ending — final intakes complete",
@@ -193,7 +204,7 @@ const MARKET_BENCHMARKS = [
     fbamTrend: "Established and growing",
     fbamCurrent: "Active contract. Government outsourcing trend supports growth. Default +20%.",
     mid: 20,
-    context: "Cabinet Office contract is a genuine growth opportunity aligned with government outsourcing of capability development. +20% CAGR default reflects current trajectory — adjust if contract status changes at rebid." },
+    context: "Cabinet Office contract is a genuine growth opportunity. +20% CAGR default reflects current trajectory — adjust if contract status changes at rebid." },
   { id: "ced_other",   label: "Other exec ed",
     range: "Follows overall exec ed trend",
     fbamTrend: "Broadly stable",
@@ -531,6 +542,8 @@ function Entry({ onEnter }) {
 function Step1({ pData, confirmed, onConfirm, onBack }) {
   const [val, setVal] = useState(nv(pData.targetPct, 7.5));
 
+  useAutoSave(pData.name, () => ({ targetPct: val }));
+
   const desc = () => {
     if (val <= -5) return "Significant managed deficit";
     if (val < 0)  return "Managed deficit";
@@ -570,6 +583,11 @@ function Step2({ pData, confirmed, onConfirm, onBack }) {
   const init = () => { const r = {}; REV_LINES.forEach(l => { r[l.id] = String(nv(pData.revenues?.[l.id], l.prefillK)); }); return r; };
   const [revs, setRevs] = useState(init);
   const total = REV_LINES.reduce((s, l) => s + nv(revs[l.id], l.prefillK), 0);
+
+  useAutoSave(pData.name, () => {
+    const revenues = {}; REV_LINES.forEach(l => revenues[l.id] = nv(revs[l.id], l.prefillK));
+    return { revenues };
+  });
 
   const doConfirm = () => {
     const revenues = {}; REV_LINES.forEach(l => revenues[l.id] = nv(revs[l.id], l.prefillK));
@@ -613,6 +631,11 @@ function Step2({ pData, confirmed, onConfirm, onBack }) {
 function Step3({ pData, confirmed, onConfirm, onBack }) {
   const init = () => { const c = {}; COST_LINES.forEach(l => { c[l.id] = String(nv(pData.costs?.[l.id], l.baseK)); }); return c; };
   const [costs, setCosts] = useState(init);
+
+  useAutoSave(pData.name, () => {
+    const c = {}; COST_LINES.forEach(l => c[l.id] = nv(costs[l.id], l.baseK));
+    return { costs: c };
+  });
 
   const contribTotal = COST_LINES.filter(l => l.id !== "uni_charge").reduce((s, l) => s + nv(costs[l.id], l.baseK), 0);
   const uniCharge    = nv(costs["uni_charge"], 10325);
@@ -737,6 +760,12 @@ function Step5MarketContext({ pData, confirmed, onConfirm, onBack }) {
   const [rates, setRates] = useState(init);
   const [expanded, setExpanded] = useState({});
 
+  useAutoSave(pData.name, () => {
+    const marketRates = {};
+    MARKET_BENCHMARKS.forEach(b => { marketRates[b.id] = nv(rates[b.id], b.mid); });
+    return { marketRates };
+  });
+
   const doConfirm = () => {
     const marketRates = {};
     MARKET_BENCHMARKS.forEach(b => { marketRates[b.id] = nv(rates[b.id], b.mid); });
@@ -825,6 +854,12 @@ function PredStep({ stepN, lines, defRates, lineRates, setLineRates, baseRevTota
       };
     });
     return s;
+  });
+
+  useAutoSave(autoSaveName, () => {
+    const rates = {};
+    lines.forEach(l => { rates[l.id] = annlRate(nv(state[l.id]?.pctTotal, 0)); });
+    return isCost ? { costRates: rates } : { revRates: rates };
   });
 
   const updateFromPct = (id, pctTotal) => {
@@ -1559,7 +1594,6 @@ ${changesCtx}
 
 HARD CONSTRAINTS:
 - pt_levy MUST be 0 (Level 7 eliminated)
-- slep should be very low — this income is structurally declining (−80% default)
 - The model must be internally coherent with the strategic positioning
 - All figures must be positive integers in £k
 - The sum of all revenue lines minus sum of all cost lines must be at least £${Math.round(predRev * tgt / 100)}k
@@ -1602,7 +1636,7 @@ Respond ONLY in this exact JSON format:
       const newRevs = {}; REV_LINES.forEach(l => newRevs[l.id] = String(Math.round(nv(parsed.revs?.[l.id], nv(predRevs[l.id])))));
       const newCosts = {}; COST_LINES.forEach(l => newCosts[l.id] = String(Math.round(nv(parsed.costs?.[l.id], nv(predCosts[l.id])))));
       newRevs["pt_levy"] = "0";
-      // Verify surplus meets target
+      // Verify surplus meets target — adjust ced_custom if needed
       const aiRev = REV_LINES.reduce((s, l) => s + nv(newRevs[l.id]), 0);
       const aiCost = COST_LINES.reduce((s, l) => s + nv(newCosts[l.id]), 0);
       const aiSurplus = aiRev - aiCost;
@@ -1768,6 +1802,8 @@ function Step17CloseGap({ pData, confirmed, onConfirm, onBack }) {
   const [costs, setCosts] = useState(pData.s17Costs || initCosts());
   const [stmt,  setStmt]  = useState(pData.s17Stmt  || "");
 
+  useAutoSave(pData.name, () => ({ s17Revs: revs, s17Costs: costs, s17Stmt: stmt }));
+
   const totalRev   = REV_LINES.reduce((s, l) => s + nv(revs[l.id]), 0);
   const totalCost  = COST_LINES.reduce((s, l) => s + nv(costs[l.id]), 0);
   const surplus    = totalRev - totalCost;
@@ -1806,8 +1842,7 @@ Do-nothing financial trajectory by July 2028:
 - Gap to close: £${Math.round(baseGap)}k
 
 CRITICAL CONSTRAINTS:
-- pt_levy MUST be 0. The Level 7 apprenticeship levy is defunded. This income does not exist by 2028.
-- slep should be very low — this income is structurally declining (−80% CAGR). Do not rely on it.
+- pt_levy MUST be 0. The Level 7 apprenticeship levy is defunded. This income does not exist by 2028. Do not put any value here.
 - The sum of all revenue lines MINUS the sum of all cost lines MUST equal at least ${Math.round(predRev * tgt / 100)}k (the required surplus). Check your arithmetic before responding.
 - All figures must be positive integers in £k.
 
@@ -1854,7 +1889,7 @@ Respond in this EXACT JSON format only — no text outside the JSON:
       const newCosts = {}; COST_LINES.forEach(l => newCosts[l.id] = String(Math.round(nv(parsed.costs?.[l.id], nv(predCosts[l.id])))));
       // Force pt_levy to 0
       newRevs["pt_levy"] = "0";
-      // Verify gap closes — if not, adjust exec_ed upward until it does
+      // Verify gap closes — if not, adjust ced_custom upward
       const aiTotalRev  = REV_LINES.reduce((s, l) => s + nv(newRevs[l.id]), 0);
       const aiTotalCost = COST_LINES.reduce((s, l) => s + nv(newCosts[l.id]), 0);
       const aiSurplus   = aiTotalRev - aiTotalCost;
@@ -2113,6 +2148,8 @@ function Step18ThemePL({ pData, confirmed, onConfirm, onBack }) {
   const [mixes,     setMixes]     = useState(pData.s18Mixes     || { btg: { ...DEFAULT_MIXES.btg }, psl: { ...DEFAULT_MIXES.psl }, scpss: { ...DEFAULT_MIXES.scpss } });
   const [locked,    setLockedAll] = useState(pData.s18Locked    || { btg: {}, psl: {}, scpss: {} });
 
+  useAutoSave(pData.name, () => ({ s18RevAlloc: revAlloc, s18CostAlloc: costAlloc, s18Mixes: mixes }));
+
   const setMixForTheme = (tid, mix) => setMixes(m => ({ ...m, [tid]: mix }));
   const setLockedForTheme = (tid, setter) => setLockedAll(l => ({ ...l, [tid]: typeof setter === "function" ? setter(l[tid]) : setter }));
 
@@ -2302,6 +2339,7 @@ function ParticipantView({ name, tick, onLogout }) {
           note="31 July 2028 is chosen as it is FBaM's year end and levy funding should have ended post EPA submissions. Initial figures are based on CAGR from Step 5."
           confirmLabel="Confirm predicted revenues → Step 7: Predicted costs"
           isCost={false} confirmed={pd.step6Confirmed}
+          autoSaveName={name}
           onConfirm={(rates) => { pSave(name, { revRates: rates, step6Confirmed: true }); advance(); }}
           onBack={() => go(5)}
         />
@@ -2313,6 +2351,7 @@ function ParticipantView({ name, tick, onLogout }) {
           note="Enter your predicted % change for each cost line. Pay awards, TRAC changes, and headcount reductions all apply here."
           confirmLabel="Confirm predicted costs → Step 8: Prognosis"
           isCost={true} confirmed={pd.step7Confirmed}
+          autoSaveName={name}
           onConfirm={(rates) => { pSave(name, { costRates: rates, step7Confirmed: true }); advance(); }}
           onBack={() => go(6)}
         />
@@ -2378,6 +2417,8 @@ function PurposeStep8({ pData, confirmed, onConfirm, onBack }) {
   const init = () => { const g = {}; PURPOSE_GROUPS.forEach(k => g[k] = nv(pData.purposeGroups?.[k], 5)); return g; };
   const [groups, setGroups] = useState(init);
   const [others, setOthers] = useState(pData.purposeGroupOthers || [{ label: "", score: 5 }]);
+
+  useAutoSave(pData.name, () => ({ purposeGroups: groups, purposeGroupOthers: others }));
 
   const MAX_HIGH = 3;
   const highCount = Object.values(groups).filter(v => nv(v) >= 8).length
@@ -2470,6 +2511,8 @@ function PurposeStep8({ pData, confirmed, onConfirm, onBack }) {
 function PurposeStep9({ pData, confirmed, onConfirm, onBack }) {
   const init = () => { const t = {}; PURPOSE_TENSIONS.forEach(x => t[x.key] = nv(pData.purposeTensions?.[x.key], 50)); return t; };
   const [tensions, setTensions] = useState(init);
+
+  useAutoSave(pData.name, () => ({ purposeTensions: tensions }));
 
   const doConfirm = () => {
     pSave(pData.name, { purposeTensions: tensions, step10Confirmed: true });
