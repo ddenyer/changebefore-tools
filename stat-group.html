@@ -1,0 +1,2161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>STAT Group — Strategic Tensions Assessment Tool</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.development.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.development.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{font-family:'DM Sans',sans-serif;background:#f0ede8;color:#1a1a1a;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+.fade{animation:fadeIn .3s ease both}
+.shell{min-height:auto;display:flex;flex-direction:column}
+.prog-wrap{max-width:100%;margin:0 auto;padding:1rem 2rem .2rem}
+.prog-bars{display:flex;gap:3px;margin-bottom:.3rem}
+.prog-bar{flex:1;height:3px;border-radius:2px;background:#d8d3cb;transition:background .3s}
+.prog-bar.done{background:#e07030}.prog-bar.now{background:#1a1a1a}
+.prog-lbls{display:flex;gap:3px}
+.prog-lbl{flex:1;font-size:.52rem;font-weight:700;text-transform:uppercase;color:#b0a898;text-align:center;font-family:'DM Sans',sans-serif}
+.prog-lbl.done{color:#e07030}.prog-lbl.now{color:#1a1a1a}
+@media(max-width:480px){.prog-lbl{font-size:.42rem}}
+.main{flex:1}
+.content{max-width:760px;margin:0 auto;padding:2.5rem 1.5rem 3rem}
+.land-hero{border-bottom:1px solid #d8d3cb;padding-bottom:2rem;margin-bottom:2rem}
+.land-tag{font-size:.65rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#e07030;margin-bottom:.75rem}
+.land-title{font-size:2.1rem;font-weight:600;color:#1a1a1a;line-height:1.15;margin-bottom:.65rem;font-family:'Cormorant Garamond',serif}
+.land-desc{font-size:.95rem;color:#555;line-height:1.7;max-width:560px}
+.land-time{display:inline-flex;align-items:center;gap:.4rem;background:#e8e3dc;border-radius:20px;padding:.35rem .85rem;font-size:.75rem;font-weight:600;color:#888;margin-top:.85rem}
+.land-time::before{content:"⏱";font-size:.8rem}
+.field-lbl{font-size:.72rem;font-weight:700;color:#555;display:block;margin-bottom:.35rem;letter-spacing:.03em}
+.field-sub{font-size:.72rem;color:#999;margin-bottom:.35rem;line-height:1.5}
+.inp{width:100%;border:1px solid #d8d3cb;border-radius:3px;padding:.72rem 1rem;font-family:'DM Sans',sans-serif;font-size:.9rem;color:#1a1a1a;outline:none;min-height:44px;transition:border-color .15s;background:#fff;display:block}
+.inp:focus{border-color:#e07030}.inp::placeholder{color:#c0b8ae}
+.inp-ta{min-height:90px;resize:vertical;line-height:1.55}
+.disc{font-size:.72rem;color:#888;line-height:1.6;padding:.75rem;background:#ebe7e0;border-radius:3px;border:1px solid #d8d3cb;margin-top:.5rem}
+.btn-p{display:inline-flex;align-items:center;gap:.4rem;background:#e07030;color:#fff;border:none;border-radius:3px;font-weight:700;padding:.78rem 1.6rem;font-family:'DM Sans',sans-serif;font-size:.9rem;cursor:pointer;min-height:44px;transition:opacity .15s}
+.btn-p:hover:not([disabled]){opacity:.88}.btn-p[disabled]{opacity:.3;cursor:not-allowed}
+.btn-s{display:inline-flex;align-items:center;gap:.4rem;background:#f0ede8;color:#1a1a1a;border:1px solid #d8d3cb;border-radius:3px;font-weight:500;padding:.78rem 1.2rem;font-family:'DM Sans',sans-serif;font-size:.9rem;cursor:pointer;min-height:44px;transition:border-color .15s}
+.btn-s:hover{border-color:#1a1a1a}
+.btn-row{display:flex;gap:.7rem;align-items:center;flex-wrap:wrap;margin-top:1.75rem}
+.sec-tag{font-size:.63rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#e07030;margin-bottom:.5rem}
+.pg-title{font-size:1.55rem;font-weight:600;color:#1a1a1a;line-height:1.3;margin-bottom:.35rem;font-family:'Cormorant Garamond',serif}
+.pg-sub{font-size:.875rem;color:#666;margin-bottom:1.4rem;line-height:1.65}
+.back-btn{display:inline-flex;align-items:center;gap:.3rem;background:none;border:none;font-family:'DM Sans',sans-serif;font-size:.82rem;font-weight:500;color:#888;cursor:pointer;padding:0;margin-bottom:1.5rem}
+.back-btn:hover{color:#1a1a1a}
+.inf-box{background:#ebe7e0;border-left:3px solid #e07030;padding:.85rem 1.1rem;border-radius:0 3px 3px 0;margin-bottom:1.2rem;font-size:.875rem;line-height:1.6;color:#555}
+.warn-box{background:#fff8f6;border:1px solid #f0b8a8;border-radius:3px;padding:.85rem 1.1rem;margin:.7rem 0;font-size:.82rem;color:#c0392b}
+.q-cat-hdr{font-size:.72rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#b0a898;padding:.5rem 0;margin-top:1.25rem;margin-bottom:.35rem;border-top:1px solid #d8d3cb}
+.q-card{border:1px solid #d8d3cb;border-radius:4px;padding:1rem;margin-bottom:.5rem;background:#fff;transition:border-color .2s}
+.q-card.active{border-color:#1a1a1a}.q-card.done{border-color:#d8d3cb;opacity:.85}.q-card.locked{opacity:.45;pointer-events:none}
+.q-card-title{font-size:.8rem;font-weight:700;color:#1a1a1a;margin-bottom:.75rem;line-height:1.45}
+.q-grid{display:grid;grid-template-columns:1fr auto 1fr;gap:.65rem;align-items:center}
+.q-opt{border-radius:3px;padding:.6rem .75rem;font-size:.77rem;line-height:1.45;transition:all .15s}
+.q-opt-side{font-size:.58rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:.2rem}
+.q-inputs{display:flex;flex-direction:column;align-items:center;gap:.35rem;min-width:110px}
+.q-input-row{display:flex;align-items:center;gap:.35rem}
+.q-stepper{display:flex;align-items:center;gap:4px}
+.q-step-btn{width:28px;height:28px;border-radius:50%;border:1.5px solid #d8d3cb;background:#f0ede8;font-size:1.1rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#555;line-height:1;padding:0;flex-shrink:0;user-select:none}
+.q-step-btn:hover:not([disabled]){background:#e8e3dc;border-color:#b0a898}.q-step-btn[disabled]{opacity:.3;cursor:not-allowed}
+.q-val{width:32px;text-align:center;font-size:1rem;font-weight:700;color:#1a1a1a}
+.q-sep{color:#d8d3cb;font-weight:700;font-size:1.1rem}
+.q-hint{font-size:.63rem;color:#b0a898;text-align:center}
+.q-hint.over{color:#e07030;font-weight:700}.q-hint.ok{color:#27ae60;font-weight:600}
+.score-grid{display:grid;grid-template-columns:1fr 1fr;gap:.65rem;margin:1.2rem 0}
+.score-card{border:1px solid #d8d3cb;border-radius:3px;padding:.9rem;background:#fff}
+.score-dim{font-size:.6rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#b0a898;margin-bottom:.2rem}
+.score-val{font-size:1.55rem;font-weight:700;color:#e07030;line-height:1}
+.score-lbl{font-size:.75rem;color:#666;margin-top:.15rem}
+.score-bar{height:3px;background:#d8d3cb;border-radius:2px;margin-top:.55rem;overflow:hidden}
+.score-fill{height:100%;background:#e07030;border-radius:2px}
+.slider-wrap{margin-bottom:1.25rem}
+.slider-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:.4rem}
+.slider-lbl{font-size:.84rem;font-weight:600;color:#1a1a1a;flex:1;padding-right:1rem;line-height:1.3}
+.slider-val{font-size:1.1rem;font-weight:700;color:#e07030;flex-shrink:0}
+.slider-val span{font-size:.68rem;color:#b0a898;font-weight:400}
+.slider-track{position:relative;height:28px;display:flex;align-items:center}
+.slider-bg{height:6px;background:#d8d3cb;border-radius:3px;width:100%;overflow:hidden;position:relative}
+.slider-fill{height:100%;background:#e07030;border-radius:3px;transition:width .1s}
+.slider-input{position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer;z-index:1;-webkit-appearance:none;appearance:none}
+.slider-input::-webkit-slider-thumb{-webkit-appearance:none;width:28px;height:28px}
+.slider-input::-moz-range-thumb{width:22px;height:22px}
+.slider-thumb{position:absolute;transform:translateX(-50%);width:16px;height:16px;border-radius:50%;background:#fff;border:2px solid #e07030;box-shadow:0 1px 4px rgba(0,0,0,.15);pointer-events:none;transition:left .1s}
+.slider-section{border:1px solid #d8d3cb;border-radius:4px;padding:1.25rem;background:#ebe7e0;margin-bottom:1rem}
+.rpt-tabs{display:flex;gap:0;border-bottom:2px solid #d8d3cb;margin-bottom:1.75rem}
+.rpt-tab{padding:.6rem 1rem;font-size:.78rem;font-weight:700;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;color:#b0a898;transition:all .2s;white-space:nowrap}
+.rpt-tab.active{color:#1a1a1a;border-bottom-color:#1a1a1a}.rpt-tab:hover:not(.active){color:#555}
+.rpt-section{margin-bottom:1.5rem}
+.da-summary{background:#fff;border:1px solid #d8d3cb;border-left:4px solid #1a1a1a;border-radius:4px;padding:1.25rem 1.5rem;margin-bottom:1.75rem}
+.da-summary-heading{font-size:.63rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#1a1a1a;margin-bottom:.5rem}
+.da-grid{display:grid;grid-template-columns:1fr;gap:1rem;margin-bottom:1.75rem}
+.da-card{background:#fff;border:1px solid #d8d3cb;border-top:3px solid #e07030;border-radius:4px;padding:1.1rem 1.25rem}
+.da-card-heading{font-size:.63rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#e07030;margin-bottom:.5rem}
+.da-lower{display:flex;flex-direction:column;gap:.85rem;margin-bottom:1.5rem}
+.da-lower-card{background:#fff;border:1px solid #d8d3cb;border-radius:4px;padding:1.1rem 1.25rem}
+.da-lower-card.best{border-left:4px solid #16a34a}.da-lower-card.blind{border-left:4px solid #dc2626}.da-lower-card.areas{border-left:4px solid #2563eb}
+.da-lower-heading{font-size:.63rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.5rem}
+.da-lower-card.best .da-lower-heading{color:#16a34a}.da-lower-card.blind .da-lower-heading{color:#dc2626}.da-lower-card.areas .da-lower-heading{color:#2563eb}
+@media(max-width:600px){.da-grid{grid-template-columns:1fr}}
+.rpt-heading{font-size:.63rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#e07030;margin-bottom:.5rem}
+.rpt-body{font-size:.875rem;line-height:1.75;color:#1a1a1a;margin-bottom:.65rem}
+.chart-pair{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;margin:1.25rem 0}
+.chart-box{border:1px solid #d8d3cb;border-radius:4px;padding:1.25rem;background:#fff;text-align:center}
+.chart-lbl{font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#888;margin-bottom:.75rem}
+.sug-item{display:flex;gap:.65rem;align-items:flex-start;padding:.65rem 0;border-bottom:1px solid #ebe7e0}
+.sug-num{flex-shrink:0;width:22px;height:22px;border-radius:50%;background:#e07030;color:#fff;font-size:.7rem;font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:2px}
+.sug-txt{font-size:.85rem;line-height:1.6;color:#1a1a1a}
+.strat-badge{display:inline-flex;align-items:flex-start;gap:.5rem;background:#ebe7e0;border:1px solid #d8d3cb;border-radius:3px;padding:.5rem .9rem;margin:.7rem 0}
+.strat-dot{width:10px;height:10px;border-radius:50%;background:#e07030;flex-shrink:0;margin-top:3px}
+.strat-name{font-size:.84rem;font-weight:700;color:#1a1a1a}
+.think{display:flex;align-items:center;gap:.75rem;padding:1.5rem 0}
+.dots{display:flex;gap:5px}
+.dot{width:7px;height:7px;border-radius:50%;background:#e07030;animation:blink 1.2s ease-in-out infinite}
+.dot:nth-child(2){animation-delay:.2s}.dot:nth-child(3){animation-delay:.4s}
+.think-txt{font-size:.875rem;color:#888;font-style:italic}
+.gap-summary{border:1px solid #d8d3cb;border-radius:4px;overflow:hidden;margin:1.25rem 0;background:#fff}
+.gap-row{display:grid;grid-template-columns:1fr 60px 60px 80px;gap:.5rem;align-items:center;padding:.6rem .9rem;border-bottom:1px solid #ebe7e0;font-size:.82rem}
+.gap-row:last-child{border-bottom:none}
+.gap-row.hdr{background:#ebe7e0;font-size:.65rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#888}
+.gap-val{text-align:center;font-weight:700}
+.gap-badge{font-size:.65rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:.15rem .45rem;border-radius:2px;text-align:center}
+.gap-large{background:#fff3cd;color:#856404}.gap-medium{background:#d4edda;color:#155724}.gap-small{background:#e2e3e5;color:#383d41}
+.diamond-fullscreen-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.85);z-index:9999;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.diamond-fullscreen-inner{background:#fff;border-radius:12px;padding:2rem;max-width:520px;width:90%;position:relative}
+.diamond-fullscreen-close{position:absolute;top:.75rem;right:.75rem;background:none;border:none;font-size:1.4rem;cursor:pointer;color:#666;line-height:1}
+.diamond-expand-hint{font-size:.65rem;color:#b0a898;text-align:center;margin-top:.3rem;cursor:pointer}
+.resume-box{background:#fff8f5;border:1px solid #f5c8b0;border-radius:6px;padding:1.25rem;margin-bottom:1.25rem}
+.resume-box h3{font-size:.9rem;font-weight:700;color:#1a1a1a;margin-bottom:.5rem}
+.resume-box p{font-size:.82rem;color:#555;line-height:1.55;margin-bottom:.75rem}
+
+/* ── GROUP STYLES ────────────────────────────────────────────── */
+.chip-row{display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:.5rem}
+.p-chip{width:28px;height:28px;border-radius:50%;border:2px solid #d8d3cb;background:#f0ede8;font-size:.68rem;font-weight:700;display:flex;align-items:center;justify-content:center;color:#555;flex-shrink:0;position:relative}
+.p-chip.done{background:#1a1a1a;border-color:#1a1a1a;color:#fff}
+.p-chip.you{border-color:#e07030}
+.p-chip .you-dot{position:absolute;bottom:-2px;right:-2px;width:8px;height:8px;border-radius:50%;background:#e07030;border:1.5px solid #f0ede8}
+.refresh-btn{display:inline-flex;align-items:center;gap:.35rem;background:#f0ede8;border:1px solid #d8d3cb;border-radius:3px;padding:.4rem .8rem;font-size:.75rem;font-weight:600;cursor:pointer;color:#555;font-family:'DM Sans',sans-serif;transition:border-color .15s}
+.refresh-btn:hover{border-color:#1a1a1a;color:#1a1a1a}
+.pulse{display:inline-block;width:8px;height:8px;border-radius:50%;background:#22c55e;animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.85)}}
+.code-fix-box{display:flex;gap:.5rem;align-items:center;margin-top:.5rem;background:#fff8f5;border:1px solid #f5c8b0;border-radius:4px;padding:.5rem .75rem;flex-wrap:wrap}
+.code-fix-box input{border:1px solid #d8d3cb;border-radius:3px;padding:.35rem .6rem;font-size:.82rem;font-family:'DM Sans',sans-serif;outline:none;width:140px;text-transform:uppercase}
+.code-fix-box input:focus{border-color:#e07030}
+.apply-btn{background:#e07030;color:#fff;border:none;border-radius:3px;padding:.35rem .75rem;font-size:.78rem;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif}
+.anon-toggle{display:inline-flex;align-items:center;gap:.5rem;cursor:pointer;font-size:.78rem;color:#555;font-family:'DM Sans',sans-serif;user-select:none}
+.anon-toggle input{accent-color:#e07030;width:14px;height:14px;cursor:pointer}
+.group-mean-row{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:.5rem;margin:1rem 0}
+.gm-cell{background:#fff;border:1px solid #d8d3cb;border-radius:4px;padding:.75rem .6rem;text-align:center}
+.gm-lbl{font-size:.6rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#888;margin-bottom:.25rem}
+.gm-you{font-size:1.1rem;font-weight:700;color:#e07030;line-height:1}
+.gm-mean{font-size:.72rem;color:#666;margin-top:.15rem}
+.gm-diff{font-size:.65rem;font-weight:600;margin-top:.1rem}
+.gm-diff.up{color:#16a34a}.gm-diff.down{color:#dc2626}.gm-diff.flat{color:#888}
+.fac-tab-bar{display:flex;gap:0;border-bottom:2px solid #d8d3cb;margin-bottom:1.5rem;overflow-x:auto}
+.fac-tab{padding:.5rem .85rem;font-size:.72rem;font-weight:700;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;color:#b0a898;transition:all .2s;white-space:nowrap;font-family:'DM Sans',sans-serif}
+.fac-tab.active{color:#1a1a1a;border-bottom-color:#1a1a1a}
+.fac-tab:hover:not(.active){color:#555}
+.var-bar{height:6px;background:#d8d3cb;border-radius:3px;margin-top:.3rem;overflow:hidden}
+.var-fill{height:100%;border-radius:3px}
+.split-callout{background:#fffbeb;border:1px solid #fde68a;border-radius:4px;padding:.75rem 1rem;margin:.75rem 0;font-size:.82rem;color:#92400e;line-height:1.6}
+.waiting-state{text-align:center;padding:3rem 1rem;color:#888}
+.waiting-state .wait-icon{font-size:2.5rem;margin-bottom:1rem;opacity:.4}
+.waiting-state h3{font-size:1rem;font-weight:600;color:#555;margin-bottom:.5rem;font-family:'Cormorant Garamond',serif;font-size:1.3rem}
+.csv-btn{display:inline-flex;align-items:center;gap:.4rem;background:#1a1a1a;color:#fff;border:none;border-radius:3px;padding:.65rem 1.2rem;font-size:.82rem;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif}
+.all-in-badge{display:inline-flex;align-items:center;gap:.35rem;background:#dcfce7;color:#16a34a;border-radius:3px;padding:.2rem .6rem;font-size:.72rem;font-weight:700}
+.progress-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:.75rem;margin:1rem 0}
+.prog-person{background:#fff;border:1px solid #d8d3cb;border-radius:4px;padding:.75rem;font-size:.78rem}
+.prog-person .pp-name{font-weight:700;color:#1a1a1a;margin-bottom:.4rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prog-person .pp-steps{display:flex;gap:3px}
+.step-dot{width:10px;height:10px;border-radius:2px;background:#d8d3cb}
+.step-dot.done{background:#22c55e}.step-dot.current{background:#e07030}
+.notes-area{width:100%;border:1px solid #d8d3cb;border-radius:3px;padding:.75rem;font-family:'DM Sans',sans-serif;font-size:.875rem;color:#1a1a1a;outline:none;min-height:120px;resize:vertical;line-height:1.55;background:#fff}
+.notes-area:focus{border-color:#e07030}
+.respondent-card{background:#fff;border:1px solid #d8d3cb;border-radius:4px;padding:1rem;margin-bottom:.75rem}
+.respondent-card.selected{border-color:#1a1a1a;border-left:3px solid #e07030}
+.rc-header{display:flex;align-items:center;gap:.75rem;cursor:pointer;justify-content:space-between}
+.rc-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0}
+.rc-name{font-size:.88rem;font-weight:700;color:#1a1a1a}
+.rc-role{font-size:.72rem;color:#888}
+.rc-strategy{font-size:.72rem;font-weight:600;color:#e07030}
+.significant-gap{background:#fff8f5;border-left:4px solid #e07030;border-radius:0 4px 4px 0;padding:.85rem 1.1rem;margin-bottom:1.25rem}
+.sg-label{font-size:.6rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#e07030;margin-bottom:.3rem}
+.sg-text{font-size:.95rem;font-weight:600;color:#1a1a1a;line-height:1.4;font-family:'Cormorant Garamond',serif}
+
+@page{margin:0;size:A4}
+@media print{
+  *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+  .prog-wrap,.back-btn,.btn-row,.rpt-tabs,.diamond-expand-hint,
+  .resume-box,.land-hero,.disc{display:none!important}
+  .rpt-tab-content{display:block!important;margin-bottom:0!important}
+  .rpt-tab-content+.rpt-tab-content{margin-top:2rem;padding-top:1.5rem;border-top:2px solid #e07030}
+  body{background:#fff!important}
+  .shell{display:block}
+  .content{max-width:100%;padding:1.2cm 1.5cm}
+  .print-header{display:block!important}
+  .print-header-bar{display:flex!important}
+  .chart-box{padding:.75rem;break-inside:avoid;background:#fff!important;border:1px solid #d8d3cb}
+  .da-grid{grid-template-columns:1fr!important}
+  .da-card,.da-lower-card,.rpt-section,.gap-summary,.score-card{break-inside:avoid}
+  .da-summary{margin-bottom:.75rem}
+  .print-section-title{display:block!important;font-size:.65rem;font-weight:700;
+    letter-spacing:.1em;text-transform:uppercase;color:#e07030;margin-bottom:.5rem;
+    font-family:'DM Sans',sans-serif;padding-top:1rem;border-top:1px solid #e0dbd4}
+  svg{max-height:220px!important;width:auto!important}
+  h2.pg-title{font-size:1.3rem;margin-bottom:.25rem}
+  .sug-item{break-inside:avoid}
+  .score-grid{grid-template-columns:1fr 1fr}
+  .pg-sub{font-size:.8rem;color:#555;margin-bottom:1rem}
+  .strat-badge,.da-lower-card{background:#fff!important}
+  .feedback-section,.was-useful{display:none!important}
+}
+.print-header{display:none;margin-bottom:1.5rem}
+.print-header-bar{background:#1a1a1a;padding:.75rem 1.25rem;display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem}
+.print-header-logo{font-family:'DM Sans',sans-serif;font-size:1.5rem;font-weight:700;letter-spacing:-.01em;line-height:1}
+.print-header-logo span{color:#fff}
+.print-header-logo em{color:#e07030;font-style:normal}
+.print-header-meta{text-align:right;font-family:'DM Sans',sans-serif;font-size:.72rem;color:#aaa;line-height:1.6}
+.print-header-meta strong{color:#fff}
+.print-header-detail{display:flex;justify-content:space-between;align-items:baseline;padding:0 .25rem .5rem;border-bottom:2px solid #e07030;margin-bottom:.25rem;font-family:'DM Sans',sans-serif}
+.print-header-org{font-family:'Cormorant Garamond',serif;font-size:1.25rem;font-weight:600;color:#1a1a1a}
+.print-header-strat{font-size:.78rem;color:#555}
+@media(max-width:580px){
+  .q-grid{display:flex;flex-direction:column;gap:.5rem}
+  .q-inputs{order:2;width:100%;align-items:center}
+  .q-opt:first-of-type{order:1}.q-opt:last-of-type{order:3}
+  .q-step-btn{width:44px;height:44px;font-size:1.3rem}
+  .chart-pair{grid-template-columns:1fr}
+  .content{padding:1.5rem 1rem 2.5rem}
+  .land-title{font-size:1.6rem}
+  .rpt-tab{padding:.5rem .55rem;font-size:.68rem}
+  .slider-input{height:44px}
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const {useState,useRef,useEffect,useMemo}=React;
+
+// ── QUESTION DATA ──────────────────────────────────────────────────────────
+const S1={categories:[
+  {name:'Purpose',qs:[
+    {id:'s1p1',q:'What do we pay attention to when developing our strategy?',l:'Maintaining the status quo, making the most of existing capabilities and/or resources.',r:'Transforming and changing the organisation, creating new capabilities and/or resources.'},
+    {id:'s1p2',q:'What do we think stops us from failing as an organisation?',l:'Preventing threats, being prepared, controlling costs and safeguarding current capacity.',r:'Prospecting for opportunities, challenging to improve performance and accomplish more.'},
+    {id:'s1p3',q:'What are the key dimensions for success built into our strategy?',l:'Being predictable, having continuity, mitigating risk and reducing vulnerability.',r:'Growth, competition, targets and creating new business.'},
+  ]},
+  {name:'People',qs:[
+    {id:'s1pe1',q:'What do we value in our people?',l:'Being cautious and reliable.',r:'Being competitive and achievement oriented.'},
+    {id:'s1pe2',q:'What do we expect of leadership to deliver our strategy?',l:'Cascading clear rules, orders and instructions; managing performance through rewards and punishments.',r:"Setting ambitious stretch goals and inspiring people; consulting with stakeholders to get 'buy in'."},
+    {id:'s1pe3',q:'What do we do to help people deliver what is expected?',l:'Fixing gaps in knowledge and skills to respond to incidents, unexpected events and crises.',r:'Creating new knowledge and skills to enhance capability and improve performance.'},
+  ]},
+  {name:'Process',qs:[
+    {id:'s1pr1',q:'What brings people on message and acting in accordance with the strategy?',l:'Planning, design and supervision of work — managing at an individual level.',r:'Setting vision, goals and objectives — creating space for people to find their own ways.'},
+    {id:'s1pr2',q:'What organisation design concepts inform how we structure ourselves?',l:'High hierarchy, functional control systems, work orders, rules, codes of conduct, governance and regulation.',r:'Activities organised around geographical, market, or product groups with clear targets aligned to the corporate plan.'},
+    {id:'s1pr3',q:'What tendency underpins how we make decisions when facing uncertainty?',l:'Being conservative, mitigating loss and focused on avoiding the worst-case scenario.',r:'Being optimistic, maximising opportunities and focused on the most favourable outcome.'},
+  ]},
+  {name:'Product',qs:[
+    {id:'s1pd1',q:'What is our assumption about how to be successful in our market?',l:'Defending market share or position by making it harder for competitors or alternatives to challenge.',r:'Growing position and being a proactive market leader by initiating change to which competitors must react.'},
+    {id:'s1pd2',q:'What do our customers want from our existing products or services?',l:'Maintaining current service levels, delivering existing, trustworthy products and services.',r:'Continuously improving cost or features in existing products and/or services.'},
+    {id:'s1pd3',q:'What do we — and our stakeholders — value?',l:'Dependability, reliability and sustainability.',r:'Market share or position, goal achievement and short-term growth.'},
+  ]},
+]};
+
+const S2={categories:[
+  {name:'Purpose',qs:[
+    {id:'s2p1',q:'How do we enable the successful accomplishment of our strategy?',l:'Building agreement and support for the declared direction to ensure consistency and repeatability.',r:'Articulating the need to work together to create novel solutions and respond to new situations.'},
+    {id:'s2p2',q:'How do we focus our attention to be successful?',l:'Executing, implementing, performing existing work practices, processes and procedures.',r:'Enhancing flexibility and adaptability by imagining, creating and designing new ways of working.'},
+    {id:'s2p3',q:'How do we construct the core capabilities on which we pride ourselves?',l:'Meeting set requirements, efficiency gain and improving quality standards.',r:'Innovation, forward thinking, being agile and cutting edge.'},
+  ]},
+  {name:'People',qs:[
+    {id:'s2pe1',q:'How do we expect our people to respond to threats and opportunities?',l:'Being systematic and consistent.',r:'Being creative and responsive.'},
+    {id:'s2pe2',q:'How do we engage people in our strategic direction?',l:'Establishing common values and beliefs for people to work toward common expectations.',r:'Delegating to people closest to the problem/customer, empowering them with freedom and discretion to act.'},
+    {id:'s2pe3',q:'How do people become successful in this organisation?',l:'Complying with processes and work practices and living the organisational values and norms.',r:'Identifying new possibilities, demonstrating situational awareness and non-conventional thinking.'},
+  ]},
+  {name:'Process',qs:[
+    {id:'s2pr1',q:'How do we make, align and coordinate organisational activity?',l:'Standardising processes and ensuring clear roles and responsibilities.',r:'Cooperation and informal communication within and between different parts of the organisation.'},
+    {id:'s2pr2',q:'How do we make the most of our resources?',l:'Centralising services and managing efficient, streamlined operations.',r:'Decentralising (networked, loose, project-based, ad hoc structure), constantly adapting, low hierarchy.'},
+    {id:'s2pr3',q:'How do we respond to problems and unexpected events?',l:'Using established responses, planned procedures and formal rules that specify what to do and how.',r:'Allowing people to use their discretion and judgement; team working to pool collective expertise.'},
+  ]},
+  {name:'Product',qs:[
+    {id:'s2pd1',q:'How do we set about gaining competitive advantage?',l:'Exploiting existing markets, capabilities and technologies — optimising existing business models.',r:'Exploring new markets, capabilities, technologies and business models — being a first mover.'},
+    {id:'s2pd2',q:'How do we think we should develop our products or services in the future?',l:'Narrowing product/service lines, high-volume, transaction-oriented and standardised.',r:'Focusing on low-volume, highly responsive to customer needs, creating bespoke/customised solutions.'},
+    {id:'s2pd3',q:'How would we like our outputs to be measured?',l:'Being efficient, timely and consistent.',r:'Being innovative, responsive and customised.'},
+  ]},
+]};
+
+// ── SCORING ─────────────────────────────────────────────────────────────────
+function getStrategy(d,p,c,f){
+  const max=Math.max(d,p,c,f),min=Math.min(d,p,c,f);
+  if(max-min<15)return 'neutral';
+  const mind=p>d?'prog':'def';
+  const app=f>c?'flex':'con';
+  if(mind==='prog'&&app==='con')return 'performance_optimisation';
+  if(mind==='prog'&&app==='flex')return 'adaptive_innovation';
+  if(mind==='def'&&app==='con')return 'preventative_control';
+  return 'mindful_action';
+}
+const SLABELS={preventative_control:'Preventative Control',mindful_action:'Mindful Action',performance_optimisation:'Performance Optimisation',adaptive_innovation:'Adaptive Innovation',neutral:'Neutral'};
+const SDESC={
+  preventative_control:'Monitoring and complying — a defensive strategy based on consistency.',
+  mindful_action:'Noticing and responding — a defensive strategy based on flexibility.',
+  performance_optimisation:'Improving and exploiting — a progressive strategy based on consistency.',
+  adaptive_innovation:'Imagining and creating — a progressive strategy based on flexibility.',
+  neutral:'A balanced combination of all four core strategies.',
+};
+
+function gapLabel(g){if(Math.abs(g)<8)return 'small';if(Math.abs(g)<20)return 'medium';return 'large';}
+function gapBadgeText(g){if(Math.abs(g)<8)return 'Minor tweak';if(Math.abs(g)<20)return 'Moderate shift';return 'Significant change';}
+
+function getStrategyText(strat,th){
+  const capTh=th?th.charAt(0).toUpperCase()+th.slice(1):'The organisation';
+  const texts={
+    preventative_control:{
+      summary:`${capTh}'s profile shows a dominant Preventative Control strategy — a defensive, consistency-focused approach. Organisational resilience is achieved through robust risk management, physical barriers, systems back-ups, safeguards and standards. ${capTh} is strongly oriented toward protecting what exists and preventing disruption rather than proactively pursuing change.`,
+      purpose:`Your scores suggest the focus in ${th} is on maintaining the status quo and preserving existing capabilities. You perceive that ensuring basic requirements are met and consistent, repeatable day-to-day operations are the priority. Strategic energy is directed toward defence of current position rather than growth or transformation.`,
+      people:`Your scores suggest you believe the future is relatively predictable and the environment reasonably stable. Resilience is seen as a static feature of the organisation based on its size, capability or robustness. People are analytical, construct plans and execute them rigorously. Roles and accountabilities are clearly defined, and training is focused on compliance and correct procedure.`,
+      process:`${capTh} is defined by systems — engineered, people-dependent and procedure-based — alongside administrative and cost controls. Work is highly standardised with many routines. Decision-making is centralised and tasks are grouped by functional departments. There is a strong emphasis on ongoing monitoring and measurement of the system.`,
+      product:`The core aim is to maintain capacity, defend market share and/or profitability, or maintain current service levels. Clients and stakeholders value familiarity, dependability, reliability and sustainability — and ${th}'s outputs are shaped accordingly.`,
+      atBest:`At its best, ${th} solves known problems using proven techniques, perfects standard ways of doing things through fine-tuning, and quickly counteracts disruptions through planned responses. Predictability and reliability are genuine organisational strengths.`,
+      blind:`Preventative Control can create the illusion that 'failure can't happen here' in ${th}, yet over time there is a gradual erosion and weakening of defensive barriers. Without Mindful Action, people 'go by the book' and defer to the system — stopping noticing and responding to unusual problems. Without Performance Optimisation, ${th} can become impractical and unproductive; improvement stops and the organisation becomes static, stale and uncompetitive. Without Adaptive Innovation, competitors become more forward-thinking, agile and cutting edge.`,
+      areas:`To increase Mindful Action in ${th}, ensure competent people closest to the problem are empowered and have the freedom and discretion to act. To increase Performance Optimisation, rethink and redesign how work is done to better support productivity, cycle times and quality. To increase Adaptive Innovation, explore new capabilities, technologies and business models — create safe spaces for multi-disciplinary groups to create novel solutions.`,
+    },
+    mindful_action:{
+      summary:`${capTh}'s profile shows a dominant Mindful Action strategy — a defensive, flexibility-focused approach. Organisational resilience is typically created by people who use their experience, expertise and teamwork to anticipate and adapt to threats and respond effectively to unfamiliar situations through creative problem solving and improvisation.`,
+      purpose:`Your scores suggest you perceive the focus in ${th} as sensing environmental change and responding rapidly and creatively. The emphasis is on 'bouncing back' rather than fundamental reinvention — building the dynamic capabilities that adapt quickly whilst retaining what the organisation does well.`,
+      people:`Your scores suggest you believe the future is unpredictable and volatile. Resilience must be accomplished every day, not just built in once. You value expertise and diversity of opinion, and experience a "healthy uneasiness" about what might go wrong — and expect the authority to act on what you notice.`,
+      process:`${capTh} is relatively unstructured, informal and decentralised. It has an adaptive, flexible or 'organic' nature that enables groups to be responsive as new issues arise. The organisation is information-rich and makes deliberate attempts to create a very complete picture of the work environment.`,
+      product:`The core aim is to defend market share or position and/or maintain current service levels. ${capTh} delivers bespoke solutions, builds long-term relationships and tailors offerings to match the dynamic demands of customers and stakeholders.`,
+      atBest:`At its best, ${th} notices, understands and addresses opportunities and problems quickly. People are empowered to act. The shifting demands of customers, regulators and other stakeholders are rapidly and appropriately addressed.`,
+      blind:`Mindful Action is weakened in ${th} when the organisation stops investing in the competence of its people. Without Preventative Control, the lack of structure can lead to disarray and silos. Without Performance Optimisation, the decentralised system can be inefficient, with much duplication. Without Adaptive Innovation, people are constantly firefighting and do not have time to be more forward-thinking.`,
+      areas:`Increase Preventative Control by clearly defining roles and responsibilities and introducing formal planning processes with budgets and audits. Increase Performance Optimisation by rethinking and redesigning how work is done to better support productivity, efficiency and quality. Increase Adaptive Innovation by exploring new markets, capabilities and technologies — creating safe spaces for multi-disciplinary groups to develop novel solutions.`,
+    },
+    performance_optimisation:{
+      summary:`${capTh}'s profile shows a dominant Performance Optimisation strategy — a progressive, consistency-focused approach. Organisational resilience is formed by process optimisation, continually improving, refining and extending existing competencies, and exploiting current technologies to serve present customers and stakeholders more efficiently and effectively.`,
+      purpose:`Your scores suggest you believe the end goal in ${th} is to continuously improve the processes by which it operates — striving toward an aspirational vision and exploiting existing capabilities incrementally over time. Expectations are best met through systematic, ongoing improvement rather than radical change.`,
+      people:`Your scores suggest you believe the environment is reasonably stable but that competition and increasing stakeholder requirements demand continuous improvement. Building consensus and shared direction matters — and recognition and reward systems shape how people behave.`,
+      process:`${capTh} is defined by efficient, streamlined operations and centralised services to reduce cost and eradicate errors. There is consistent application of operations management methodologies. Measuring the performance of key processes and benchmarking is integral to the operation.`,
+      product:`The strategy is ideal for settings where customers and stakeholders value cost and consistency over variation. ${capTh}'s outputs tend to be high-volume, standardised and focused on incremental rather than transformational change.`,
+      atBest:`At its best, ${th} maximises efficiency and delivers on quality. It maintains and continuously improves the level of capability needed to deliver products or services — getting reliably better at what it already does well.`,
+      blind:`A singular focus on short-term productivity gain can prove detrimental to medium-term mission and sustainable performance. Without Preventative Control, people can become preoccupied with production over prevention. Without Mindful Action, ${th} can lose its adaptive capacity. Without Adaptive Innovation, the organisation can become very good at exploiting current approaches while quickly losing sight of changing needs and emerging challenges.`,
+      areas:`Increase Preventative Control by clearly defining roles and responsibilities and introducing formal planning processes with budgets and audits. Increase Mindful Action by delegating to people closest to the problem and empowering experts with freedom and discretion to act. Increase Adaptive Innovation by exploring new capabilities, technologies and business models — creating safe spaces for multi-disciplinary groups to create novel solutions.`,
+    },
+    adaptive_innovation:{
+      summary:`${capTh}'s profile shows a dominant Adaptive Innovation strategy — a progressive, flexibility-focused approach. Organisational resilience is typically created through innovation and creating new products, services or capabilities. It is also the strategy required to resolve complex, intractable issues that require fundamental rethinking of how the organisation works.`,
+      purpose:`Your scores suggest you believe the focus in ${th} should be on creative problem-solving, innovation and learning. The organisation adapts best by continuously experimenting and identifying new options ahead of others. Shared purpose is the engine of transformation.`,
+      people:`Your scores suggest you believe the environment is unpredictable and uncertain, and that results are short-lived. Novel solutions come from collaboration and experimentation across the organisation. There is a pull toward disrupting conventional thinking and encouraging divergent perspectives on problems.`,
+      process:`${capTh} has a flexible structure that stimulates performance and creativity. Decentralised organisational forms with low levels of hierarchy are constantly adapting to changing situations. The excitement and anxiety of working in this context are understood and people are supported to tolerate the uncertainty of their work.`,
+      product:`${capTh} explores new capabilities, technologies and business models. Being a first mover or finding fundamentally new approaches is crucial. Products and services continually redefine the state of the art, creating a continuous stream of innovation.`,
+      atBest:`At its best, ${th} achieves creative thinking and problem solving drawing on multiple perspectives, taking risks in a safe environment. System-wide changes are possible across borders and boundaries.`,
+      blind:`${capTh} can begin to cut innovation and exploration when faced with uncertainty — a 'threat-rigidity' effect. Without Preventative Control, people can take excessive risks and the lack of structure can lead to unnecessary work and functional silos. Without Performance Optimisation, the decentralised system can be inefficient. Without Mindful Action, the organisation can lose sight of immediate operational challenges.`,
+      areas:`Increase Preventative Control by clearly defining roles and responsibilities, introducing formal planning processes with budgets and audits. Increase Performance Optimisation by rethinking and redesigning how work is done to better support productivity, efficiency and quality. Increase Mindful Action by encouraging a 'healthy uneasiness' about what might go wrong — enable people to deal with problems and empower them to act.`,
+    },
+    neutral:{
+      summary:`${capTh}'s profile shows a Neutral strategy — an almost uniform emphasis on all four core strategies. This is often unintended and is rarely achieved by design. It typically reflects an organisation trying to be all things to all people, or one in which different groups are pursuing different strategies independently.`,
+      purpose:`${capTh} simultaneously pursues process optimisation and continuous improvement while also finding new solutions and innovative technologies. The organisation is equally focused on prevention and production.`,
+      people:`Your scores suggest you find yourself navigating between conflicting demands, making your own judgements about where to focus. The tensions in ${th} feel like genuine 'either/or' choices — but exploring a 'both/and' mindset may unlock more strategic options.`,
+      process:`A neutral strategy can be achieved structurally by separating the four core strategies across different groups — for example, preventative control managed by a risk department, adaptive innovation through an R&D function, performance optimisation through operational excellence programmes.`,
+      product:`${capTh} delivers performance optimisation to exploit knowledge and advantage — while simultaneously recognising how quickly things change and engaging in adaptive innovation and experimentation.`,
+      atBest:`At its best, a neutral strategy allows ${th} to respond to a wide range of challenges by drawing on multiple strategic modes simultaneously.`,
+      blind:`Is it possible to be equally great at all four strategies? The short answer is probably not. Individuals, groups and parts of ${th} will likely gravitate toward their preferred way of working. A neutral strategy is hard to do well since the purpose, people, process and product that lead to excellence in any one discipline are often contradictory and incompatible.`,
+      areas:`Coordination is critical. Investment in training and education is essential. Consider whether an emphasis on any one of the four core strategies would be preferable to a neutral position.`,
+    },
+  };
+  return texts[strat]||texts.neutral;
+}
+
+function generateContextualAnalysis(strat,th,contextText,prog,def,con,flex){
+  const ctx=(contextText||'').toLowerCase();
+  const isNuclear=ctx.includes('nuclear')||ctx.includes('sellafield')||ctx.includes('decommission')||ctx.includes('nda');
+  const isPublic=ctx.includes('public sector')||ctx.includes('government')||ctx.includes('nhs')||ctx.includes('council');
+  const isFinance=ctx.includes('bank')||ctx.includes('financial')||ctx.includes('fund')||ctx.includes('insurance');
+  const isTech=ctx.includes('tech')||ctx.includes('software')||ctx.includes('digital')||ctx.includes('platform');
+  if(isNuclear)return `In the nuclear sector — where ${th} operates — the consequences of failure can be catastrophic and irreversible. This makes a strong defensive and consistent foundation not just strategically sensible but a regulatory and safety imperative. The challenge for organisations like ${th} is not whether to be defensive, but whether that defensive posture has become so dominant that it prevents the kind of progressive, adaptive thinking needed to tackle the complex, long-horizon challenges of decommissioning, workforce transformation and changing stakeholder expectations.`;
+  if(isPublic)return `Operating in the public sector, ${th} faces the particular challenge of balancing accountability and consistency — essential for public trust — with the flexibility and innovation increasingly demanded by a changing service landscape. The risk for public sector organisations is that compliance culture becomes a substitute for strategic thinking.`;
+  if(isFinance)return `In financial services, the regulatory environment creates strong structural pressures toward defensive and consistent strategies. The resilience challenge for ${th} is ensuring that these necessary constraints do not crowd out the forward-looking, adaptive capacity needed to remain relevant in a rapidly changing market.`;
+  if(isTech)return `In the technology sector, the competitive landscape rewards speed, experimentation and adaptive innovation. The risk for ${th} is that the pressure to innovate can erode the consistent operational foundations — the processes, standards and governance — that enable sustainable scaling.`;
+  return '';
+}
+
+// ── SUGGESTIONS ENGINE ───────────────────────────────────────────────────────
+function generateSuggestions(prog,def,con,flex,tp,td,tc,tf,thing,s1ans,s2ans){
+  const th=thing||'your organisation';
+  const pGap=tp-prog,dGap=td-def,cGap=tc-con,fGap=tf-flex;
+  function sc(ans,i){const lv=parseInt(ans[i]?.l)||0,rv=parseInt(ans[i]?.r)||0;return{lv,rv,diff:rv-lv};}
+  const S1Q={
+    0:{aR:`In ${th}, the drive toward transformation and new capability is clear in your scores. The strategic challenge is sequencing: organisations that pursue transformation without a clear view of what must be protected first tend to lose ground in the areas they depend on most. The priority is to define explicitly what is non-negotiable before committing resources to what is new.`,aL:`Your scores show ${th} is oriented primarily toward protecting and maintaining what currently exists. The strategic risk is not failure — it is slow irrelevance. Organisations that optimise for stability without building new capability typically find themselves defending a shrinking position. The priority is to identify one area where forward investment is overdue and make it a deliberate strategic commitment.`,qR:`What capability does ${th} need in three to five years that does not yet exist — and what would have to be true for the organisation to start building it now?`,qL:`If ${th}'s current capabilities remain unchanged for the next three years, what will be the most significant consequence — and is the organisation taking that seriously?`},
+    1:{aR:`Your scores show ${th} is oriented toward prospecting for opportunity and pushing for improvement. The strategic question is whether the organisation has the resilience infrastructure to absorb the failures and setbacks that ambitious improvement programmes inevitably produce. Organisations that invest heavily in progress without investing equally in recovery tend to find that each setback is more damaging than the last.`,aL:`Your scores show ${th} is oriented primarily toward preventing failure and protecting current capacity. Prevention is necessary but not sufficient for long-term viability. The strategic priority is to identify where the organisation's current protective posture is consuming resources that could be generating growth — and to make a deliberate choice about that trade-off.`,qR:`Where has ${th}'s drive for improvement most recently created fragility — and what would a more resilient version of that initiative have looked like?`,qL:`What opportunity has ${th} most consistently failed to pursue because its primary orientation is toward not failing — and what is the accumulated cost of that pattern?`},
+    2:{aR:`Your scores reflect an organisation where growth, competition and new business are the primary markers of success. The strategic risk in this orientation is that it can create pressure to chase short-term targets at the expense of the foundations — the processes, capabilities and relationships — that make sustained growth possible.`,aL:`Your scores reflect an organisation where predictability, continuity and risk reduction are the primary markers of success. These are genuine strengths in volatile environments. The strategic question is whether this orientation remains the right one for the conditions ${th} is likely to face over the next three to five years — and whether it is a deliberate choice or a default.`,qR:`What would ${th} need to change about how it measures and rewards success in order to build more resilience into its growth agenda?`,qL:`If ${th}'s operating environment becomes significantly more volatile or competitive over the next three years, is the current emphasis on predictability and risk reduction still the right primary orientation?`},
+    3:{aR:`Your scores show ${th} values ambition, achievement and competitive drive in its people. These are powerful assets when channelled well. The strategic challenge is that organisations dominated by high-achievers can become brittle — over-dependent on a small number of exceptional performers, and under-invested in the systems and cultures that produce consistent, reliable performance across the whole.`,aL:`Your scores show ${th} values caution, reliability and adherence to established ways of working. This creates a stable, predictable workforce — and can suppress the challenge, questioning and creative tension that organisations need to identify problems early and adapt to changing conditions.`,qR:`Where has ${th}'s achievement orientation most clearly produced results that a more cautious, reliable approach would not have — and where has it created risk that wasn't adequately managed?`,qL:`What talent is ${th} losing or failing to attract because its culture prizes caution and reliability over ambition and drive — and what is the long-term strategic cost of that?`},
+    4:{aR:`Your scores show ${th} expects its leaders to set ambitious goals, inspire, and build buy-in. The strategic risk in this orientation is diffusion — organisations where leadership is primarily inspirational can lack the structural accountability and clear escalation paths that are essential when things go wrong.`,aL:`Your scores show ${th} expects its leaders to cascade clear rules, manage performance through defined mechanisms, and ensure compliance. The strategic risk is the erosion of initiative — organisations led primarily through instruction tend to develop a workforce that waits to be told rather than acts on judgment.`,qR:`Where has ${th}'s inspirational leadership model most clearly enabled performance that directive leadership would not have produced — and where has the absence of clear structure created problems?`,qL:`Where has ${th}'s directive, rule-based leadership approach most clearly prevented a problem — and where has it prevented people from solving one?`},
+    5:{aR:`Your scores show ${th} invests in creating new knowledge and capability ahead of need. This is a significant strategic asset when the investment is well-targeted. The risk is that forward-looking capability investment can become disconnected from operational reality — building skills that are impressive in theory but not deployed effectively in practice.`,aL:`Your scores show ${th} develops people primarily in response to incidents, gaps and crises. This is reactive development — it builds competence for the problems the organisation has already faced, not the ones it is about to face.`,qR:`What capability gap will ${th} most regret not having closed in three years — and what is preventing the organisation from investing in it now?`,qL:`What recurring problem in ${th} has been addressed through training or development at least twice in the last three years — and what does it tell you that it keeps recurring?`},
+    6:{aR:`Your scores show ${th} aligns people through shared goals and the space to find their own ways of delivering. This creates flexibility and initiative. The strategic risk is coordination failure — when people are pursuing the same goal via different methods, the organisation can lose coherence at the interfaces, which is exactly where the most consequential problems tend to occur.`,aL:`Your scores show ${th} aligns people through planning, supervision and individual-level management. This creates consistency and accountability. The strategic risk is that it concentrates decision-making at the top, which slows response times and can deprive the organisation of the judgment of the people closest to the work.`,qR:`Where is ${th}'s reliance on individual autonomy and goal-alignment most clearly creating coordination failures — and what structural change would address them without undermining the flexibility?`,qL:`Where is ${th}'s reliance on planning and supervision most clearly slowing the organisation's ability to respond to change — and what would it cost to push more decision-making authority downward?`},
+    7:{aR:`Your scores show ${th} organises primarily around outcomes and market groups, with targets aligned to the corporate plan. This creates strategic clarity and performance focus. The risk is that without strong functional ownership, critical capabilities — risk management, quality assurance, institutional knowledge — can fragment across business units and become nobody's clear responsibility.`,aL:`Your scores show ${th} organises around hierarchy, functional control systems, governance and regulation. This creates clear accountability and strong procedural discipline. The strategic risk is that it can concentrate decision-making at the top, create slow response times, and make cross-functional collaboration structurally difficult.`,qR:`What critical organisational capability is most at risk of fragmenting or becoming inconsistent because ${th}'s structure distributes it across multiple business units?`,qL:`What strategic decision is ${th} making too slowly because of its hierarchical structure — and what would it cost to accelerate it?`},
+    8:{aR:`Your scores show ${th} defaults to optimism and opportunity when facing uncertainty. This is a genuine strategic asset in fast-moving environments. The risk is that it can create systematic under-preparation for downside scenarios — organisations that consistently bet on the upside can find themselves without the absorptive capacity to manage a significant setback.`,aL:`Your scores show ${th} defaults to conservatism and loss mitigation when facing uncertainty. This protects the organisation from catastrophic downside scenarios but can create systematic underinvestment in growth and opportunity. Over time, consistently conservative decision-making under uncertainty tends to compound into a significant strategic disadvantage.`,qR:`Where has ${th}'s optimistic orientation under uncertainty most recently led to a downside outcome that better preparation would have mitigated?`,qL:`Where has ${th}'s conservative orientation under uncertainty most recently led to a missed opportunity that a more confident organisation would have taken?`},
+    9:{aR:`Your scores show ${th} sees competitive advantage as coming from proactively initiating change and being a market leader. This requires sustained investment in forward intelligence, innovation capacity, and the organisational ability to move faster than competitors. The strategic risk is that organisations focused on being first movers can move before the market is ready — or before their own capability to deliver is sufficient.`,aL:`Your scores show ${th} sees competitive advantage as coming from making its current position harder to challenge. This is a legitimate and often highly effective strategy — but it requires constant reinvestment in the sources of that position. The strategic risk is that defensive positioning can disguise the erosion of those sources over time.`,qR:`What would a new entrant to ${th}'s market do differently — and what does the answer tell you about where ${th}'s current market strategy is most vulnerable?`,qL:`What is the single most important source of ${th}'s current competitive position — and how confident are you that it will remain a source of advantage in five years?`},
+    10:{aR:`Your scores show ${th} believes customers want continuous improvement in cost or features. This orientation keeps the organisation competitive but can create a relentless improvement cycle that never delivers the stability and reliability that many customers also value. The strategic question is whether ${th} has a clear view of which customers it is optimising for — and whether those are the right ones.`,aL:`Your scores show ${th} believes customers primarily value maintaining current service levels and receiving existing, trustworthy products. This is a legitimate orientation for markets where reliability and consistency are genuinely the primary purchase drivers. The strategic risk is that it can be used to justify underinvestment in improvement and innovation — and can leave the organisation exposed when customer expectations shift.`,qR:`What shift in customer expectations is most likely to undermine ${th}'s current value proposition over the next three to five years — and how is the organisation preparing for it?`,qL:`Where is ${th}'s commitment to maintaining current service levels most clearly coming at the cost of responding to evolving customer needs?`},
+    11:{aR:`Your scores show ${th} and its stakeholders value market share, goal achievement and short-term growth. These are clear, measurable success criteria. The strategic risk is that they can systematically under-weight the foundations — relationships, capabilities, resilience — that determine whether growth is sustainable.`,aL:`Your scores show ${th} and its stakeholders value dependability, reliability and sustainability. These are genuine strategic assets in markets where trust is the primary purchase driver. The strategic question is whether this value set is creating a ceiling on ambition — and whether that ceiling is a deliberate choice.`,qR:`Where is ${th}'s focus on short-term growth most clearly creating pressure that undermines the long-term foundations — and how is that tension being managed at the strategic level?`,qL:`What would ${th} need to believe about its market and competitive environment to make a significant increase in its growth ambition feel not just possible but necessary?`},
+  };
+  const S2Q={
+    0:{aR:`Your scores show ${th} enables its strategy by creating space for novel solutions and collaborative responses to new situations. The strategic risk is that this orientation can produce incoherence — different parts of the organisation finding their own novel solutions to the same problem, with no mechanism to consolidate learning or create shared practice.`,aL:`Your scores show ${th} enables its strategy by building agreement and support for a declared direction. This creates consistency and predictability but can be slow to adapt when circumstances change. The strategic risk is that the emphasis on consensus can become a mechanism for avoiding difficult strategic choices rather than making them.`,qR:`Where is ${th}'s reliance on collaboration and novel approaches most clearly producing inconsistent outcomes across different parts of the organisation?`,qL:`Where has ${th}'s emphasis on building consensus most recently slowed a decision that needed to be made clearly and quickly?`},
+    1:{aR:`Your scores show ${th} focuses its attention on imagining new ways of working and building flexibility and adaptability. The strategic risk is that organisations focused on creating the future can underinvest in executing the present — and the reliability of current operations is what funds future innovation.`,aL:`Your scores show ${th} focuses its attention on executing existing work practices, processes and procedures well. The strategic risk is that organisations focused primarily on executing the current model can fail to notice when that model needs to change.`,qR:`What existing work practice in ${th} is most constraining the organisation's ability to respond to new conditions — and what would it take to change it?`,qL:`Where is ${th}'s focus on executing existing practices most clearly preventing the organisation from investing in the practices it will need in the future?`},
+    2:{aR:`Your scores show ${th} builds its core capabilities around innovation, agility and being cutting edge. The strategic risk is that it can create capability fragility — the organisation is excellent at building new things but struggles to maintain and operate them at scale and with consistency.`,aL:`Your scores show ${th} builds its core capabilities around meeting requirements, efficiency gains and improving quality standards. The strategic risk is that it anchors capability development to current requirements — which may not reflect what the organisation will need in the future.`,qR:`What capability is ${th} most at risk of losing competitive advantage in because its capability-building framework is anchored to today's requirements rather than tomorrow's conditions?`,qL:`Where is ${th}'s emphasis on meeting current requirements most clearly preventing investment in the capabilities it will need when requirements change?`},
+    3:{aR:`Your scores show ${th} expects people to be creative and responsive when facing threats and opportunities. The strategic risk is that organisations where creative response is the default can struggle to deliver the consistent, systematic execution that critical processes require.`,aL:`Your scores show ${th} expects people to be systematic and consistent when responding to threats and opportunities. The strategic risk is that when genuinely novel situations arise — ones the system wasn't designed for — the organisation may lack the adaptive capacity to respond effectively.`,qR:`Where is ${th}'s reliance on creative, responsive people most clearly creating inconsistency in outcomes that systematic process would prevent?`,qL:`Where is ${th}'s expectation of systematic response most clearly failing when the situation is genuinely novel?`},
+    4:{aR:`Your scores show ${th} engages people by delegating to those closest to the problem and empowering them with freedom and discretion. The strategic risk is that empowerment without shared understanding of strategic intent can produce excellent local decisions that are collectively incoherent.`,aL:`Your scores show ${th} engages people by establishing common values and shared expectations. The strategic risk is that it can create conformity — a workforce that is excellent at executing within the current frame but struggles when the frame needs to change.`,qR:`Where is ${th}'s delegation model most clearly producing decisions that are locally excellent but strategically incoherent?`,qL:`Where is ${th}'s emphasis on common values most clearly creating conformity that suppresses the challenge and divergence the organisation needs?`},
+    5:{aR:`Your scores show people succeed in ${th} by identifying new possibilities, demonstrating situational awareness and thinking non-conventionally. The strategic risk is that organisations that consistently reward novelty can inadvertently signal that reliability and consistency are less valued — which is dangerous when critical processes depend on both.`,aL:`Your scores show people succeed in ${th} by complying with processes and living the organisational values and norms. The strategic risk is that it can create an organisation that executes current strategy reliably but struggles to challenge it when challenge is needed.`,qR:`What does success look like in ${th} for someone who is excellent at operational reliability but has no appetite for innovation — and what does that answer reveal about the culture?`,qL:`What challenge about ${th}'s current direction is most consistently being suppressed because the culture rewards compliance over critical thinking?`},
+    6:{aR:`Your scores show ${th} coordinates through informal cooperation and communication. The strategic risk is that informal coordination fails at scale, under pressure, and across boundaries — precisely the conditions under which coordination matters most.`,aL:`Your scores show ${th} coordinates through standardised processes and clear roles and responsibilities. The strategic risk is that standardisation can create rigidity — making it difficult to coordinate effectively when the situation doesn't fit the standard process.`,qR:`Where is ${th}'s reliance on informal coordination most clearly creating coordination failures — and what is the minimum structural intervention that would address them?`,qL:`Where is ${th}'s standardised coordination most clearly failing to handle situations that don't fit the standard process?`},
+    7:{aR:`Your scores show ${th} maximises its resources by decentralising and operating in networked, adaptive structures. The strategic risk is that decentralised organisations can duplicate effort, lose institutional knowledge, and find it difficult to deploy resources to where they are most needed at the strategic level.`,aL:`Your scores show ${th} maximises its resources by centralising services and managing streamlined, efficient operations. The strategic risk is that centralisation creates bottlenecks and can make the organisation slow to respond to local conditions that require rapid resource deployment.`,qR:`Where is ${th}'s decentralised structure most clearly creating duplication or strategic incoherence that a more coordinated approach would prevent?`,qL:`Where is ${th}'s centralised structure most clearly creating bottlenecks that are slowing the organisation's ability to respond?`},
+    8:{aR:`Your scores show ${th} responds to problems using people's discretion, judgement and collective expertise. The strategic risk is that discretion-based response can produce highly variable outcomes — excellent when the right people are available, poor when they are not.`,aL:`Your scores show ${th} responds to problems using established responses, planned procedures and formal rules. The strategic risk is that procedural response can fail when the situation is genuinely novel — and organisations that rely heavily on procedure can develop a cultural aversion to acknowledging when the procedure doesn't apply.`,qR:`Where is ${th}'s reliance on discretion most clearly producing variable outcomes that better procedural definition would prevent?`,qL:`Where has ${th}'s procedural response most recently failed to handle a situation effectively — and what does the gap between the procedure and the reality reveal?`},
+    9:{aR:`Your scores show ${th} gains competitive advantage by exploring new markets, capabilities, technologies and business models. The strategic risk is that exploration without sufficient exploitation of current strengths can create an organisation that is always building the next thing and never fully delivering on what it has already built.`,aL:`Your scores show ${th} gains competitive advantage by optimising its existing business model and exploiting current capabilities. The strategic risk is that organisations focused primarily on exploiting current models can miss the moment when those models need to be fundamentally changed.`,qR:`What is the most significant strategic opportunity that ${th} is currently not positioned to pursue because its model is too narrowly focused on optimising what it already does?`,qL:`What signal is ${th} most consistently ignoring that suggests its current business model needs to evolve?`},
+    10:{aR:`Your scores show ${th} sees its future in bespoke, low-volume, highly responsive solutions. The strategic risk is that the commitment to customisation can create cost structures and operational complexity that make it difficult to sustain at scale.`,aL:`Your scores show ${th} sees its future in standardised, high-volume, transaction-oriented delivery. The strategic risk is that it makes the organisation vulnerable to competitors who can deliver the same standardisation at lower cost.`,qR:`What level of customisation is ${th} currently committing to that its operational model cannot sustainably support — and what strategic choice needs to be made about where to draw that line?`,qL:`Where is ${th}'s commitment to standardisation most clearly creating competitive vulnerability?`},
+    11:{aR:`Your scores show ${th} wants to be measured by innovation and responsiveness. The strategic risk is that these metrics can crowd out the efficiency and consistency metrics that determine whether the organisation is actually sustainable.`,aL:`Your scores show ${th} wants to be measured by efficiency, timeliness and consistency. The strategic risk is that they can create a measurement system that optimises for the current operating model even when that model needs to change.`,qR:`What outcome that matters most to ${th}'s most important stakeholders is not currently captured by its measurement system — and what would change if it were?`,qL:`Where is ${th}'s current measurement system most clearly optimising for the present at the expense of the future?`},
+  };
+
+  function buildSection(catName,offset){
+    const candidates=[];
+    for(let i=0;i<3;i++){
+      const s1={...sc(s1ans,offset+i),qi:offset+i,survey:'s1'};
+      const s2={...sc(s2ans,offset+i),qi:offset+i,survey:'s2'};
+      const s1lev=pGap>0?(s1.lv-s1.rv):dGap>0?(s1.rv-s1.lv):Math.abs(s1.diff);
+      const s2lev=fGap>0?(s2.lv-s2.rv):cGap>0?(s2.rv-s2.lv):Math.abs(s2.diff);
+      if((parseInt(s1ans[offset+i]?.l)||0)+(parseInt(s1ans[offset+i]?.r)||0)>0)candidates.push({lev:s1lev,qi:offset+i,survey:'s1',dir:s1.diff<=0?'L':'R'});
+      if((parseInt(s2ans[offset+i]?.l)||0)+(parseInt(s2ans[offset+i]?.r)||0)>0)candidates.push({lev:s2lev,qi:offset+i,survey:'s2',dir:s2.diff<=0?'L':'R'});
+    }
+    candidates.sort((a,b)=>b.lev-a.lev);
+    const top=candidates[0];const second=candidates[1]||candidates[0];
+    function txt(c,type){const lib=c&&(c.survey==='s1'?S1Q:S2Q);const entry=lib&&lib[c.qi];if(!entry)return null;return c.dir==='L'?entry[type+'L']:entry[type+'R'];}
+    return{
+      action:txt(top,'a')||`Identify the one change in ${catName.toLowerCase()} that would most close the gap between where ${th} is and where you want it to be — and take one small step toward it this week.`,
+      question:txt(second,'q')||`If your desired profile for ${catName.toLowerCase()} was already in place today, what would be the first thing you would notice that was different?`
+    };
+  }
+  return{purpose:buildSection('Purpose',0),people:buildSection('People',3),process:buildSection('Process',6),product:buildSection('Product',9)};
+}
+
+
+// ── COMBINED TO-BE DIAMOND ──────────────────────────────────────────────────
+// Shows as-is (orange, fixed) and to-be (dark, live) simultaneously
+function CombinedTobeDiamond({asIs,tobe}){
+  return(
+    <svg width={SZ} height={SZ} style={{overflow:'visible',maxWidth:'100%'}}>
+      {[.25,.5,.75,1].map(pct=><path key={pct} d={gridPath(pct)} fill="none" stroke="#d8d3cb" strokeWidth={pct===1?1.5:1}/>)}
+      <line x1={CX} y1={CY-RD} x2={CX} y2={CY+RD} stroke="#d8d3cb"/>
+      <line x1={CX-RD} y1={CY} x2={CX+RD} y2={CY} stroke="#d8d3cb"/>
+      {/* As-is — orange, fixed */}
+      <path d={shapePath({p:asIs.p,d:asIs.d,c:asIs.c,f:asIs.f})}
+        fill="#e07030" fillOpacity={.1} stroke="#e07030" strokeWidth={2} strokeLinejoin="round"/>
+      {/* To-be — dark, moving */}
+      <path d={shapePath({p:tobe.p,d:tobe.d,c:tobe.c,f:tobe.f})}
+        fill="#1a1a1a" fillOpacity={.08} stroke="#1a1a1a" strokeWidth={2} strokeDasharray="5,3" strokeLinejoin="round"/>
+      {/* As-is score dots */}
+      {[['prog',asIs.p],['flex',asIs.f],['def',asIs.d],['con',asIs.c]].map(([ax,sc])=>{
+        const [x,y]=axisPt(ax,sc);
+        return(<g key={'a'+ax}><circle cx={x} cy={y} r={10} fill="#e07030"/><text x={x} y={y+4} textAnchor="middle" fill="#fff" fontSize={9} fontWeight={700} fontFamily="DM Sans,sans-serif">{Math.round(sc)}</text></g>);
+      })}
+      {/* To-be score dots */}
+      {[['prog',tobe.p],['flex',tobe.f],['def',tobe.d],['con',tobe.c]].map(([ax,sc])=>{
+        const [x,y]=axisPt(ax,sc);
+        return(<g key={'t'+ax}><circle cx={x} cy={y} r={10} fill="#1a1a1a"/><text x={x} y={y+4} textAnchor="middle" fill="#fff" fontSize={9} fontWeight={700} fontFamily="DM Sans,sans-serif">{Math.round(sc)}</text></g>);
+      })}
+      <text x={CX} y={CY-RD-16} textAnchor="middle" fill="#1a1a1a" fontSize={11} fontWeight={700} fontFamily="DM Sans,sans-serif">Progressive</text>
+      <text x={CX+RD+10} y={CY+4} textAnchor="start" fill="#1a1a1a" fontSize={11} fontWeight={700} fontFamily="DM Sans,sans-serif">Flexible</text>
+      <text x={CX} y={CY+RD+26} textAnchor="middle" fill="#1a1a1a" fontSize={11} fontWeight={700} fontFamily="DM Sans,sans-serif">Defensive</text>
+      <text x={CX-RD-10} y={CY+4} textAnchor="end" fill="#1a1a1a" fontSize={11} fontWeight={700} fontFamily="DM Sans,sans-serif">Consistent</text>
+    </svg>
+  );
+}
+
+// ── DIAMOND CHART ────────────────────────────────────────────────────────────
+const MX=120,SZ=260,CX=130,CY=130,RD=90;
+function axisPt(ax,sc){const r=(sc/MX)*RD;if(ax==='prog')return[CX,CY-r];if(ax==='flex')return[CX+r,CY];if(ax==='def')return[CX,CY+r];return[CX-r,CY];}
+function shapePath(s){const pts=[[CX,CY-(s.p/MX)*RD],[CX+(s.f/MX)*RD,CY],[CX,CY+(s.d/MX)*RD],[CX-(s.c/MX)*RD,CY]];return pts.map((pt,i)=>`${i===0?'M':'L'}${pt[0]},${pt[1]}`).join(' ')+' Z';}
+function gridPath(pct){const r=RD*pct;return `M${CX},${CY-r} L${CX+r},${CY} L${CX},${CY+r} L${CX-r},${CY} Z`;}
+
+function ExpandableDiamond({children,title=''}){
+  const [open,setOpen]=useState(false);
+  return(
+    <div>
+      <div style={{cursor:'pointer'}} onClick={()=>setOpen(true)} title="Tap to expand">
+        {children}
+        <div className="diamond-expand-hint">⤢ tap to expand</div>
+      </div>
+      {open&&(
+        <div className="diamond-fullscreen-overlay" onClick={()=>setOpen(false)}>
+          <div className="diamond-fullscreen-inner" onClick={e=>e.stopPropagation()}>
+            <button className="diamond-fullscreen-close" onClick={()=>setOpen(false)}>✕</button>
+            {title&&<div style={{textAlign:'center',fontWeight:700,marginBottom:'.75rem',fontSize:'.9rem',fontFamily:"'DM Sans',sans-serif"}}>{title}</div>}
+            {children}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DiamondChart({p=0,d=0,c=0,f=0,color='#e07030',prevProfile=null}){
+  return(
+    <svg width={SZ} height={SZ} style={{overflow:'visible',maxWidth:'100%'}}>
+      {[.25,.5,.75,1].map(pct=><path key={pct} d={gridPath(pct)} fill="none" stroke="#d8d3cb" strokeWidth={pct===1?1.5:1}/>)}
+      <line x1={CX} y1={CY-RD} x2={CX} y2={CY+RD} stroke="#d8d3cb"/>
+      <line x1={CX-RD} y1={CY} x2={CX+RD} y2={CY} stroke="#d8d3cb"/>
+      {prevProfile&&(
+        <path d={shapePath({p:prevProfile.prog,d:prevProfile.def,c:prevProfile.con,f:prevProfile.flex})}
+          fill="none" stroke="#94a3b8" strokeWidth={1.5} strokeDasharray="5,4" strokeLinejoin="round" opacity={0.6}/>
+      )}
+      <path d={shapePath({p,d,c,f})} fill={color} fillOpacity={.13} stroke={color} strokeWidth={2} strokeLinejoin="round"/>
+      {[['prog',p],['flex',f],['def',d],['con',c]].map(([ax,sc])=>{
+        const [x,y]=axisPt(ax,sc);
+        return(
+          <g key={ax}>
+            <circle cx={x} cy={y} r={12} fill={color}/>
+            <text x={x} y={y+4} textAnchor="middle" fill="#fff" fontSize={10} fontWeight={700} fontFamily="DM Sans,sans-serif">{Math.round(sc)}</text>
+          </g>
+        );
+      })}
+      <text x={CX} y={CY-RD-16} textAnchor="middle" fill="#1a1a1a" fontSize={11} fontWeight={700} fontFamily="DM Sans,sans-serif">Progressive</text>
+      <text x={CX+RD+10} y={CY+4} textAnchor="start" fill="#1a1a1a" fontSize={11} fontWeight={700} fontFamily="DM Sans,sans-serif">Flexible</text>
+      <text x={CX} y={CY+RD+26} textAnchor="middle" fill="#1a1a1a" fontSize={11} fontWeight={700} fontFamily="DM Sans,sans-serif">Defensive</text>
+      <text x={CX-RD-10} y={CY+4} textAnchor="end" fill="#1a1a1a" fontSize={11} fontWeight={700} fontFamily="DM Sans,sans-serif">Consistent</text>
+    </svg>
+  );
+}
+
+// ── QUESTION SECTION ─────────────────────────────────────────────────────────
+function QuestionSection({secData,answers,onChange,activeIdx,setActiveIdx}){
+  const allQ=secData.categories.flatMap(c=>c.qs);
+  const firstUnanswered=allQ.findIndex((_,i)=>{const a=answers[i];const lv=parseInt(a?.l)||0,rv=parseInt(a?.r)||0;return(lv+rv)===0;});
+  const maxUnlocked=firstUnanswered===-1?allQ.length-1:firstUnanswered;
+  return(
+    <div>
+      {secData.categories.map(cat=>(
+        <div key={cat.name}>
+          <div className="q-cat-hdr">{cat.name}</div>
+          {cat.qs.map(q=>{
+            const idx=allQ.findIndex(x=>x.id===q.id);
+            const a=answers[idx]||{l:'',r:''};
+            const lv=parseInt(a.l)||0,rv=parseInt(a.r)||0;
+            const total=lv+rv,over=total>10,done=total>0&&!over;
+            const locked=idx>maxUnlocked;
+            const isActive=idx===activeIdx||(activeIdx<0&&idx===0);
+            const lActive=lv>0,rActive=rv>0;
+            const rem=10-total;
+            function handleL(val){
+              const n=Math.max(0,Math.min(Number(val)||0,10));
+              const u=[...answers];u[idx]={l:String(n),r:String(10-n)};onChange(u);setActiveIdx(idx);
+            }
+            function handleR(val){
+              const n=Math.max(0,Math.min(Number(val)||0,10));
+              const u=[...answers];u[idx]={l:String(10-n),r:String(n)};onChange(u);setActiveIdx(idx);
+            }
+            return(
+              <div key={q.id} className={`q-card${locked?' locked':isActive?' active':done?' done':''}`} onClick={()=>!locked&&setActiveIdx(idx)}>
+                <div className="q-card-title">{idx+1}. {q.q}</div>
+                <div className="q-grid">
+                  <div className="q-opt" style={{background:lActive?'#fff8f5':'#faf8f5',border:lActive?'1px solid #e07030':'1px solid #e0dbd4',color:lActive?'#1a1a1a':'#666'}}>
+                    <div className="q-opt-side" style={{color:lActive?'#e07030':'#c0b8ae'}}>Option A</div>
+                    {q.l}
+                  </div>
+                  <div className="q-inputs">
+                    <div className="q-input-row">
+                      <div className="q-stepper">
+                        <button className="q-step-btn" disabled={locked||lv<=0} onClick={e=>{e.stopPropagation();handleL(lv-1);}}>−</button>
+                        <div className="q-val">{lv}</div>
+                        <button className="q-step-btn" disabled={locked||lv>=10} onClick={e=>{e.stopPropagation();handleL(lv+1);}}>+</button>
+                      </div>
+                      <span className="q-sep">|</span>
+                      <div className="q-stepper">
+                        <button className="q-step-btn" disabled={locked||rv<=0} onClick={e=>{e.stopPropagation();handleR(rv-1);}}>−</button>
+                        <div className="q-val">{rv}</div>
+                        <button className="q-step-btn" disabled={locked||rv>=10} onClick={e=>{e.stopPropagation();handleR(rv+1);}}>+</button>
+                      </div>
+                    </div>
+                    <div className={`q-hint${done?' ok':''}`}>
+                      {done?`✓ 10 pts`:`${total}/10 pts`}
+                    </div>
+
+                  </div>
+                  <div className="q-opt" style={{background:rActive?'#fff8f5':'#faf8f5',border:rActive?'1px solid #e07030':'1px solid #e0dbd4',color:rActive?'#1a1a1a':'#666'}}>
+                    <div className="q-opt-side" style={{color:rActive?'#e07030':'#c0b8ae'}}>Option B</div>
+                    {q.r}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── COUPLED SLIDER ───────────────────────────────────────────────────────────
+// Drag up: pair auto-adjusts. Drag down: just reduces freely.
+function Slider({label,value,onChange,max=120,asIs=null}){
+  return(
+    <div className="slider-wrap">
+      <div className="slider-top">
+        <div className="slider-lbl">{label}</div>
+        <div className="slider-val">
+          {Math.round(value)}<span> / {max}</span>
+          {asIs!==null&&<span style={{marginLeft:'.5rem',fontSize:'.65rem',color:'#b0a898',fontWeight:400}}>current: {Math.round(asIs)}</span>}
+        </div>
+      </div>
+      <div className="slider-track">
+        <div className="slider-bg"><div className="slider-fill" style={{width:`${(value/max)*100}%`}}/></div>
+        <input type="range" min="0" max={max} value={value} onChange={e=>onChange(Number(e.target.value))} className="slider-input" aria-label={label}/>
+        <div className="slider-thumb" style={{left:`${(value/max)*100}%`}}/>
+        {asIs!==null&&(
+          <div style={{position:'absolute',left:`${(asIs/max)*100}%`,transform:'translateX(-50%)',top:'-4px',width:'2px',height:'30px',background:'#e07030',opacity:.35,pointerEvents:'none',borderRadius:'2px'}} title={`Current: ${Math.round(asIs)}`}/>
+        )}
+      </div>
+      {asIs!==null&&<div style={{fontSize:'.62rem',color:'#c0b8ae',marginTop:'.15rem',fontFamily:"'DM Sans',sans-serif"}}>▲ orange line = your current as-is score</div>}
+    </div>
+  );
+}
+
+// ── PROGRESS BAR ─────────────────────────────────────────────────────────────
+const STEPS=['Start','About','Survey','Profile','Future','Report'];
+function stepToNav(s){if(s<=1)return s;if(s<=3)return 2;if(s===4)return 3;if(s===5)return 4;return 5;}
+function Progress({step}){
+  const nav=stepToNav(step);
+  return(
+    <div className="prog-wrap">
+      <div className="prog-bars">{STEPS.map((_,i)=><div key={i} className={`prog-bar${i<nav?' done':i===nav?' now':''}`}/>)}</div>
+      <div className="prog-lbls">{STEPS.map((s,i)=><div key={i} className={`prog-lbl${i<nav?' done':i===nav?' now':''}`}>{s}</div>)}</div>
+    </div>
+  );
+}
+function BackBtn({onClick}){return(<button className="back-btn" onClick={onClick}>← Back</button>);}
+
+// ── LOCAL STORAGE HELPERS ────────────────────────────────────────────────────
+function lsKey(name){return 'stat_solo_'+(name||'anon').toLowerCase().trim().replace(/\s+/g,'_');}
+function saveProgress(name,data){try{localStorage.setItem(lsKey(name),JSON.stringify({...data,savedAt:Date.now()}));}catch(e){}}
+function loadProgress(name){try{const raw=localStorage.getItem(lsKey(name));return raw?JSON.parse(raw):null;}catch(e){return null;}}
+function clearProgress(name){try{localStorage.removeItem(lsKey(name));}catch(e){}}
+
+// ── MAIN APP ─────────────────────────────────────────────────────────────────
+function App(){
+  const [step,setStep]=useState(0);
+  const [respondentName,setRespondentName]=useState('');
+  const [resumeData,setResumeData]=useState(null);
+  const [thing,setThing]=useState('');
+  const [thingDesc,setThingDesc]=useState('');
+  const [contextText,setContextText]=useState('');
+  const [role,setRole]=useState('');
+  const [roleCustom,setRoleCustom]=useState('');
+  const [s1ans,setS1]=useState(Array(12).fill(null).map(()=>({l:'',r:''})));
+  const [s2ans,setS2]=useState(Array(12).fill(null).map(()=>({l:'',r:''})));
+  const [s1active,setS1Active]=useState(0);
+  const [s2active,setS2Active]=useState(0);
+  const [tobe,setTobe]=useState({p:60,d:60,c:60,f:60});
+  const [tobeInit,setTobeInit]=useState(false);
+  const [loading,setLoading]=useState(false);
+  const [showReport,setShowReport]=useState(false);
+  const [rptTab,setRptTab]=useState(0);
+  const [prevSubmission,setPrevSubmission]=useState(null);
+  const [thirtyDay,setThirtyDay]=useState('');
+  const [feedbackRating,setFeedbackRating]=useState(null);
+  const [feedbackComment,setFeedbackComment]=useState('');
+  const [sessionCode,setSessionCode]=useState('');
+  const [seniority,setSeniority]=useState('');
+  const [orgSize,setOrgSize]=useState('');
+  const [sector,setSector]=useState('');
+  const [groupRespondents,setGroupRespondents]=useState([]);
+  const [lastRefreshed,setLastRefreshed]=useState(null);
+  const [codeFixOpen,setCodeFixOpen]=useState(false);
+  const [codeFixVal,setCodeFixVal]=useState('');
+  const [anonymousMode,setAnonymousMode]=useState(false);
+  const [facTab,setFacTab]=useState('overview');
+  const [selectedRespondent,setSelectedRespondent]=useState(null);
+  const [facilitatorNotes,setFacilitatorNotes]=useState('');
+  const [aiQuestions,setAiQuestions]=useState(null);
+  const [aiQLoading,setAiQLoading]=useState(false);
+  const topRef=useRef(null);
+
+  useEffect(()=>{topRef.current&&topRef.current.scrollIntoView({behavior:'smooth'});},[step]);
+
+  // Auto-save progress whenever key state changes
+  useEffect(()=>{
+    if(!respondentName.trim()||step===0)return;
+    saveProgress(respondentName,{step,thing,thingDesc,contextText,role,roleCustom,s1ans,s2ans,tobe,tobeInit});
+  },[step,thing,thingDesc,contextText,role,roleCustom,s1ans,s2ans,tobe,tobeInit,respondentName]);
+
+  const def=s1ans.reduce((s,a)=>s+(parseInt(a.l)||0),0);
+  const prog=s1ans.reduce((s,a)=>s+(parseInt(a.r)||0),0);
+  const con=s2ans.reduce((s,a)=>s+(parseInt(a.l)||0),0);
+  const flex=s2ans.reduce((s,a)=>s+(parseInt(a.r)||0),0);
+  const asIsStrat=getStrategy(def,prog,con,flex);
+  const tobeStrat=getStrategy(tobe.d,tobe.p,tobe.c,tobe.f);
+  const SD=getStrategyText(asIsStrat,thing||'the organisation');
+  const th=thing||'the organisation';
+  const isAdmin=respondentName.trim().toLowerCase()==='admin';
+  const codeNorm=sessionCode.trim().toUpperCase();
+
+
+  const s1over=s1ans.some(a=>(parseInt(a.l)||0)+(parseInt(a.r)||0)>10);
+  const s2over=s2ans.some(a=>(parseInt(a.l)||0)+(parseInt(a.r)||0)>10);
+  const s1done=s1ans.every(a=>(parseInt(a.l)||0)+(parseInt(a.r)||0)>0)&&!s1over;
+  const s2done=s2ans.every(a=>(parseInt(a.l)||0)+(parseInt(a.r)||0)>0)&&!s2over;
+
+  const industryContext=useMemo(()=>generateContextualAnalysis(asIsStrat,th,contextText,prog,def,con,flex),[asIsStrat,th,contextText,prog,def,con,flex]);
+  const suggestions=useMemo(()=>generateSuggestions(prog,def,con,flex,tobe.p,tobe.d,tobe.c,tobe.f,th,s1ans,s2ans),[prog,def,con,flex,tobe.p,tobe.d,tobe.c,tobe.f,th,s1ans,s2ans]);
+
+  function initTobe(){
+    if(!tobeInit){setTobe({p:prog,d:def,c:con,f:flex});setTobeInit(true);}
+  }
+  function go(n){setStep(n);if(n===4)initTobe();}
+
+  // Coupled slider handlers: drag up = pair adjusts; drag down = free
+  function setTobeP(v){setTobe(t=>({...t,p:v,d:120-v}));}
+  function setTobeD(v){setTobe(t=>({...t,d:v,p:120-v}));}
+  function setTobeC(v){setTobe(t=>({...t,c:v,f:120-v}));}
+  function setTobeF(v){setTobe(t=>({...t,f:v,c:120-v}));}
+
+
+  // ── GROUP DATA ──────────────────────────────────────────────────────────
+  async function saveToGroup(){
+    if(!codeNorm)return;
+    try{
+      await fetch('/api/stat-save',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          session_code:codeNorm,
+          respondent_name:respondentName.trim(),
+          role:role==='None of the above'?roleCustom:role,
+          seniority,org_size:orgSize,sector,
+          thing,prog,def:def,con,flex,
+          tobe_p:tobe.p,tobe_d:tobe.d,tobe_c:tobe.c,tobe_f:tobe.f,
+          s1_answers:s1ans,s2_answers:s2ans,
+          strategy_type:SLABELS[asIsStrat],
+          date:new Date().toISOString(),
+        }),
+      });
+    }catch(e){console.warn('stat-save error:',e);}
+  }
+
+  async function loadGroup(){
+    if(!codeNorm)return;
+    try{
+      const resp=await fetch(`/api/stat-load?code=${encodeURIComponent(codeNorm)}`);
+      if(!resp.ok)return;
+      const data=await resp.json();
+      if(Array.isArray(data)){
+        setGroupRespondents(data);
+        setLastRefreshed(new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}));
+        // Load facilitator notes if admin
+        if(isAdmin){
+          const notesEntry=data.find(d=>d.respondent_name==='__facilitator__');
+          if(notesEntry&&notesEntry.notes)setFacilitatorNotes(notesEntry.notes);
+        }
+      }
+    }catch(e){console.warn('stat-load error:',e);}
+  }
+
+  async function saveFacilitatorNotes(notes){
+    if(!codeNorm||!isAdmin)return;
+    try{
+      await fetch('/api/stat-save',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({session_code:codeNorm,respondent_name:'__facilitator__',notes}),
+      });
+    }catch(e){console.warn('notes save error:',e);}
+  }
+
+  async function loadAiQuestions(){
+    if(!codeNorm||groupRespondents.length<2)return;
+    setAiQLoading(true);
+    try{
+      const resp=await fetch('/api/stat-ai-questions',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({sessionCode:codeNorm,respondents:groupRespondents,thing}),
+      });
+      if(resp.ok){const d=await resp.json();setAiQuestions(d.questions||[]);}
+    }catch(e){console.warn('ai-q error:',e);}
+    setAiQLoading(false);
+  }
+
+  function exportCSV(){
+    const rows=groupRespondents.filter(r=>r.respondent_name&&r.respondent_name!=='__facilitator__');
+    const headers=['Name','Role','Seniority','Sector','Progressive','Defensive','Consistent','Flexible','Strategy','Tobe_P','Tobe_D','Tobe_C','Tobe_F','Date'];
+    const lines=[headers.join(','),...rows.map(r=>[
+      `"${r.respondent_name||''}"`,`"${r.role||''}"`,`"${r.seniority||''}"`,`"${r.sector||''}"`,
+      r.prog||0,r.def||0,r.con||0,r.flex||0,`"${r.strategy_type||''}"`,
+      r.tobe_p||0,r.tobe_d||0,r.tobe_c||0,r.tobe_f||0,`"${(r.date||'').slice(0,10)}"`
+    ].join(','))];
+    const blob=new Blob([lines.join('\n')],{type:'text/csv'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download=`STAT_${codeNorm}_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+  }
+
+  // Poll group data when on report step
+  useEffect(()=>{
+    if(step!==6||!codeNorm)return;
+    // Small delay so saveToGroup() write completes before first load
+    const t=setTimeout(()=>loadGroup(),1200);
+    const id=setInterval(loadGroup,15000);
+    return()=>{clearTimeout(t);clearInterval(id);};
+  },[step,codeNorm]);
+
+  // Reload when user switches to group report tab
+  useEffect(()=>{
+    if(rptTab===4&&codeNorm&&step===6)loadGroup();
+  },[rptTab]);
+
+  // Admin: load group on mount if session code set
+  useEffect(()=>{
+    if(isAdmin&&codeNorm&&step===6)loadGroup();
+  },[isAdmin,codeNorm,step]);
+
+  async function fireNotification(){
+    try{
+      const resp=await fetch('/api/notify',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          type:codeNorm?'group':'solo',orgName:thing||'(unnamed)',role:role==='None of the above'?roleCustom:role,
+          sessionCode:codeNorm||'',
+          seniority,orgSize,sector,
+          asIs:{prog,def,con,flex},tobe:{p:tobe.p,d:tobe.d,c:tobe.c,f:tobe.f},
+          strategyType:SLABELS[asIsStrat],tobeType:SLABELS[tobeStrat],
+          date:new Date().toISOString(),respondentName,contextText:contextText.slice(0,200),
+          thirtyDayCommitment:thirtyDay||'',
+          feedbackRating:feedbackRating||'',feedbackComment:feedbackComment||'',
+        }),
+      });
+      if(!resp.ok)console.warn('notify failed:',resp.status);
+    }catch(e){console.warn('notify error:',e);}
+  }
+
+  function generate(){
+    // Save to group if session code present
+    if(codeNorm){
+      saveToGroup();
+    }
+    // Save previous scores for comparison
+    try{
+      const prev=loadProgress(respondentName);
+      if(prev&&prev.step>=5){
+        const pd=prev.s1ans?prev.s1ans.reduce((s,a)=>s+(parseInt(a.l)||0),0):0;
+        const pp=prev.s1ans?prev.s1ans.reduce((s,a)=>s+(parseInt(a.r)||0),0):0;
+        const pc=prev.s2ans?prev.s2ans.reduce((s,a)=>s+(parseInt(a.l)||0),0):0;
+        const pf=prev.s2ans?prev.s2ans.reduce((s,a)=>s+(parseInt(a.r)||0),0):0;
+        if(pp||pd)setPrevSubmission({prog:pp,def:pd,con:pc,flex:pf,date:prev.savedAt?new Date(prev.savedAt).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}):'previously'});
+      }
+    }catch(e){}
+    fireNotification();
+    setLoading(true);
+    setTimeout(()=>{setLoading(false);setShowReport(true);go(6);},1600);
+  }
+
+  function restart(){
+    clearProgress(respondentName);
+    setStep(0);setRespondentName('');setResumeData(null);setThing('');setThingDesc('');setContextText('');
+    setRole('');setRoleCustom('');
+    setS1(Array(12).fill(null).map(()=>({l:'',r:''})));
+    setS2(Array(12).fill(null).map(()=>({l:'',r:''})));
+    setS1Active(0);setS2Active(0);
+    setTobe({p:60,d:60,c:60,f:60});setTobeInit(false);
+    setShowReport(false);setRptTab(0);setPrevSubmission(null);
+    setThirtyDay('');setFeedbackRating(null);setFeedbackComment('');
+    setLoading(false);
+  }
+
+  function applyResume(data){
+    if(data.thing)setThing(data.thing);
+    if(data.thingDesc)setThingDesc(data.thingDesc);
+    if(data.contextText)setContextText(data.contextText);
+    if(data.role)setRole(data.role);
+    if(data.roleCustom)setRoleCustom(data.roleCustom);
+    if(data.s1ans)setS1(data.s1ans);
+    if(data.s2ans)setS2(data.s2ans);
+    if(data.tobe)setTobe(data.tobe);
+    if(data.tobeInit)setTobeInit(data.tobeInit);
+    setResumeData(null);
+    go(data.step||1);
+  }
+
+  // ── RENDER HELPERS ──────────────────────────────────────────────────────
+
+  function renderResumePrompt(){
+    if(!resumeData)return null;
+    const savedDate=resumeData.savedAt?new Date(resumeData.savedAt).toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'}):'recently';
+    return(
+      <div className="resume-box">
+        <h3>Welcome back — continue where you left off?</h3>
+        <p>We found a saved session for <strong>{respondentName}</strong> from {savedDate}. You were on step {resumeData.step} of 5.</p>
+        <div className="btn-row" style={{marginTop:'.75rem'}}>
+          <button className="btn-p" onClick={()=>applyResume(resumeData)}>Resume →</button>
+          <button className="btn-s" onClick={()=>setResumeData(null)}>Start fresh</button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── STEP 0: LANDING ─────────────────────────────────────────────────────
+  function renderLanding(){
+    return(
+      <div>
+        <div className="land-hero">
+          <div className="land-tag">changebefore.com</div>
+          <h1 className="land-title">STAT Group — Strategic Tensions Assessment Tool</h1>
+          <p className="land-desc">Complete the survey to see your individual profile and compare it with the rest of your group. Your facilitator will guide the group debrief.</p>
+          <div className="land-time">About 20 minutes</div>
+        </div>
+        <div style={{marginBottom:'1rem'}}>
+          <label className="field-lbl">Your name</label>
+          <input className="inp" placeholder="e.g. Alex Johnson" value={respondentName} onChange={e=>{
+            const n=e.target.value;setRespondentName(n);
+            if(n.trim().length>2){const saved=loadProgress(n);if(saved&&saved.step>0)setResumeData(saved);else setResumeData(null);}
+            else setResumeData(null);
+          }}/>
+        </div>
+        <div style={{marginBottom:'1.5rem'}}>
+          <label className="field-lbl">Session code <span style={{color:'#e07030'}}>*</span></label>
+          <div className="field-sub">Enter the code provided by your facilitator. Type ADMIN to access the facilitator view.</div>
+          <input className="inp" placeholder="e.g. SELL-2025" value={sessionCode}
+            onChange={e=>setSessionCode(e.target.value.toUpperCase())}
+            style={{textTransform:'uppercase',letterSpacing:'.05em'}}/>
+        </div>
+        {renderResumePrompt()}
+        {resumeData&&(
+          <div style={{fontSize:'.8rem',color:'#888',margin:'-.5rem 0 1rem',fontFamily:"'DM Sans',sans-serif"}}>
+            Or <button style={{background:'none',border:'none',color:'#e07030',cursor:'pointer',fontWeight:600,fontFamily:"'DM Sans',sans-serif",fontSize:'.8rem',textDecoration:'underline',padding:0}} onClick={()=>{setResumeData(null);setThing('');setThingDesc('');setContextText('');}}>start a new assessment for a different organisation →</button>
+          </div>
+        )}
+        <div className="disc">
+          <strong>Privacy:</strong> Your responses are used only to generate your report. Your name is stored locally on this device to enable return-visit comparison. No data is shared with third parties. This tool supports structured thinking and does not constitute professional advice. For questions, contact <a href="mailto:contact@changebefore.com" style={{color:'inherit'}}>contact@changebefore.com</a>. <a href="https://changebefore.com/privacy/" target="_blank" rel="noopener noreferrer" style={{color:'inherit',textDecoration:'underline'}}>View our full privacy notice →</a>
+        </div>
+        <div className="btn-row">
+          <button className="btn-p" disabled={!respondentName.trim()||!sessionCode.trim()} onClick={()=>{if(isAdmin){setShowReport(true);go(6);}else{go(1);}}}>Begin →</button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── STEP 1: CONTEXT (merged) ─────────────────────────────────────────────
+  function renderContext(){
+    return(
+      <div>
+        <BackBtn onClick={()=>go(0)}/>
+        <div className="sec-tag">Section 1 — What Are We Looking At?</div>
+        <h2 className="pg-title">Tell us about it</h2>
+        <p className="pg-sub">A few questions about the organisation or team you want to explore. The more you tell us, the more personalised your report will be.</p>
+
+        <label className="field-lbl">Name the thing you want to work on <span style={{color:'#e07030'}}>*</span></label>
+        <div className="field-sub">e.g. "The Nuclear Operations Division", "Our finance team", "Sellafield Ltd"</div>
+        <input className="inp" placeholder="What are we looking at?" value={thing} onChange={e=>setThing(e.target.value)} style={{marginBottom:'1.25rem'}}/>
+
+        <label className="field-lbl">Brief description <span style={{color:'#c0b8ae',fontWeight:400}}>(optional)</span></label>
+        <div className="field-sub">What does it do? What is its purpose? Who does it serve?</div>
+        <textarea className="inp inp-ta" placeholder="A short description of what this thing is and does..." value={thingDesc} onChange={e=>setThingDesc(e.target.value)} style={{marginBottom:'1.25rem'}}/>
+
+        <label className="field-lbl">Context <span style={{color:'#c0b8ae',fontWeight:400}}>(optional)</span></label>
+        <div className="field-sub">Any background that will help personalise your report — sector, recent challenges, what prompted this.</div>
+        <textarea className="inp inp-ta" placeholder="Describe the context in your own words..." value={contextText} onChange={e=>setContextText(e.target.value)} style={{marginBottom:'1.5rem'}}/>
+
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'1rem',marginBottom:'1.25rem'}}>
+          <div>
+            <label className="field-lbl">Organisation size <span style={{color:'#c0b8ae',fontWeight:400}}>(optional)</span></label>
+            <select className="inp" value={orgSize} onChange={e=>setOrgSize(e.target.value)}>
+              <option value="">Select...</option>
+              {['1–50','51–250','251–1,000','1,001–5,000','5,001–20,000','20,000+'].map(o=><option key={o}>{o}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="field-lbl">Sector <span style={{color:'#c0b8ae',fontWeight:400}}>(optional)</span></label>
+            <select className="inp" value={sector} onChange={e=>setSector(e.target.value)}>
+              <option value="">Select...</option>
+              {['Civil Aviation','Construction','Defence','Education','Energy & Utilities','Financial Services','Government / Public Sector','Healthcare / NHS','Housing','Legal & Professional Services','Manufacturing','Nuclear','Rail & Transport','Technology','Other'].map(o=><option key={o}>{o}</option>)}
+            </select>
+          </div>
+        </div>
+
+        <div className="btn-row">
+          <button className="btn-p" disabled={!thing.trim()} onClick={()=>go(2)}>Continue to Survey →</button>
+          <button className="btn-s" onClick={()=>go(0)}>← Back</button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── STEP 2: SURVEY 1 ─────────────────────────────────────────────────────
+  function renderS1(){
+    return(
+      <div>
+        <BackBtn onClick={()=>go(1)}/>
+        <div className="sec-tag">Survey — Part 1 of 2</div>
+        <h2 className="pg-title">How does <em style={{fontStyle:'normal',color:'#e07030'}}>{th}</em> operate today?</h2>
+        <p className="pg-sub">For each question, allocate up to 10 points between the two options to show how strongly each reflects the current reality in {th}. Answer based on how things <strong>actually are</strong> — not how you would like them to be.</p>
+        <div className="inf-box">
+          Allocate all 10 points between each pair of statements. Split them in any way you see as appropriate (e.g. 10-0, 8-2, 5-5, 0-10). Half-points are not allowed.
+        </div>
+        <div style={{background:'#ebe7e0',border:'1px solid #d8d3cb',borderRadius:'6px',padding:'1rem 1.25rem',marginBottom:'1.25rem'}}>
+          <div style={{fontSize:'.7rem',fontWeight:800,letterSpacing:'.08em',textTransform:'uppercase',color:'#888',marginBottom:'.6rem',fontFamily:"'DM Sans',sans-serif"}}>Example — how the scoring works</div>
+          <div style={{fontSize:'.8rem',fontWeight:700,color:'#1a1a1a',marginBottom:'.75rem',fontFamily:"'DM Sans',sans-serif"}}>How does the organisation primarily make decisions?</div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr auto 1fr',gap:'.65rem',alignItems:'center'}}>
+            <div style={{background:'#fff8f5',border:'1px solid #e07030',borderRadius:'3px',padding:'.5rem .65rem',fontSize:'.75rem',lineHeight:1.45}}>
+              <span style={{fontSize:'.58rem',fontWeight:700,letterSpacing:'.08em',textTransform:'uppercase',color:'#e07030',display:'block',marginBottom:'.2rem'}}>Option A</span>
+              Following established procedures, rules and protocols.
+            </div>
+            <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:'.3rem',minWidth:'110px'}}>
+              <div style={{display:'flex',alignItems:'center',gap:'6px'}}>
+                <div style={{width:28,height:28,borderRadius:'50%',border:'1.5px solid #d8d3cb',background:'#f0ede8',display:'flex',alignItems:'center',justifyContent:'center',color:'#b0a898'}}>−</div>
+                <div style={{width:32,textAlign:'center',fontWeight:700,color:'#e07030',fontSize:'1rem',fontFamily:"'DM Sans',sans-serif"}}>7</div>
+                <div style={{width:28,height:28,borderRadius:'50%',border:'1.5px solid #d8d3cb',background:'#f0ede8',display:'flex',alignItems:'center',justifyContent:'center',color:'#b0a898'}}>+</div>
+                <span style={{color:'#d8d3cb',fontWeight:700}}>|</span>
+                <div style={{width:28,height:28,borderRadius:'50%',border:'1.5px solid #d8d3cb',background:'#f0ede8',display:'flex',alignItems:'center',justifyContent:'center',color:'#b0a898'}}>−</div>
+                <div style={{width:32,textAlign:'center',fontWeight:700,fontSize:'1rem',fontFamily:"'DM Sans',sans-serif"}}>3</div>
+                <div style={{width:28,height:28,borderRadius:'50%',border:'1.5px solid #d8d3cb',background:'#f0ede8',display:'flex',alignItems:'center',justifyContent:'center',color:'#b0a898'}}>+</div>
+              </div>
+              <div style={{fontSize:'.7rem',color:'#22c55e',fontWeight:600}}>✓ 10 pts</div>
+            </div>
+            <div style={{background:'#faf8f5',border:'1px solid #e0dbd4',borderRadius:'3px',padding:'.5rem .65rem',fontSize:'.75rem',lineHeight:1.45,color:'#666'}}>
+              <span style={{fontSize:'.58rem',fontWeight:700,letterSpacing:'.08em',textTransform:'uppercase',color:'#c0b8ae',display:'block',marginBottom:'.2rem'}}>Option B</span>
+              Using individual judgement and expertise to adapt to the situation.
+            </div>
+          </div>
+          <div style={{fontSize:'.75rem',color:'#555',marginTop:'.75rem',lineHeight:1.5}}>
+            In this example the person scored <strong>7–3</strong>, meaning they strongly believe their organisation follows established procedures. A score of <strong>5–5</strong> means equal weight. All 10 points must be used.
+          </div>
+        </div>
+        <QuestionSection secData={S1} answers={s1ans} onChange={setS1} activeIdx={s1active} setActiveIdx={setS1Active}/>
+        {s1over&&<div className="warn-box">One or more questions exceed 10 points total. Please correct before continuing.</div>}
+        {!s1done&&!s1over&&<div style={{fontSize:'.8rem',color:'#b0a898',marginTop:'.75rem'}}>Complete all 12 questions to continue. Questions unlock in sequence as you answer each one.</div>}
+        <div className="btn-row">
+          <button className="btn-p" disabled={!s1done} onClick={()=>go(3)}>Continue to Part 2 →</button>
+          <button className="btn-s" onClick={()=>go(1)}>← Back</button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── STEP 3: SURVEY 2 ─────────────────────────────────────────────────────
+  function renderS2(){
+    return(
+      <div>
+        <BackBtn onClick={()=>go(2)}/>
+        <div className="sec-tag">Survey — Part 2 of 2</div>
+        <h2 className="pg-title">How does <em style={{fontStyle:'normal',color:'#e07030'}}>{th}</em> operate today?</h2>
+        <p className="pg-sub">Continue allocating all 10 points per question. Split them however best reflects the current reality.</p>
+        <QuestionSection secData={S2} answers={s2ans} onChange={setS2} activeIdx={s2active} setActiveIdx={setS2Active}/>
+        {s2over&&<div className="warn-box">One or more questions exceed 10 points total. Please correct before continuing.</div>}
+        {!s2done&&!s2over&&<div style={{fontSize:'.8rem',color:'#b0a898',marginTop:'.75rem'}}>Complete all 12 questions to continue.</div>}
+        <div className="btn-row">
+          <button className="btn-p" disabled={!s2done} onClick={()=>go(4)}>See My Profile →</button>
+          <button className="btn-s" onClick={()=>go(2)}>← Back</button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── STEP 4: PROFILE ──────────────────────────────────────────────────────
+  function renderProfile(){
+    return(
+      <div>
+        <BackBtn onClick={()=>go(3)}/>
+        <div className="sec-tag">Your Current Profile</div>
+        <h2 className="pg-title">How <em style={{fontStyle:'normal',color:'#e07030'}}>{th}</em> operates today</h2>
+        <p className="pg-sub">Your scores across the four strategic dimensions plotted on the STAT profile chart.</p>
+        <div className="chart-box" style={{maxWidth:'320px',margin:'0 auto 1.5rem'}}>
+          <ExpandableDiamond title={`As-Is Profile — ${th}`}>
+            <div className="chart-lbl">As-Is Profile — {th}</div>
+            <DiamondChart p={prog} d={def} c={con} f={flex} color="#e07030"/>
+          </ExpandableDiamond>
+        </div>
+        <div className="score-grid">
+          {[{lbl:'Progressive',val:prog,dim:'Mindset'},{lbl:'Defensive',val:def,dim:'Mindset'},{lbl:'Flexible',val:flex,dim:'Approach'},{lbl:'Consistent',val:con,dim:'Approach'}].map(sc=>(
+            <div key={sc.lbl} className="score-card">
+              <div className="score-dim">{sc.dim}</div>
+              <div className="score-val">{sc.val}</div>
+              <div className="score-lbl">{sc.lbl}</div>
+              <div className="score-bar"><div className="score-fill" style={{width:`${(sc.val/120)*100}%`}}/></div>
+            </div>
+          ))}
+        </div>
+        <div className="strat-badge"><div className="strat-dot"/><div><strong style={{fontFamily:"'DM Sans',sans-serif"}}>Dominant strategy: {SLABELS[asIsStrat]}</strong><br/><span style={{fontSize:'.8rem',fontWeight:400,color:'#666',fontFamily:"'DM Sans',sans-serif"}}>{SDESC[asIsStrat]}</span></div></div>
+        <div className="btn-row">
+          <button className="btn-p" onClick={()=>{initTobe();go(5);}}>Set Future Profile →</button>
+          <button className="btn-s" onClick={()=>go(3)}>← Back</button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── STEP 4: TO-BE (live diamond) ─────────────────────────────────────────
+  // Note: renderProfile and renderTobe both live at step 4; renderProfile shows first,
+  // then on "Set Future Profile →" button we stay at step 4 but switch a local sub-step.
+  // Simpler: use step 4 for to-be sliders. Profile is step 3 (was step 4 above — fixed below).
+
+  function renderTobe(){
+    return(
+      <div>
+        <BackBtn onClick={()=>go(3)}/>
+        <div className="sec-tag">Future Profile</div>
+        <h2 className="pg-title">Where do you want <em style={{fontStyle:'normal',color:'#e07030'}}>{th}</em> to be?</h2>
+        <p className="pg-sub">Drag the sliders to set your desired future profile. Sliders start from your current as-is scores. Moving one slider up will automatically adjust its paired dimension. The diamond updates in real time.</p>
+
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'1.25rem',alignItems:'start',marginBottom:'1rem'}}>
+          <div>
+            <div className="slider-section">
+              <div className="sec-tag" style={{marginBottom:'.85rem'}}>Mindset — Progressive & Defensive</div>
+              <Slider label="Progressive" value={tobe.p} onChange={setTobeP} max={120} asIs={prog}/>
+              <Slider label="Defensive" value={tobe.d} onChange={setTobeD} max={120} asIs={def}/>
+              <div style={{fontSize:'.72rem',color:'#b0a898',marginTop:'.25rem'}}>Combined: {tobe.p+tobe.d} / 120</div>
+            </div>
+            <div className="slider-section">
+              <div className="sec-tag" style={{marginBottom:'.85rem'}}>Approach — Consistent & Flexible</div>
+              <Slider label="Consistent" value={tobe.c} onChange={setTobeC} max={120} asIs={con}/>
+              <Slider label="Flexible" value={tobe.f} onChange={setTobeF} max={120} asIs={flex}/>
+              <div style={{fontSize:'.72rem',color:'#b0a898',marginTop:'.25rem'}}>Combined: {tobe.c+tobe.f} / 120</div>
+            </div>
+          </div>
+          <div>
+            <div className="chart-box">
+              <div className="chart-lbl">Your profile — move sliders to see it reshape</div>
+              <CombinedTobeDiamond asIs={{p:prog,d:def,c:con,f:flex}} tobe={tobe}/>
+              <div style={{display:'flex',gap:'1rem',justifyContent:'center',marginTop:'.6rem',flexWrap:'wrap'}}>
+                <div style={{display:'flex',alignItems:'center',gap:'.35rem',fontSize:'.7rem',color:'#555'}}>
+                  <div style={{width:22,height:3,background:'#e07030',borderRadius:2}}/><span>Current</span>
+                </div>
+                <div style={{display:'flex',alignItems:'center',gap:'.35rem',fontSize:'.7rem',color:'#555'}}>
+                  <div style={{width:22,height:3,background:'#1a1a1a',borderRadius:2}}/><span>Desired</span>
+                </div>
+              </div>
+              <div style={{marginTop:'.5rem',fontSize:'.78rem',color:'#888',fontWeight:600}}>{SLABELS[tobeStrat]}</div>
+              <div style={{marginTop:'.25rem',fontSize:'.72rem',color:'#b0a898'}}>{SDESC[tobeStrat]}</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="btn-row">
+          {loading?(
+            <div className="think"><div className="dots"><div className="dot"/><div className="dot"/><div className="dot"/></div><span className="think-txt">Generating your personalised report…</span></div>
+          ):(
+            <button className="btn-p" onClick={generate}>Generate My Report →</button>
+          )}
+          <button className="btn-s" onClick={()=>go(3)}>← Back</button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── STEP 5: REPORT ───────────────────────────────────────────────────────
+  function renderReport(){
+    const {pGap,dGap,cGap,fGap}={pGap:tobe.p-prog,dGap:tobe.d-def,cGap:tobe.c-con,fGap:tobe.f-flex};
+    return(
+      <div>
+        <div className="print-header">
+          <div className="print-header-bar">
+            <div className="print-header-logo"><span>Change</span><em>before</em></div>
+            <div className="print-header-meta">
+              <strong>Strategic Tensions Assessment Tool</strong>
+              <span style={{display:'block'}}>changebefore.com &nbsp;·&nbsp; contact@changebefore.com</span>
+            </div>
+          </div>
+          <div className="print-header-detail">
+            <div className="print-header-org">{th}</div>
+            <div className="print-header-strat">Current: <strong>{SLABELS[asIsStrat]}</strong> &nbsp;→&nbsp; Desired: <strong>{SLABELS[tobeStrat]}</strong> &nbsp;·&nbsp; {new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'})}</div>
+          </div>
+        </div>
+        <div className="sec-tag">Organisational Resilience Report</div>
+        <h2 className="pg-title">{th}</h2>
+        <p className="pg-sub">Current: <strong>{SLABELS[asIsStrat]}</strong> · Desired: <strong>{SLABELS[tobeStrat]}</strong></p>
+        <div className="rpt-tabs">
+          {['Profile & Charts','The Model','Detailed Analysis','Suggestions & Actions','Group Report','Save & Next Steps',...(isAdmin?['Facilitator ★']:[])] .map((t,i)=>(
+            <div key={i} className={`rpt-tab${rptTab===i?' active':''}`} onClick={()=>setRptTab(i)} style={{color:t==='Facilitator ★'?'#e07030':undefined}}>{t}</div>
+          ))}
+        </div>
+
+        <div className="rpt-tab-content" style={{display:rptTab===0?'block':'none'}}>
+          <div className="print-section-title" style={{display:'none'}}>Profile &amp; Charts</div>
+          {renderTab0(pGap,dGap,cGap,fGap)}
+        </div>
+        <div className="rpt-tab-content" style={{display:rptTab===1?'block':'none'}}>
+          <div className="print-section-title" style={{display:'none'}}>The Model</div>
+          {renderTabModel()}
+        </div>
+        <div className="rpt-tab-content" style={{display:rptTab===2?'block':'none'}}>
+          <div className="print-section-title" style={{display:'none'}}>Detailed Analysis</div>
+          {renderTab1()}
+        </div>
+        <div className="rpt-tab-content" style={{display:rptTab===3?'block':'none'}}>
+          <div className="print-section-title" style={{display:'none'}}>Suggestions &amp; Actions</div>
+          {renderTab2(pGap,dGap,cGap,fGap)}
+        </div>
+        <div className="rpt-tab-content" style={{display:rptTab===4?'block':'none'}}>
+          {renderGroupReportTab()}
+        </div>
+        <div className="rpt-tab-content" style={{display:rptTab===5?'block':'none'}}>
+          <div className="print-section-title" style={{display:'none'}}>Save &amp; Next Steps</div>
+          {renderTab3()}
+        </div>
+        {isAdmin&&(
+          <div className="rpt-tab-content" style={{display:rptTab===6?'block':'none'}}>
+            {renderFacilitatorTab()}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+
+  // ── TAB: THE MODEL ───────────────────────────────────────────────────────
+  function renderTabModel(){
+    const W = 680, H = 580;
+    const PAD = 155;
+    const QW = W - PAD*2;
+    const QH = H - PAD*2;
+    const CX = PAD + QW/2;
+    const CY = PAD + QH/2;
+    const scaleX = QW/2 / 120;
+    const scaleY = QH/2 / 120;
+
+    const quadrants = [
+      {x:PAD, y:PAD, w:QW/2, h:QH/2, label:'Performance\nOptimisation', sub:'Improving and exploiting', key:'performance_optimisation'},
+      {x:PAD+QW/2, y:PAD, w:QW/2, h:QH/2, label:'Adaptive\nInnovation', sub:'Imagining and creating', key:'adaptive_innovation'},
+      {x:PAD, y:PAD+QH/2, w:QW/2, h:QH/2, label:'Preventative\nControl', sub:'Monitoring and complying', key:'preventative_control'},
+      {x:PAD+QW/2, y:PAD+QH/2, w:QW/2, h:QH/2, label:'Mindful\nAction', sub:'Noticing and responding', key:'mindful_action'},
+    ];
+
+    // Diamond paths
+    const aiPts = [[CX,CY-prog*scaleY],[CX+flex*scaleX,CY],[CX,CY+def*scaleY],[CX-con*scaleX,CY]];
+    const aiPath = aiPts.map((p,i)=>`${i===0?'M':'L'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ')+'Z';
+    const tbPts = [[CX,CY-tobe.p*scaleY],[CX+tobe.f*scaleX,CY],[CX,CY+tobe.d*scaleY],[CX-tobe.c*scaleX,CY]];
+    const tbPath = tbPts.map((p,i)=>`${i===0?'M':'L'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ')+'Z';
+
+    // Shared SVG base: axes, labels, quadrant boxes
+    function renderBase(showDominant){
+      return(
+        <g>
+          {quadrants.map((qd,i)=>{
+            const active = showDominant && asIsStrat===qd.key;
+            return(
+              <g key={i}>
+                <rect x={qd.x+2} y={qd.y+2} width={qd.w-4} height={qd.h-4}
+                  fill={active?'#1a1a1a':'#2d2d2d'} rx={6} opacity={active?1:0.8}/>
+                {qd.label.split('\n').map((line,li)=>(
+                  <text key={li} x={qd.x+qd.w/2} y={qd.y+qd.h/2-16+(li*20)}
+                    textAnchor="middle" fill="#fff" fontSize={13} fontWeight={700}
+                    fontFamily="DM Sans,sans-serif">{line}</text>
+                ))}
+                <text x={qd.x+qd.w/2} y={qd.y+qd.h/2+18}
+                  textAnchor="middle" fill="#e07030" fontSize={11}
+                  fontFamily="DM Sans,sans-serif">{qd.sub}</text>
+                {active&&<rect x={qd.x+2} y={qd.y+2} width={qd.w-4} height={qd.h-4}
+                  fill="none" stroke="#e07030" strokeWidth={2.5} rx={6}/>}
+              </g>
+            );
+          })}
+          {/* Axes */}
+          <line x1={CX} y1={PAD-32} x2={CX} y2={PAD+QH+32} stroke="#1a1a1a" strokeWidth={1.5} strokeDasharray="4,3"/>
+          <line x1={PAD-32} y1={CY} x2={PAD+QW+32} y2={CY} stroke="#1a1a1a" strokeWidth={1.5} strokeDasharray="4,3"/>
+          {/* Arrowheads */}
+          <polygon points={`${CX-5},${PAD-22} ${CX+5},${PAD-22} ${CX},${PAD-32}`} fill="#1a1a1a"/>
+          <polygon points={`${CX-5},${PAD+QH+22} ${CX+5},${PAD+QH+22} ${CX},${PAD+QH+32}`} fill="#1a1a1a"/>
+          <polygon points={`${PAD-22},${CY-5} ${PAD-22},${CY+5} ${PAD-32},${CY}`} fill="#1a1a1a"/>
+          <polygon points={`${PAD+QW+22},${CY-5} ${PAD+QW+22},${CY+5} ${PAD+QW+32},${CY}`} fill="#1a1a1a"/>
+          {/* PROGRESSIVE top — fixed positions well above arrow (arrow at PAD-32) */}
+          <text x={CX} y={10} textAnchor="middle" fill="#1a1a1a" fontSize={13} fontWeight={700} fontFamily="DM Sans,sans-serif">PROGRESSIVE</text>
+          <text x={CX} y={24} textAnchor="middle" fill="#555" fontSize={10} fontFamily="DM Sans,sans-serif">(Achieving results)</text>
+          {['Leveraging opportunities','Building capability','Achieving results','Growing position'].map((l,i)=>(
+            <text key={i} x={CX} y={38+(i*12)} textAnchor="middle" fill="#999" fontSize={9} fontFamily="DM Sans,sans-serif">{l}</text>
+          ))}
+          {/* DEFENSIVE bottom — fixed positions well below arrow (arrow at PAD+QH+32) */}
+          {['Mitigating threats','Protecting capacity','Preserving position','Preventing disruption'].map((l,i)=>(
+            <text key={i} x={CX} y={PAD+QH+44+(i*12)} textAnchor="middle" fill="#999" fontSize={9} fontFamily="DM Sans,sans-serif">{l}</text>
+          ))}
+          <text x={CX} y={PAD+QH+100} textAnchor="middle" fill="#555" fontSize={10} fontFamily="DM Sans,sans-serif">(Protecting results)</text>
+          <text x={CX} y={PAD+QH+114} textAnchor="middle" fill="#1a1a1a" fontSize={13} fontWeight={700} fontFamily="DM Sans,sans-serif">DEFENSIVE</text>
+          {/* CONSISTENT left — right-aligned, flush toward the arrow */}
+          <text x={PAD-38} y={CY-46} textAnchor="end" fill="#1a1a1a" fontSize={12} fontWeight={700} fontFamily="DM Sans,sans-serif">CONSISTENT</text>
+          {['Common goals','Standard processes','Unified behaviours','Shared values'].map((l,i)=>(
+            <text key={i} x={PAD-38} y={CY-28+(i*14)} textAnchor="end" fill="#666" fontSize={10} fontFamily="DM Sans,sans-serif">{l}</text>
+          ))}
+          {/* FLEXIBLE right — left-aligned, flush from the arrow */}
+          <text x={PAD+QW+38} y={CY-46} textAnchor="start" fill="#1a1a1a" fontSize={12} fontWeight={700} fontFamily="DM Sans,sans-serif">FLEXIBLE</text>
+          {['Distributed goals','Adaptive processes','Independent judgement','Diverse values'].map((l,i)=>(
+            <text key={i} x={PAD+QW+38} y={CY-28+(i*14)} textAnchor="start" fill="#666" fontSize={10} fontFamily="DM Sans,sans-serif">{l}</text>
+          ))}
+        </g>
+      );
+    }
+
+    return(
+      <div>
+        <div className="rpt-section">
+          <div className="rpt-heading">Managing Strategic Tensions</div>
+          <p className="rpt-body">Organisational resilience strategies differ on two core dimensions. The first is <strong>mindset</strong> — whether the organisation is primarily oriented toward defending what it has (Defensive) or toward achieving new results (Progressive). The second is <strong>approach</strong> — whether the organisation operates through common goals, standard processes, unified behaviours and shared values (Consistent) or through distributed goals, adaptive processes, independent judgement and diverse values (Flexible).</p>
+          <p className="rpt-body">These two dimensions combine to produce four core resilience strategies. The right-hand diagram shows your profile plotted on the model.</p>
+        </div>
+
+        {/* Model diagram — full width, no profiles */}
+        <div style={{background:'#fff',border:'1px solid #d8d3cb',borderRadius:'6px',padding:'1rem',textAlign:'center',margin:'1.5rem 0'}}>
+          <div style={{fontSize:'.65rem',fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:'#888',marginBottom:'.5rem',fontFamily:"'DM Sans',sans-serif"}}>The Model</div>
+          <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{overflow:'visible',maxWidth:'100%'}}>
+            {renderBase(false)}
+          </svg>
+        </div>
+
+        <div className="rpt-section">
+          <div className="rpt-heading">The Five Strategies</div>
+          <p className="rpt-body">Every organisation has a unique STAT profile that is usually made up of some combination of all four core strategies. A fifth strategy — Neutral — describes organisations with a very balanced combination of all four. One size does not fit all: the overall approach will vary according to the nature of the organisation, its mission, and the environment it faces. It is also likely to change over time as the organisation itself evolves.</p>
+        </div>
+
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'1rem',marginBottom:'1.5rem'}}>
+          {[
+            {name:'Performance Optimisation',tag:'Progressive · Consistent',body:'Resilience formed by process optimisation, continually improving and extending existing competencies, and exploiting current technologies to serve present customers more efficiently and effectively.'},
+            {name:'Adaptive Innovation',tag:'Progressive · Flexible',body:'Resilience created through innovation and new products, services or capabilities. Also the strategy required to resolve complex, intractable problems that require fundamental rethinking of how the organisation works.'},
+            {name:'Preventative Control',tag:'Defensive · Consistent',body:'Resilience achieved through robust risk management, physical barriers, safeguards and standards. The organisation protects itself from threats, predicts and prevents disruptions, and designs prearranged continuity plans to restore stability if disruption occurs.'},
+            {name:'Mindful Action',tag:'Defensive · Flexible',body:'Resilience created by people who use their experience, expertise and teamwork to anticipate and adapt to threats and respond effectively to unfamiliar situations through creative problem solving and improvisation.'},
+          ].map(s=>(
+            <div key={s.name} style={{background:'#fff',border:'1px solid #d8d3cb',borderTop:'3px solid #1a1a1a',borderRadius:'4px',padding:'1rem 1.1rem'}}>
+              <div style={{fontSize:'.63rem',fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:'#e07030',marginBottom:'.35rem',fontFamily:"'DM Sans',sans-serif"}}>{s.tag}</div>
+              <div style={{fontSize:'.88rem',fontWeight:700,color:'#1a1a1a',marginBottom:'.4rem',fontFamily:"'DM Sans',sans-serif"}}>{s.name}</div>
+              <p className="rpt-body" style={{marginBottom:0}}>{s.body}</p>
+            </div>
+          ))}
+        </div>
+
+        <div style={{background:'#fff',border:'1px solid #d8d3cb',borderTop:'3px solid #888',borderRadius:'4px',padding:'1rem 1.1rem',marginBottom:'1.5rem'}}>
+          <div style={{fontSize:'.63rem',fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:'#888',marginBottom:'.35rem',fontFamily:"'DM Sans',sans-serif"}}>All four strategies equally</div>
+          <div style={{fontSize:'.88rem',fontWeight:700,color:'#1a1a1a',marginBottom:'.4rem',fontFamily:"'DM Sans',sans-serif"}}>Neutral</div>
+          <p className="rpt-body" style={{marginBottom:0}}>A neutral profile has almost uniform emphasis on all four core strategies. It is often unintended and rarely achieved by design. Organisations with a neutral profile may lack a clearly defined resilience strategy — trying to be all things to all people. The risk is ending up stuck in the middle, delivering average performance across all four rather than genuine strength in any.</p>
+        </div>
+
+        {/* Your profile diagram — full width, with diamonds */}
+        <div style={{background:'#fff',border:'1px solid #d8d3cb',borderRadius:'6px',padding:'1rem',textAlign:'center',margin:'1.5rem 0'}}>
+          <div style={{fontSize:'.65rem',fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:'#888',marginBottom:'.5rem',fontFamily:"'DM Sans',sans-serif"}}>Your Profile</div>
+          <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{overflow:'visible',maxWidth:'100%'}}>
+            {renderBase(true)}
+            <path d={tbPath} fill="none" stroke="#fff" strokeWidth={2.5} strokeDasharray="5,3" strokeLinejoin="round" opacity={0.9}/>
+            <path d={tbPath} fill="none" stroke="#888" strokeWidth={1} strokeDasharray="5,3" strokeLinejoin="round" opacity={0.6}/>
+            <path d={aiPath} fill="#e07030" fillOpacity={0.2} stroke="#e07030" strokeWidth={2.5} strokeLinejoin="round"/>
+            <text x={CX} y={CY-prog*scaleY-8} textAnchor="middle" fill="#e07030" fontSize={10} fontWeight={700} fontFamily="DM Sans,sans-serif">{prog}</text>
+            <text x={CX+flex*scaleX+9} y={CY+4} textAnchor="start" fill="#e07030" fontSize={10} fontWeight={700} fontFamily="DM Sans,sans-serif">{flex}</text>
+            <text x={CX} y={CY+def*scaleY+16} textAnchor="middle" fill="#e07030" fontSize={10} fontWeight={700} fontFamily="DM Sans,sans-serif">{def}</text>
+            <text x={CX-con*scaleX-9} y={CY+4} textAnchor="end" fill="#e07030" fontSize={10} fontWeight={700} fontFamily="DM Sans,sans-serif">{con}</text>
+          </svg>
+          <div style={{display:'flex',gap:'1rem',justifyContent:'center',marginTop:'.5rem',flexWrap:'wrap'}}>
+            <div style={{display:'flex',alignItems:'center',gap:'.35rem',fontSize:'.72rem',color:'#555'}}>
+              <svg width={22} height={14} viewBox="0 0 22 14"><polygon points="11,1 21,7 11,13 1,7" fill="#e07030" fillOpacity={0.25} stroke="#e07030" strokeWidth={2}/></svg>
+              <span>Current</span>
+            </div>
+            <div style={{display:'flex',alignItems:'center',gap:'.35rem',fontSize:'.72rem',color:'#555'}}>
+              <svg width={22} height={14} viewBox="0 0 22 14"><polygon points="11,1 21,7 11,13 1,7" fill="none" stroke="#888" strokeWidth={2} strokeDasharray="3,2"/></svg>
+              <span>Desired</span>
+            </div>
+            <div style={{display:'flex',alignItems:'center',gap:'.35rem',fontSize:'.72rem',color:'#555'}}>
+              <div style={{width:12,height:12,borderRadius:2,background:'#1a1a1a',border:'2px solid #e07030'}}/>
+              <span>Dominant strategy</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="rpt-section" style={{background:'#ebe7e0',border:'1px solid #d8d3cb',borderRadius:'4px',padding:'1rem 1.1rem'}}>
+          <div className="rpt-heading">The Core Tension</div>
+          <p className="rpt-body" style={{marginBottom:0}}>To achieve organisational resilience, leaders have to manage the tensions between the need to be both <strong>defensive and progressive</strong>, and also <strong>consistent and flexible</strong>. These are not either/or choices — the goal is to understand which combination best fits {th}'s context, and to make that a deliberate strategic decision rather than an accidental default.</p>
+        </div>
+
+        <div className="btn-row">
+          <button className="btn-p" onClick={()=>setRptTab(2)}>Read Detailed Analysis →</button>
+          <button className="btn-s" onClick={()=>setRptTab(0)}>← Profile</button>
+        </div>
+      </div>
+    );
+  }
+
+  function renderTab0(pGap,dGap,cGap,fGap){
+    return(
+      <div>
+        <div className="chart-pair">
+          <div className="chart-box">
+            <ExpandableDiamond title="Current Profile (As-Is)">
+              <div className="chart-lbl">Current Profile (As-Is)</div>
+              <DiamondChart p={prog} d={def} c={con} f={flex} color="#e07030" prevProfile={prevSubmission}/>
+              <div style={{marginTop:'.75rem',fontSize:'.78rem',color:'#888',fontWeight:600}}>{SLABELS[asIsStrat]}</div>
+              {prevSubmission&&(
+                <div style={{marginTop:'.5rem',fontSize:'.72rem',color:'#94a3b8',lineHeight:1.5}}>
+                  <span style={{display:'block',marginBottom:'.2rem'}}>— — dotted line = your profile from {prevSubmission.date}</span>
+                  {[{lbl:'Progressive',now:prog,prev:prevSubmission.prog},{lbl:'Defensive',now:def,prev:prevSubmission.def},{lbl:'Consistent',now:con,prev:prevSubmission.con},{lbl:'Flexible',now:flex,prev:prevSubmission.flex}]
+                    .filter(r=>Math.abs(r.now-r.prev)>=3)
+                    .map(r=>{const d=r.now-r.prev;return(
+                      <span key={r.lbl} style={{display:'block',color:d>0?'#16a34a':'#e07030',fontWeight:600}}>
+                        {r.lbl}: {d>0?`+${d}`:d} since last visit
+                      </span>
+                    );})}
+                </div>
+              )}
+            </ExpandableDiamond>
+          </div>
+          <div className="chart-box">
+            <ExpandableDiamond title="Desired Profile (To-Be)">
+              <div className="chart-lbl">Desired Profile (To-Be)</div>
+              <DiamondChart p={tobe.p} d={tobe.d} c={tobe.c} f={tobe.f} color="#1a1a1a"/>
+              <div style={{marginTop:'.75rem',fontSize:'.78rem',color:'#888',fontWeight:600}}>{SLABELS[tobeStrat]}</div>
+            </ExpandableDiamond>
+          </div>
+        </div>
+        <div className="rpt-section">
+          <div className="rpt-heading">What This Profile Tells Us About {th}</div>
+          <p className="rpt-body">{SD.summary}</p>
+          {industryContext&&<p className="rpt-body">{industryContext}</p>}
+        </div>
+        <div className="rpt-section">
+          <div className="rpt-heading">Gap Between Current and Desired Profile</div>
+          <div className="gap-summary">
+            <div className="gap-row hdr"><div>Dimension</div><div className="gap-val">Now</div><div className="gap-val">Desired</div><div className="gap-val">Change</div></div>
+            {[{lbl:'Progressive',now:prog,des:tobe.p},{lbl:'Defensive',now:def,des:tobe.d},{lbl:'Consistent',now:con,des:tobe.c},{lbl:'Flexible',now:flex,des:tobe.f}].map(r=>{
+              const g=r.des-r.now;const gl=gapLabel(g);
+              return(<div key={r.lbl} className="gap-row"><div style={{fontWeight:600}}>{r.lbl}</div><div className="gap-val">{r.now}</div><div className="gap-val">{r.des}</div><div className="gap-val"><span className={`gap-badge gap-${gl}`}>{gapBadgeText(g)}{g>0?` ▲${g}`:g<0?` ▼${Math.abs(g)}`:' —'}</span></div></div>);
+            })}
+          </div>
+        </div>
+        {asIsStrat!==tobeStrat&&(
+          <div className="rpt-section">
+            <div className="rpt-heading">The Shift You Are Seeking</div>
+            <p className="rpt-body">You want {th} to shift from <strong>{SLABELS[asIsStrat]}</strong> toward <strong>{SLABELS[tobeStrat]}</strong>. This is a meaningful strategic shift that will require deliberate attention to leadership behaviours, structural enablers, and how success is measured and rewarded.</p>
+          </div>
+        )}
+        <div className="btn-row">
+          <button className="btn-p" onClick={()=>setRptTab(1)}>Explore the Model →</button>
+          <button className="btn-s" onClick={()=>go(5)}>← Back to Future Profile</button>
+        </div>
+      </div>
+    );
+  }
+
+  function renderTab1(){
+    return(
+      <div>
+        <div style={{background:'#ebe7e0',border:'1px solid #d8d3cb',borderRadius:'4px',padding:'.75rem 1.1rem',marginBottom:'1.5rem',fontSize:'.82rem',color:'#555',lineHeight:1.6}}>
+          <strong>Everything on this page describes {th} as it currently operates</strong> — based on your survey responses. Each section is a picture of the present, not the ideal. Read it as a diagnostic, not a verdict.
+        </div>
+        <div className="da-summary"><div className="da-summary-heading">Summary — Current Profile: {SLABELS[asIsStrat]}</div><p className="rpt-body">{SD.summary}</p>{industryContext&&<p className="rpt-body">{industryContext}</p>}</div>
+        <div className="da-grid">
+          <div className="da-card"><div className="da-card-heading">Purpose — currently</div><p className="rpt-body">{SD.purpose}</p></div>
+          <div className="da-card"><div className="da-card-heading">People — currently</div><p className="rpt-body">{SD.people}</p></div>
+          <div className="da-card"><div className="da-card-heading">Process — currently</div><p className="rpt-body">{SD.process}</p></div>
+          <div className="da-card"><div className="da-card-heading">Product — currently</div><p className="rpt-body">{SD.product}</p></div>
+        </div>
+        <div className="da-lower">
+          <div className="da-lower-card best"><div className="da-lower-heading">At Its Best — currently</div><p className="rpt-body">{SD.atBest}</p></div>
+          <div className="da-lower-card blind"><div className="da-lower-heading">Current Blind Spots and Risk Factors</div><p className="rpt-body">{SD.blind}</p></div>
+          <div className="da-lower-card areas"><div className="da-lower-heading">Areas for Consideration — to move toward your desired profile</div><p className="rpt-body">{SD.areas}</p></div>
+        </div>
+        <div className="btn-row">
+          <button className="btn-p" onClick={()=>setRptTab(3)}>See Actions →</button>
+          <button className="btn-s" onClick={()=>setRptTab(0)}>← Profile</button>
+        </div>
+      </div>
+    );
+  }
+
+  function renderTab2(pGap,dGap,cGap,fGap){
+    return(
+      <div>
+<div className="rpt-section">
+          <div className="rpt-heading">About These Actions</div>
+          <p className="rpt-body">For each domain, the strategic priority identifies the most important shift based on your current profile and desired direction. The strategic question is designed to open up the options available to you — not to prescribe a specific action.</p>
+        </div>
+        <div className="gap-summary" style={{marginBottom:'1.5rem'}}>
+          <div className="gap-row hdr"><div>Dimension</div><div className="gap-val">Now</div><div className="gap-val">Desired</div><div className="gap-val">Scale of change</div></div>
+          {[{lbl:'Progressive',now:prog,des:tobe.p},{lbl:'Defensive',now:def,des:tobe.d},{lbl:'Consistent',now:con,des:tobe.c},{lbl:'Flexible',now:flex,des:tobe.f}].map(r=>{
+            const g=r.des-r.now;const gl=gapLabel(g);
+            return(<div key={r.lbl} className="gap-row"><div style={{fontWeight:600}}>{r.lbl}</div><div className="gap-val">{r.now}</div><div className="gap-val">{r.des}</div><div className="gap-val"><span className={`gap-badge gap-${gl}`}>{gapBadgeText(g)}{g>0?` ▲${g}`:g<0?` ▼${Math.abs(g)}`:' —'}</span></div></div>);
+          })}
+        </div>
+        {['purpose','people','process','product'].map(cat=>{
+          const sec=suggestions[cat];if(!sec)return null;
+          return(
+            <div key={cat} className="rpt-section" style={{marginBottom:'2rem'}}>
+              <div className="rpt-heading" style={{fontSize:'1rem',marginBottom:'1rem'}}>{cat.charAt(0).toUpperCase()+cat.slice(1)}</div>
+              <div style={{marginBottom:'1rem'}}>
+                <div style={{fontSize:'.7rem',fontWeight:800,letterSpacing:'.08em',textTransform:'uppercase',color:'#e07030',marginBottom:'.5rem'}}>Strategic Priority</div>
+                <div className="sug-item">
+                  <div className="sug-num">→</div>
+                  <div className="sug-txt" dangerouslySetInnerHTML={{__html:sec.action}}/>
+                </div>
+              </div>
+              <div>
+                <div style={{fontSize:'.7rem',fontWeight:800,letterSpacing:'.08em',textTransform:'uppercase',color:'#2563eb',marginBottom:'.5rem'}}>Strategic Question</div>
+                <div className="sug-item" style={{borderLeft:'3px solid #2563eb'}}>
+                  <div className="sug-num" style={{background:'#eff6ff',color:'#2563eb'}}>?</div>
+                  <div className="sug-txt" style={{fontStyle:'italic'}}>{sec.question}</div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+
+        <div style={{background:'#fff8f5',border:'1px solid #f5c8b0',borderRadius:'5px',padding:'1.25rem',marginBottom:'1.5rem'}}>
+          <div style={{fontSize:'.7rem',fontWeight:700,letterSpacing:'.08em',textTransform:'uppercase',color:'#e07030',marginBottom:'.5rem',fontFamily:"'DM Sans',sans-serif"}}>Your 30-day commitment <span style={{fontWeight:400,color:'#b0a898'}}>(optional)</span></div>
+          <p style={{fontSize:'.85rem',color:'#555',marginBottom:'.75rem',lineHeight:1.55,fontFamily:"'DM Sans',sans-serif"}}>Based on what you've read, what is the one thing you will try in the next 30 days?</p>
+          <textarea value={thirtyDay} onChange={e=>setThirtyDay(e.target.value)}
+            placeholder="e.g. In our next strategy meeting, I will introduce one explicit question about what new capability we need..."
+            style={{width:'100%',border:'1px solid #d8d3cb',borderRadius:'3px',padding:'.72rem 1rem',fontFamily:"'DM Sans',sans-serif",fontSize:'.875rem',color:'#1a1a1a',outline:'none',minHeight:'90px',resize:'vertical',lineHeight:1.55,background:'#fff'}}
+          />
+        </div>
+        <div className="btn-row" style={{marginTop:'2rem'}}>
+          <button className="btn-p" onClick={()=>setRptTab(4)}>Save & Next Steps →</button>
+          <button className="btn-s" onClick={()=>setRptTab(0)}>← Profile</button>
+          <button className="btn-s" onClick={restart}>Start Again</button>
+        </div>
+      </div>
+    );
+  }
+
+  function renderTab3(){
+    function generatePDF(){
+      fireNotification();
+      window.print();
+    }
+    return(
+      <div>
+        <div style={{background:'#fff',border:'1px solid #d8d3cb',borderRadius:'5px',padding:'1.25rem',marginBottom:'1.5rem'}}>
+          <div style={{fontSize:'.7rem',fontWeight:700,letterSpacing:'.08em',textTransform:'uppercase',color:'#e07030',marginBottom:'.75rem',fontFamily:"'DM Sans',sans-serif"}}>Was this useful?</div>
+          <div style={{display:'flex',gap:'.75rem',marginBottom:'1rem',flexWrap:'wrap'}}>
+            {[{val:'very',label:'Very useful'},{val:'somewhat',label:'Somewhat useful'},{val:'not',label:'Not really'}].map(opt=>(
+              <button key={opt.val} onClick={()=>setFeedbackRating(opt.val)}
+                style={{padding:'.5rem 1rem',borderRadius:'20px',border:`1.5px solid ${feedbackRating===opt.val?'#e07030':'#d8d3cb'}`,background:feedbackRating===opt.val?'#fff8f5':'#fff',color:feedbackRating===opt.val?'#e07030':'#555',fontSize:'.82rem',fontWeight:feedbackRating===opt.val?700:400,cursor:'pointer',fontFamily:"'DM Sans',sans-serif",transition:'all .15s'}}>
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          <textarea value={feedbackComment} onChange={e=>setFeedbackComment(e.target.value)}
+            placeholder="Any other comments? (optional)"
+            style={{width:'100%',border:'1px solid #d8d3cb',borderRadius:'3px',padding:'.65rem .9rem',fontFamily:"'DM Sans',sans-serif",fontSize:'.85rem',color:'#1a1a1a',outline:'none',minHeight:'70px',resize:'vertical',lineHeight:1.55,background:'#fff'}}
+          />
+          {feedbackRating&&<p style={{fontSize:'.75rem',color:'#888',marginTop:'.5rem',fontFamily:"'DM Sans',sans-serif"}}>Thank you — your feedback helps improve the tool.</p>}
+        </div>
+        <div className="rpt-section">
+          <div className="rpt-heading">Save Your Report</div>
+          <p className="rpt-body">Click the button below to open your browser's print dialog. Select <strong>Save as PDF</strong> as the destination to download your report. A copy of your results will also be emailed to ChangeBefore.</p>
+          <div className="btn-row" style={{marginTop:'1rem'}}>
+            <button className="btn-p" onClick={generatePDF}>⬇ Generate PDF</button>
+            <button className="btn-s" onClick={()=>{
+              const s=encodeURIComponent(`STAT Profile — ${thing||'Organisation'}`);
+              const b=encodeURIComponent(`My STAT profile for ${thing||'my organisation'}:\nCurrent: ${SLABELS[asIsStrat]} (P${prog} D${def} C${con} F${flex})\nDesired: ${SLABELS[tobeStrat]} (P${tobe.p} D${tobe.d} C${tobe.c} F${tobe.f})\nTool: changebefore.com/stat-solo-access/`);
+              window.open(`mailto:?subject=${s}&body=${b}`,'_self');
+            }}>✉ Share by email</button>
+          </div>
+        </div>
+        <div className="rpt-section" style={{borderTop:'1px solid #d8d3cb',paddingTop:'1.75rem',marginTop:'1.75rem'}}>
+          <div style={{fontSize:'1rem',fontWeight:700,letterSpacing:'.05em',textTransform:'uppercase',color:'#e07030',marginBottom:'.5rem'}}>Take It Further: Run STAT with Your Team or Organisation</div>
+          <p className="rpt-body">Your individual report is a starting point. It reflects a single perspective on how {th} operates — and what it could become. The real diagnostic power emerges when you compare results across your team or organisation.</p>
+          <p className="rpt-body" style={{marginTop:'.75rem'}}>Even people working side by side often see the current position very differently. And leaders frequently see the organisation in ways that differ sharply from the experience of those they lead. Understanding those differences is not a problem to manage — it is the insight you need to act.</p>
+          <div style={{marginTop:'1.25rem'}}>
+            <div className="rpt-heading" style={{fontSize:'.85rem',marginBottom:'.6rem'}}>Run STAT with your leadership team to:</div>
+            <ul style={{paddingLeft:'1.25rem',lineHeight:1.8,fontSize:'.875rem',color:'#555'}}>
+              <li>Find out whether your leadership team shares a common strategic direction — or only assumes it does</li>
+              <li>Surface hidden tensions between what leaders say is the priority and what they actually drive</li>
+              <li>Identify where different parts of leadership are pulling in different directions without realising it</li>
+              <li>Test whether the strategy you intend is the strategy being experienced</li>
+              <li>Create the conditions for an honest, evidence-based conversation about where to go next</li>
+            </ul>
+          </div>
+          <div style={{marginTop:'1.25rem'}}>
+            <div className="rpt-heading" style={{fontSize:'.85rem',marginBottom:'.6rem'}}>Run STAT across {th} to:</div>
+            <ul style={{paddingLeft:'1.25rem',lineHeight:1.8,fontSize:'.875rem',color:'#555'}}>
+              <li>Compare how leaders see the organisation with how it is experienced on the ground</li>
+              <li>Identify where strategic intent is not translating into operational reality</li>
+              <li>Reveal differences in how people across functions and business units see the organisation's current position</li>
+              <li>Generate a baseline you can use to track whether change is actually happening</li>
+            </ul>
+          </div>
+          <div style={{marginTop:'1.5rem',padding:'1.25rem',background:'#fff8f5',border:'1px solid #f5c8b0',borderRadius:'6px'}}>
+            <div style={{fontSize:'.85rem',fontWeight:700,color:'#1a1a1a',marginBottom:'.5rem'}}>Ready to run it with your team?</div>
+            <p style={{fontSize:'.85rem',color:'#555',lineHeight:1.7,marginBottom:'1rem'}}>Contact us at <a href="mailto:contact@changebefore.com" style={{color:'#e07030'}}>contact@changebefore.com</a> or visit <a href="https://changebefore.com/contact/" target="_blank" rel="noopener noreferrer" style={{color:'#e07030'}}>changebefore.com/contact</a> to arrange a conversation.</p>
+            <p style={{fontSize:'.85rem',color:'#555',lineHeight:1.6,marginBottom:'.75rem',fontFamily:"'DM Sans',sans-serif"}}>Arrange a conversation about running this for your group or team.</p>
+            <button className="btn-p" onClick={()=>{
+              const s=encodeURIComponent(`Group STAT session — ${thing||'Organisation'}`);
+              const b=encodeURIComponent(`Hi,\n\nI've completed the STAT for ${thing||'my organisation'} and would like to discuss a group session.\n\nProfile: ${SLABELS[asIsStrat]} → ${SLABELS[tobeStrat]}\n\nBest regards`);
+              window.open(`mailto:contact@changebefore.com?subject=${s}&body=${b}`,'_self');
+            }} style={{marginTop:'.25rem'}}>Contact us →</button>
+          </div>
+        </div>
+        <div className="btn-row" style={{marginTop:'1.75rem'}}>
+          <button className="btn-s" onClick={()=>setRptTab(2)}>← Suggestions & Actions</button>
+          <button className="btn-s" onClick={restart}>Start Again</button>
+        </div>
+      </div>
+    );
+  }
+
+
+
+  // ── GROUP REPORT TAB ─────────────────────────────────────────────────────
+
+  // ── FACILITATOR TAB ──────────────────────────────────────────────────────
+  function renderFacilitatorTab(){
+    const PAX_COLORS=['#e07030', '#1a4fa0', '#2d7d46', '#b87a20', '#b83232', '#6a3d9a', '#0891b2', '#78350f', '#374151'];
+    const realRespondents=groupRespondents.filter(r=>r.respondent_name&&r.respondent_name!=='__facilitator__');
+
+    if(realRespondents.length===0){
+      return(
+        <div>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1.25rem'}}>
+            <div>
+              <div style={{display:'flex',alignItems:'center',gap:'.5rem'}}>
+                <span className="pulse"/>
+                <span style={{fontSize:'.65rem',fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:'#555',fontFamily:"'DM Sans',sans-serif"}}>Facilitator — Session: {codeNorm}</span>
+              </div>
+            </div>
+            <button className="refresh-btn" onClick={loadGroup}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+              Refresh
+            </button>
+          </div>
+          <div className="waiting-state">
+            <div className="wait-icon">👥</div>
+            <h3>No responses yet</h3>
+            <p style={{fontSize:'.875rem',color:'#888',maxWidth:'380px',margin:'0 auto 1.5rem',lineHeight:1.6}}>Share session code <strong style={{color:'#1a1a1a'}}>{codeNorm}</strong> with your group. This view will update automatically when they complete the survey.</p>
+            <div className="chip-row" style={{justifyContent:'center'}}>
+              {[1,2,3,4,5].map(i=><div key={i} className="p-chip" style={{opacity:.3}}>{i}</div>)}
+            </div>
+          </div>
+          <div style={{marginTop:'2rem'}}>
+            <div className="rpt-heading" style={{marginBottom:'.5rem'}}>Facilitator Notes</div>
+            <textarea className="notes-area" value={facilitatorNotes} placeholder="Notes visible only to you as facilitator…" onChange={e=>{setFacilitatorNotes(e.target.value);saveFacilitatorNotes(e.target.value);}}/>
+          </div>
+        </div>
+      );
+    }
+
+    // Compute analytics
+    // Per-dimension variance
+    function variance(arr){if(arr.length<2)return 0;const m=arr.reduce((s,v)=>s+v,0)/arr.length;return arr.reduce((s,v)=>s+(v-m)**2,0)/arr.length;}
+    const dimVariance={
+      prog:variance(realRespondents.map(r=>r.prog||0)),
+      def:variance(realRespondents.map(r=>r.def||0)),
+      con:variance(realRespondents.map(r=>r.con||0)),
+      flex:variance(realRespondents.map(r=>r.flex||0)),
+    };
+    const maxVar=Math.max(...Object.values(dimVariance));
+
+    // Group mean
+    const gMean={prog:0,def:0,con:0,flex:0};
+    realRespondents.forEach(r=>{gMean.prog+=(r.prog||0);gMean.def+=(r.def||0);gMean.con+=(r.con||0);gMean.flex+=(r.flex||0);});
+    ['prog','def','con','flex'].forEach(k=>{gMean[k]=Math.round(gMean[k]/realRespondents.length);});
+    const groupStrat=getStrategy(gMean.def,gMean.prog,gMean.con,gMean.flex);
+
+    // Group to-be mean
+    const gTobeMean={p:0,d:0,c:0,f:0};
+    const withTobe=realRespondents.filter(r=>r.tobe_p);
+    if(withTobe.length>0){
+      withTobe.forEach(r=>{gTobeMean.p+=(r.tobe_p||60);gTobeMean.d+=(r.tobe_d||60);gTobeMean.c+=(r.tobe_c||60);gTobeMean.f+=(r.tobe_f||60);});
+      ['p','d','c','f'].forEach(k=>{gTobeMean[k]=Math.round(gTobeMean[k]/withTobe.length);});
+    }
+    const groupTobeStrat=withTobe.length>0?getStrategy(gTobeMean.d,gTobeMean.p,gTobeMean.c,gTobeMean.f):null;
+
+    // Most significant gap
+    const dimShifts=[
+      {lbl:'Progressive',gap:gTobeMean.p-gMean.prog,dim:'prog'},
+      {lbl:'Defensive',gap:gTobeMean.d-gMean.def,dim:'def'},
+      {lbl:'Consistent',gap:gTobeMean.c-gMean.con,dim:'con'},
+      {lbl:'Flexible',gap:gTobeMean.f-gMean.flex,dim:'flex'},
+    ].sort((a,b)=>Math.abs(b.gap)-Math.abs(a.gap));
+    const bigGap=dimShifts[0];
+
+    // Question variance (s1 and s2)
+    const allQ12=[...S1.categories.flatMap(c=>c.qs),...S2.categories.flatMap(c=>c.qs)];
+    const qVariances=allQ12.map((q,qi)=>{
+      const isS1=qi<12;
+      const scores=realRespondents.map(r=>{
+        const ans=isS1?(r.s1_answers||[])[qi]:((r.s2_answers||[])[qi-12]);
+        return parseInt(ans?.r)||0;
+      });
+      return{q,qi,isS1,variance:variance(scores),mean:scores.reduce((s,v)=>s+v,0)/Math.max(scores.length,1)};
+    }).sort((a,b)=>b.variance-a.variance);
+
+    const topVarianceQ=qVariances.slice(0,5);
+
+    // Seniority split
+    const seniorRoles=['Executive / Board','Senior Leader'];
+    const juniorRoles=['Manager','Team Leader','Frontline / Operational'];
+    const seniors=realRespondents.filter(r=>seniorRoles.includes(r.seniority||r.role));
+    const juniors=realRespondents.filter(r=>juniorRoles.includes(r.seniority||r.role));
+    let seniorityAlert=null;
+    if(seniors.length>=1&&juniors.length>=1){
+      const splits=topVarianceQ.filter(item=>item.variance>=2).map(item=>{
+        const sm=seniors.reduce((s,r)=>{const ans=item.isS1?(r.s1_answers||[])[item.qi]:((r.s2_answers||[])[item.qi-12]);return s+(parseInt(ans?.r)||0);},0)/seniors.length;
+        const jm=juniors.reduce((s,r)=>{const ans=item.isS1?(r.s1_answers||[])[item.qi]:((r.s2_answers||[])[item.qi-12]);return s+(parseInt(ans?.r)||0);},0)/juniors.length;
+        return{q:item.q.q,sm,jm,diff:Math.abs(sm-jm)};
+      }).filter(x=>x.diff>=2).sort((a,b)=>b.diff-a.diff);
+      if(splits.length>0){
+        const top=splits[0];
+        const dir=top.sm>top.jm?'more progressive / flexible':'more defensive / consistent';
+        seniorityAlert=`Senior leaders (avg ${top.sm.toFixed(1)}) and operational staff (avg ${top.jm.toFixed(1)}) scored "${top.q}" differently by ${top.diff.toFixed(1)} points. Senior leaders lean ${dir}. This may indicate that the strategy being set at the top is not the one being experienced on the ground.`;
+      }
+    }
+
+    // Progress tracking
+    const stepNames=['Landing','Context','Survey 1','Survey 2','Profile','To-Be','Report'];
+
+    return(
+      <div>
+        {/* Header */}
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'1rem',flexWrap:'wrap',gap:'.75rem'}}>
+          <div>
+            <div style={{fontSize:'.65rem',fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:'#e07030',marginBottom:'.35rem',fontFamily:"'DM Sans',sans-serif"}}>Facilitator View — {codeNorm}</div>
+            <div style={{display:'flex',alignItems:'center',gap:'.5rem'}}>
+              <span className="pulse"/>
+              <span style={{fontSize:'.82rem',color:'#555',fontFamily:"'DM Sans',sans-serif"}}>{realRespondents.length} respondent{realRespondents.length!==1?'s':''} · {SLABELS[groupStrat]}</span>
+            </div>
+          </div>
+          <div style={{display:'flex',gap:'.5rem',flexWrap:'wrap'}}>
+            <button className="refresh-btn" onClick={loadGroup}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+              Refresh
+            </button>
+            <button className="csv-btn" onClick={exportCSV}>⬇ CSV</button>
+          </div>
+        </div>
+
+        {/* Most significant gap callout */}
+        {withTobe.length>=2&&bigGap&&Math.abs(bigGap.gap)>=8&&(
+          <div className="significant-gap">
+            <div className="sg-label">Most Significant Group Shift</div>
+            <div className="sg-text">The biggest shift your group wants to make is from <strong>{groupStrat?SLABELS[groupStrat]:'current'}</strong> toward <strong>{groupTobeStrat?SLABELS[groupTobeStrat]:'desired'}</strong> — particularly on <strong>{bigGap.lbl}</strong> (Δ{bigGap.gap>0?'+':''}{Math.round(bigGap.gap)}).</div>
+          </div>
+        )}
+
+        {/* Seniority alert */}
+        {seniorityAlert&&(
+          <div className="split-callout">
+            <strong>⚠ Seniority split detected:</strong> {seniorityAlert}
+          </div>
+        )}
+
+        {/* Facilitator sub-tabs */}
+        <div className="fac-tab-bar">
+          {['overview','variance','individuals','progress','ai-questions','notes'].map(t=>(
+            <div key={t} className={`fac-tab${facTab===t?' active':''}`} onClick={()=>setFacTab(t)}>
+              {t==='overview'?'Overview':t==='variance'?'Variance':t==='individuals'?'Individuals':t==='progress'?'Progress':t==='ai-questions'?'AI Questions':'Notes'}
+            </div>
+          ))}
+        </div>
+
+        {/* Overview tab */}
+        {facTab==='overview'&&(
+          <div>
+            <div className="rpt-section">
+              <div className="rpt-heading">Dimension Summary</div>
+              <div className="score-grid">
+                {[{lbl:'Progressive',val:gMean.prog},{lbl:'Defensive',val:gMean.def},{lbl:'Consistent',val:gMean.con},{lbl:'Flexible',val:gMean.flex}].map(sc=>(
+                  <div key={sc.lbl} className="score-card">
+                    <div className="score-dim">Group mean</div>
+                    <div className="score-val">{sc.val}</div>
+                    <div className="score-lbl">{sc.lbl}</div>
+                    <div className="score-bar"><div className="score-fill" style={{width:`${(sc.val/120)*100}%`}}/></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="rpt-section">
+              <div className="rpt-heading">Respondent Chips</div>
+              <div className="chip-row">
+                {realRespondents.map((r,i)=>(
+                  <div key={i} className="p-chip done" title={`${r.respondent_name} — ${SLABELS[getStrategy(r.def||0,r.prog||0,r.con||0,r.flex||0)]||'?'}`}
+                    style={{background:PAX_COLORS[i%PAX_COLORS.length],borderColor:PAX_COLORS[i%PAX_COLORS.length],width:'auto',minWidth:28,borderRadius:14,padding:'0 .5rem',gap:'.3rem',display:'flex',alignItems:'center'}}>
+                    {i+1} <span style={{fontSize:'.6rem'}}>{r.respondent_name.split(' ')[0]}</span>
+                  </div>
+                ))}
+              </div>
+              {realRespondents.length>0&&<div style={{marginTop:'.75rem',fontSize:'.78rem',color:'#555',fontFamily:"'DM Sans',sans-serif"}}>
+                Strategy spread: {[...new Set(realRespondents.map(r=>SLABELS[getStrategy(r.def||0,r.prog||0,r.con||0,r.flex||0)]))].join(' · ')}
+              </div>}
+            </div>
+          </div>
+        )}
+
+        {/* Variance tab */}
+        {facTab==='variance'&&(
+          <div>
+            <div className="rpt-section">
+              <div className="rpt-heading">Per-Dimension Spread</div>
+              <p className="rpt-body" style={{marginBottom:'1rem'}}>Higher variance = more disagreement across the group on that dimension.</p>
+              {[{lbl:'Progressive',v:dimVariance.prog},{lbl:'Defensive',v:dimVariance.def},{lbl:'Consistent',v:dimVariance.con},{lbl:'Flexible',v:dimVariance.flex}].map(({lbl,v})=>(
+                <div key={lbl} style={{marginBottom:'.85rem'}}>
+                  <div style={{display:'flex',justifyContent:'space-between',fontSize:'.82rem',fontWeight:600,marginBottom:'.2rem',fontFamily:"'DM Sans',sans-serif"}}>
+                    <span>{lbl}</span><span style={{color:'#e07030'}}>{Math.sqrt(v).toFixed(1)} SD</span>
+                  </div>
+                  <div className="var-bar"><div className="var-fill" style={{width:`${Math.min((v/(maxVar||1))*100,100)}%`,background:v>100?'#dc2626':v>40?'#f59e0b':'#22c55e'}}/></div>
+                </div>
+              ))}
+            </div>
+            <div className="rpt-section">
+              <div className="rpt-heading">Most Contested Questions</div>
+              {topVarianceQ.map((item,i)=>(
+                <div key={i} style={{padding:'.65rem 0',borderBottom:'1px solid #ebe7e0'}}>
+                  <div style={{fontSize:'.78rem',fontWeight:600,color:'#1a1a1a',marginBottom:'.2rem',fontFamily:"'DM Sans',sans-serif"}}>{i+1}. {item.q.q}</div>
+                  <div style={{fontSize:'.72rem',color:'#888',fontFamily:"'DM Sans',sans-serif"}}>
+                    SD: {Math.sqrt(item.variance).toFixed(1)} · Mean right score: {item.mean.toFixed(1)}/10
+                    <span style={{marginLeft:'.75rem',color:item.isS1?'#2563eb':'#7c3aed'}}>{item.isS1?'Survey 1':'Survey 2'}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Individuals tab */}
+        {facTab==='individuals'&&(
+          <div>
+            <div className="rpt-section">
+              <div className="rpt-heading">Individual Profiles</div>
+              {realRespondents.map((r,i)=>{
+                const rStrat=getStrategy(r.def||0,r.prog||0,r.con||0,r.flex||0);
+                const isSelected=selectedRespondent===i;
+                return(
+                  <div key={i} className={`respondent-card${isSelected?' selected':''}`}>
+                    <div className="rc-header" onClick={()=>setSelectedRespondent(isSelected?null:i)}>
+                      <div style={{display:'flex',alignItems:'center',gap:'.65rem'}}>
+                        <div className="rc-dot" style={{background:PAX_COLORS[i%PAX_COLORS.length]}}/>
+                        <div>
+                          <div className="rc-name">{r.respondent_name}</div>
+                          <div className="rc-role">{[r.seniority||r.role,r.sector].filter(Boolean).join(' · ')||'No role specified'}</div>
+                        </div>
+                      </div>
+                      <div style={{textAlign:'right'}}>
+                        <div className="rc-strategy">{SLABELS[rStrat]}</div>
+                        <div style={{fontSize:'.65rem',color:'#888',fontFamily:"'DM Sans',sans-serif"}}>P{r.prog} D{r.def} C{r.con} F{r.flex}</div>
+                      </div>
+                    </div>
+                    {isSelected&&(
+                      <div style={{marginTop:'.85rem',paddingTop:'.85rem',borderTop:'1px solid #ebe7e0'}}>
+                        <div className="score-grid" style={{marginBottom:'.75rem'}}>
+                          {[{lbl:'Progressive',val:r.prog||0},{lbl:'Defensive',val:r.def||0},{lbl:'Consistent',val:r.con||0},{lbl:'Flexible',val:r.flex||0}].map(sc=>(
+                            <div key={sc.lbl} className="score-card">
+                              <div className="score-dim">Score</div>
+                              <div className="score-val">{sc.val}</div>
+                              <div className="score-lbl">{sc.lbl}</div>
+                              <div className="score-bar"><div className="score-fill" style={{width:`${(sc.val/120)*100}%`}}/></div>
+                            </div>
+                          ))}
+                        </div>
+                        {r.tobe_p&&(
+                          <div style={{fontSize:'.78rem',color:'#555',fontFamily:"'DM Sans',sans-serif"}}>
+                            Desired: {SLABELS[getStrategy(r.tobe_d||60,r.tobe_p||60,r.tobe_c||60,r.tobe_f||60)]} (P{r.tobe_p} D{r.tobe_d} C{r.tobe_c} F{r.tobe_f})
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Progress tab */}
+        {facTab==='progress'&&(
+          <div>
+            <div className="rpt-section">
+              <div className="rpt-heading">Session Progress</div>
+              <p className="rpt-body" style={{marginBottom:'.75rem'}}>Steps completed per respondent based on data available in Supabase.</p>
+              <div className="progress-grid">
+                {realRespondents.map((r,i)=>{
+                  const steps=[
+                    true, // always in
+                    !!(r.thing),
+                    !!(r.s1_answers&&r.s1_answers.length>0),
+                    !!(r.s2_answers&&r.s2_answers.length>0),
+                    !!(r.prog),
+                    !!(r.tobe_p),
+                    true,
+                  ];
+                  const done=steps.filter(Boolean).length;
+                  return(
+                    <div key={i} className="prog-person">
+                      <div className="pp-name" title={r.respondent_name}>{r.respondent_name}</div>
+                      <div style={{fontSize:'.65rem',color:'#888',marginBottom:'.4rem',fontFamily:"'DM Sans',sans-serif"}}>{done}/{steps.length} steps</div>
+                      <div className="pp-steps">
+                        {steps.map((done,si)=>(
+                          <div key={si} className={`step-dot ${done?'done':''}`} title={stepNames[si]}/>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* AI Questions tab */}
+        {facTab==='ai-questions'&&(
+          <div>
+            <div className="rpt-section">
+              <div className="rpt-heading">AI Facilitation Questions</div>
+              <p className="rpt-body" style={{marginBottom:'.75rem'}}>Generated from the group's response data — the questions most likely to surface productive conversation.</p>
+              {!aiQuestions&&!aiQLoading&&(
+                <button className="btn-p" onClick={loadAiQuestions} disabled={realRespondents.length<2}>
+                  Generate Questions →
+                </button>
+              )}
+              {aiQLoading&&(
+                <div className="think"><div className="dots"><div className="dot"/><div className="dot"/><div className="dot"/></div><span className="think-txt">Analysing group data…</span></div>
+              )}
+              {aiQuestions&&aiQuestions.map((q,i)=>(
+                <div key={i} style={{padding:'.85rem 0',borderBottom:'1px solid #ebe7e0'}}>
+                  <div style={{display:'flex',gap:'.65rem',alignItems:'flex-start'}}>
+                    <div className="sug-num">{i+1}</div>
+                    <div className="sug-txt">{q}</div>
+                  </div>
+                </div>
+              ))}
+              {aiQuestions&&(
+                <div className="btn-row" style={{marginTop:'1rem'}}>
+                  <button className="btn-s" onClick={()=>{setAiQuestions(null);}}>Regenerate</button>
+                  <button className="btn-s" onClick={()=>{
+                    const text=aiQuestions.map((q,i)=>`${i+1}. ${q}`).join('\n');
+                    navigator.clipboard.writeText(text).catch(()=>{});
+                  }}>Copy to clipboard</button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Notes tab */}
+        {facTab==='notes'&&(
+          <div>
+            <div className="rpt-section">
+              <div className="rpt-heading">Facilitator Notes</div>
+              <p className="rpt-body" style={{marginBottom:'.75rem'}}>Notes are saved automatically and are only visible to you as facilitator.</p>
+              <textarea className="notes-area" value={facilitatorNotes}
+                placeholder="Session notes, key observations, discussion points…"
+                onChange={e=>{setFacilitatorNotes(e.target.value);saveFacilitatorNotes(e.target.value);}}/>
+              <div style={{fontSize:'.72rem',color:'#b0a898',marginTop:'.35rem',fontFamily:"'DM Sans',sans-serif"}}>Auto-saved to session</div>
+            </div>
+
+            {/* Pre-session briefing export */}
+            <div className="rpt-section" style={{borderTop:'1px solid #d8d3cb',paddingTop:'1.25rem'}}>
+              <div className="rpt-heading">Pre-Session Briefing</div>
+              <p className="rpt-body" style={{marginBottom:'.75rem'}}>One-page PDF with group mean profile, top contested questions, seniority split if detected, and facilitation questions.</p>
+              <button className="btn-s" onClick={()=>window.print()}>Print / Save as PDF</button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  function renderGroupReportTab(){
+    const realRespondents=groupRespondents.filter(r=>r.respondent_name&&r.respondent_name!=='__facilitator__');
+    const myEntry=realRespondents.find(r=>r.respondent_name===respondentName.trim());
+    const PAX_COLORS=['#e07030', '#1a4fa0', '#2d7d46', '#b87a20', '#b83232', '#6a3d9a', '#0891b2', '#78350f', '#374151'];
+
+    // Group mean scores
+    const gMean={prog:0,def:0,con:0,flex:0};
+    if(realRespondents.length>0){
+      realRespondents.forEach(r=>{gMean.prog+=(r.prog||0);gMean.def+=(r.def||0);gMean.con+=(r.con||0);gMean.flex+=(r.flex||0);});
+      ['prog','def','con','flex'].forEach(k=>{gMean[k]=Math.round(gMean[k]/realRespondents.length);});
+    }
+    const groupStrat=realRespondents.length>0?getStrategy(gMean.def,gMean.prog,gMean.con,gMean.flex):null;
+
+    // Diamond paths
+    function groupDiamond(){
+      const W=300,H=300,CX=150,CY=150,RD=100;
+      function ap(ax,sc){const r=(sc/120)*RD;if(ax==='prog')return[CX,CY-r];if(ax==='flex')return[CX+r,CY];if(ax==='def')return[CX,CY+r];return[CX-r,CY];}
+      function sp(p,d,co,f){const pts=[[CX,CY-(p/120)*RD],[CX+(f/120)*RD,CY],[CX,CY+(d/120)*RD],[CX-(co/120)*RD,CY]];return pts.map((pt,i)=>`${i===0?'M':'L'}${pt[0]},${pt[1]}`).join(' ')+' Z';}
+      function gridPath(pct){const r=RD*pct;return `M${CX},${CY-r} L${CX+r},${CY} L${CX},${CY+r} L${CX-r},${CY} Z`;}
+      return(
+        <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{overflow:'visible',maxWidth:'300px'}}>
+          {[.25,.5,.75,1].map(pct=><path key={pct} d={gridPath(pct)} fill="none" stroke="#d8d3cb" strokeWidth={pct===1?1.5:0.8}/>)}
+          <line x1={CX} y1={CY-RD} x2={CX} y2={CY+RD} stroke="#d8d3cb"/>
+          <line x1={CX-RD} y1={CY} x2={CX+RD} y2={CY} stroke="#d8d3cb"/>
+          {realRespondents.map((r,i)=>{
+            const isMe=r.respondent_name===respondentName.trim();
+            const hidden=!isMe&&anonymousMode;
+            if(hidden)return null;
+            const col=PAX_COLORS[i%PAX_COLORS.length];
+            return(<path key={i} d={sp(r.prog||0,r.def||0,r.con||0,r.flex||0)} fill={col} fillOpacity={.06} stroke={col} strokeWidth={isMe?2.5:1.5} strokeLinejoin="round" strokeDasharray={isMe?undefined:'4,3'}/>);
+          })}
+          {realRespondents.length>0&&<path d={sp(gMean.prog,gMean.def,gMean.con,gMean.flex)} fill="none" stroke="#1a1a1a" strokeWidth={2} strokeLinejoin="round"/>}
+          <text x={CX} y={CY-RD-10} textAnchor="middle" fill="#555" fontSize={10} fontWeight={700} fontFamily="DM Sans,sans-serif">Progressive</text>
+          <text x={CX+RD+8} y={CY+4} textAnchor="start" fill="#555" fontSize={10} fontWeight={700} fontFamily="DM Sans,sans-serif">Flexible</text>
+          <text x={CX} y={CY+RD+18} textAnchor="middle" fill="#555" fontSize={10} fontWeight={700} fontFamily="DM Sans,sans-serif">Defensive</text>
+          <text x={CX-RD-8} y={CY+4} textAnchor="end" fill="#555" fontSize={10} fontWeight={700} fontFamily="DM Sans,sans-serif">Consistent</text>
+        </svg>
+      );
+    }
+
+    return(
+      <div>
+        {/* Header */}
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'1rem',flexWrap:'wrap',gap:'.75rem'}}>
+          <div>
+            <div style={{display:'flex',alignItems:'center',gap:'.5rem',marginBottom:'.5rem'}}>
+              {realRespondents.length>0&&<span className="pulse"/>}
+              <span style={{fontSize:'.65rem',fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:'#555',fontFamily:"'DM Sans',sans-serif"}}>Session: {codeNorm}</span>
+            </div>
+            <div className="chip-row">
+              {realRespondents.map((r,i)=>{
+                const isMe=r.respondent_name===respondentName.trim();
+                return(
+                  <div key={i} className={`p-chip done${isMe?' you':''}`} title={r.respondent_name+(isMe?' (you)':'')} style={{background:PAX_COLORS[i%PAX_COLORS.length],borderColor:PAX_COLORS[i%PAX_COLORS.length]}}>
+                    {i+1}
+                    {isMe&&<span className="you-dot"/>}
+                  </div>
+                );
+              })}
+              {realRespondents.length===0&&<span style={{fontSize:'.78rem',color:'#b0a898',fontFamily:"'DM Sans',sans-serif"}}>Waiting for respondents…</span>}
+            </div>
+            {realRespondents.length>0&&<div style={{fontSize:'.72rem',color:'#555',marginTop:'.35rem',fontFamily:"'DM Sans',sans-serif"}}>{realRespondents.length} respondent{realRespondents.length!==1?'s':''} — {SLABELS[groupStrat]||'…'}</div>}
+          </div>
+          <div style={{textAlign:'right'}}>
+            <button className="refresh-btn" onClick={loadGroup}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+              Refresh
+            </button>
+            {lastRefreshed&&<div style={{fontSize:'.65rem',color:'#b0a898',marginTop:'.2rem',fontFamily:"'DM Sans',sans-serif"}}>Last updated {lastRefreshed}</div>}
+          </div>
+        </div>
+
+        {/* Can't see others */}
+        <div style={{marginBottom:'.75rem'}}>
+          <button style={{background:'none',border:'none',padding:0,color:'#e07030',cursor:'pointer',textDecoration:'underline',fontSize:'.78rem',fontFamily:"'DM Sans',sans-serif"}}
+            onClick={()=>{setCodeFixOpen(o=>!o);setCodeFixVal(codeNorm);}}>
+            ⚠ Can't see other group members? Check your session code →
+          </button>
+          {codeFixOpen&&(
+            <div className="code-fix-box">
+              <span style={{fontSize:'.78rem',color:'#1e40af',fontWeight:600,fontFamily:"'DM Sans',sans-serif",whiteSpace:'nowrap'}}>Session code:</span>
+              <input value={codeFixVal} onChange={e=>setCodeFixVal(e.target.value.toUpperCase())} placeholder="e.g. SELL-2025" autoFocus/>
+              <button className="apply-btn" onClick={()=>{const v=codeFixVal.trim();if(!v)return;setSessionCode(v);setCodeFixOpen(false);setTimeout(loadGroup,500);}}>Apply</button>
+              <button style={{background:'none',border:'none',color:'#6b7280',cursor:'pointer',fontSize:'.78rem',fontFamily:"'DM Sans',sans-serif"}} onClick={()=>setCodeFixOpen(false)}>Cancel</button>
+            </div>
+          )}
+        </div>
+
+        {realRespondents.length===0?(
+          <div className="waiting-state">
+            <div className="wait-icon">⏳</div>
+            <h3>Waiting for group responses</h3>
+            <p style={{fontSize:'.875rem',color:'#888',maxWidth:'360px',margin:'0 auto',lineHeight:1.6}}>The group report will appear here once other participants complete the survey. Check back using the Refresh button above.</p>
+          </div>
+        ):(
+          <>
+            {/* Anonymity toggle */}
+            <div style={{display:'flex',justifyContent:'flex-end',marginBottom:'.75rem'}}>
+              <label className="anon-toggle">
+                <input type="checkbox" checked={anonymousMode} onChange={e=>setAnonymousMode(e.target.checked)}/>
+                Show my profile only
+              </label>
+            </div>
+
+            {/* Group diamond */}
+            <div className="chart-box" style={{textAlign:'center',marginBottom:'1.5rem'}}>
+              <div className="chart-lbl">Group Profile</div>
+              {groupDiamond()}
+              <div style={{display:'flex',gap:'.75rem',justifyContent:'center',marginTop:'.6rem',flexWrap:'wrap'}}>
+                {realRespondents.map((r,i)=>{
+                  const isMe=r.respondent_name===respondentName.trim();
+                  const label=anonymousMode&&!isMe?null:(isMe?`You${r.respondent_name!==respondentName.trim()?'':''}`:r.respondent_name);
+                  if(!label)return null;
+                  return(<div key={i} style={{display:'flex',alignItems:'center',gap:'.3rem',fontSize:'.68rem',color:'#555',fontFamily:"'DM Sans',sans-serif"}}>
+                    <div style={{width:10,height:10,borderRadius:'50%',background:PAX_COLORS[i%PAX_COLORS.length],flexShrink:0}}/>
+                    {isMe?<strong>{label} (you)</strong>:label}
+                  </div>);
+                })}
+                <div style={{display:'flex',alignItems:'center',gap:'.3rem',fontSize:'.68rem',color:'#555',fontFamily:"'DM Sans',sans-serif"}}>
+                  <div style={{width:16,height:2,background:'#1a1a1a'}}/>Group mean
+                </div>
+              </div>
+            </div>
+
+            {/* Your profile vs group mean */}
+            {myEntry&&(
+              <div className="rpt-section">
+                <div className="rpt-heading" style={{fontSize:'.63rem',fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:'#e07030',marginBottom:'.75rem'}}>Your Profile vs Group Mean</div>
+                <div className="group-mean-row">
+                  {[{lbl:'Progressive',you:prog,mean:gMean.prog},{lbl:'Defensive',you:def,mean:gMean.def},{lbl:'Consistent',you:con,mean:gMean.con},{lbl:'Flexible',you:flex,mean:gMean.flex}].map(({lbl,you,mean})=>{
+                    const diff=you-mean;
+                    return(
+                      <div key={lbl} className="gm-cell">
+                        <div className="gm-lbl">{lbl}</div>
+                        <div className="gm-you">{you}</div>
+                        <div className="gm-mean">Group mean: {mean}</div>
+                        <div className={`gm-diff ${diff>3?'up':diff<-3?'down':'flat'}`}>
+                          {diff>3?`+${diff} above mean`:diff<-3?`${diff} below mean`:'Near mean'}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Dominant strategy */}
+            {groupStrat&&(
+              <div className="strat-badge" style={{marginTop:'.5rem'}}>
+                <div className="strat-dot"/>
+                <div>
+                  <strong style={{fontFamily:"'DM Sans',sans-serif"}}>Group dominant strategy: {SLABELS[groupStrat]}</strong>
+                  <br/><span style={{fontSize:'.8rem',fontWeight:400,color:'#666',fontFamily:"'DM Sans',sans-serif"}}>{SDESC[groupStrat]}</span>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    );
+  }
+
+  // ── MAIN RENDER ──────────────────────────────────────────────────────────
+  return(
+    <div className="shell" ref={topRef}>
+      <Progress step={step}/>
+      <div className="main">
+        <div className="content fade" key={step}>
+          {step===0&&renderLanding()}
+          {step===1&&renderContext()}
+          {step===2&&renderS1()}
+          {step===3&&renderS2()}
+          {step===4&&renderProfile()}
+          {step===5&&renderTobe()}
+          {step===6&&renderReport()}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── FIX: update renderProfile and go() calls ─────────────────────────────
+// Steps: 0=landing 1=context 2=s1 3=s2 4=profile 5=tobe 6=report
+// stepToNav: 0→0,1→1,2→2,3→2,4→3,5→4,6→5
+
+// Override stepToNav and STEPS already defined above — patch here:
+// (The Progress component above uses stepToNav — we redefine it correctly)
+// Note: STEPS and stepToNav defined earlier in the file are now correct for 7 app steps.
+
+// ── ERROR BOUNDARY ───────────────────────────────────────────────────────
+class ErrorBoundary extends React.Component{
+  constructor(props){super(props);this.state={error:null,info:null};}
+  componentDidCatch(error,info){this.setState({error:error.message,info:info.componentStack});}
+  render(){
+    if(this.state.error){
+      return React.createElement('div',{style:{padding:'2rem',fontFamily:"'DM Sans',sans-serif",background:'#fff8f5',border:'2px solid #e07030',margin:'2rem',borderRadius:'8px'}},
+        React.createElement('h3',{style:{color:'#e07030',marginBottom:'1rem'}},'Something went wrong'),
+        React.createElement('pre',{style:{fontSize:'.75rem',color:'#555',whiteSpace:'pre-wrap',marginBottom:'1rem'}},this.state.error),
+        React.createElement('button',{onClick:()=>this.setState({error:null,info:null}),style:{marginTop:'1rem',padding:'.5rem 1rem',background:'#e07030',color:'#fff',border:'none',borderRadius:'4px',cursor:'pointer'}},'Try Again')
+      );
+    }
+    return this.props.children;
+  }
+}
+
+const root=ReactDOM.createRoot(document.getElementById('root'));
+root.render(React.createElement(ErrorBoundary,null,React.createElement(App,null)));
+</script>
+</body>
+</html>
