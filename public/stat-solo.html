@@ -91,7 +91,7 @@ html,body{font-family:'DM Sans',sans-serif;background:#f0ede8;color:#1a1a1a;-web
 .rpt-section{margin-bottom:1.5rem}
 .da-summary{background:#fff;border:1px solid #d8d3cb;border-left:4px solid #1a1a1a;border-radius:4px;padding:1.25rem 1.5rem;margin-bottom:1.75rem}
 .da-summary-heading{font-size:.63rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#1a1a1a;margin-bottom:.5rem}
-.da-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.75rem}
+.da-grid{display:grid;grid-template-columns:1fr;gap:1rem;margin-bottom:1.75rem}
 .da-card{background:#fff;border:1px solid #d8d3cb;border-top:3px solid #e07030;border-radius:4px;padding:1.1rem 1.25rem}
 .da-card-heading{font-size:.63rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#e07030;margin-bottom:.5rem}
 .da-lower{display:flex;flex-direction:column;gap:.85rem;margin-bottom:1.5rem}
@@ -130,26 +130,43 @@ html,body{font-family:'DM Sans',sans-serif;background:#f0ede8;color:#1a1a1a;-web
 .resume-box{background:#fff8f5;border:1px solid #f5c8b0;border-radius:6px;padding:1.25rem;margin-bottom:1.25rem}
 .resume-box h3{font-size:.9rem;font-weight:700;color:#1a1a1a;margin-bottom:.5rem}
 .resume-box p{font-size:.82rem;color:#555;line-height:1.55;margin-bottom:.75rem}
+@page{margin:0;size:A4}
 @media print{
-  .prog-wrap,.back-btn,.btn-row,.rpt-tabs,.diamond-expand-hint{display:none!important}
+  *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+  .prog-wrap,.back-btn,.btn-row,.rpt-tabs,.diamond-expand-hint,
+  .resume-box,.land-hero,.disc{display:none!important}
   .rpt-tab-content{display:block!important;margin-bottom:0!important}
-  .rpt-tab-content+.rpt-tab-content{margin-top:1.5rem;border-top:2px solid #d8d3cb;padding-top:1.5rem}
-  body{background:#fff}
-  .content{padding:0.5rem 1rem}
-  .chart-pair{grid-template-columns:1fr 1fr;gap:0.75rem}
-  .chart-box{padding:0.75rem;break-inside:avoid}
-  .da-grid{grid-template-columns:1fr 1fr;gap:0.5rem}
-  .da-card{break-inside:avoid}
-  .da-lower-card{break-inside:avoid}
-  .rpt-section{margin-bottom:0.75rem}
-  .rpt-section,.da-lower-card,.da-card,.gap-summary{break-inside:avoid}
-  .da-summary{margin-bottom:0.75rem}
-  .print-section-title{display:block!important;font-family:'Cormorant Garamond',serif;font-size:1.1rem;font-weight:600;color:#e07030;margin-bottom:0.5rem;letter-spacing:0.05em;text-transform:uppercase;font-size:0.75rem}
-  svg{max-height:200px}
-  h2.pg-title{font-size:1.2rem;margin-bottom:0.25rem}
+  .rpt-tab-content+.rpt-tab-content{margin-top:2rem;padding-top:1.5rem;border-top:2px solid #e07030}
+  body{background:#fff!important}
+  .shell{display:block}
+  .content{max-width:100%;padding:1.2cm 1.5cm}
+  .print-header{display:block!important}
+  .print-header-bar{display:flex!important}
+  .chart-box{padding:.75rem;break-inside:avoid;background:#fff!important;border:1px solid #d8d3cb}
+  .da-grid{grid-template-columns:1fr!important}
+  .da-card,.da-lower-card,.rpt-section,.gap-summary,.score-card{break-inside:avoid}
+  .da-summary{margin-bottom:.75rem}
+  .print-section-title{display:block!important;font-size:.65rem;font-weight:700;
+    letter-spacing:.1em;text-transform:uppercase;color:#e07030;margin-bottom:.5rem;
+    font-family:'DM Sans',sans-serif;padding-top:1rem;border-top:1px solid #e0dbd4}
+  svg{max-height:220px!important;width:auto!important}
+  h2.pg-title{font-size:1.3rem;margin-bottom:.25rem}
   .sug-item{break-inside:avoid}
   .score-grid{grid-template-columns:1fr 1fr}
+  .pg-sub{font-size:.8rem;color:#555;margin-bottom:1rem}
+  .strat-badge,.da-lower-card{background:#fff!important}
+  .feedback-section,.was-useful{display:none!important}
 }
+.print-header{display:none;margin-bottom:1.5rem}
+.print-header-bar{background:#1a1a1a;padding:.75rem 1.25rem;display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem}
+.print-header-logo{font-family:'DM Sans',sans-serif;font-size:1.5rem;font-weight:700;letter-spacing:-.01em;line-height:1}
+.print-header-logo span{color:#fff}
+.print-header-logo em{color:#e07030;font-style:normal}
+.print-header-meta{text-align:right;font-family:'DM Sans',sans-serif;font-size:.72rem;color:#aaa;line-height:1.6}
+.print-header-meta strong{color:#fff}
+.print-header-detail{display:flex;justify-content:space-between;align-items:baseline;padding:0 .25rem .5rem;border-bottom:2px solid #e07030;margin-bottom:.25rem;font-family:'DM Sans',sans-serif}
+.print-header-org{font-family:'Cormorant Garamond',serif;font-size:1.25rem;font-weight:600;color:#1a1a1a}
+.print-header-strat{font-size:.78rem;color:#555}
 @media(max-width:580px){
   .q-grid{display:flex;flex-direction:column;gap:.5rem}
   .q-inputs{order:2;width:100%;align-items:center}
@@ -503,6 +520,7 @@ function QuestionSection({secData,answers,onChange,activeIdx,setActiveIdx}){
                     <div className={`q-hint${done?' ok':''}`}>
                       {done?`✓ 10 pts`:`${total}/10 pts`}
                     </div>
+
                   </div>
                   <div className="q-opt" style={{background:rActive?'#fff8f5':'#faf8f5',border:rActive?'1px solid #e07030':'1px solid #e0dbd4',color:rActive?'#1a1a1a':'#666'}}>
                     <div className="q-opt-side" style={{color:rActive?'#e07030':'#c0b8ae'}}>Option B</div>
@@ -583,6 +601,9 @@ function App(){
   const [showReport,setShowReport]=useState(false);
   const [rptTab,setRptTab]=useState(0);
   const [prevSubmission,setPrevSubmission]=useState(null);
+  const [thirtyDay,setThirtyDay]=useState('');
+  const [feedbackRating,setFeedbackRating]=useState(null);
+  const [feedbackComment,setFeedbackComment]=useState('');
   const topRef=useRef(null);
 
   useEffect(()=>{topRef.current&&topRef.current.scrollIntoView({behavior:'smooth'});},[step]);
@@ -632,6 +653,8 @@ function App(){
           asIs:{prog,def,con,flex},tobe:{p:tobe.p,d:tobe.d,c:tobe.c,f:tobe.f},
           strategyType:SLABELS[asIsStrat],tobeType:SLABELS[tobeStrat],
           date:new Date().toISOString(),respondentName,contextText:contextText.slice(0,200),
+          thirtyDayCommitment:thirtyDay||'',
+          feedbackRating:feedbackRating||'',feedbackComment:feedbackComment||'',
         }),
       });
       if(!resp.ok)console.warn('notify failed:',resp.status);
@@ -664,6 +687,8 @@ function App(){
     setS1Active(0);setS2Active(0);
     setTobe({p:60,d:60,c:60,f:60});setTobeInit(false);
     setShowReport(false);setRptTab(0);setPrevSubmission(null);
+    setThirtyDay('');setFeedbackRating(null);setFeedbackComment('');
+    setLoading(false);
   }
 
   function applyResume(data){
@@ -716,6 +741,11 @@ function App(){
           }}/>
         </div>
         {renderResumePrompt()}
+        {resumeData&&(
+          <div style={{fontSize:'.8rem',color:'#888',margin:'-.5rem 0 1rem',fontFamily:"'DM Sans',sans-serif"}}>
+            Or <button style={{background:'none',border:'none',color:'#e07030',cursor:'pointer',fontWeight:600,fontFamily:"'DM Sans',sans-serif",fontSize:'.8rem',textDecoration:'underline',padding:0}} onClick={()=>{setResumeData(null);setThing('');setThingDesc('');setContextText('');}}>start a new assessment for a different organisation →</button>
+          </div>
+        )}
         <div className="disc">
           <strong>Privacy:</strong> Your responses are used only to generate your report. Your name is stored locally on this device to enable return-visit comparison. No data is shared with third parties. This tool supports structured thinking and does not constitute professional advice. For questions, contact <a href="mailto:contact@changebefore.com" style={{color:'inherit'}}>contact@changebefore.com</a>. <a href="https://changebefore.com/privacy/" target="_blank" rel="noopener noreferrer" style={{color:'inherit',textDecoration:'underline'}}>View our full privacy notice →</a>
         </div>
@@ -735,7 +765,7 @@ function App(){
         <h2 className="pg-title">Tell us about it</h2>
         <p className="pg-sub">A few questions about the organisation or team you want to explore. The more you tell us, the more personalised your report will be.</p>
 
-        <label className="field-lbl">Name the thing <span style={{color:'#e07030'}}>*</span></label>
+        <label className="field-lbl">Name the thing you want to work on <span style={{color:'#e07030'}}>*</span></label>
         <div className="field-sub">e.g. "The Nuclear Operations Division", "Our finance team", "Sellafield Ltd"</div>
         <input className="inp" placeholder="What are we looking at?" value={thing} onChange={e=>setThing(e.target.value)} style={{marginBottom:'1.25rem'}}/>
 
@@ -937,11 +967,24 @@ function App(){
     const {pGap,dGap,cGap,fGap}={pGap:tobe.p-prog,dGap:tobe.d-def,cGap:tobe.c-con,fGap:tobe.f-flex};
     return(
       <div>
+        <div className="print-header">
+          <div className="print-header-bar">
+            <div className="print-header-logo"><span>Change</span><em>before</em></div>
+            <div className="print-header-meta">
+              <strong>Strategic Tensions Assessment Tool</strong>
+              <span style={{display:'block'}}>changebefore.com &nbsp;·&nbsp; contact@changebefore.com</span>
+            </div>
+          </div>
+          <div className="print-header-detail">
+            <div className="print-header-org">{th}</div>
+            <div className="print-header-strat">Current: <strong>{SLABELS[asIsStrat]}</strong> &nbsp;→&nbsp; Desired: <strong>{SLABELS[tobeStrat]}</strong> &nbsp;·&nbsp; {new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'})}</div>
+          </div>
+        </div>
         <div className="sec-tag">Organisational Resilience Report</div>
         <h2 className="pg-title">{th}</h2>
         <p className="pg-sub">Current: <strong>{SLABELS[asIsStrat]}</strong> · Desired: <strong>{SLABELS[tobeStrat]}</strong></p>
         <div className="rpt-tabs">
-          {['Profile & Charts','Detailed Analysis','Suggestions & Actions','Save & Next Steps'].map((t,i)=>(
+          {['Profile & Charts','The Model','Detailed Analysis','Suggestions & Actions','Save & Next Steps'].map((t,i)=>(
             <div key={i} className={`rpt-tab${rptTab===i?' active':''}`} onClick={()=>setRptTab(i)}>{t}</div>
           ))}
         </div>
@@ -951,16 +994,186 @@ function App(){
           {renderTab0(pGap,dGap,cGap,fGap)}
         </div>
         <div className="rpt-tab-content" style={{display:rptTab===1?'block':'none'}}>
+          <div className="print-section-title" style={{display:'none'}}>The Model</div>
+          {renderTabModel()}
+        </div>
+        <div className="rpt-tab-content" style={{display:rptTab===2?'block':'none'}}>
           <div className="print-section-title" style={{display:'none'}}>Detailed Analysis</div>
           {renderTab1()}
         </div>
-        <div className="rpt-tab-content" style={{display:rptTab===2?'block':'none'}}>
+        <div className="rpt-tab-content" style={{display:rptTab===3?'block':'none'}}>
           <div className="print-section-title" style={{display:'none'}}>Suggestions &amp; Actions</div>
           {renderTab2(pGap,dGap,cGap,fGap)}
         </div>
-        <div className="rpt-tab-content" style={{display:rptTab===3?'block':'none'}}>
+        <div className="rpt-tab-content" style={{display:rptTab===4?'block':'none'}}>
           <div className="print-section-title" style={{display:'none'}}>Save &amp; Next Steps</div>
           {renderTab3()}
+        </div>
+      </div>
+    );
+  }
+
+
+  // ── TAB: THE MODEL ───────────────────────────────────────────────────────
+  function renderTabModel(){
+    const W = 680, H = 580;
+    const PAD = 155;
+    const QW = W - PAD*2;
+    const QH = H - PAD*2;
+    const CX = PAD + QW/2;
+    const CY = PAD + QH/2;
+    const scaleX = QW/2 / 120;
+    const scaleY = QH/2 / 120;
+
+    const quadrants = [
+      {x:PAD, y:PAD, w:QW/2, h:QH/2, label:'Performance\nOptimisation', sub:'Improving and exploiting', key:'performance_optimisation'},
+      {x:PAD+QW/2, y:PAD, w:QW/2, h:QH/2, label:'Adaptive\nInnovation', sub:'Imagining and creating', key:'adaptive_innovation'},
+      {x:PAD, y:PAD+QH/2, w:QW/2, h:QH/2, label:'Preventative\nControl', sub:'Monitoring and complying', key:'preventative_control'},
+      {x:PAD+QW/2, y:PAD+QH/2, w:QW/2, h:QH/2, label:'Mindful\nAction', sub:'Noticing and responding', key:'mindful_action'},
+    ];
+
+    // Diamond paths
+    const aiPts = [[CX,CY-prog*scaleY],[CX+flex*scaleX,CY],[CX,CY+def*scaleY],[CX-con*scaleX,CY]];
+    const aiPath = aiPts.map((p,i)=>`${i===0?'M':'L'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ')+'Z';
+    const tbPts = [[CX,CY-tobe.p*scaleY],[CX+tobe.f*scaleX,CY],[CX,CY+tobe.d*scaleY],[CX-tobe.c*scaleX,CY]];
+    const tbPath = tbPts.map((p,i)=>`${i===0?'M':'L'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ')+'Z';
+
+    // Shared SVG base: axes, labels, quadrant boxes
+    function renderBase(showDominant){
+      return(
+        <g>
+          {quadrants.map((qd,i)=>{
+            const active = showDominant && asIsStrat===qd.key;
+            return(
+              <g key={i}>
+                <rect x={qd.x+2} y={qd.y+2} width={qd.w-4} height={qd.h-4}
+                  fill={active?'#1a1a1a':'#2d2d2d'} rx={6} opacity={active?1:0.8}/>
+                {qd.label.split('\n').map((line,li)=>(
+                  <text key={li} x={qd.x+qd.w/2} y={qd.y+qd.h/2-16+(li*20)}
+                    textAnchor="middle" fill="#fff" fontSize={13} fontWeight={700}
+                    fontFamily="DM Sans,sans-serif">{line}</text>
+                ))}
+                <text x={qd.x+qd.w/2} y={qd.y+qd.h/2+18}
+                  textAnchor="middle" fill="#e07030" fontSize={11}
+                  fontFamily="DM Sans,sans-serif">{qd.sub}</text>
+                {active&&<rect x={qd.x+2} y={qd.y+2} width={qd.w-4} height={qd.h-4}
+                  fill="none" stroke="#e07030" strokeWidth={2.5} rx={6}/>}
+              </g>
+            );
+          })}
+          {/* Axes */}
+          <line x1={CX} y1={PAD-32} x2={CX} y2={PAD+QH+32} stroke="#1a1a1a" strokeWidth={1.5} strokeDasharray="4,3"/>
+          <line x1={PAD-32} y1={CY} x2={PAD+QW+32} y2={CY} stroke="#1a1a1a" strokeWidth={1.5} strokeDasharray="4,3"/>
+          {/* Arrowheads */}
+          <polygon points={`${CX-5},${PAD-22} ${CX+5},${PAD-22} ${CX},${PAD-32}`} fill="#1a1a1a"/>
+          <polygon points={`${CX-5},${PAD+QH+22} ${CX+5},${PAD+QH+22} ${CX},${PAD+QH+32}`} fill="#1a1a1a"/>
+          <polygon points={`${PAD-22},${CY-5} ${PAD-22},${CY+5} ${PAD-32},${CY}`} fill="#1a1a1a"/>
+          <polygon points={`${PAD+QW+22},${CY-5} ${PAD+QW+22},${CY+5} ${PAD+QW+32},${CY}`} fill="#1a1a1a"/>
+          {/* PROGRESSIVE top — fixed positions well above arrow (arrow at PAD-32) */}
+          <text x={CX} y={10} textAnchor="middle" fill="#1a1a1a" fontSize={13} fontWeight={700} fontFamily="DM Sans,sans-serif">PROGRESSIVE</text>
+          <text x={CX} y={24} textAnchor="middle" fill="#555" fontSize={10} fontFamily="DM Sans,sans-serif">(Achieving results)</text>
+          {['Leveraging opportunities','Building capability','Achieving results','Growing position'].map((l,i)=>(
+            <text key={i} x={CX} y={38+(i*12)} textAnchor="middle" fill="#999" fontSize={9} fontFamily="DM Sans,sans-serif">{l}</text>
+          ))}
+          {/* DEFENSIVE bottom — fixed positions well below arrow (arrow at PAD+QH+32) */}
+          {['Mitigating threats','Protecting capacity','Preserving position','Preventing disruption'].map((l,i)=>(
+            <text key={i} x={CX} y={PAD+QH+44+(i*12)} textAnchor="middle" fill="#999" fontSize={9} fontFamily="DM Sans,sans-serif">{l}</text>
+          ))}
+          <text x={CX} y={PAD+QH+100} textAnchor="middle" fill="#555" fontSize={10} fontFamily="DM Sans,sans-serif">(Protecting results)</text>
+          <text x={CX} y={PAD+QH+114} textAnchor="middle" fill="#1a1a1a" fontSize={13} fontWeight={700} fontFamily="DM Sans,sans-serif">DEFENSIVE</text>
+          {/* CONSISTENT left — right-aligned, flush toward the arrow */}
+          <text x={PAD-38} y={CY-46} textAnchor="end" fill="#1a1a1a" fontSize={12} fontWeight={700} fontFamily="DM Sans,sans-serif">CONSISTENT</text>
+          {['Common goals','Standard processes','Unified behaviours','Shared values'].map((l,i)=>(
+            <text key={i} x={PAD-38} y={CY-28+(i*14)} textAnchor="end" fill="#666" fontSize={10} fontFamily="DM Sans,sans-serif">{l}</text>
+          ))}
+          {/* FLEXIBLE right — left-aligned, flush from the arrow */}
+          <text x={PAD+QW+38} y={CY-46} textAnchor="start" fill="#1a1a1a" fontSize={12} fontWeight={700} fontFamily="DM Sans,sans-serif">FLEXIBLE</text>
+          {['Distributed goals','Adaptive processes','Independent judgement','Diverse values'].map((l,i)=>(
+            <text key={i} x={PAD+QW+38} y={CY-28+(i*14)} textAnchor="start" fill="#666" fontSize={10} fontFamily="DM Sans,sans-serif">{l}</text>
+          ))}
+        </g>
+      );
+    }
+
+    return(
+      <div>
+        <div className="rpt-section">
+          <div className="rpt-heading">Managing Strategic Tensions</div>
+          <p className="rpt-body">Organisational resilience strategies differ on two core dimensions. The first is <strong>mindset</strong> — whether the organisation is primarily oriented toward defending what it has (Defensive) or toward achieving new results (Progressive). The second is <strong>approach</strong> — whether the organisation operates through common goals, standard processes, unified behaviours and shared values (Consistent) or through distributed goals, adaptive processes, independent judgement and diverse values (Flexible).</p>
+          <p className="rpt-body">These two dimensions combine to produce four core resilience strategies. The right-hand diagram shows your profile plotted on the model.</p>
+        </div>
+
+        {/* Model diagram — full width, no profiles */}
+        <div style={{background:'#fff',border:'1px solid #d8d3cb',borderRadius:'6px',padding:'1rem',textAlign:'center',margin:'1.5rem 0'}}>
+          <div style={{fontSize:'.65rem',fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:'#888',marginBottom:'.5rem',fontFamily:"'DM Sans',sans-serif"}}>The Model</div>
+          <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{overflow:'visible',maxWidth:'100%'}}>
+            {renderBase(false)}
+          </svg>
+        </div>
+
+        <div className="rpt-section">
+          <div className="rpt-heading">The Five Strategies</div>
+          <p className="rpt-body">Every organisation has a unique STAT profile that is usually made up of some combination of all four core strategies. A fifth strategy — Neutral — describes organisations with a very balanced combination of all four. One size does not fit all: the overall approach will vary according to the nature of the organisation, its mission, and the environment it faces. It is also likely to change over time as the organisation itself evolves.</p>
+        </div>
+
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'1rem',marginBottom:'1.5rem'}}>
+          {[
+            {name:'Performance Optimisation',tag:'Progressive · Consistent',body:'Resilience formed by process optimisation, continually improving and extending existing competencies, and exploiting current technologies to serve present customers more efficiently and effectively.'},
+            {name:'Adaptive Innovation',tag:'Progressive · Flexible',body:'Resilience created through innovation and new products, services or capabilities. Also the strategy required to resolve complex, intractable problems that require fundamental rethinking of how the organisation works.'},
+            {name:'Preventative Control',tag:'Defensive · Consistent',body:'Resilience achieved through robust risk management, physical barriers, safeguards and standards. The organisation protects itself from threats, predicts and prevents disruptions, and designs prearranged continuity plans to restore stability if disruption occurs.'},
+            {name:'Mindful Action',tag:'Defensive · Flexible',body:'Resilience created by people who use their experience, expertise and teamwork to anticipate and adapt to threats and respond effectively to unfamiliar situations through creative problem solving and improvisation.'},
+          ].map(s=>(
+            <div key={s.name} style={{background:'#fff',border:'1px solid #d8d3cb',borderTop:'3px solid #1a1a1a',borderRadius:'4px',padding:'1rem 1.1rem'}}>
+              <div style={{fontSize:'.63rem',fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:'#e07030',marginBottom:'.35rem',fontFamily:"'DM Sans',sans-serif"}}>{s.tag}</div>
+              <div style={{fontSize:'.88rem',fontWeight:700,color:'#1a1a1a',marginBottom:'.4rem',fontFamily:"'DM Sans',sans-serif"}}>{s.name}</div>
+              <p className="rpt-body" style={{marginBottom:0}}>{s.body}</p>
+            </div>
+          ))}
+        </div>
+
+        <div style={{background:'#fff',border:'1px solid #d8d3cb',borderTop:'3px solid #888',borderRadius:'4px',padding:'1rem 1.1rem',marginBottom:'1.5rem'}}>
+          <div style={{fontSize:'.63rem',fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:'#888',marginBottom:'.35rem',fontFamily:"'DM Sans',sans-serif"}}>All four strategies equally</div>
+          <div style={{fontSize:'.88rem',fontWeight:700,color:'#1a1a1a',marginBottom:'.4rem',fontFamily:"'DM Sans',sans-serif"}}>Neutral</div>
+          <p className="rpt-body" style={{marginBottom:0}}>A neutral profile has almost uniform emphasis on all four core strategies. It is often unintended and rarely achieved by design. Organisations with a neutral profile may lack a clearly defined resilience strategy — trying to be all things to all people. The risk is ending up stuck in the middle, delivering average performance across all four rather than genuine strength in any.</p>
+        </div>
+
+        {/* Your profile diagram — full width, with diamonds */}
+        <div style={{background:'#fff',border:'1px solid #d8d3cb',borderRadius:'6px',padding:'1rem',textAlign:'center',margin:'1.5rem 0'}}>
+          <div style={{fontSize:'.65rem',fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:'#888',marginBottom:'.5rem',fontFamily:"'DM Sans',sans-serif"}}>Your Profile</div>
+          <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{overflow:'visible',maxWidth:'100%'}}>
+            {renderBase(true)}
+            <path d={tbPath} fill="none" stroke="#fff" strokeWidth={2.5} strokeDasharray="5,3" strokeLinejoin="round" opacity={0.9}/>
+            <path d={tbPath} fill="none" stroke="#888" strokeWidth={1} strokeDasharray="5,3" strokeLinejoin="round" opacity={0.6}/>
+            <path d={aiPath} fill="#e07030" fillOpacity={0.2} stroke="#e07030" strokeWidth={2.5} strokeLinejoin="round"/>
+            <text x={CX} y={CY-prog*scaleY-8} textAnchor="middle" fill="#e07030" fontSize={10} fontWeight={700} fontFamily="DM Sans,sans-serif">{prog}</text>
+            <text x={CX+flex*scaleX+9} y={CY+4} textAnchor="start" fill="#e07030" fontSize={10} fontWeight={700} fontFamily="DM Sans,sans-serif">{flex}</text>
+            <text x={CX} y={CY+def*scaleY+16} textAnchor="middle" fill="#e07030" fontSize={10} fontWeight={700} fontFamily="DM Sans,sans-serif">{def}</text>
+            <text x={CX-con*scaleX-9} y={CY+4} textAnchor="end" fill="#e07030" fontSize={10} fontWeight={700} fontFamily="DM Sans,sans-serif">{con}</text>
+          </svg>
+          <div style={{display:'flex',gap:'1rem',justifyContent:'center',marginTop:'.5rem',flexWrap:'wrap'}}>
+            <div style={{display:'flex',alignItems:'center',gap:'.35rem',fontSize:'.72rem',color:'#555'}}>
+              <svg width={22} height={14} viewBox="0 0 22 14"><polygon points="11,1 21,7 11,13 1,7" fill="#e07030" fillOpacity={0.25} stroke="#e07030" strokeWidth={2}/></svg>
+              <span>Current</span>
+            </div>
+            <div style={{display:'flex',alignItems:'center',gap:'.35rem',fontSize:'.72rem',color:'#555'}}>
+              <svg width={22} height={14} viewBox="0 0 22 14"><polygon points="11,1 21,7 11,13 1,7" fill="none" stroke="#888" strokeWidth={2} strokeDasharray="3,2"/></svg>
+              <span>Desired</span>
+            </div>
+            <div style={{display:'flex',alignItems:'center',gap:'.35rem',fontSize:'.72rem',color:'#555'}}>
+              <div style={{width:12,height:12,borderRadius:2,background:'#1a1a1a',border:'2px solid #e07030'}}/>
+              <span>Dominant strategy</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="rpt-section" style={{background:'#ebe7e0',border:'1px solid #d8d3cb',borderRadius:'4px',padding:'1rem 1.1rem'}}>
+          <div className="rpt-heading">The Core Tension</div>
+          <p className="rpt-body" style={{marginBottom:0}}>To achieve organisational resilience, leaders have to manage the tensions between the need to be both <strong>defensive and progressive</strong>, and also <strong>consistent and flexible</strong>. These are not either/or choices — the goal is to understand which combination best fits {th}'s context, and to make that a deliberate strategic decision rather than an accidental default.</p>
+        </div>
+
+        <div className="btn-row">
+          <button className="btn-p" onClick={()=>setRptTab(2)}>Read Detailed Analysis →</button>
+          <button className="btn-s" onClick={()=>setRptTab(0)}>← Profile</button>
         </div>
       </div>
     );
@@ -1019,7 +1232,7 @@ function App(){
           </div>
         )}
         <div className="btn-row">
-          <button className="btn-p" onClick={()=>setRptTab(1)}>Read Detailed Analysis →</button>
+          <button className="btn-p" onClick={()=>setRptTab(1)}>Explore the Model →</button>
           <button className="btn-s" onClick={()=>go(5)}>← Back to Future Profile</button>
         </div>
       </div>
@@ -1045,7 +1258,7 @@ function App(){
           <div className="da-lower-card areas"><div className="da-lower-heading">Areas for Consideration — to move toward your desired profile</div><p className="rpt-body">{SD.areas}</p></div>
         </div>
         <div className="btn-row">
-          <button className="btn-p" onClick={()=>setRptTab(2)}>See Actions →</button>
+          <button className="btn-p" onClick={()=>setRptTab(3)}>See Actions →</button>
           <button className="btn-s" onClick={()=>setRptTab(0)}>← Profile</button>
         </div>
       </div>
@@ -1055,7 +1268,7 @@ function App(){
   function renderTab2(pGap,dGap,cGap,fGap){
     return(
       <div>
-        <div className="rpt-section">
+<div className="rpt-section">
           <div className="rpt-heading">About These Actions</div>
           <p className="rpt-body">For each domain, the strategic priority identifies the most important shift based on your current profile and desired direction. The strategic question is designed to open up the options available to you — not to prescribe a specific action.</p>
         </div>
@@ -1088,8 +1301,17 @@ function App(){
             </div>
           );
         })}
+
+        <div style={{background:'#fff8f5',border:'1px solid #f5c8b0',borderRadius:'5px',padding:'1.25rem',marginBottom:'1.5rem'}}>
+          <div style={{fontSize:'.7rem',fontWeight:700,letterSpacing:'.08em',textTransform:'uppercase',color:'#e07030',marginBottom:'.5rem',fontFamily:"'DM Sans',sans-serif"}}>Your 30-day commitment <span style={{fontWeight:400,color:'#b0a898'}}>(optional)</span></div>
+          <p style={{fontSize:'.85rem',color:'#555',marginBottom:'.75rem',lineHeight:1.55,fontFamily:"'DM Sans',sans-serif"}}>Based on what you've read, what is the one thing you will try in the next 30 days?</p>
+          <textarea value={thirtyDay} onChange={e=>setThirtyDay(e.target.value)}
+            placeholder="e.g. In our next strategy meeting, I will introduce one explicit question about what new capability we need..."
+            style={{width:'100%',border:'1px solid #d8d3cb',borderRadius:'3px',padding:'.72rem 1rem',fontFamily:"'DM Sans',sans-serif",fontSize:'.875rem',color:'#1a1a1a',outline:'none',minHeight:'90px',resize:'vertical',lineHeight:1.55,background:'#fff'}}
+          />
+        </div>
         <div className="btn-row" style={{marginTop:'2rem'}}>
-          <button className="btn-p" onClick={()=>setRptTab(3)}>Save & Next Steps →</button>
+          <button className="btn-p" onClick={()=>setRptTab(4)}>Save & Next Steps →</button>
           <button className="btn-s" onClick={()=>setRptTab(0)}>← Profile</button>
           <button className="btn-s" onClick={restart}>Start Again</button>
         </div>
@@ -1104,16 +1326,38 @@ function App(){
     }
     return(
       <div>
+        <div style={{background:'#fff',border:'1px solid #d8d3cb',borderRadius:'5px',padding:'1.25rem',marginBottom:'1.5rem'}}>
+          <div style={{fontSize:'.7rem',fontWeight:700,letterSpacing:'.08em',textTransform:'uppercase',color:'#e07030',marginBottom:'.75rem',fontFamily:"'DM Sans',sans-serif"}}>Was this useful?</div>
+          <div style={{display:'flex',gap:'.75rem',marginBottom:'1rem',flexWrap:'wrap'}}>
+            {[{val:'very',label:'Very useful'},{val:'somewhat',label:'Somewhat useful'},{val:'not',label:'Not really'}].map(opt=>(
+              <button key={opt.val} onClick={()=>setFeedbackRating(opt.val)}
+                style={{padding:'.5rem 1rem',borderRadius:'20px',border:`1.5px solid ${feedbackRating===opt.val?'#e07030':'#d8d3cb'}`,background:feedbackRating===opt.val?'#fff8f5':'#fff',color:feedbackRating===opt.val?'#e07030':'#555',fontSize:'.82rem',fontWeight:feedbackRating===opt.val?700:400,cursor:'pointer',fontFamily:"'DM Sans',sans-serif",transition:'all .15s'}}>
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          <textarea value={feedbackComment} onChange={e=>setFeedbackComment(e.target.value)}
+            placeholder="Any other comments? (optional)"
+            style={{width:'100%',border:'1px solid #d8d3cb',borderRadius:'3px',padding:'.65rem .9rem',fontFamily:"'DM Sans',sans-serif",fontSize:'.85rem',color:'#1a1a1a',outline:'none',minHeight:'70px',resize:'vertical',lineHeight:1.55,background:'#fff'}}
+          />
+          {feedbackRating&&<p style={{fontSize:'.75rem',color:'#888',marginTop:'.5rem',fontFamily:"'DM Sans',sans-serif"}}>Thank you — your feedback helps improve the tool.</p>}
+        </div>
         <div className="rpt-section">
           <div className="rpt-heading">Save Your Report</div>
           <p className="rpt-body">Click the button below to open your browser's print dialog. Select <strong>Save as PDF</strong> as the destination to download your report. A copy of your results will also be emailed to ChangeBefore for your records.</p>
           <div className="btn-row" style={{marginTop:'1rem'}}>
             <button className="btn-p" onClick={generatePDF}>⬇ Generate PDF</button>
+            <button className="btn-s" onClick={()=>{
+              const SD2=STRATEGY_DATA?STRATEGY_DATA[asIsStrat]:null;
+              const subject=encodeURIComponent(`STAT Profile — ${thing||'Organisation'}`);
+              const body=encodeURIComponent(`Hi,\n\nI've just completed the STAT individual assessment. Here is a summary of my results.\n\nOrganisation: ${thing||'—'}\nCurrent strategy: ${SLABELS[asIsStrat]}\nProgressive: ${prog} | Defensive: ${def} | Consistent: ${con} | Flexible: ${flex}\n\nDesired strategy: ${SLABELS[tobeStrat]}\nProgressive: ${tobe.p} | Defensive: ${tobe.d} | Consistent: ${tobe.c} | Flexible: ${tobe.f}\n\nCompleted: ${new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'})}\n\nYou can access the tool at: https://changebefore.com/stat-solo-access/`);
+              window.location.href=`mailto:?subject=${subject}&body=${body}`;
+            }}>✉ Share by email</button>
           </div>
         </div>
         <div className="rpt-section" style={{borderTop:'1px solid #d8d3cb',paddingTop:'1.75rem',marginTop:'1.75rem'}}>
           <div style={{fontSize:'1rem',fontWeight:700,letterSpacing:'.05em',textTransform:'uppercase',color:'#e07030',marginBottom:'.5rem'}}>Take It Further: Run STAT with Your Team or Organisation</div>
-          <p className="rpt-body">Your individual report is a starting point. It reflects a single perspective on how your organisation operates — and what it could become. The real diagnostic power emerges when you compare results across your team or organisation.</p>
+          <p className="rpt-body">Your individual report is a starting point. It reflects a single perspective on how {th} operates — and what it could become. The real diagnostic power emerges when you compare results across your team or organisation.</p>
           <p className="rpt-body" style={{marginTop:'.75rem'}}>Even people working side by side often see the current position very differently. And leaders frequently see the organisation in ways that differ sharply from the experience of those they lead. Understanding those differences is not a problem to manage — it is the insight you need to act.</p>
           <div style={{marginTop:'1.25rem'}}>
             <div className="rpt-heading" style={{fontSize:'.85rem',marginBottom:'.6rem'}}>Run STAT with your leadership team to:</div>
@@ -1126,7 +1370,7 @@ function App(){
             </ul>
           </div>
           <div style={{marginTop:'1.25rem'}}>
-            <div className="rpt-heading" style={{fontSize:'.85rem',marginBottom:'.6rem'}}>Run STAT across your organisation to:</div>
+            <div className="rpt-heading" style={{fontSize:'.85rem',marginBottom:'.6rem'}}>Run STAT across {th} to:</div>
             <ul style={{paddingLeft:'1.25rem',lineHeight:1.8,fontSize:'.875rem',color:'#555'}}>
               <li>Compare how leaders see the organisation with how it is experienced on the ground</li>
               <li>Identify where strategic intent is not translating into operational reality</li>
@@ -1136,7 +1380,13 @@ function App(){
           </div>
           <div style={{marginTop:'1.5rem',padding:'1.25rem',background:'#fff8f5',border:'1px solid #f5c8b0',borderRadius:'6px'}}>
             <div style={{fontSize:'.85rem',fontWeight:700,color:'#1a1a1a',marginBottom:'.5rem'}}>Ready to run it with your team?</div>
-            <p style={{fontSize:'.85rem',color:'#555',lineHeight:1.7}}>Contact us at <a href="mailto:contact@changebefore.com" style={{color:'#e07030'}}>contact@changebefore.com</a> or visit <a href="https://changebefore.com/contact/" target="_blank" rel="noopener noreferrer" style={{color:'#e07030'}}>changebefore.com/contact</a> to arrange a conversation.</p>
+            <p style={{fontSize:'.85rem',color:'#555',lineHeight:1.7,marginBottom:'1rem'}}>Contact us at <a href="mailto:contact@changebefore.com" style={{color:'#e07030'}}>contact@changebefore.com</a> or visit <a href="https://changebefore.com/contact/" target="_blank" rel="noopener noreferrer" style={{color:'#e07030'}}>changebefore.com/contact</a> to arrange a conversation.</p>
+            <p style={{fontSize:'.85rem',color:'#555',lineHeight:1.6,marginBottom:'.75rem',fontFamily:"'DM Sans',sans-serif"}}>Arrange a conversation about running this for your group or team.</p>
+            <button className="btn-p" onClick={()=>{
+              const subject=encodeURIComponent(`Group STAT session — ${thing||'Organisation'}`);
+              const body=encodeURIComponent(`Hi,\n\nI've just completed the individual STAT assessment for ${thing||'my organisation'} and would like to arrange a conversation about running a group session.\n\nMy current profile: ${SLABELS[asIsStrat]} (Progressive: ${prog}, Defensive: ${def}, Consistent: ${con}, Flexible: ${flex})\nDesired direction: ${SLABELS[tobeStrat]}\n\nPlease get in touch at your convenience.\n\nBest regards`);
+              window.location.href=`mailto:contact@changebefore.com?subject=${subject}&body=${body}`;
+            }} style={{marginTop:'.25rem'}}>Contact us →</button>
           </div>
         </div>
         <div className="btn-row" style={{marginTop:'1.75rem'}}>
