@@ -644,8 +644,7 @@ function App(){
   const [thing,setThing]=useState('');
   const [thingDesc,setThingDesc]=useState('');
   const [contextText,setContextText]=useState('');
-  const [role,setRole]=useState('');
-  const [roleCustom,setRoleCustom]=useState('');
+
   const [s1ans,setS1]=useState(Array(12).fill(null).map(()=>({l:'',r:''})));
   const [s2ans,setS2]=useState(Array(12).fill(null).map(()=>({l:'',r:''})));
   const [s1active,setS1Active]=useState(0);
@@ -660,7 +659,7 @@ function App(){
   const [feedbackRating,setFeedbackRating]=useState(null);
   const [feedbackComment,setFeedbackComment]=useState('');
   const [sessionCode,setSessionCode]=useState('');
-  const [seniority,setSeniority]=useState('');
+
   const [orgSize,setOrgSize]=useState('');
   const [sector,setSector]=useState('');
   const [groupRespondents,setGroupRespondents]=useState([]);
@@ -668,6 +667,7 @@ function App(){
   const [codeFixOpen,setCodeFixOpen]=useState(false);
   const [codeFixVal,setCodeFixVal]=useState('');
   const [anonymousMode,setAnonymousMode]=useState(false);
+  const [groupReportMode,setGroupReportMode]=useState(false);
   const [facTab,setFacTab]=useState('overview');
   const [selectedRespondent,setSelectedRespondent]=useState(null);
   const [facilitatorNotes,setFacilitatorNotes]=useState('');
@@ -680,8 +680,8 @@ function App(){
   // Auto-save progress whenever key state changes
   useEffect(()=>{
     if(!respondentName.trim()||step===0)return;
-    saveProgress(respondentName,{step,thing,thingDesc,contextText,role,roleCustom,s1ans,s2ans,tobe,tobeInit});
-  },[step,thing,thingDesc,contextText,role,roleCustom,s1ans,s2ans,tobe,tobeInit,respondentName]);
+    saveProgress(respondentName,{step,thing,thingDesc,contextText,s1ans,s2ans,tobe,tobeInit});
+  },[step,thing,thingDesc,contextText,s1ans,s2ans,tobe,tobeInit,respondentName]);
 
   const def=s1ans.reduce((s,a)=>s+(parseInt(a.l)||0),0);
   const prog=s1ans.reduce((s,a)=>s+(parseInt(a.r)||0),0);
@@ -725,8 +725,8 @@ function App(){
         body:JSON.stringify({
           session_code:codeNorm,
           respondent_name:respondentName.trim(),
-          role:role==='None of the above'?roleCustom:role,
-          seniority,org_size:orgSize,sector,
+          role:'',
+          seniority:'',org_size:orgSize,sector,
           thing,prog,def:def,con,flex,
           tobe_p:tobe.p,tobe_d:tobe.d,tobe_c:tobe.c,tobe_f:tobe.f,
           s1_answers:s1ans,s2_answers:s2ans,
@@ -782,9 +782,9 @@ function App(){
 
   function exportCSV(){
     const rows=groupRespondents.filter(r=>r.respondent_name&&r.respondent_name!=='__facilitator__');
-    const headers=['Name','Role','Seniority','Sector','Progressive','Defensive','Consistent','Flexible','Strategy','Tobe_P','Tobe_D','Tobe_C','Tobe_F','Date'];
+    const headers=['Name','Sector','Progressive','Defensive','Consistent','Flexible','Strategy','Tobe_P','Tobe_D','Tobe_C','Tobe_F','Date'];
     const lines=[headers.join(','),...rows.map(r=>[
-      `"${r.respondent_name||''}"`,`"${r.role||''}"`,`"${r.seniority||''}"`,`"${r.sector||''}"`,
+      `"${r.respondent_name||''}"`,`"${r.sector||''}"`,
       r.prog||0,r.def||0,r.con||0,r.flex||0,`"${r.strategy_type||''}"`,
       r.tobe_p||0,r.tobe_d||0,r.tobe_c||0,r.tobe_f||0,`"${(r.date||'').slice(0,10)}"`
     ].join(','))];
@@ -795,18 +795,25 @@ function App(){
     a.click();
   }
 
-  // Poll group data when on report step
+  // Poll group data when on step 5 (group report mode) or step 6 with session code
   useEffect(()=>{
-    if(step!==6||!codeNorm)return;
-    loadGroup();
-    const id=setInterval(loadGroup,15000);
-    return()=>clearInterval(id);
-  },[step,codeNorm]);
+    if(((step===5&&groupReportMode)||step===6)&&codeNorm){
+      // Small delay so saveToGroup() write completes before first load
+      const t=setTimeout(()=>loadGroup(),1200);
+      const id=setInterval(loadGroup,15000);
+      return()=>{clearTimeout(t);clearInterval(id);};
+    }
+  },[step,groupReportMode,codeNorm]);
 
-  // Admin: load group on mount if session code set
+  // Reload when user switches to group report tab (step 5: always tab 0, step 6: tab 4)
   useEffect(()=>{
-    if(isAdmin&&codeNorm&&step===6)loadGroup();
-  },[isAdmin,codeNorm,step]);
+    if(((step===5&&groupReportMode)||(rptTab===4&&step===6))&&codeNorm)loadGroup();
+  },[rptTab,groupReportMode]);
+
+  // Admin: load group on mount if session code set (step 5 group mode or step 6)
+  useEffect(()=>{
+    if(isAdmin&&codeNorm&&((step===5&&groupReportMode)||step===6))loadGroup();
+  },[isAdmin,codeNorm,step,groupReportMode]);
 
   async function fireNotification(){
     try{
@@ -814,9 +821,9 @@ function App(){
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({
-          type:codeNorm?'group':'solo',orgName:thing||'(unnamed)',role:role==='None of the above'?roleCustom:role,
+          type:codeNorm?'group':'solo',orgName:thing||'(unnamed)',role:'',
           sessionCode:codeNorm||'',
-          seniority,orgSize,sector,
+          seniority:'',orgSize,sector,
           asIs:{prog,def,con,flex},tobe:{p:tobe.p,d:tobe.d,c:tobe.c,f:tobe.f},
           strategyType:SLABELS[asIsStrat],tobeType:SLABELS[tobeStrat],
           date:new Date().toISOString(),respondentName,contextText:contextText.slice(0,200),
@@ -852,7 +859,6 @@ function App(){
   function restart(){
     clearProgress(respondentName);
     setStep(0);setRespondentName('');setResumeData(null);setThing('');setThingDesc('');setContextText('');
-    setRole('');setRoleCustom('');
     setS1(Array(12).fill(null).map(()=>({l:'',r:''})));
     setS2(Array(12).fill(null).map(()=>({l:'',r:''})));
     setS1Active(0);setS2Active(0);
@@ -866,8 +872,6 @@ function App(){
     if(data.thing)setThing(data.thing);
     if(data.thingDesc)setThingDesc(data.thingDesc);
     if(data.contextText)setContextText(data.contextText);
-    if(data.role)setRole(data.role);
-    if(data.roleCustom)setRoleCustom(data.roleCustom);
     if(data.s1ans)setS1(data.s1ans);
     if(data.s2ans)setS2(data.s2ans);
     if(data.tobe)setTobe(data.tobe);
@@ -955,35 +959,7 @@ function App(){
         <div className="field-sub">Any background that will help personalise your report — sector, recent challenges, what prompted this.</div>
         <textarea className="inp inp-ta" placeholder="Describe the context in your own words..." value={contextText} onChange={e=>setContextText(e.target.value)} style={{marginBottom:'1.5rem'}}/>
 
-        <div style={{borderTop:'1px solid #d8d3cb',paddingTop:'1.25rem',marginBottom:'1.25rem'}}>
-          <label className="field-lbl">Your role</label>
-          <div className="field-sub">Select the option that best describes your role.</div>
-          <div style={{display:'flex',flexWrap:'wrap',gap:'.5rem',marginBottom:'.75rem'}}>
-            {['Frontline / Operational','Team Leader','Manager','Senior Leader','Executive / Board','None of the above'].map(r=>(
-              <button key={r} onClick={()=>setRole(r)}
-                style={{padding:'.45rem .85rem',borderRadius:'20px',border:`1.5px solid ${role===r?'#e07030':'#d8d3cb'}`,background:role===r?'#fff8f5':'#fff',color:role===r?'#e07030':'#555',fontSize:'.78rem',fontWeight:role===r?700:400,cursor:'pointer',transition:'all .15s',fontFamily:"'DM Sans',sans-serif"}}>
-                {r}
-              </button>
-            ))}
-          </div>
-          {role==='None of the above'&&(
-            <input className="inp" placeholder="Describe your role..." value={roleCustom} onChange={e=>setRoleCustom(e.target.value)} style={{maxWidth:'340px'}}/>
-          )}
-        </div>
-
-        <div style={{borderTop:'1px solid #d8d3cb',paddingTop:'1.25rem',marginBottom:'1.25rem'}}>
-          <label className="field-lbl">Seniority</label>
-          <div style={{display:'flex',flexWrap:'wrap',gap:'.5rem',marginBottom:'.75rem'}}>
-            {['Frontline / Operational','Team Leader','Manager','Senior Leader','Executive / Board'].map(s=>(
-              <button key={s} onClick={()=>setSeniority(s)}
-                style={{padding:'.45rem .85rem',borderRadius:'20px',border:`1.5px solid ${seniority===s?'#e07030':'#d8d3cb'}`,background:seniority===s?'#fff8f5':'#fff',color:seniority===s?'#e07030':'#555',fontSize:'.78rem',fontWeight:seniority===s?700:400,cursor:'pointer',transition:'all .15s',fontFamily:"'DM Sans',sans-serif"}}>
-                {s}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'1rem',marginBottom:'1.25rem'}}>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'1rem',marginBottom:'1.25rem'}}>
           <div>
             <label className="field-lbl">Organisation size <span style={{color:'#c0b8ae',fontWeight:400}}>(optional)</span></label>
             <select className="inp" value={orgSize} onChange={e=>setOrgSize(e.target.value)}>
@@ -1163,6 +1139,9 @@ function App(){
           ):(
             <button className="btn-p" onClick={generate}>Generate My Report →</button>
           )}
+          {codeNorm && (
+            <button className="btn-s" onClick={()=>setGroupReportMode(true)} style={{background:'#e07030',color:'#fff',borderColor:'#e07030'}}>Group Report →</button>
+          )}
           <button className="btn-s" onClick={()=>go(3)}>← Back</button>
         </div>
       </div>
@@ -1191,7 +1170,7 @@ function App(){
         <h2 className="pg-title">{th}</h2>
         <p className="pg-sub">Current: <strong>{SLABELS[asIsStrat]}</strong> · Desired: <strong>{SLABELS[tobeStrat]}</strong></p>
         <div className="rpt-tabs">
-          {['Profile & Charts','The Model','Detailed Analysis','Suggestions & Actions','Save & Next Steps','Group Report',...(isAdmin?['Facilitator ★']:[])] .map((t,i)=>(
+          {['Profile & Charts','The Model','Detailed Analysis','Suggestions & Actions','Group Report','Save & Next Steps',...(isAdmin?['Facilitator ★']:[])].map((t,i)=>(
             <div key={i} className={`rpt-tab${rptTab===i?' active':''}`} onClick={()=>setRptTab(i)} style={{color:t==='Facilitator ★'?'#e07030':undefined}}>{t}</div>
           ))}
         </div>
@@ -1213,11 +1192,11 @@ function App(){
           {renderTab2(pGap,dGap,cGap,fGap)}
         </div>
         <div className="rpt-tab-content" style={{display:rptTab===4?'block':'none'}}>
-          <div className="print-section-title" style={{display:'none'}}>Save &amp; Next Steps</div>
-          {renderTab3()}
+          {renderGroupReportTab()}
         </div>
         <div className="rpt-tab-content" style={{display:rptTab===5?'block':'none'}}>
-          {renderGroupReportTab()}
+          <div className="print-section-title" style={{display:'none'}}>Save &amp; Next Steps</div>
+          {renderTab3()}
         </div>
         {isAdmin&&(
           <div className="rpt-tab-content" style={{display:rptTab===6?'block':'none'}}>
@@ -1699,25 +1678,6 @@ function App(){
 
     const topVarianceQ=qVariances.slice(0,5);
 
-    // Seniority split
-    const seniorRoles=['Executive / Board','Senior Leader'];
-    const juniorRoles=['Manager','Team Leader','Frontline / Operational'];
-    const seniors=realRespondents.filter(r=>seniorRoles.includes(r.seniority||r.role));
-    const juniors=realRespondents.filter(r=>juniorRoles.includes(r.seniority||r.role));
-    let seniorityAlert=null;
-    if(seniors.length>=1&&juniors.length>=1){
-      const splits=topVarianceQ.filter(item=>item.variance>=2).map(item=>{
-        const sm=seniors.reduce((s,r)=>{const ans=item.isS1?(r.s1_answers||[])[item.qi]:((r.s2_answers||[])[item.qi-12]);return s+(parseInt(ans?.r)||0);},0)/seniors.length;
-        const jm=juniors.reduce((s,r)=>{const ans=item.isS1?(r.s1_answers||[])[item.qi]:((r.s2_answers||[])[item.qi-12]);return s+(parseInt(ans?.r)||0);},0)/juniors.length;
-        return{q:item.q.q,sm,jm,diff:Math.abs(sm-jm)};
-      }).filter(x=>x.diff>=2).sort((a,b)=>b.diff-a.diff);
-      if(splits.length>0){
-        const top=splits[0];
-        const dir=top.sm>top.jm?'more progressive / flexible':'more defensive / consistent';
-        seniorityAlert=`Senior leaders (avg ${top.sm.toFixed(1)}) and operational staff (avg ${top.jm.toFixed(1)}) scored "${top.q}" differently by ${top.diff.toFixed(1)} points. Senior leaders lean ${dir}. This may indicate that the strategy being set at the top is not the one being experienced on the ground.`;
-      }
-    }
-
     // Progress tracking
     const stepNames=['Landing','Context','Survey 1','Survey 2','Profile','To-Be','Report'];
 
@@ -1749,12 +1709,7 @@ function App(){
           </div>
         )}
 
-        {/* Seniority alert */}
-        {seniorityAlert&&(
-          <div className="split-callout">
-            <strong>⚠ Seniority split detected:</strong> {seniorityAlert}
-          </div>
-        )}
+
 
         {/* Facilitator sub-tabs */}
         <div className="fac-tab-bar">
@@ -1843,7 +1798,7 @@ function App(){
                         <div className="rc-dot" style={{background:PAX_COLORS[i%PAX_COLORS.length]}}/>
                         <div>
                           <div className="rc-name">{r.respondent_name}</div>
-                          <div className="rc-role">{[r.seniority||r.role,r.sector].filter(Boolean).join(' · ')||'No role specified'}</div>
+                          <div className="rc-role">{r.sector||'No sector specified'}</div>
                         </div>
                       </div>
                       <div style={{textAlign:'right'}}>
@@ -2059,14 +2014,7 @@ function App(){
           )}
         </div>
 
-        {realRespondents.length===0?(
-          <div className="waiting-state">
-            <div className="wait-icon">⏳</div>
-            <h3>Waiting for group responses</h3>
-            <p style={{fontSize:'.875rem',color:'#888',maxWidth:'360px',margin:'0 auto',lineHeight:1.6}}>The group report will appear here once other participants complete the survey. Check back using the Refresh button above.</p>
-          </div>
-        ):(
-          <>
+        <>
             {/* Anonymity toggle */}
             <div style={{display:'flex',justifyContent:'flex-end',marginBottom:'.75rem'}}>
               <label className="anon-toggle">
@@ -2128,7 +2076,6 @@ function App(){
               </div>
             )}
           </>
-        )}
       </div>
     );
   }
@@ -2144,7 +2091,16 @@ function App(){
           {step===2&&renderS1()}
           {step===3&&renderS2()}
           {step===4&&renderProfile()}
-          {step===5&&renderTobe()}
+          {step===5&&!groupReportMode&&renderTobe()}
+          {step===5&&groupReportMode&&codeNorm&&(
+            <div>
+              <button className="back-btn" onClick={()=>setGroupReportMode(false)}>← Back to Profile Setup</button>
+              <div className="sec-tag">Group Report</div>
+              <h2 className="pg-title">Live Group Results</h2>
+              <p className="pg-sub">See how your group is progressing and compare profiles in real-time.</p>
+              {renderGroupReportTab()}
+            </div>
+          )}
           {step===6&&renderReport()}
         </div>
       </div>
