@@ -1344,14 +1344,13 @@ function App(){
         </div>
         <div className="rpt-section">
           <div className="rpt-heading">Save Your Report</div>
-          <p className="rpt-body">Click the button below to open your browser's print dialog. Select <strong>Save as PDF</strong> as the destination to download your report. A copy of your results will also be emailed to ChangeBefore for your records.</p>
+          <p className="rpt-body">Click the button below to open your browser's print dialog. Select <strong>Save as PDF</strong> as the destination to download your report. A copy of your results will also be emailed to ChangeBefore.</p>
           <div className="btn-row" style={{marginTop:'1rem'}}>
             <button className="btn-p" onClick={generatePDF}>⬇ Generate PDF</button>
             <button className="btn-s" onClick={()=>{
-              const SD2=STRATEGY_DATA?STRATEGY_DATA[asIsStrat]:null;
-              const subject=encodeURIComponent(`STAT Profile — ${thing||'Organisation'}`);
-              const body=encodeURIComponent(`Hi,\n\nI've just completed the STAT individual assessment. Here is a summary of my results.\n\nOrganisation: ${thing||'—'}\nCurrent strategy: ${SLABELS[asIsStrat]}\nProgressive: ${prog} | Defensive: ${def} | Consistent: ${con} | Flexible: ${flex}\n\nDesired strategy: ${SLABELS[tobeStrat]}\nProgressive: ${tobe.p} | Defensive: ${tobe.d} | Consistent: ${tobe.c} | Flexible: ${tobe.f}\n\nCompleted: ${new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'})}\n\nYou can access the tool at: https://changebefore.com/stat-solo-access/`);
-              const a=document.createElement('a');a.href=`mailto:?subject=${subject}&body=${body}`;document.body.appendChild(a);a.click();document.body.removeChild(a);
+              const s=encodeURIComponent(`STAT Profile — ${thing||'Organisation'}`);
+              const b=encodeURIComponent(`My STAT profile for ${thing||'my organisation'}:\nCurrent: ${SLABELS[asIsStrat]} (P${prog} D${def} C${con} F${flex})\nDesired: ${SLABELS[tobeStrat]} (P${tobe.p} D${tobe.d} C${tobe.c} F${tobe.f})\nTool: changebefore.com/stat-solo-access/`);
+              window.open(`mailto:?subject=${s}&body=${b}`,'_self');
             }}>✉ Share by email</button>
           </div>
         </div>
@@ -1383,9 +1382,9 @@ function App(){
             <p style={{fontSize:'.85rem',color:'#555',lineHeight:1.7,marginBottom:'1rem'}}>Contact us at <a href="mailto:contact@changebefore.com" style={{color:'#e07030'}}>contact@changebefore.com</a> or visit <a href="https://changebefore.com/contact/" target="_blank" rel="noopener noreferrer" style={{color:'#e07030'}}>changebefore.com/contact</a> to arrange a conversation.</p>
             <p style={{fontSize:'.85rem',color:'#555',lineHeight:1.6,marginBottom:'.75rem',fontFamily:"'DM Sans',sans-serif"}}>Arrange a conversation about running this for your group or team.</p>
             <button className="btn-p" onClick={()=>{
-              const subject=encodeURIComponent(`Group STAT session — ${thing||'Organisation'}`);
-              const body=encodeURIComponent(`Hi,\n\nI've just completed the individual STAT assessment for ${thing||'my organisation'} and would like to arrange a conversation about running a group session.\n\nMy current profile: ${SLABELS[asIsStrat]} (Progressive: ${prog}, Defensive: ${def}, Consistent: ${con}, Flexible: ${flex})\nDesired direction: ${SLABELS[tobeStrat]}\n\nPlease get in touch at your convenience.\n\nBest regards`);
-              const a=document.createElement('a');a.href=`mailto:contact@changebefore.com?subject=${subject}&body=${body}`;document.body.appendChild(a);a.click();document.body.removeChild(a);
+              const s=encodeURIComponent(`Group STAT session — ${thing||'Organisation'}`);
+              const b=encodeURIComponent(`Hi,\n\nI've completed the STAT for ${thing||'my organisation'} and would like to discuss a group session.\n\nProfile: ${SLABELS[asIsStrat]} → ${SLABELS[tobeStrat]}\n\nBest regards`);
+              window.open(`mailto:contact@changebefore.com?subject=${s}&body=${b}`,'_self');
             }} style={{marginTop:'.25rem'}}>Contact us →</button>
           </div>
         </div>
