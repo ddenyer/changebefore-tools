@@ -644,6 +644,8 @@ function App(){
   const [thing,setThing]=useState('');
   const [thingDesc,setThingDesc]=useState('');
   const [contextText,setContextText]=useState('');
+  const [role,setRole]=useState('');
+  const [roleCustom,setRoleCustom]=useState('');
 
   const [s1ans,setS1]=useState(Array(12).fill(null).map(()=>({l:'',r:''})));
   const [s2ans,setS2]=useState(Array(12).fill(null).map(()=>({l:'',r:''})));
@@ -725,7 +727,7 @@ function App(){
         body:JSON.stringify({
           session_code:codeNorm,
           respondent_name:respondentName.trim(),
-          role:'',
+          role:role==='None of the above'?roleCustom:role,
           seniority:'',org_size:orgSize,sector,
           thing,prog,def:def,con,flex,
           tobe_p:tobe.p,tobe_d:tobe.d,tobe_c:tobe.c,tobe_f:tobe.f,
@@ -782,9 +784,9 @@ function App(){
 
   function exportCSV(){
     const rows=groupRespondents.filter(r=>r.respondent_name&&r.respondent_name!=='__facilitator__');
-    const headers=['Name','Sector','Progressive','Defensive','Consistent','Flexible','Strategy','Tobe_P','Tobe_D','Tobe_C','Tobe_F','Date'];
+    const headers=['Name','Role','Sector','Progressive','Defensive','Consistent','Flexible','Strategy','Tobe_P','Tobe_D','Tobe_C','Tobe_F','Date'];
     const lines=[headers.join(','),...rows.map(r=>[
-      `"${r.respondent_name||''}"`,`"${r.sector||''}"`,
+      `"${r.respondent_name||''}"`,`"${r.role||''}"`,`"${r.sector||''}"`,
       r.prog||0,r.def||0,r.con||0,r.flex||0,`"${r.strategy_type||''}"`,
       r.tobe_p||0,r.tobe_d||0,r.tobe_c||0,r.tobe_f||0,`"${(r.date||'').slice(0,10)}"`
     ].join(','))];
@@ -821,7 +823,7 @@ function App(){
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({
-          type:codeNorm?'group':'solo',orgName:thing||'(unnamed)',role:'',
+          type:codeNorm?'group':'solo',orgName:thing||'(unnamed)',role:role==='None of the above'?roleCustom:role,
           sessionCode:codeNorm||'',
           seniority:'',orgSize,sector,
           asIs:{prog,def,con,flex},tobe:{p:tobe.p,d:tobe.d,c:tobe.c,f:tobe.f},
@@ -958,6 +960,22 @@ function App(){
         <label className="field-lbl">Context <span style={{color:'#c0b8ae',fontWeight:400}}>(optional)</span></label>
         <div className="field-sub">Any background that will help personalise your report — sector, recent challenges, what prompted this.</div>
         <textarea className="inp inp-ta" placeholder="Describe the context in your own words..." value={contextText} onChange={e=>setContextText(e.target.value)} style={{marginBottom:'1.5rem'}}/>
+
+        <div style={{borderTop:'1px solid #d8d3cb',paddingTop:'1.25rem',marginBottom:'1.25rem'}}>
+          <label className="field-lbl">Your role</label>
+          <div className="field-sub">Select the option that best describes your role.</div>
+          <div style={{display:'flex',flexWrap:'wrap',gap:'.5rem',marginBottom:'.75rem'}}>
+            {['Frontline / Operational','Team Leader','Manager','Senior Leader','Executive / Board','None of the above'].map(r=>(
+              <button key={r} onClick={()=>setRole(r)}
+                style={{padding:'.45rem .85rem',borderRadius:'20px',border:`1.5px solid ${role===r?'#e07030':'#d8d3cb'}`,background:role===r?'#fff8f5':'#fff',color:role===r?'#e07030':'#555',fontSize:'.78rem',fontWeight:role===r?700:400,cursor:'pointer',transition:'all .15s',fontFamily:"'DM Sans',sans-serif"}}>
+                {r}
+              </button>
+            ))}
+          </div>
+          {role==='None of the above'&&(
+            <input className="inp" placeholder="Describe your role..." value={roleCustom} onChange={e=>setRoleCustom(e.target.value)} style={{maxWidth:'340px'}}/>
+          )}
+        </div>
 
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'1rem',marginBottom:'1.25rem'}}>
           <div>
@@ -1798,7 +1816,7 @@ function App(){
                         <div className="rc-dot" style={{background:PAX_COLORS[i%PAX_COLORS.length]}}/>
                         <div>
                           <div className="rc-name">{r.respondent_name}</div>
-                          <div className="rc-role">{r.sector||'No sector specified'}</div>
+                          <div className="rc-role">{r.role||'No role specified'} {r.sector&&r.role?`• ${r.sector}`:r.sector||''}</div>
                         </div>
                       </div>
                       <div style={{textAlign:'right'}}>
