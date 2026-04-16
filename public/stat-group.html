@@ -729,10 +729,12 @@ function App(){
   const [codeFixVal,setCodeFixVal]=useState('');
   const [anonymousMode,setAnonymousMode]=useState(false);
   const [groupReportMode,setGroupReportMode]=useState(false);
-  const [facTab,setFacTab]=useState('overview');
+  const [facTab,setFacTab]=useState('progress');
   const [presentationMode,setPresentationMode]=useState(false);
   const [revealedCount,setRevealedCount]=useState(0);
   const [selectedRespondent,setSelectedRespondent]=useState(null);
+  const [removeTarget,setRemoveTarget]=useState(null);
+  const [removeLoading,setRemoveLoading]=useState(false);
   const [facilitatorNotes,setFacilitatorNotes]=useState('');
   const [aiQuestions,setAiQuestions]=useState(null);
   const [aiQLoading,setAiQLoading]=useState(false);
@@ -856,6 +858,22 @@ function App(){
     a.href=URL.createObjectURL(blob);
     a.download=`STAT_${codeNorm}_${new Date().toISOString().slice(0,10)}.csv`;
     a.click();
+  }
+
+  async function doRemove(name){
+    if(!codeNorm||!name)return;
+    setRemoveLoading(true);
+    try{
+      await fetch('/api/stat-delete',{
+        method:'DELETE',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({session_code:codeNorm,respondent_name:name}),
+      });
+      setRemoveTarget(null);
+      setSelectedRespondent(null);
+      await loadGroup();
+    }catch(e){console.warn('delete error:',e);}
+    setRemoveLoading(false);
   }
 
   // Poll group data when on step 5 (group report mode) or step 6 with session code
@@ -1762,14 +1780,20 @@ function App(){
 
         {/* Facilitator sub-tabs */}
         <div className="fac-tab-bar">
-          {['overview','variance','individuals','progress','ai-questions','notes'].map(t=>(
+          {['progress','group-report','overview','variance','ai-questions','individuals','notes'].map(t=>(
             <div key={t} className={`fac-tab${facTab===t?' active':''}`} onClick={()=>setFacTab(t)}>
-              {t==='overview'?'Overview':t==='variance'?'Variance':t==='individuals'?'Individuals':t==='progress'?'Progress':t==='ai-questions'?'AI Questions':'Notes'}
+              {t==='progress'?'Progress':t==='group-report'?'Group Report':t==='overview'?'Overview':t==='variance'?'Variance':t==='ai-questions'?'AI Questions':t==='individuals'?'Individuals':'Notes'}
             </div>
           ))}
         </div>
 
         {/* Overview tab */}
+        {facTab==='group-report'&&(
+          <div>
+            {renderGroupReportTab()}
+          </div>
+        )}
+
         {facTab==='overview'&&(
           <div>
             {/* Live Ticker */}
@@ -1946,8 +1970,8 @@ function App(){
                 <div key={i} style={{padding:'.65rem 0',borderBottom:'1px solid #ebe7e0'}}>
                   <div style={{fontSize:'.78rem',fontWeight:600,color:'#1a1a1a',marginBottom:'.2rem',fontFamily:"'DM Sans',sans-serif"}}>{i+1}. {item.q.q}</div>
                   <div style={{fontSize:'.72rem',color:'#888',fontFamily:"'DM Sans',sans-serif"}}>
-                    SD: {Math.sqrt(item.variance).toFixed(1)} · Mean right score: {item.mean.toFixed(1)}/10
-                    <span style={{marginLeft:'.75rem',color:item.isS1?'#2563eb':'#7c3aed'}}>{item.isS1?'Survey 1':'Survey 2'}</span>
+                    SD: {Math.sqrt(item.variance).toFixed(1)} · Mean: {item.mean.toFixed(1)}/10
+                    <span style={{marginLeft:'.75rem',color:item.isS1?'#2563eb':'#7c3aed',fontWeight:600}}>{item.isS1?'Section 1 — Defensive/Progressive':'Section 2 — Consistent/Flexible'}</span>
                   </div>
                 </div>
               ))}
@@ -1963,22 +1987,40 @@ function App(){
               {realRespondents.map((r,i)=>{
                 const rStrat=getStrategy(r.def||0,r.prog||0,r.con||0,r.flex||0);
                 const isSelected=selectedRespondent===i;
+                const isRemoving=removeTarget===r.respondent_name;
                 return(
                   <div key={i} className={`respondent-card${isSelected?' selected':''}`}>
-                    <div className="rc-header" onClick={()=>setSelectedRespondent(isSelected?null:i)}>
+                    <div className="rc-header" onClick={()=>{if(!isRemoving)setSelectedRespondent(isSelected?null:i);}}>
                       <div style={{display:'flex',alignItems:'center',gap:'.65rem'}}>
                         <div className="rc-dot" style={{background:PAX_COLORS[i%PAX_COLORS.length]}}/>
                         <div>
                           <div className="rc-name">{r.respondent_name}</div>
-                          <div className="rc-role">{r.role||'No role specified'} {r.sector&&r.role?`• ${r.sector}`:r.sector||''}</div>
+                          <div className="rc-role">{r.role||'No role specified'} {r.sector&&r.role?'• '+r.sector:r.sector||''}</div>
                         </div>
                       </div>
-                      <div style={{textAlign:'right'}}>
-                        <div className="rc-strategy">{SLABELS[rStrat]}</div>
-                        <div style={{fontSize:'.65rem',color:'#888',fontFamily:"'DM Sans',sans-serif"}}>P{r.prog} D{r.def} C{r.con} F{r.flex}</div>
+                      <div style={{display:'flex',alignItems:'center',gap:'.75rem'}}>
+                        <div style={{textAlign:'right'}}>
+                          <div className="rc-strategy">{SLABELS[rStrat]}</div>
+                          <div style={{fontSize:'.65rem',color:'#888',fontFamily:"'DM Sans',sans-serif"}}>P{r.prog} D{r.def} C{r.con} F{r.flex}</div>
+                        </div>
+                        <button onClick={e=>{e.stopPropagation();setRemoveTarget(isRemoving?null:r.respondent_name);setSelectedRespondent(null);}}
+                          style={{background:'none',border:'1px solid #d8d3cb',borderRadius:3,padding:'.25rem .5rem',fontSize:'.65rem',fontWeight:600,color:'#888',cursor:'pointer',fontFamily:"'DM Sans',sans-serif",flexShrink:0}}
+                          title="Remove from session">✕</button>
                       </div>
                     </div>
-                    {isSelected&&(
+                    {isRemoving&&(
+                      <div style={{marginTop:'.75rem',paddingTop:'.75rem',borderTop:'1px solid #ebe7e0',display:'flex',alignItems:'center',gap:'.75rem',flexWrap:'wrap'}}>
+                        <span style={{fontSize:'.82rem',color:'#c0392b',fontFamily:"'DM Sans',sans-serif"}}>Remove <strong>{r.respondent_name}</strong> from this session?</span>
+                        <button className="btn-p" style={{background:'#c0392b',borderColor:'#c0392b',padding:'.4rem .9rem',fontSize:'.78rem'}}
+                          disabled={removeLoading}
+                          onClick={e=>{e.stopPropagation();doRemove(r.respondent_name);}}>
+                          {removeLoading?'Removing…':'Confirm Remove'}
+                        </button>
+                        <button className="btn-s" style={{padding:'.4rem .9rem',fontSize:'.78rem'}}
+                          onClick={e=>{e.stopPropagation();setRemoveTarget(null);}}>Cancel</button>
+                      </div>
+                    )}
+                    {isSelected&&!isRemoving&&(
                       <div style={{marginTop:'.85rem',paddingTop:'.85rem',borderTop:'1px solid #ebe7e0'}}>
                         <div className="score-grid" style={{marginBottom:'.75rem'}}>
                           {[{lbl:'Progressive',val:r.prog||0},{lbl:'Defensive',val:r.def||0},{lbl:'Consistent',val:r.con||0},{lbl:'Flexible',val:r.flex||0}].map(sc=>(
@@ -1986,13 +2028,13 @@ function App(){
                               <div className="score-dim">Score</div>
                               <div className="score-val">{sc.val}</div>
                               <div className="score-lbl">{sc.lbl}</div>
-                              <div className="score-bar"><div className="score-fill" style={{width:`${(sc.val/120)*100}%`}}/></div>
+                              <div className="score-bar"><div className="score-fill" style={{width:(sc.val/120)*100+'%'}}/></div>
                             </div>
                           ))}
                         </div>
-                        {r.tobe_p&&(
+                        {r.tobe_prog&&(
                           <div style={{fontSize:'.78rem',color:'#555',fontFamily:"'DM Sans',sans-serif"}}>
-                            Desired: {SLABELS[getStrategy(r.tobe_d||60,r.tobe_p||60,r.tobe_c||60,r.tobe_f||60)]} (P{r.tobe_p} D{r.tobe_d} C{r.tobe_c} F{r.tobe_f})
+                            Desired: {SLABELS[getStrategy(r.tobe_def||60,r.tobe_prog||60,r.tobe_con||60,r.tobe_flex||60)]} (P{r.tobe_prog} D{r.tobe_def} C{r.tobe_con} F{r.tobe_flex})
                           </div>
                         )}
                       </div>
