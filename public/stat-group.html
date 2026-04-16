@@ -233,6 +233,65 @@ html,body{font-family:'DM Sans',sans-serif;background:#f0ede8;color:#1a1a1a;-web
   .rpt-tab{padding:.5rem .55rem;font-size:.68rem}
   .slider-input{height:44px}
 }
+
+/* ── LIVE TICKER ── */
+.ticker{display:flex;gap:.5rem;align-items:center;background:#fff;border:1px solid #d8d3cb;border-radius:4px;padding:.6rem 1rem;margin-bottom:1.25rem;flex-wrap:wrap}
+.ticker-item{display:flex;align-items:center;gap:.4rem;font-size:.78rem;font-family:'DM Sans',sans-serif;color:#555}
+.ticker-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.ticker-dot.started{background:#f59e0b}
+.ticker-dot.done{background:#22c55e}
+.ticker-dot.waiting{background:#d8d3cb}
+.ticker-count{font-weight:700;color:#1a1a1a}
+.ticker-divider{color:#d8d3cb;font-size:1rem}
+
+/* ── NARRATIVE SUMMARY ── */
+.narrative-card{background:#1a1a1a;border-radius:4px;padding:1.25rem 1.5rem;margin-bottom:1.5rem}
+.narrative-label{font-size:.6rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#e07030;margin-bottom:.5rem;font-family:'DM Sans',sans-serif}
+.narrative-text{font-size:.95rem;line-height:1.75;color:#f0ede8;font-family:'DM Sans',sans-serif}
+
+/* ── TENSION + OUTLIER CARDS ── */
+.insight-grid{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:1.5rem}
+.insight-card{background:#fff;border:1px solid #d8d3cb;border-radius:4px;padding:1rem 1.1rem}
+.insight-card.tension{border-top:3px solid #dc2626}
+.insight-card.alignment{border-top:3px solid #2563eb}
+.insight-card.outlier{border-top:3px solid #f59e0b}
+.insight-card.shift{border-top:3px solid #16a34a}
+.insight-label{font-size:.6rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.35rem;font-family:'DM Sans',sans-serif}
+.insight-card.tension .insight-label{color:#dc2626}
+.insight-card.alignment .insight-label{color:#2563eb}
+.insight-card.outlier .insight-label{color:#f59e0b}
+.insight-card.shift .insight-label{color:#16a34a}
+.insight-value{font-size:1.3rem;font-weight:700;color:#1a1a1a;font-family:'Cormorant Garamond',serif;line-height:1.2;margin-bottom:.25rem}
+.insight-desc{font-size:.78rem;color:#666;line-height:1.55;font-family:'DM Sans',sans-serif}
+@media(max-width:600px){.insight-grid{grid-template-columns:1fr}}
+
+/* ── DEBRIEF QUESTIONS ── */
+.dq-item{display:flex;gap:.75rem;padding:.75rem 0;border-bottom:1px solid #ebe7e0;align-items:flex-start}
+.dq-num{width:22px;height:22px;border-radius:50%;background:#1a1a1a;color:#fff;font-size:.65rem;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:'DM Sans',sans-serif;margin-top:.1rem}
+.dq-text{font-size:.875rem;line-height:1.65;color:#1a1a1a;font-family:'DM Sans',sans-serif}
+
+/* ── QUADRANT MAP ── */
+.quadrant-wrap{position:relative;background:#fff;border:1px solid #d8d3cb;border-radius:4px;padding:1.25rem;margin-bottom:1.5rem}
+.quadrant-label{font-size:.6rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#888;margin-bottom:.75rem;font-family:'DM Sans',sans-serif}
+
+/* ── DUAL DIAMOND (Group Report to-be) ── */
+.dual-diamond-wrap{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem}
+@media(max-width:500px){.dual-diamond-wrap{grid-template-columns:1fr}}
+
+/* ── PRESENTATION MODE ── */
+.pres-overlay{position:fixed;inset:0;background:#1a1a1a;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2rem}
+.pres-title{font-family:'Cormorant Garamond',serif;font-size:clamp(1.4rem,3vw,2.2rem);font-weight:400;color:#fff;text-align:center;margin-bottom:.5rem}
+.pres-sub{font-size:.8rem;color:#888;text-align:center;margin-bottom:2rem;font-family:'DM Sans',sans-serif;letter-spacing:.05em}
+.pres-diamond-wrap{width:min(70vw,480px);height:min(70vw,480px)}
+.pres-controls{display:flex;gap:.75rem;margin-top:2rem;flex-wrap:wrap;justify-content:center}
+.pres-btn{background:transparent;border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:3px;padding:.6rem 1.2rem;font-family:'DM Sans',sans-serif;font-size:.82rem;font-weight:600;cursor:pointer;transition:border-color .15s}
+.pres-btn:hover{border-color:#fff}
+.pres-btn.primary{background:#e07030;border-color:#e07030}
+.pres-btn.primary:hover{background:#c05a20;border-color:#c05a20}
+.pres-exit{position:absolute;top:1.5rem;right:1.5rem;background:none;border:none;color:#888;cursor:pointer;font-size:1.2rem;font-family:'DM Sans',sans-serif}
+.pres-legend{display:flex;gap:.75rem;flex-wrap:wrap;justify-content:center;margin-top:1rem}
+.pres-leg-item{display:flex;align-items:center;gap:.3rem;font-size:.7rem;color:#888;font-family:'DM Sans',sans-serif}
+.pres-leg-dot{width:10px;height:10px;border-radius:50%}
 </style>
 </head>
 <body>
@@ -654,6 +713,7 @@ function App(){
   const [tobe,setTobe]=useState({p:60,d:60,c:60,f:60});
   const [tobeInit,setTobeInit]=useState(false);
   const [loading,setLoading]=useState(false);
+  const [showReport,setShowReport]=useState(false);
   const [rptTab,setRptTab]=useState(0);
   const [prevSubmission,setPrevSubmission]=useState(null);
   const [thirtyDay,setThirtyDay]=useState('');
@@ -668,10 +728,11 @@ function App(){
   const [codeFixOpen,setCodeFixOpen]=useState(false);
   const [codeFixVal,setCodeFixVal]=useState('');
   const [anonymousMode,setAnonymousMode]=useState(false);
+  const [groupReportMode,setGroupReportMode]=useState(false);
   const [facTab,setFacTab]=useState('overview');
+  const [presentationMode,setPresentationMode]=useState(false);
+  const [revealedCount,setRevealedCount]=useState(0);
   const [selectedRespondent,setSelectedRespondent]=useState(null);
-  const [removeTarget,setRemoveTarget]=useState(null);
-  const [removeLoading,setRemoveLoading]=useState(false);
   const [facilitatorNotes,setFacilitatorNotes]=useState('');
   const [aiQuestions,setAiQuestions]=useState(null);
   const [aiQLoading,setAiQLoading]=useState(false);
@@ -730,7 +791,7 @@ function App(){
           role:role==='None of the above'?roleCustom:role,
           seniority:'',org_size:orgSize,sector,
           thing,prog,def:def,con,flex,
-          tobe_prog:tobe.p,tobe_def:tobe.d,tobe_con:tobe.c,tobe_flex:tobe.f,
+          tobe_p:tobe.p,tobe_d:tobe.d,tobe_c:tobe.c,tobe_f:tobe.f,
           s1_answers:s1ans,s2_answers:s2ans,
           strategy_type:SLABELS[asIsStrat],
           date:new Date().toISOString(),
@@ -739,25 +800,10 @@ function App(){
     }catch(e){console.warn('stat-save error:',e);}
   }
 
-  async function saveStarted(){
-    if(!codeNorm||isAdmin)return;
-    try{
-      await fetch('/api/stat-save',{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({
-          session_code:codeNorm,
-          respondent_name:respondentName.trim(),
-          started:true,
-        }),
-      });
-    }catch(e){console.warn('started save error:',e);}
-  }
-
   async function loadGroup(){
     if(!codeNorm)return;
     try{
-      const resp=await fetch(`/api/stat-load?code=${encodeURIComponent(codeNorm)}`,{cache:'no-store'});
+      const resp=await fetch(`/api/stat-load?code=${encodeURIComponent(codeNorm)}`);
       if(!resp.ok)return;
       const data=await resp.json();
       if(Array.isArray(data)){
@@ -803,7 +849,7 @@ function App(){
     const lines=[headers.join(','),...rows.map(r=>[
       `"${r.respondent_name||''}"`,`"${r.role||''}"`,`"${r.sector||''}"`,
       r.prog||0,r.def||0,r.con||0,r.flex||0,`"${r.strategy_type||''}"`,
-      r.tobe_prog||0,r.tobe_def||0,r.tobe_con||0,r.tobe_flex||0,`"${(r.date||'').slice(0,10)}"`
+      r.tobe_p||0,r.tobe_d||0,r.tobe_c||0,r.tobe_f||0,`"${(r.date||'').slice(0,10)}"`
     ].join(','))];
     const blob=new Blob([lines.join('\n')],{type:'text/csv'});
     const a=document.createElement('a');
@@ -812,35 +858,25 @@ function App(){
     a.click();
   }
 
-  async function doRemove(name){
-    if(!codeNorm||!name)return;
-    setRemoveLoading(true);
-    try{
-      await fetch('/api/stat-delete',{
-        method:'DELETE',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({session_code:codeNorm,respondent_name:name}),
-      });
-      setRemoveTarget(null);
-      setSelectedRespondent(null);
-      await loadGroup();
-    }catch(e){console.warn('delete error:',e);}
-    setRemoveLoading(false);
-  }
-
   // Poll group data when on step 5 (group report mode) or step 6 with session code
-  // Poll group data on step 6; reload when switching to group report tab
   useEffect(()=>{
-    if(step===6&&codeNorm){
+    if(((step===5&&groupReportMode)||step===6)&&codeNorm){
+      // Small delay so saveToGroup() write completes before first load
       const t=setTimeout(()=>loadGroup(),1200);
       const id=setInterval(loadGroup,15000);
       return()=>{clearTimeout(t);clearInterval(id);};
     }
-  },[step,codeNorm]);
+  },[step,groupReportMode,codeNorm]);
 
+  // Reload when user switches to group report tab (step 5: always tab 0, step 6: tab 4)
   useEffect(()=>{
-    if(rptTab===4&&step===6&&codeNorm)loadGroup();
-  },[rptTab]);
+    if(((step===5&&groupReportMode)||(rptTab===4&&step===6))&&codeNorm)loadGroup();
+  },[rptTab,groupReportMode]);
+
+  // Admin: load group on mount if session code set (step 5 group mode or step 6)
+  useEffect(()=>{
+    if(isAdmin&&codeNorm&&((step===5&&groupReportMode)||step===6))loadGroup();
+  },[isAdmin,codeNorm,step,groupReportMode]);
 
   async function fireNotification(){
     try{
@@ -880,7 +916,7 @@ function App(){
     }catch(e){}
     fireNotification();
     setLoading(true);
-    setTimeout(()=>{setLoading(false);go(6);},1600);
+    setTimeout(()=>{setLoading(false);setShowReport(true);go(6);},1600);
   }
 
   function restart(){
@@ -890,7 +926,7 @@ function App(){
     setS2(Array(12).fill(null).map(()=>({l:'',r:''})));
     setS1Active(0);setS2Active(0);
     setTobe({p:60,d:60,c:60,f:60});setTobeInit(false);
-    setRptTab(0);setPrevSubmission(null);
+    setShowReport(false);setRptTab(0);setPrevSubmission(null);
     setThirtyDay('');setFeedbackRating(null);setFeedbackComment('');
     setLoading(false);
   }
@@ -959,7 +995,7 @@ function App(){
           <strong>Privacy:</strong> Your responses are used only to generate your report. Your name is stored locally on this device to enable return-visit comparison. No data is shared with third parties. This tool supports structured thinking and does not constitute professional advice. For questions, contact <a href="mailto:contact@changebefore.com" style={{color:'inherit'}}>contact@changebefore.com</a>. <a href="https://changebefore.com/privacy/" target="_blank" rel="noopener noreferrer" style={{color:'inherit',textDecoration:'underline'}}>View our full privacy notice →</a>
         </div>
         <div className="btn-row">
-          <button className="btn-p" disabled={!respondentName.trim()||!sessionCode.trim()} onClick={()=>{if(isAdmin){setRptTab(4);go(6);setTimeout(()=>loadGroup(),400);}else{saveStarted();go(1);}}}>Begin →</button>
+          <button className="btn-p" disabled={!respondentName.trim()||!sessionCode.trim()} onClick={()=>{if(isAdmin){setShowReport(true);go(6);}else{go(1);}}}>Begin →</button>
         </div>
       </div>
     );
@@ -1182,7 +1218,9 @@ function App(){
           ):(
             <button className="btn-p" onClick={generate}>Generate My Report →</button>
           )}
-
+          {codeNorm && (
+            <button className="btn-s" onClick={()=>setGroupReportMode(true)} style={{background:'#e07030',color:'#fff',borderColor:'#e07030'}}>Group Report →</button>
+          )}
           <button className="btn-s" onClick={()=>go(3)}>← Back</button>
         </div>
       </div>
@@ -1211,10 +1249,9 @@ function App(){
         <h2 className="pg-title">{th}</h2>
         <p className="pg-sub">Current: <strong>{SLABELS[asIsStrat]}</strong> · Desired: <strong>{SLABELS[tobeStrat]}</strong></p>
         <div className="rpt-tabs">
-          {['Profile & Charts','The Model','Detailed Analysis','Suggestions & Actions','Group Report','Save & Next Steps',...(isAdmin?['Facilitator ★']:[])].map((t,i)=>{
-            if(isAdmin&&i!==4&&i!==6)return null;
-            return(<div key={i} className={`rpt-tab${rptTab===i?' active':''}`} onClick={()=>setRptTab(i)} style={{color:t==='Facilitator ★'?'#e07030':undefined}}>{t}</div>);
-          })}
+          {['Profile & Charts','The Model','Detailed Analysis','Suggestions & Actions','Group Report','Save & Next Steps',...(isAdmin?['Facilitator ★']:[])].map((t,i)=>(
+            <div key={i} className={`rpt-tab${rptTab===i?' active':''}`} onClick={()=>setRptTab(i)} style={{color:t==='Facilitator ★'?'#e07030':undefined}}>{t}</div>
+          ))}
         </div>
 
         <div className="rpt-tab-content" style={{display:rptTab===0?'block':'none'}}>
@@ -1641,30 +1678,59 @@ function App(){
     const PAX_COLORS=['#e07030', '#1a4fa0', '#2d7d46', '#b87a20', '#b83232', '#6a3d9a', '#0891b2', '#78350f', '#374151'];
     const realRespondents=groupRespondents.filter(r=>r.respondent_name&&r.respondent_name!=='__facilitator__');
 
-    // Compute analytics (safe when realRespondents is empty)
+    if(realRespondents.length===0){
+      return(
+        <div>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1.25rem'}}>
+            <div>
+              <div style={{display:'flex',alignItems:'center',gap:'.5rem'}}>
+                <span className="pulse"/>
+                <span style={{fontSize:'.65rem',fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:'#555',fontFamily:"'DM Sans',sans-serif"}}>Facilitator — Session: {codeNorm}</span>
+              </div>
+            </div>
+            <button className="refresh-btn" onClick={loadGroup}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+              Refresh
+            </button>
+          </div>
+          <div className="waiting-state">
+            <div className="wait-icon">👥</div>
+            <h3>No responses yet</h3>
+            <p style={{fontSize:'.875rem',color:'#888',maxWidth:'380px',margin:'0 auto 1.5rem',lineHeight:1.6}}>Share session code <strong style={{color:'#1a1a1a'}}>{codeNorm}</strong> with your group. This view will update automatically when they complete the survey.</p>
+            <div className="chip-row" style={{justifyContent:'center'}}>
+              {[1,2,3,4,5].map(i=><div key={i} className="p-chip" style={{opacity:.3}}>{i}</div>)}
+            </div>
+          </div>
+          <div style={{marginTop:'2rem'}}>
+            <div className="rpt-heading" style={{marginBottom:'.5rem'}}>Facilitator Notes</div>
+            <textarea className="notes-area" value={facilitatorNotes} placeholder="Notes visible only to you as facilitator…" onChange={e=>{setFacilitatorNotes(e.target.value);saveFacilitatorNotes(e.target.value);}}/>
+          </div>
+        </div>
+      );
+    }
+
+    // Compute analytics
+    // Per-dimension variance
     function variance(arr){if(arr.length<2)return 0;const m=arr.reduce((s,v)=>s+v,0)/arr.length;return arr.reduce((s,v)=>s+(v-m)**2,0)/arr.length;}
-    const completedRespondents=realRespondents.filter(r=>!!(r.prog));
     const dimVariance={
-      prog:variance(completedRespondents.map(r=>r.prog||0)),
-      def:variance(completedRespondents.map(r=>r.def||0)),
-      con:variance(completedRespondents.map(r=>r.con||0)),
-      flex:variance(completedRespondents.map(r=>r.flex||0)),
+      prog:variance(realRespondents.map(r=>r.prog||0)),
+      def:variance(realRespondents.map(r=>r.def||0)),
+      con:variance(realRespondents.map(r=>r.con||0)),
+      flex:variance(realRespondents.map(r=>r.flex||0)),
     };
-    const maxVar=Math.max(...Object.values(dimVariance))||1;
+    const maxVar=Math.max(...Object.values(dimVariance));
 
     // Group mean
     const gMean={prog:0,def:0,con:0,flex:0};
-    if(completedRespondents.length>0){
-      completedRespondents.forEach(r=>{gMean.prog+=(r.prog||0);gMean.def+=(r.def||0);gMean.con+=(r.con||0);gMean.flex+=(r.flex||0);});
-      ['prog','def','con','flex'].forEach(k=>{gMean[k]=Math.round(gMean[k]/completedRespondents.length);});
-    }
+    realRespondents.forEach(r=>{gMean.prog+=(r.prog||0);gMean.def+=(r.def||0);gMean.con+=(r.con||0);gMean.flex+=(r.flex||0);});
+    ['prog','def','con','flex'].forEach(k=>{gMean[k]=Math.round(gMean[k]/realRespondents.length);});
     const groupStrat=getStrategy(gMean.def,gMean.prog,gMean.con,gMean.flex);
 
     // Group to-be mean
     const gTobeMean={p:0,d:0,c:0,f:0};
-    const withTobe=realRespondents.filter(r=>r.tobe_prog);
+    const withTobe=realRespondents.filter(r=>r.tobe_p);
     if(withTobe.length>0){
-      withTobe.forEach(r=>{gTobeMean.p+=(r.tobe_prog||60);gTobeMean.d+=(r.tobe_def||60);gTobeMean.c+=(r.tobe_con||60);gTobeMean.f+=(r.tobe_flex||60);});
+      withTobe.forEach(r=>{gTobeMean.p+=(r.tobe_p||60);gTobeMean.d+=(r.tobe_d||60);gTobeMean.c+=(r.tobe_c||60);gTobeMean.f+=(r.tobe_f||60);});
       ['p','d','c','f'].forEach(k=>{gTobeMean[k]=Math.round(gTobeMean[k]/withTobe.length);});
     }
     const groupTobeStrat=withTobe.length>0?getStrategy(gTobeMean.d,gTobeMean.p,gTobeMean.c,gTobeMean.f):null;
@@ -1736,43 +1802,156 @@ function App(){
         {/* Overview tab */}
         {facTab==='overview'&&(
           <div>
-            <div className="rpt-section">
-              <div className="rpt-heading">Dimension Summary</div>
-              <div className="score-grid">
-                {[{lbl:'Progressive',val:gMean.prog},{lbl:'Defensive',val:gMean.def},{lbl:'Consistent',val:gMean.con},{lbl:'Flexible',val:gMean.flex}].map(sc=>(
-                  <div key={sc.lbl} className="score-card">
-                    <div className="score-dim">Group mean</div>
-                    <div className="score-val">{sc.val}</div>
-                    <div className="score-lbl">{sc.lbl}</div>
-                    <div className="score-bar"><div className="score-fill" style={{width:`${(sc.val/120)*100}%`}}/></div>
+            {/* Live Ticker */}
+            {(()=>{
+              const started=groupRespondents.filter(r=>r.respondent_name&&r.respondent_name!=='__facilitator__'&&!(r.prog));
+              const done=completedRespondents;
+              return(
+                <div className="ticker">
+                  <div className="ticker-item"><div className="ticker-dot done"/><span className="ticker-count">{done.length}</span> completed</div>
+                  <div className="ticker-divider">·</div>
+                  <div className="ticker-item"><div className="ticker-dot started"/><span className="ticker-count">{started.length}</span> in progress</div>
+                  <div className="ticker-divider">·</div>
+                  <div className="ticker-item"><div className="ticker-dot waiting"/><span className="ticker-count">{done.length+started.length}</span> total</div>
+                  {done.length>0&&(<><div className="ticker-divider">·</div><div className="ticker-item" style={{marginLeft:'auto'}}><button className="pres-btn primary" style={{padding:'.35rem .9rem',fontSize:'.72rem'}} onClick={()=>{setRevealedCount(0);setPresentationMode(true);}}>Present →</button></div></>)}
+                </div>
+              );
+            })()}
+
+            {completedRespondents.length===0&&(
+              <div style={{textAlign:'center',padding:'2rem',color:'#888',fontSize:'.875rem',fontFamily:"'DM Sans',sans-serif"}}>Waiting for participants to complete the survey.</div>
+            )}
+
+            {completedRespondents.length>0&&(()=>{
+              /* Analytics */
+              function variance(arr){if(arr.length<2)return 0;const m=arr.reduce((s,v)=>s+v,0)/arr.length;return arr.reduce((s,v)=>s+(v-m)**2,0)/arr.length;}
+              const dims=[
+                {key:'prog',lbl:'Progressive',vals:completedRespondents.map(r=>r.prog||0)},
+                {key:'def',lbl:'Defensive',vals:completedRespondents.map(r=>r.def||0)},
+                {key:'con',lbl:'Consistent',vals:completedRespondents.map(r=>r.con||0)},
+                {key:'flex',lbl:'Flexible',vals:completedRespondents.map(r=>r.flex||0)},
+              ];
+              dims.forEach(d=>{d.mean=d.vals.reduce((s,v)=>s+v,0)/Math.max(d.vals.length,1);d.sd=Math.sqrt(variance(d.vals));d.v=variance(d.vals);});
+              const topTension=dims.slice().sort((a,b)=>b.v-a.v)[0];
+              const withTobe2=completedRespondents.filter(r=>r.tobe_prog);
+              const gTobe2={p:0,d:0,c:0,f:0};
+              if(withTobe2.length>0){
+                withTobe2.forEach(r=>{gTobe2.p+=(r.tobe_prog||60);gTobe2.d+=(r.tobe_def||60);gTobe2.c+=(r.tobe_con||60);gTobe2.f+=(r.tobe_flex||60);});
+                ['p','d','c','f'].forEach(k=>{gTobe2[k]=Math.round(gTobe2[k]/withTobe2.length);});
+              }
+              const gTobeStrat2=withTobe2.length>0?getStrategy(gTobe2.d,gTobe2.p,gTobe2.c,gTobe2.f):null;
+              const outliers=completedRespondents.filter(r=>
+                dims.some(d=>{const v=d.key==='prog'?r.prog:d.key==='def'?r.def:d.key==='con'?r.con:r.flex;return d.sd>5&&Math.abs((v||0)-d.mean)>d.sd;})
+              );
+              const tobeVars=['p','d','c','f'].map(k=>{const vals=withTobe2.map(r=>k==='p'?r.tobe_prog:k==='d'?r.tobe_def:k==='c'?r.tobe_con:r.tobe_flex);const m=vals.reduce((s,v)=>s+v,0)/Math.max(vals.length,1);return vals.reduce((s,v)=>s+(v-m)**2,0)/Math.max(vals.length,1);});
+              const tobeAligned=withTobe2.length>1&&Math.max(...tobeVars)<400;
+              /* Narrative */
+              const progLabel=gMean.prog>gMean.def?'Progressive':'Defensive';
+              const appLabel=gMean.flex>gMean.con?'Flexible':'Consistent';
+              const shiftText=gTobeStrat2&&gTobeStrat2!==groupStrat?`The group wants to shift toward ${SLABELS[gTobeStrat2]}.`:'The group is broadly satisfied with its current direction.';
+              const tensionText=topTension.sd>8?`The biggest disagreement is on ${topTension.lbl} (SD ${topTension.sd.toFixed(1)}), which is worth exploring in the debrief.`:'There is relatively good agreement across all four dimensions.';
+              const narrative=`Your group of ${completedRespondents.length} shows a dominant ${SLABELS[groupStrat]||'Neutral'} strategy — leaning ${progLabel} and ${appLabel}. ${shiftText} ${tensionText}`;
+              /* Debrief questions */
+              const questions=[];
+              questions.push(`The group sits in ${SLABELS[groupStrat]||'a neutral position'}. Is that an accurate picture of how you currently operate — or does it miss something important?`);
+              if(topTension.sd>8)questions.push(`On ${topTension.lbl}, scores ranged widely across the group. What explains that gap — different roles, different experiences, or different readings of the organisation?`);
+              if(gTobeStrat2&&gTobeStrat2!==groupStrat)questions.push(`As a group you want to move toward ${SLABELS[gTobeStrat2]}. What would need to change — in systems, behaviours, or leadership — to make that shift real?`);
+              if(outliers.length>0)questions.push(`${outliers.map(r=>r.respondent_name.split(' ')[0]).join(' and ')} ${outliers.length===1?'sees':'see'} the organisation quite differently from the rest of the group. What might explain that?`);
+              if(questions.length<4)questions.push('If you had to identify the single biggest thing holding this organisation back from where it wants to be, what would it be?');
+              /* Quadrant map SVG */
+              const QW=280,QH=220,QPX=40,QPY=30;
+              const qw=QW-QPX*2,qh=QH-QPY*2;
+              function qx(flex,con){return QPX+(((flex||0)-(con||0)+120)/240)*qw;}
+              function qy(prog,def){return QPY+qh-(((prog||0)-(def||0)+120)/240)*qh;}
+              const qMeanX=qx(gMean.flex,gMean.con);
+              const qMeanY=qy(gMean.prog,gMean.def);
+              return(
+                <>
+                  {/* Narrative */}
+                  <div className="narrative-card">
+                    <div className="narrative-label">Group Summary</div>
+                    <div className="narrative-text">{narrative}</div>
                   </div>
-                ))}
-              </div>
-            </div>
-            <div className="rpt-section">
-              <div className="rpt-heading">Respondent Chips</div>
-              <div className="chip-row">
-                {realRespondents.map((r,i)=>{
-                  const completed=!!(r.prog);
-                  return(
-                    <div key={i} className={`p-chip${completed?' done':''}`}
-                      title={`${r.respondent_name}${completed?` — ${SLABELS[getStrategy(r.def||0,r.prog||0,r.con||0,r.flex||0)]||'?'}`:' (in progress)'}`}
-                      style={{
-                        background:completed?PAX_COLORS[i%PAX_COLORS.length]:'transparent',
-                        borderColor:PAX_COLORS[i%PAX_COLORS.length],
-                        color:completed?'#fff':PAX_COLORS[i%PAX_COLORS.length],
-                        width:'auto',minWidth:28,borderRadius:14,padding:'0 .5rem',gap:'.3rem',display:'flex',alignItems:'center'
-                      }}>
-                      {i+1} <span style={{fontSize:'.6rem'}}>{r.respondent_name.split(' ')[0]}</span>
-                      {!completed&&<span style={{fontSize:'.55rem',opacity:.7}}>…</span>}
+
+                  {/* Insight cards */}
+                  <div className="insight-grid">
+                    <div className="insight-card tension">
+                      <div className="insight-label">Key Tension</div>
+                      <div className="insight-value">{topTension.lbl}</div>
+                      <div className="insight-desc">Highest disagreement — SD {topTension.sd.toFixed(1)}. {topTension.sd>8?'Surface this first in the debrief.':'Relatively good consensus.'}</div>
                     </div>
-                  );
-                })}
-              </div>
-              {realRespondents.length>0&&<div style={{marginTop:'.75rem',fontSize:'.78rem',color:'#555',fontFamily:"'DM Sans',sans-serif"}}>
-                Strategy spread: {[...new Set(realRespondents.map(r=>SLABELS[getStrategy(r.def||0,r.prog||0,r.con||0,r.flex||0)]))].join(' · ')}
-              </div>}
-            </div>
+                    <div className="insight-card outlier">
+                      <div className="insight-label">Outliers</div>
+                      <div className="insight-value">{outliers.length>0?outliers.length:'None'}</div>
+                      <div className="insight-desc">{outliers.length>0?`${outliers.map(r=>r.respondent_name.split(' ')[0]).join(', ')} ${outliers.length===1?'sits':'sit'} more than 1 SD from the group mean on at least one dimension.`:'All respondents are within one standard deviation of the group mean.'}</div>
+                    </div>
+                    <div className="insight-card shift">
+                      <div className="insight-label">Desired Shift</div>
+                      <div className="insight-value">{gTobeStrat2?SLABELS[gTobeStrat2]:'—'}</div>
+                      <div className="insight-desc">{withTobe2.length>0?`Group mean to-be (${withTobe2.length} responded). Current: ${SLABELS[groupStrat]||'Neutral'}.`:'No to-be data yet.'}</div>
+                    </div>
+                    <div className="insight-card alignment">
+                      <div className="insight-label">To-Be Alignment</div>
+                      <div className="insight-value">{withTobe2.length<2?'—':tobeAligned?'Aligned':'Divided'}</div>
+                      <div className="insight-desc">{withTobe2.length<2?'Need 2+ to-be responses.':tobeAligned?'People broadly agree on where they want to go, even if they disagree on where they are.':'People disagree about the desired direction. This is an important conversation to have.'}</div>
+                    </div>
+                  </div>
+
+                  {/* Quadrant map */}
+                  <div className="quadrant-wrap">
+                    <div className="quadrant-label">Quadrant Map — where each person sits</div>
+                    <svg width="100%" viewBox={`0 0 ${QW} ${QH}`} style={{overflow:'visible',maxWidth:'100%'}}>
+                      {/* Background quadrants */}
+                      <rect x={QPX} y={QPY} width={qw/2} height={qh/2} fill="#f8f5f0" stroke="none"/>
+                      <rect x={QPX+qw/2} y={QPY} width={qw/2} height={qh/2} fill="#f0f7f0" stroke="none"/>
+                      <rect x={QPX} y={QPY+qh/2} width={qw/2} height={qh/2} fill="#f5f0f8" stroke="none"/>
+                      <rect x={QPX+qw/2} y={QPY+qh/2} width={qw/2} height={qh/2} fill="#f0f4f8" stroke="none"/>
+                      {/* Axes */}
+                      <line x1={QPX} y1={QPY+qh/2} x2={QPX+qw} y2={QPY+qh/2} stroke="#d8d3cb" strokeWidth={1.5}/>
+                      <line x1={QPX+qw/2} y1={QPY} x2={QPX+qw/2} y2={QPY+qh} stroke="#d8d3cb" strokeWidth={1.5}/>
+                      {/* Quadrant labels */}
+                      <text x={QPX+qw/4} y={QPY+14} textAnchor="middle" fontSize={8} fontWeight={700} fill="#b0a898" fontFamily="DM Sans,sans-serif">PERFORMANCE OPT.</text>
+                      <text x={QPX+qw*3/4} y={QPY+14} textAnchor="middle" fontSize={8} fontWeight={700} fill="#b0a898" fontFamily="DM Sans,sans-serif">ADAPTIVE INNOV.</text>
+                      <text x={QPX+qw/4} y={QPY+qh-6} textAnchor="middle" fontSize={8} fontWeight={700} fill="#b0a898" fontFamily="DM Sans,sans-serif">PREVENTATIVE CTRL</text>
+                      <text x={QPX+qw*3/4} y={QPY+qh-6} textAnchor="middle" fontSize={8} fontWeight={700} fill="#b0a898" fontFamily="DM Sans,sans-serif">MINDFUL ACTION</text>
+                      {/* Axis labels */}
+                      <text x={QPX} y={QPY+qh/2-5} textAnchor="start" fontSize={7.5} fill="#888" fontFamily="DM Sans,sans-serif">Consistent</text>
+                      <text x={QPX+qw} y={QPY+qh/2-5} textAnchor="end" fontSize={7.5} fill="#888" fontFamily="DM Sans,sans-serif">Flexible</text>
+                      <text x={QPX+qw/2+4} y={QPY+12} textAnchor="start" fontSize={7.5} fill="#888" fontFamily="DM Sans,sans-serif">Progressive</text>
+                      <text x={QPX+qw/2+4} y={QPY+qh-4} textAnchor="start" fontSize={7.5} fill="#888" fontFamily="DM Sans,sans-serif">Defensive</text>
+                      {/* Participant dots */}
+                      {completedRespondents.map((r,i)=>{
+                        const x=qx(r.flex||0,r.con||0);
+                        const y=qy(r.prog||0,r.def||0);
+                        const col=PAX_COLORS[i%PAX_COLORS.length];
+                        const isOutlier=outliers.includes(r);
+                        return(
+                          <g key={i}>
+                            <circle cx={x} cy={y} r={isOutlier?7:5.5} fill={col} fillOpacity={.85} stroke={isOutlier?'#1a1a1a':'none'} strokeWidth={isOutlier?1.5:0}/>
+                            <text x={x} y={y-9} textAnchor="middle" fontSize={7} fill={col} fontWeight={600} fontFamily="DM Sans,sans-serif">{r.respondent_name.split(' ')[0]}</text>
+                          </g>
+                        );
+                      })}
+                      {/* Group mean cross */}
+                      <line x1={qMeanX-8} y1={qMeanY} x2={qMeanX+8} y2={qMeanY} stroke="#1a1a1a" strokeWidth={2}/>
+                      <line x1={qMeanX} y1={qMeanY-8} x2={qMeanX} y2={qMeanY+8} stroke="#1a1a1a" strokeWidth={2}/>
+                      <text x={qMeanX+10} y={qMeanY+4} fontSize={7} fill="#1a1a1a" fontWeight={700} fontFamily="DM Sans,sans-serif">Mean</text>
+                    </svg>
+                  </div>
+
+                  {/* Debrief questions */}
+                  <div className="rpt-section">
+                    <div className="rpt-heading">Debrief Questions</div>
+                    {questions.map((q,i)=>(
+                      <div key={i} className="dq-item">
+                        <div className="dq-num">{i+1}</div>
+                        <div className="dq-text">{q}</div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              );
+            })()}
           </div>
         )}
 
@@ -1814,10 +1993,9 @@ function App(){
               {realRespondents.map((r,i)=>{
                 const rStrat=getStrategy(r.def||0,r.prog||0,r.con||0,r.flex||0);
                 const isSelected=selectedRespondent===i;
-                const isRemoving=removeTarget===r.respondent_name;
                 return(
                   <div key={i} className={`respondent-card${isSelected?' selected':''}`}>
-                    <div className="rc-header" onClick={()=>{if(!isRemoving)setSelectedRespondent(isSelected?null:i);}}>
+                    <div className="rc-header" onClick={()=>setSelectedRespondent(isSelected?null:i)}>
                       <div style={{display:'flex',alignItems:'center',gap:'.65rem'}}>
                         <div className="rc-dot" style={{background:PAX_COLORS[i%PAX_COLORS.length]}}/>
                         <div>
@@ -1825,29 +2003,12 @@ function App(){
                           <div className="rc-role">{r.role||'No role specified'} {r.sector&&r.role?`• ${r.sector}`:r.sector||''}</div>
                         </div>
                       </div>
-                      <div style={{display:'flex',alignItems:'center',gap:'.75rem'}}>
-                        <div style={{textAlign:'right'}}>
-                          <div className="rc-strategy">{SLABELS[rStrat]}</div>
-                          <div style={{fontSize:'.65rem',color:'#888',fontFamily:"'DM Sans',sans-serif"}}>P{r.prog} D{r.def} C{r.con} F{r.flex}</div>
-                        </div>
-                        <button onClick={e=>{e.stopPropagation();setRemoveTarget(isRemoving?null:r.respondent_name);setSelectedRespondent(null);}}
-                          style={{background:'none',border:'1px solid #d8d3cb',borderRadius:3,padding:'.25rem .5rem',fontSize:'.65rem',fontWeight:600,color:'#888',cursor:'pointer',fontFamily:"'DM Sans',sans-serif",flexShrink:0}}
-                          title="Remove from session">✕</button>
+                      <div style={{textAlign:'right'}}>
+                        <div className="rc-strategy">{SLABELS[rStrat]}</div>
+                        <div style={{fontSize:'.65rem',color:'#888',fontFamily:"'DM Sans',sans-serif"}}>P{r.prog} D{r.def} C{r.con} F{r.flex}</div>
                       </div>
                     </div>
-                    {isRemoving&&(
-                      <div style={{marginTop:'.75rem',paddingTop:'.75rem',borderTop:'1px solid #ebe7e0',display:'flex',alignItems:'center',gap:'.75rem',flexWrap:'wrap'}}>
-                        <span style={{fontSize:'.82rem',color:'#c0392b',fontFamily:"'DM Sans',sans-serif"}}>Remove <strong>{r.respondent_name}</strong> from this session?</span>
-                        <button className="btn-p" style={{background:'#c0392b',borderColor:'#c0392b',padding:'.4rem .9rem',fontSize:'.78rem'}}
-                          disabled={removeLoading}
-                          onClick={e=>{e.stopPropagation();doRemove(r.respondent_name);}}>
-                          {removeLoading?'Removing…':'Confirm Remove'}
-                        </button>
-                        <button className="btn-s" style={{padding:'.4rem .9rem',fontSize:'.78rem'}}
-                          onClick={e=>{e.stopPropagation();setRemoveTarget(null);}}>Cancel</button>
-                      </div>
-                    )}
-                    {isSelected&&!isRemoving&&(
+                    {isSelected&&(
                       <div style={{marginTop:'.85rem',paddingTop:'.85rem',borderTop:'1px solid #ebe7e0'}}>
                         <div className="score-grid" style={{marginBottom:'.75rem'}}>
                           {[{lbl:'Progressive',val:r.prog||0},{lbl:'Defensive',val:r.def||0},{lbl:'Consistent',val:r.con||0},{lbl:'Flexible',val:r.flex||0}].map(sc=>(
@@ -1859,9 +2020,9 @@ function App(){
                             </div>
                           ))}
                         </div>
-                        {r.tobe_prog&&(
+                        {r.tobe_p&&(
                           <div style={{fontSize:'.78rem',color:'#555',fontFamily:"'DM Sans',sans-serif"}}>
-                            Desired: {SLABELS[getStrategy(r.tobe_def||60,r.tobe_prog||60,r.tobe_con||60,r.tobe_flex||60)]} (P{r.tobe_prog} D{r.tobe_def} C{r.tobe_con} F{r.tobe_flex})
+                            Desired: {SLABELS[getStrategy(r.tobe_d||60,r.tobe_p||60,r.tobe_c||60,r.tobe_f||60)]} (P{r.tobe_p} D{r.tobe_d} C{r.tobe_c} F{r.tobe_f})
                           </div>
                         )}
                       </div>
@@ -1887,7 +2048,7 @@ function App(){
                     !!(r.s1_answers&&r.s1_answers.length>0),
                     !!(r.s2_answers&&r.s2_answers.length>0),
                     !!(r.prog),
-                    !!(r.tobe_prog),
+                    !!(r.tobe_p),
                     true,
                   ];
                   const done=steps.filter(Boolean).length;
@@ -2064,9 +2225,57 @@ function App(){
               </label>
             </div>
 
-            {/* Group diamond */}
-            <div className="chart-box" style={{textAlign:'center',marginBottom:'1.5rem'}}>
-              <div className="chart-lbl">Group Profile</div>
+            {/* Group diamonds: as-is + to-be */}
+            {(()=>{
+              const withTobe3=realRespondents.filter(r=>r.tobe_prog);
+              const gTobe3={p:0,d:0,c:0,f:0};
+              if(withTobe3.length>0){
+                withTobe3.forEach(r=>{gTobe3.p+=(r.tobe_prog||60);gTobe3.d+=(r.tobe_def||60);gTobe3.c+=(r.tobe_con||60);gTobe3.f+=(r.tobe_flex||60);});
+                ['p','d','c','f'].forEach(k=>{gTobe3[k]=Math.round(gTobe3[k]/withTobe3.length);});
+              }
+              const gTobeStrat3=withTobe3.length>0?getStrategy(gTobe3.d,gTobe3.p,gTobe3.c,gTobe3.f):null;
+              function miniDiamond(respondents,mean,tobe,tobeStrat,title){
+                const W=260,H=260,CX=130,CY=130,RD=90;
+                function sp(p,d,co,f){const pts=[[CX,CY-(p/120)*RD],[CX+(f/120)*RD,CY],[CX,CY+(d/120)*RD],[CX-(co/120)*RD,CY]];return pts.map((pt,i)=>`${i===0?'M':'L'}${pt[0]},${pt[1]}`).join(' ')+' Z';}
+                function gridPath(pct){const r=RD*pct;return `M${CX},${CY-r} L${CX+r},${CY} L${CX},${CY+r} L${CX-r},${CY} Z`;}
+                return(
+                  <div className="chart-box" style={{textAlign:'center'}}>
+                    <div className="chart-lbl">{title}</div>
+                    <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{overflow:'visible'}}>
+                      {[.25,.5,.75,1].map(pct=><path key={pct} d={gridPath(pct)} fill="none" stroke="#d8d3cb" strokeWidth={pct===1?1.5:0.8}/>)}
+                      <line x1={CX} y1={CY-RD} x2={CX} y2={CY+RD} stroke="#d8d3cb"/>
+                      <line x1={CX-RD} y1={CY} x2={CX+RD} y2={CY} stroke="#d8d3cb"/>
+                      {respondents.map((r,i)=>{
+                        const isMe=r.respondent_name===respondentName.trim();
+                        if(!isMe&&anonymousMode)return null;
+                        const col=PAX_COLORS[i%PAX_COLORS.length];
+                        const scores=tobe?[r.tobe_prog||60,r.tobe_def||60,r.tobe_con||60,r.tobe_flex||60]:[r.prog||0,r.def||0,r.con||0,r.flex||0];
+                        if(tobe&&!r.tobe_prog)return null;
+                        return(<path key={i} d={sp(scores[0],scores[1],scores[2],scores[3])} fill={col} fillOpacity={.06} stroke={col} strokeWidth={isMe?2.5:1.5} strokeLinejoin="round" strokeDasharray={isMe?undefined:'4,3'}/>);
+                      })}
+                      {mean&&<path d={sp(mean.prog||0,mean.def||0,mean.con||0,mean.flex||0)} fill="none" stroke="#1a1a1a" strokeWidth={2} strokeLinejoin="round"/>}
+                      {tobe&&gTobeStrat3&&<path d={sp(gTobe3.p,gTobe3.d,gTobe3.c,gTobe3.f)} fill="none" stroke="#e07030" strokeWidth={2} strokeLinejoin="round" strokeDasharray="6,3"/>}
+                      <text x={CX} y={CY-RD-8} textAnchor="middle" fill="#555" fontSize={9} fontWeight={700} fontFamily="DM Sans,sans-serif">Progressive</text>
+                      <text x={CX+RD+6} y={CY+4} textAnchor="start" fill="#555" fontSize={9} fontWeight={700} fontFamily="DM Sans,sans-serif">Flexible</text>
+                      <text x={CX} y={CY+RD+16} textAnchor="middle" fill="#555" fontSize={9} fontWeight={700} fontFamily="DM Sans,sans-serif">Defensive</text>
+                      <text x={CX-RD-6} y={CY+4} textAnchor="end" fill="#555" fontSize={9} fontWeight={700} fontFamily="DM Sans,sans-serif">Consistent</text>
+                    </svg>
+                    {SLABELS[tobe?gTobeStrat3:groupStrat]&&<div style={{fontSize:'.72rem',fontWeight:700,color:'#888',fontFamily:"'DM Sans',sans-serif",marginTop:'.4rem'}}>{SLABELS[tobe?gTobeStrat3:groupStrat]}</div>}
+                  </div>
+                );
+              }
+              return(
+                <div className="dual-diamond-wrap">
+                  {miniDiamond(realRespondents,gMean,false,groupStrat,'As-Is Profile')}
+                  {withTobe3.length>0
+                    ? miniDiamond(realRespondents,null,true,gTobeStrat3,'Desired Profile')
+                    : <div className="chart-box" style={{textAlign:'center',display:'flex',alignItems:'center',justifyContent:'center'}}><span style={{color:'#b0a898',fontSize:'.82rem',fontFamily:"'DM Sans',sans-serif"}}>To-be data not yet available</span></div>
+                  }
+                </div>
+              );
+            })()}
+            {/* Kept for legend below */}
+            <div style={{display:'none'}}>
               {groupDiamond()}
               <div style={{display:'flex',gap:'.75rem',justifyContent:'center',marginTop:'.6rem',flexWrap:'wrap'}}>
                 {realRespondents.map((r,i)=>{
@@ -2122,8 +2331,58 @@ function App(){
   }
 
   // ── MAIN RENDER ──────────────────────────────────────────────────────────
+  // Presentation mode overlay
+  function renderPresentationMode(){
+    const PAX_C=['#e07030','#1a4fa0','#2d7d46','#b87a20','#b83232','#6a3d9a','#0891b2','#78350f','#374151'];
+    const comp=groupRespondents.filter(r=>r.respondent_name&&r.respondent_name!=='__facilitator__'&&r.prog);
+    const gM={prog:0,def:0,con:0,flex:0};
+    if(comp.length>0){comp.forEach(r=>{gM.prog+=(r.prog||0);gM.def+=(r.def||0);gM.con+=(r.con||0);gM.flex+=(r.flex||0);});['prog','def','con','flex'].forEach(k=>{gM[k]=Math.round(gM[k]/comp.length);});}
+    const gStrat=comp.length>0?getStrategy(gM.def,gM.prog,gM.con,gM.flex):null;
+    const visible=comp.slice(0,revealedCount);
+    const W=480,H=480,CX=240,CY=240,RD=170;
+    function sp(p,d,co,f){const pts=[[CX,CY-(p/120)*RD],[CX+(f/120)*RD,CY],[CX,CY+(d/120)*RD],[CX-(co/120)*RD,CY]];return pts.map((pt,i)=>`${i===0?'M':'L'}${pt[0]},${pt[1]}`).join(' ')+' Z';}
+    function gp(pct){const r=RD*pct;return `M${CX},${CY-r} L${CX+r},${CY} L${CX},${CY+r} L${CX-r},${CY} Z`;}
+    return(
+      <div className="pres-overlay">
+        <button className="pres-exit" onClick={()=>setPresentationMode(false)}>✕ Exit</button>
+        <div className="pres-title">{codeNorm} — Group Profile</div>
+        <div className="pres-sub">{revealedCount===0?'Group mean only':`${revealedCount} of ${comp.length} revealed`} · {SLABELS[gStrat]||''}</div>
+        <div className="pres-diamond-wrap">
+          <svg width="100%" height="100%" viewBox={`0 0 ${W} ${H}`} style={{overflow:'visible'}}>
+            {[.25,.5,.75,1].map(pct=><path key={pct} d={gp(pct)} fill="none" stroke="rgba(255,255,255,.15)" strokeWidth={pct===1?1.5:0.8}/>)}
+            <line x1={CX} y1={CY-RD} x2={CX} y2={CY+RD} stroke="rgba(255,255,255,.15)"/>
+            <line x1={CX-RD} y1={CY} x2={CX+RD} y2={CY} stroke="rgba(255,255,255,.15)"/>
+            {visible.map((r,i)=>(<path key={i} d={sp(r.prog||0,r.def||0,r.con||0,r.flex||0)} fill={PAX_C[i%PAX_C.length]} fillOpacity={.12} stroke={PAX_C[i%PAX_C.length]} strokeWidth={2} strokeLinejoin="round"/>))}
+            {comp.length>0&&<path d={sp(gM.prog,gM.def,gM.con,gM.flex)} fill="none" stroke="#e07030" strokeWidth={2.5} strokeLinejoin="round"/>}
+            <text x={CX} y={CY-RD-14} textAnchor="middle" fill="rgba(255,255,255,.6)" fontSize={13} fontWeight={700} fontFamily="DM Sans,sans-serif">Progressive</text>
+            <text x={CX+RD+12} y={CY+5} textAnchor="start" fill="rgba(255,255,255,.6)" fontSize={13} fontWeight={700} fontFamily="DM Sans,sans-serif">Flexible</text>
+            <text x={CX} y={CY+RD+22} textAnchor="middle" fill="rgba(255,255,255,.6)" fontSize={13} fontWeight={700} fontFamily="DM Sans,sans-serif">Defensive</text>
+            <text x={CX-RD-12} y={CY+5} textAnchor="end" fill="rgba(255,255,255,.6)" fontSize={13} fontWeight={700} fontFamily="DM Sans,sans-serif">Consistent</text>
+          </svg>
+        </div>
+        <div className="pres-controls">
+          {revealedCount<comp.length&&(
+            <button className="pres-btn primary" onClick={()=>setRevealedCount(c=>Math.min(c+1,comp.length))}>
+              Reveal {visible.length>0?`${comp[revealedCount]?.respondent_name.split(' ')[0]||'next'}`:'first profile'} →
+            </button>
+          )}
+          {revealedCount>0&&<button className="pres-btn" onClick={()=>setRevealedCount(c=>c-1)}>← Back</button>}
+          {revealedCount===comp.length&&comp.length>0&&<button className="pres-btn" style={{background:'#22c55e',borderColor:'#22c55e'}} onClick={()=>setRevealedCount(comp.length)}>All revealed ✓</button>}
+          <button className="pres-btn" onClick={()=>setRevealedCount(0)}>Reset</button>
+        </div>
+        {visible.length>0&&(
+          <div className="pres-legend">
+            {visible.map((r,i)=>(<div key={i} className="pres-leg-item"><div className="pres-leg-dot" style={{background:PAX_C[i%PAX_C.length]}}/>{r.respondent_name}</div>))}
+            <div className="pres-leg-item"><div style={{width:16,height:2,background:'#e07030',marginRight:2}}/> Group mean</div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return(
     <div className="shell" ref={topRef}>
+      {presentationMode&&renderPresentationMode()}
       <Progress step={step}/>
       <div className="main">
         <div className="content fade" key={step}>
@@ -2132,7 +2391,16 @@ function App(){
           {step===2&&renderS1()}
           {step===3&&renderS2()}
           {step===4&&renderProfile()}
-          {step===5&&renderTobe()}
+          {step===5&&!groupReportMode&&renderTobe()}
+          {step===5&&groupReportMode&&codeNorm&&(
+            <div>
+              <button className="back-btn" onClick={()=>setGroupReportMode(false)}>← Back to Profile Setup</button>
+              <div className="sec-tag">Group Report</div>
+              <h2 className="pg-title">Live Group Results</h2>
+              <p className="pg-sub">See how your group is progressing and compare profiles in real-time.</p>
+              {renderGroupReportTab()}
+            </div>
+          )}
           {step===6&&renderReport()}
         </div>
       </div>
