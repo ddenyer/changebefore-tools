@@ -739,6 +739,21 @@ function App(){
     }catch(e){console.warn('stat-save error:',e);}
   }
 
+  async function saveStarted(){
+    if(!codeNorm||isAdmin)return;
+    try{
+      await fetch('/api/stat-save',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          session_code:codeNorm,
+          respondent_name:respondentName.trim(),
+          started:true,
+        }),
+      });
+    }catch(e){console.warn('started save error:',e);}
+  }
+
   async function loadGroup(){
     if(!codeNorm)return;
     try{
@@ -934,7 +949,7 @@ function App(){
           <strong>Privacy:</strong> Your responses are used only to generate your report. Your name is stored locally on this device to enable return-visit comparison. No data is shared with third parties. This tool supports structured thinking and does not constitute professional advice. For questions, contact <a href="mailto:contact@changebefore.com" style={{color:'inherit'}}>contact@changebefore.com</a>. <a href="https://changebefore.com/privacy/" target="_blank" rel="noopener noreferrer" style={{color:'inherit',textDecoration:'underline'}}>View our full privacy notice →</a>
         </div>
         <div className="btn-row">
-          <button className="btn-p" disabled={!respondentName.trim()||!sessionCode.trim()} onClick={()=>{if(isAdmin){setShowReport(true);go(6);}else{go(1);}}}>Begin →</button>
+          <button className="btn-p" disabled={!respondentName.trim()||!sessionCode.trim()} onClick={()=>{if(isAdmin){setShowReport(true);setRptTab(4);go(6);setTimeout(()=>loadGroup(),400);}else{saveStarted();go(1);}}}>Begin →</button>
         </div>
       </div>
     );
@@ -1188,9 +1203,10 @@ function App(){
         <h2 className="pg-title">{th}</h2>
         <p className="pg-sub">Current: <strong>{SLABELS[asIsStrat]}</strong> · Desired: <strong>{SLABELS[tobeStrat]}</strong></p>
         <div className="rpt-tabs">
-          {['Profile & Charts','The Model','Detailed Analysis','Suggestions & Actions','Group Report','Save & Next Steps',...(isAdmin?['Facilitator ★']:[])].map((t,i)=>(
-            <div key={i} className={`rpt-tab${rptTab===i?' active':''}`} onClick={()=>setRptTab(i)} style={{color:t==='Facilitator ★'?'#e07030':undefined}}>{t}</div>
-          ))}
+          {['Profile & Charts','The Model','Detailed Analysis','Suggestions & Actions','Group Report','Save & Next Steps',...(isAdmin?['Facilitator ★']:[])].map((t,i)=>{
+            if(isAdmin&&i!==4&&i!==6)return null;
+            return(<div key={i} className={`rpt-tab${rptTab===i?' active':''}`} onClick={()=>setRptTab(i)} style={{color:t==='Facilitator ★'?'#e07030':undefined}}>{t}</div>);
+          })}
         </div>
 
         <div className="rpt-tab-content" style={{display:rptTab===0?'block':'none'}}>
@@ -1617,52 +1633,23 @@ function App(){
     const PAX_COLORS=['#e07030', '#1a4fa0', '#2d7d46', '#b87a20', '#b83232', '#6a3d9a', '#0891b2', '#78350f', '#374151'];
     const realRespondents=groupRespondents.filter(r=>r.respondent_name&&r.respondent_name!=='__facilitator__');
 
-    if(realRespondents.length===0){
-      return(
-        <div>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1.25rem'}}>
-            <div>
-              <div style={{display:'flex',alignItems:'center',gap:'.5rem'}}>
-                <span className="pulse"/>
-                <span style={{fontSize:'.65rem',fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:'#555',fontFamily:"'DM Sans',sans-serif"}}>Facilitator — Session: {codeNorm}</span>
-              </div>
-            </div>
-            <button className="refresh-btn" onClick={loadGroup}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-              Refresh
-            </button>
-          </div>
-          <div className="waiting-state">
-            <div className="wait-icon">👥</div>
-            <h3>No responses yet</h3>
-            <p style={{fontSize:'.875rem',color:'#888',maxWidth:'380px',margin:'0 auto 1.5rem',lineHeight:1.6}}>Share session code <strong style={{color:'#1a1a1a'}}>{codeNorm}</strong> with your group. This view will update automatically when they complete the survey.</p>
-            <div className="chip-row" style={{justifyContent:'center'}}>
-              {[1,2,3,4,5].map(i=><div key={i} className="p-chip" style={{opacity:.3}}>{i}</div>)}
-            </div>
-          </div>
-          <div style={{marginTop:'2rem'}}>
-            <div className="rpt-heading" style={{marginBottom:'.5rem'}}>Facilitator Notes</div>
-            <textarea className="notes-area" value={facilitatorNotes} placeholder="Notes visible only to you as facilitator…" onChange={e=>{setFacilitatorNotes(e.target.value);saveFacilitatorNotes(e.target.value);}}/>
-          </div>
-        </div>
-      );
-    }
-
-    // Compute analytics
-    // Per-dimension variance
+    // Compute analytics (safe when realRespondents is empty)
     function variance(arr){if(arr.length<2)return 0;const m=arr.reduce((s,v)=>s+v,0)/arr.length;return arr.reduce((s,v)=>s+(v-m)**2,0)/arr.length;}
+    const completedRespondents=realRespondents.filter(r=>!!(r.prog));
     const dimVariance={
-      prog:variance(realRespondents.map(r=>r.prog||0)),
-      def:variance(realRespondents.map(r=>r.def||0)),
-      con:variance(realRespondents.map(r=>r.con||0)),
-      flex:variance(realRespondents.map(r=>r.flex||0)),
+      prog:variance(completedRespondents.map(r=>r.prog||0)),
+      def:variance(completedRespondents.map(r=>r.def||0)),
+      con:variance(completedRespondents.map(r=>r.con||0)),
+      flex:variance(completedRespondents.map(r=>r.flex||0)),
     };
-    const maxVar=Math.max(...Object.values(dimVariance));
+    const maxVar=Math.max(...Object.values(dimVariance))||1;
 
     // Group mean
     const gMean={prog:0,def:0,con:0,flex:0};
-    realRespondents.forEach(r=>{gMean.prog+=(r.prog||0);gMean.def+=(r.def||0);gMean.con+=(r.con||0);gMean.flex+=(r.flex||0);});
-    ['prog','def','con','flex'].forEach(k=>{gMean[k]=Math.round(gMean[k]/realRespondents.length);});
+    if(completedRespondents.length>0){
+      completedRespondents.forEach(r=>{gMean.prog+=(r.prog||0);gMean.def+=(r.def||0);gMean.con+=(r.con||0);gMean.flex+=(r.flex||0);});
+      ['prog','def','con','flex'].forEach(k=>{gMean[k]=Math.round(gMean[k]/completedRespondents.length);});
+    }
     const groupStrat=getStrategy(gMean.def,gMean.prog,gMean.con,gMean.flex);
 
     // Group to-be mean
@@ -1757,12 +1744,22 @@ function App(){
             <div className="rpt-section">
               <div className="rpt-heading">Respondent Chips</div>
               <div className="chip-row">
-                {realRespondents.map((r,i)=>(
-                  <div key={i} className="p-chip done" title={`${r.respondent_name} — ${SLABELS[getStrategy(r.def||0,r.prog||0,r.con||0,r.flex||0)]||'?'}`}
-                    style={{background:PAX_COLORS[i%PAX_COLORS.length],borderColor:PAX_COLORS[i%PAX_COLORS.length],width:'auto',minWidth:28,borderRadius:14,padding:'0 .5rem',gap:'.3rem',display:'flex',alignItems:'center'}}>
-                    {i+1} <span style={{fontSize:'.6rem'}}>{r.respondent_name.split(' ')[0]}</span>
-                  </div>
-                ))}
+                {realRespondents.map((r,i)=>{
+                  const completed=!!(r.prog);
+                  return(
+                    <div key={i} className={`p-chip${completed?' done':''}`}
+                      title={`${r.respondent_name}${completed?` — ${SLABELS[getStrategy(r.def||0,r.prog||0,r.con||0,r.flex||0)]||'?'}`:' (in progress)'}`}
+                      style={{
+                        background:completed?PAX_COLORS[i%PAX_COLORS.length]:'transparent',
+                        borderColor:PAX_COLORS[i%PAX_COLORS.length],
+                        color:completed?'#fff':PAX_COLORS[i%PAX_COLORS.length],
+                        width:'auto',minWidth:28,borderRadius:14,padding:'0 .5rem',gap:'.3rem',display:'flex',alignItems:'center'
+                      }}>
+                      {i+1} <span style={{fontSize:'.6rem'}}>{r.respondent_name.split(' ')[0]}</span>
+                      {!completed&&<span style={{fontSize:'.55rem',opacity:.7}}>…</span>}
+                    </div>
+                  );
+                })}
               </div>
               {realRespondents.length>0&&<div style={{marginTop:'.75rem',fontSize:'.78rem',color:'#555',fontFamily:"'DM Sans',sans-serif"}}>
                 Strategy spread: {[...new Set(realRespondents.map(r=>SLABELS[getStrategy(r.def||0,r.prog||0,r.con||0,r.flex||0)]))].join(' · ')}
