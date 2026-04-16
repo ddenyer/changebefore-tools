@@ -757,7 +757,7 @@ function App(){
   async function loadGroup(){
     if(!codeNorm)return;
     try{
-      const resp=await fetch(`/api/stat-load?code=${encodeURIComponent(codeNorm)}`);
+      const resp=await fetch(`/api/stat-load?code=${encodeURIComponent(codeNorm)}`,{cache:'no-store'});
       if(!resp.ok)return;
       const data=await resp.json();
       if(Array.isArray(data)){
@@ -1173,7 +1173,7 @@ function App(){
             <button className="btn-p" onClick={generate}>Generate My Report →</button>
           )}
           {codeNorm && (
-            <button className="btn-s" onClick={()=>setGroupReportMode(true)} style={{background:'#e07030',color:'#fff',borderColor:'#e07030'}}>Group Report →</button>
+            <button className="btn-s" onClick={()=>setGroupReportMode(true)} style={{display:'none'}}>Group Report →</button>
           )}
           <button className="btn-s" onClick={()=>go(3)}>← Back</button>
         </div>
