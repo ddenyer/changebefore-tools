@@ -24,6 +24,12 @@ export default async function handler(req, res) {
 
     const existing = await getResp.json();
 
+    // Only pass known Supabase columns — strip anything else
+    const allowed = ['session_code','respondent_name','role','thing',
+      'prog','def','con','flex','tobe_prog','tobe_def','tobe_con','tobe_flex',
+      's1_answers','s2_answers'];
+    const safeBody = Object.fromEntries(Object.entries(body).filter(([k]) => allowed.includes(k)));
+
     let writeResp;
     if (existing && existing.length > 0) {
       // PATCH
@@ -37,7 +43,7 @@ export default async function handler(req, res) {
             'Content-Type': 'application/json',
             'Prefer': 'return=minimal'
           },
-          body: JSON.stringify(body),
+          body: JSON.stringify(safeBody),
         }
       );
     } else {
@@ -50,7 +56,7 @@ export default async function handler(req, res) {
           'Content-Type': 'application/json',
           'Prefer': 'return=minimal'
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify(safeBody),
       });
     }
 
