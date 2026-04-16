@@ -1677,37 +1677,7 @@ function App(){
   function renderFacilitatorTab(){
     const PAX_COLORS=['#e07030', '#1a4fa0', '#2d7d46', '#b87a20', '#b83232', '#6a3d9a', '#0891b2', '#78350f', '#374151'];
     const realRespondents=groupRespondents.filter(r=>r.respondent_name&&r.respondent_name!=='__facilitator__');
-
-    if(realRespondents.length===0){
-      return(
-        <div>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1.25rem'}}>
-            <div>
-              <div style={{display:'flex',alignItems:'center',gap:'.5rem'}}>
-                <span className="pulse"/>
-                <span style={{fontSize:'.65rem',fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:'#555',fontFamily:"'DM Sans',sans-serif"}}>Facilitator — Session: {codeNorm}</span>
-              </div>
-            </div>
-            <button className="refresh-btn" onClick={loadGroup}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-              Refresh
-            </button>
-          </div>
-          <div className="waiting-state">
-            <div className="wait-icon">👥</div>
-            <h3>No responses yet</h3>
-            <p style={{fontSize:'.875rem',color:'#888',maxWidth:'380px',margin:'0 auto 1.5rem',lineHeight:1.6}}>Share session code <strong style={{color:'#1a1a1a'}}>{codeNorm}</strong> with your group. This view will update automatically when they complete the survey.</p>
-            <div className="chip-row" style={{justifyContent:'center'}}>
-              {[1,2,3,4,5].map(i=><div key={i} className="p-chip" style={{opacity:.3}}>{i}</div>)}
-            </div>
-          </div>
-          <div style={{marginTop:'2rem'}}>
-            <div className="rpt-heading" style={{marginBottom:'.5rem'}}>Facilitator Notes</div>
-            <textarea className="notes-area" value={facilitatorNotes} placeholder="Notes visible only to you as facilitator…" onChange={e=>{setFacilitatorNotes(e.target.value);saveFacilitatorNotes(e.target.value);}}/>
-          </div>
-        </div>
-      );
-    }
+    const completedRespondents=realRespondents.filter(r=>!!(r.prog));
 
     // Compute analytics
     // Per-dimension variance
@@ -2340,15 +2310,21 @@ function App(){
     const gStrat=comp.length>0?getStrategy(gM.def,gM.prog,gM.con,gM.flex):null;
     const visible=comp.slice(0,revealedCount);
     const W=480,H=480,CX=240,CY=240,RD=170;
-    function sp(p,d,co,f){const pts=[[CX,CY-(p/120)*RD],[CX+(f/120)*RD,CY],[CX,CY+(d/120)*RD],[CX-(co/120)*RD,CY]];return pts.map((pt,i)=>`${i===0?'M':'L'}${pt[0]},${pt[1]}`).join(' ')+' Z';}
-    function gp(pct){const r=RD*pct;return `M${CX},${CY-r} L${CX+r},${CY} L${CX},${CY+r} L${CX-r},${CY} Z`;}
+    const vBox='0 0 '+W+' '+H;
+    const subText=revealedCount===0?'Group mean only':(revealedCount+' of '+comp.length+' revealed');
+    const nextName=visible.length>0?(comp[revealedCount]&&comp[revealedCount].respondent_name.split(' ')[0])||'next':'first profile';
+    function sp(p,d,co,f){
+      const pts=[[CX,CY-(p/120)*RD],[CX+(f/120)*RD,CY],[CX,CY+(d/120)*RD],[CX-(co/120)*RD,CY]];
+      return pts.map((pt,i)=>(i===0?'M':'L')+pt[0]+','+pt[1]).join(' ')+' Z';
+    }
+    function gp(pct){const r=RD*pct;return 'M'+CX+','+(CY-r)+' L'+(CX+r)+','+CY+' L'+CX+','+(CY+r)+' L'+(CX-r)+','+CY+' Z';}
     return(
       <div className="pres-overlay">
         <button className="pres-exit" onClick={()=>setPresentationMode(false)}>✕ Exit</button>
         <div className="pres-title">{codeNorm} — Group Profile</div>
-        <div className="pres-sub">{revealedCount===0?'Group mean only':`${revealedCount} of ${comp.length} revealed`} · {SLABELS[gStrat]||''}</div>
+        <div className="pres-sub">{subText} · {SLABELS[gStrat]||''}</div>
         <div className="pres-diamond-wrap">
-          <svg width="100%" height="100%" viewBox={`0 0 ${W} ${H}`} style={{overflow:'visible'}}>
+          <svg width="100%" height="100%" viewBox={vBox} style={{overflow:'visible'}}>
             {[.25,.5,.75,1].map(pct=><path key={pct} d={gp(pct)} fill="none" stroke="rgba(255,255,255,.15)" strokeWidth={pct===1?1.5:0.8}/>)}
             <line x1={CX} y1={CY-RD} x2={CX} y2={CY+RD} stroke="rgba(255,255,255,.15)"/>
             <line x1={CX-RD} y1={CY} x2={CX+RD} y2={CY} stroke="rgba(255,255,255,.15)"/>
@@ -2363,7 +2339,7 @@ function App(){
         <div className="pres-controls">
           {revealedCount<comp.length&&(
             <button className="pres-btn primary" onClick={()=>setRevealedCount(c=>Math.min(c+1,comp.length))}>
-              Reveal {visible.length>0?`${comp[revealedCount]?.respondent_name.split(' ')[0]||'next'}`:'first profile'} →
+              Reveal {nextName} →
             </button>
           )}
           {revealedCount>0&&<button className="pres-btn" onClick={()=>setRevealedCount(c=>c-1)}>← Back</button>}
