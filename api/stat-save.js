@@ -2,38 +2,62 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({error:'Method not allowed'});
   const SUPABASE_URL = process.env.SUPABASE_URL || 'https://vxovyhzqzlvjvntjnzej.supabase.co';
   const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY;
-  const RESEND_KEY   = process.env.RESEND_API_KEY;
+  const RESEND_KEY = process.env.RESEND_API_KEY;
   if (!SUPABASE_KEY) return res.status(500).json({error:'Supabase key not configured'});
 
-  try {
-    const body = req.body;
-    const { session_code, respondent_name } = body;
-    if (!session_code || !respondent_name) return res.status(400).json({error:'Missing session_code or respondent_name'});
+  const body = req.body;
+  const { session_code, respondent_name } = body;
+  if (!session_code || !respondent_name) return res.status(400).json({error:'Missing session_code or respondent_name'});
 
+  try {
     // GET existing row
     const getResp = await fetch(
       `${SUPABASE_URL}/rest/v1/stat_responses?session_code=eq.${encodeURIComponent(session_code)}&respondent_name=eq.${encodeURIComponent(respondent_name)}&select=id`,
       { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
     );
+
+    if (!getResp.ok) {
+      const errText = await getResp.text();
+      console.error('stat-save GET failed:', getResp.status, errText);
+      return res.status(500).json({error:`GET failed: ${errText}`});
+    }
+
     const existing = await getResp.json();
 
+    let writeResp;
     if (existing && existing.length > 0) {
       // PATCH
-      await fetch(
+      writeResp = await fetch(
         `${SUPABASE_URL}/rest/v1/stat_responses?session_code=eq.${encodeURIComponent(session_code)}&respondent_name=eq.${encodeURIComponent(respondent_name)}`,
         {
           method: 'PATCH',
-          headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+          headers: {
+            'apikey': SUPABASE_KEY,
+            'Authorization': `Bearer ${SUPABASE_KEY}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal'
+          },
           body: JSON.stringify(body),
         }
       );
     } else {
       // POST
-      await fetch(`${SUPABASE_URL}/rest/v1/stat_responses`, {
+      writeResp = await fetch(`${SUPABASE_URL}/rest/v1/stat_responses`, {
         method: 'POST',
-        headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        headers: {
+          'apikey': SUPABASE_KEY,
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal'
+        },
         body: JSON.stringify(body),
       });
+    }
+
+    if (!writeResp.ok) {
+      const errText = await writeResp.text();
+      console.error('stat-save write failed:', writeResp.status, errText);
+      return res.status(500).json({error:`Write failed: ${errText}`});
     }
 
     // Fire group email if 2+ respondents and not facilitator notes
