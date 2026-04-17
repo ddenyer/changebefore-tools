@@ -1263,14 +1263,18 @@ function App(){
             <div className="print-header-strat">Current: <strong>{SLABELS[asIsStrat]}</strong> &nbsp;→&nbsp; Desired: <strong>{SLABELS[tobeStrat]}</strong> &nbsp;·&nbsp; {new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'})}</div>
           </div>
         </div>
-        <div className="sec-tag">Organisational Resilience Report</div>
-        <h2 className="pg-title">{th}</h2>
-        <p className="pg-sub">Current: <strong>{SLABELS[asIsStrat]}</strong> · Desired: <strong>{SLABELS[tobeStrat]}</strong></p>
+        {!isAdmin&&<div className="sec-tag">Organisational Resilience Report</div>}
+        {!isAdmin&&<h2 className="pg-title">{th}</h2>}
+        {!isAdmin&&<p className="pg-sub">Current: <strong>{SLABELS[asIsStrat]}</strong> · Desired: <strong>{SLABELS[tobeStrat]}</strong></p>}
+        {isAdmin?(
+          renderFacilitatorTab()
+        ):(
         <div className="rpt-tabs">
           {['Profile & Charts','The Model','Detailed Analysis','Suggestions & Actions','Group Report','Save & Next Steps',...(isAdmin?['Facilitator ★']:[])].map((t,i)=>(
             <div key={i} className={`rpt-tab${rptTab===i?' active':''}`} onClick={()=>setRptTab(i)} style={{color:t==='Facilitator ★'?'#e07030':undefined}}>{t}</div>
           ))}
         </div>
+        )}
 
         <div className="rpt-tab-content" style={{display:rptTab===0?'block':'none'}}>
           <div className="print-section-title" style={{display:'none'}}>Profile &amp; Charts</div>
@@ -1296,8 +1300,7 @@ function App(){
           {renderTab3()}
         </div>
         {isAdmin&&(
-          <div className="rpt-tab-content" style={{display:rptTab===6?'block':'none'}}>
-            {renderFacilitatorTab()}
+          <div className="rpt-tab-content" style={{display:'none'}}>
           </div>
         )}
       </div>
