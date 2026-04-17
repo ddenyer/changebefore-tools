@@ -1276,6 +1276,8 @@ function App(){
         </div>
         )}
 
+        {!isAdmin&&(
+          <>
         <div className="rpt-tab-content" style={{display:rptTab===0?'block':'none'}}>
           <div className="print-section-title" style={{display:'none'}}>Profile &amp; Charts</div>
           {renderTab0(pGap,dGap,cGap,fGap)}
@@ -1299,9 +1301,7 @@ function App(){
           <div className="print-section-title" style={{display:'none'}}>Save &amp; Next Steps</div>
           {renderTab3()}
         </div>
-        {isAdmin&&(
-          <div className="rpt-tab-content" style={{display:'none'}}>
-          </div>
+          </>
         )}
       </div>
     );
