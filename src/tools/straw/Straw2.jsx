@@ -224,14 +224,19 @@ const cmpnd    = (base, rate) => base * Math.pow(1 + (nv(rate)) / 100, PERIODS);
 const annlRate = (total) => (Math.pow(1 + total / 100, 1 / PERIODS) - 1) * 100;
 
 const calcPredRevs = (p) => {
-  const rates = p.revRates || {};
-  const revs  = p.revenues || {};
+  const rates  = p.revRates || {};
+  const revs   = p.revenues || {};
+  const direct = p.predRevsDirect || {};
   let total = 0;
   const predRevs = {};
   REV_LINES.forEach(l => {
-    const cur  = nv(revs[l.id], l.prefillK);
-    const rate = nv(rates[l.id], REV_DEF_RATES[l.id]);
-    predRevs[l.id] = cmpnd(cur, rate);
+    if (direct[l.id] !== undefined) {
+      predRevs[l.id] = nv(direct[l.id]);
+    } else {
+      const cur  = nv(revs[l.id], l.prefillK);
+      const rate = nv(rates[l.id], REV_DEF_RATES[l.id]);
+      predRevs[l.id] = cmpnd(cur, rate);
+    }
     total += predRevs[l.id];
   });
   total += nv(p.revOtherK, 0);
@@ -239,14 +244,20 @@ const calcPredRevs = (p) => {
 };
 
 const calcPredCosts = (p, scaleFactor = 1) => {
-  const rates = p.costRates || {};
-  const costs = p.costs || {};
+  const rates  = p.costRates || {};
+  const costs  = p.costs || {};
+  const direct = p.predCostsDirect || {};
   let total = 0;
   const predCosts = {};
   COST_LINES.forEach(l => {
-    const cur  = nv(costs[l.id], l.baseK);
-    const rate = nv(rates[l.id], 0);
-    let pred = cmpnd(cur, rate);
+    let pred;
+    if (direct[l.id] !== undefined) {
+      pred = nv(direct[l.id]);
+    } else {
+      const cur  = nv(costs[l.id], l.baseK);
+      const rate = nv(rates[l.id], 0);
+      pred = cmpnd(cur, rate);
+    }
     if (VARIABLE_COST_IDS.includes(l.id)) pred *= scaleFactor;
     predCosts[l.id] = pred;
     total += pred;
@@ -810,8 +821,17 @@ function PredStep({ stepN, lines, defRates, lineRates, setLineRates, baseRevTota
     });
     return s;
   });
-  useAutoSave(autoSaveName, () => { const rates = {}; lines.forEach(l => { rates[l.id] = annlRate(nv(state[l.id]?.pctTotal, 0)); }); return isCost ? { costRates: rates } : { revRates: rates }; });
-  const handleBack = () => { const rates = {}; lines.forEach(l => { rates[l.id] = annlRate(nv(state[l.id]?.pctTotal, 0)); }); if (autoSaveName) pSave(autoSaveName, isCost ? { costRates: rates } : { revRates: rates }); onBack(); };
+  useAutoSave(autoSaveName, () => {
+    const rates = {}; const predDirect = {};
+    lines.forEach(l => { rates[l.id] = annlRate(nv(state[l.id]?.pctTotal, 0)); predDirect[l.id] = nv(state[l.id]?.predK, 0); });
+    return isCost ? { costRates: rates, predCostsDirect: predDirect } : { revRates: rates, predRevsDirect: predDirect };
+  });
+  const handleBack = () => {
+    const rates = {}; const predDirect = {};
+    lines.forEach(l => { rates[l.id] = annlRate(nv(state[l.id]?.pctTotal, 0)); predDirect[l.id] = nv(state[l.id]?.predK, 0); });
+    if (autoSaveName) pSave(autoSaveName, isCost ? { costRates: rates, predCostsDirect: predDirect } : { revRates: rates, predRevsDirect: predDirect });
+    onBack();
+  };
 
   const updateFromPct = (id, pctTotal) => {
     const base = nv(lines.find(l => l.id === id)?.prefillK ?? lines.find(l => l.id === id)?.baseK, 0);
@@ -835,13 +855,14 @@ function PredStep({ stepN, lines, defRates, lineRates, setLineRates, baseRevTota
   const totalBase = lines.reduce((s, l) => s + nv(l.prefillK ?? l.baseK, 0), 0);
 
   const doConfirm = () => {
-    const rates = {};
+    const rates = {}; const predDirect = {};
     lines.forEach(l => {
       const pctTotal = nv(state[l.id]?.pctTotal, 0);
       rates[l.id] = annlRate(pctTotal);
+      predDirect[l.id] = nv(state[l.id]?.predK, 0);
     });
     if (!isCost) setLineRates({ ...lineRates, ...rates });
-    onConfirm(rates);
+    onConfirm(rates, predDirect);
   };
 
   const changeColor = (changeK) => {
@@ -1230,7 +1251,7 @@ function Step10({ pData, onConfirm, onBack, confirmed }) {
 
   return (
     <div className="sl-content">
-      <BackBtn onClick={onBack} />
+      <BackBtn onClick={handleBack} />
       {confirmed && <ConfirmedBanner stepN={10} />}
       <div className="sl-step-h">Your theme</div>
       <div className="sl-prompt">Before you allocate revenue, declare your direction for each line. Then build your mix. This is your strategic intent — not a financial model.</div>
@@ -2299,7 +2320,7 @@ function ParticipantView({ name, tick, onLogout }) {
           confirmLabel="Confirm predicted revenues → Step 7: Predicted costs"
           isCost={false} confirmed={pd.step6Confirmed}
           autoSaveName={name}
-          onConfirm={(rates) => { pSave(name, { revRates: rates, step6Confirmed: true }); advance(); }}
+          onConfirm={(rates, predDirect) => { pSave(name, { revRates: rates, predRevsDirect: predDirect, step6Confirmed: true }); advance(); }}
           onBack={() => go(5)}
         />
       )}
@@ -2313,7 +2334,7 @@ function ParticipantView({ name, tick, onLogout }) {
           confirmLabel="Confirm predicted costs → Step 8: Prognosis"
           isCost={true} confirmed={pd.step7Confirmed}
           autoSaveName={name}
-          onConfirm={(rates) => { pSave(name, { costRates: rates, step7Confirmed: true }); advance(); }}
+          onConfirm={(rates, predDirect) => { pSave(name, { costRates: rates, predCostsDirect: predDirect, step7Confirmed: true }); advance(); }}
           onBack={() => go(6)}
         />
       )}
@@ -2404,7 +2425,7 @@ function PurposeStep8({ pData, confirmed, onConfirm, onBack }) {
 
   return (
     <div className="sl-content">
-      <BackBtn onClick={onBack} />
+      <BackBtn onClick={handleBack} />
       {confirmed && <ConfirmedBanner stepN={9} />}
       <div className="sl-step-h">Who should FBaM serve in July 2028?</div>
       <div className="sl-prompt">Rate each stakeholder group by importance to FBaM's future. Rate 1–9. If everything scores 9, nothing is a priority. Where does FBaM need to make hard choices? A maximum of 3 groups can score 8 or 9 — use your high priority slots deliberately!</div>
@@ -2552,7 +2573,7 @@ function PurposeOptionsStep({ stepN, heading, prompt, pData, stateKey, rankKey, 
 
   return (
     <div className="sl-content">
-      <BackBtn onClick={onBack} />
+      <BackBtn onClick={handleBack} />
       {confirmed && <ConfirmedBanner stepN={stepN} />}
       <div className="sl-step-h">{heading}</div>
       <div className="sl-prompt">{prompt}</div>
