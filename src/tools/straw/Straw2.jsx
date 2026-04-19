@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 /* ── GLOBAL STORE ─────────────────────────────────────────────────────────── */
 const STORE = { participants: {}, step: 1, revealed: {}, sessionId: "" };
@@ -17,7 +17,7 @@ const pAll  = () => Object.values(STORE.participants);
 
 /* Auto-save hook — debounced save on change, immediate save on unmount */
 const useAutoSave = (name, getData) => {
-  const getDataRef = { current: getData };
+  const getDataRef = useRef(getData);
   getDataRef.current = getData;
   useEffect(() => {
     return () => { if (name) pSave(name, getDataRef.current()); };
@@ -180,7 +180,7 @@ const MARKET_BENCHMARKS = [
     fbamCurrent: "Going to zero. Final Level 7 SLA intakes done. No further cohorts planned.",
     mid: -100,
     context: "Level 7 defunded Jan 2026. This income does not exist by 2028. Revenue at zero by mid-2027 at latest. Any residual is marginal employer self-funded activity." },
-  { id: "ced_custom",  label: "CED Customised", range: "+6% to +9% sector CAGR", fbamTrend: "Consistent growth — main revenue growth lever", fbamCurrent: "Pipeline 86% confirmed.", mid: -13, context: "Sector growing strongly (UNICON 2025). CED Customised is the primary growth lever. Default CAGR reflects structural drag from SLEP loss." },
+  { id: "ced_custom",  label: "CED Customised", range: "+6% to +9% sector CAGR", fbamTrend: "Consistent growth — main revenue growth lever", fbamCurrent: "Pipeline 86% confirmed.", mid: -13, context: "Sector growing strongly. CED Customised is the primary growth lever. Default CAGR reflects structural drag from SLEP loss." },
   { id: "slep",        label: "SLEP / Non-Award Bearing", range: "Structural elimination", fbamTrend: "Ending", fbamCurrent: "Going to near-zero. Default −80%.", mid: -80, context: "Structural loss. This £2.8m does not exist by 2028." },
   { id: "cabinet",     label: "Cabinet Office", range: "Growing", fbamTrend: "Established and growing", fbamCurrent: "Active contract. Default +20%.", mid: 20, context: "Genuine growth opportunity aligned with government outsourcing." },
   { id: "ced_other",   label: "Other exec ed", range: "Follows exec ed trend", fbamTrend: "Broadly stable", fbamCurrent: "Small residual line.", mid: -13, context: "Other customised exec ed. Follows overall exec ed market trend." },
