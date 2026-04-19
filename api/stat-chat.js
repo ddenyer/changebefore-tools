@@ -23,7 +23,6 @@ export default async function handler(req, res) {
   const cleanBody = {
     model: MODELS[0],
     max_tokens: 4000,
-    system: 'You are a strategy and finance expert. When asked to respond in JSON, respond ONLY with valid JSON — no preamble, no explanation, no code fences, no markdown. Start your response with { and end with }.',
     messages: req.body?.messages || [],
   };
 
