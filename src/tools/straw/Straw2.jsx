@@ -1392,14 +1392,11 @@ STRATEGIC CHOICES:
 ${serviceChargeNote}${keepContext}
 
 Generate exactly 10 strategic direction statements that would help close this gap. STRICT RULES:
-- Stay at the WHAT and WHY level — no specific course names, no programme titles, no operational detail
+- Stay at the WHAT and WHY level — no specific figures, no percentages, no £ amounts, no operational detail
 - Name the revenue stream or activity TYPE (e.g. "executive education", "open programmes", "research income") but NEVER name specific programmes
-- Include scale — say by how much (e.g. "grow executive education by approximately 40%", "reduce headcount cost by £Xm")
 - Include market reality: if a revenue stream has low CAGR (e.g. award-bearing FT MSc, open programmes) explicitly note that growth requires taking market share, not a growing market
-- IMPORTANT: Customised and Executive Education is a HIGH GROWTH sector (+6% to +9% sector CAGR). The overall exec_ed line looks poor because it includes SLEP/Non-Award Bearing income that is ending (£2,798k) and levy income going to zero. The underlying CED customised and cabinet office income is healthy. When suggesting exec ed growth, be clear that the sector is growing strongly and this is a realistic opportunity — but growth must compensate for the structural SLEP/levy loss on top of hitting the gap target
-- If the growth required is very large, flag the scale of ambition required explicitly
+- IMPORTANT: Customised and Executive Education is a HIGH GROWTH sector (+6% to +9% sector CAGR). The overall exec ed line looks poor because it includes SLEP/Non-Award Bearing income that is ending and levy income going to zero. The underlying CED customised and cabinet office income is healthy. When suggesting exec ed growth, be clear that the sector is growing strongly and this is a realistic opportunity
 - If exec ed growth is needed to compensate for levy income loss, say so explicitly
-- If a change is substantial (e.g. doubling exec ed), flag the scale of ambition required
 - Be directionally honest — not optimistic generic statements
 - Max 45 words per statement
 
@@ -1603,10 +1600,11 @@ Respond ONLY in this exact JSON format:
     setLoading(true);
     try {
       const txt = await callAI(buildPrompt(), 25000);
-      const m = txt.match(/\{[\s\S]*\}/);
+      const m = txt.match(/{[\s\S]*}/);
       const parsed = JSON.parse(m ? m[0] : txt.replace(/```json|```/g, "").trim());
       const newRevs = {}; REV_LINES.forEach(l => newRevs[l.id] = String(Math.round(nv(parsed.revs?.[l.id], nv(predRevs[l.id])))));
-      const newCosts = {}; COST_LINES.forEach(l => newCosts[l.id] = String(Math.round(nv(parsed.costs?.[l.id], nv(predCosts[l.id])))));
+      // Costs are ALWAYS the user's predicted values — never overridden by AI
+      const newCosts = {}; COST_LINES.forEach(l => newCosts[l.id] = String(Math.round(nv(predCosts[l.id]))));
       newRevs["pt_levy"] = "0";
       // Verify surplus meets target
       const aiRev = REV_LINES.reduce((s, l) => s + nv(newRevs[l.id]), 0);
@@ -1803,27 +1801,30 @@ The participant has made the following strategic choices:
 - Key differentiator: "${ctx.unique}"
 - WHY statement: "${ctx.why}"
 
-Do-nothing financial trajectory by July 2028:
-- Revenue lines: ${ctx.revCtx}
-- Total predicted revenue: £${Math.round(predRev)}k
-- Cost lines: ${ctx.costCtx}
+Predicted costs by July 2028 (FIXED — do not change these):
+${COST_LINES.map(l => `- ${l.name}: £${Math.round(nv(predCosts[l.id]))}k`).join('\n')}
 - Total predicted costs: £${Math.round(predCost)}k
+
+Revenue baseline by July 2028 (do-nothing trajectory):
+${REV_LINES.map(l => `- ${l.name}: £${Math.round(nv(predRevs[l.id]))}k`).join('\n')}
+- Total predicted revenue: £${Math.round(predRev)}k
+
 - Do-nothing surplus: £${Math.round(predRev - predCost)}k (${predRev > 0 ? ((predRev - predCost)/predRev*100).toFixed(1) : 0}%)
 - Target surplus: ${tgt}%
-- Required surplus in £k: £${Math.round(predRev * tgt / 100)}k
-- Gap to close: £${Math.round(baseGap)}k
+- Required total revenue to hit target (with fixed costs of £${Math.round(predCost)}k): £${Math.round(predCost + predCost * tgt / (100 - tgt) + (predRev * tgt / 100 - (predRev - predCost)))}k
+- Gap to close through revenue growth: £${Math.round(baseGap)}k
 
 CRITICAL CONSTRAINTS:
-- pt_levy MUST be 0. The Level 7 apprenticeship levy is defunded. This income does not exist by 2028. Do not put any value here.
-- The sum of all revenue lines MINUS the sum of all cost lines MUST equal at least ${Math.round(predRev * tgt / 100)}k (the required surplus). Check your arithmetic before responding.
+- COSTS ARE FIXED. Return exactly the cost figures above — do not change any cost line.
+- pt_levy MUST be 0. The Level 7 apprenticeship levy is defunded.
+- Only change revenue lines. Revenue must be grown enough to hit the target surplus with the fixed costs.
+- Align revenue growth with the strategic positioning: if positioned toward exec ed, grow exec ed; if post-experience, grow open programmes and exec ed; if applied/impact, grow research income.
 - All figures must be positive integers in £k.
-
-Staff context: 65 FTE post-leavers (BTG 27, PSL 10, SCPSS 25). Use this to sanity-check staffing costs.
 
 Respond in this EXACT JSON format only — no text outside the JSON:
 {
   "keyMoves": [
-    "bullet 1 — specific move with rationale (e.g. Grow exec ed to £Xm — coherent with your exec-ed positioning)",
+    "bullet 1 — specific revenue move with rationale aligned to strategic choices",
     "bullet 2",
     "bullet 3",
     "bullet 4",
@@ -1845,12 +1846,12 @@ Respond in this EXACT JSON format only — no text outside the JSON:
     "other_rev": <integer £k>
   },
   "costs": {
-    "academic_staff": <integer £k>,
-    "support_staff": <integer £k>,
-    "associates": <integer £k>,
-    "prog_costs": <integer £k>,
-    "ops_overhead": <integer £k>,
-    "uni_charge": <integer £k>
+    "academic_staff": ${Math.round(nv(predCosts.academic_staff))},
+    "support_staff": ${Math.round(nv(predCosts.support_staff))},
+    "associates": ${Math.round(nv(predCosts.associates))},
+    "prog_costs": ${Math.round(nv(predCosts.prog_costs))},
+    "ops_overhead": ${Math.round(nv(predCosts.ops_overhead))},
+    "uni_charge": ${Math.round(nv(predCosts.uni_charge))}
   }
 }`);
 
@@ -1858,7 +1859,8 @@ Respond in this EXACT JSON format only — no text outside the JSON:
       const m = txt.match(/{[\s\S]*}/);
       const parsed = JSON.parse(m ? m[0] : txt.replace(/```json|```/g, "").trim());
       const newRevs = {}; REV_LINES.forEach(l => newRevs[l.id] = String(Math.round(nv(parsed.revs?.[l.id], nv(predRevs[l.id])))));
-      const newCosts = {}; COST_LINES.forEach(l => newCosts[l.id] = String(Math.round(nv(parsed.costs?.[l.id], nv(predCosts[l.id])))));
+      // Costs are ALWAYS the user's predicted values — never overridden by AI
+      const newCosts = {}; COST_LINES.forEach(l => newCosts[l.id] = String(Math.round(nv(predCosts[l.id]))));
       // Force pt_levy to 0
       newRevs["pt_levy"] = "0";
       // Verify gap closes — if not, adjust exec_ed upward until it does
@@ -2745,8 +2747,8 @@ Respond in this EXACT JSON format — no text outside the JSON, no markdown:
 {"why":"2-3 sentences — the belief and conviction, not what FBaM earns","how":"3-4 sentences — specific differentiating practices and assets, concrete not generic","what":"2-3 sentences — the programmes and services that logically follow"}`);
 
     try {
-      const m = txt.match(/{[\s\S]*}/);
-      const parsed = JSON.parse(m ? m[0] : txt.replace(/```json|```/g, "").trim());
+      const clean = txt.replace(/```json|```/g, "").trim();
+      const parsed = JSON.parse(clean);
       if (parsed.why)  setWhy(parsed.why);
       if (parsed.how)  setHow(parsed.how);
       if (parsed.what) setWhat(parsed.what);
