@@ -15,16 +15,13 @@ const pSave = (name, d) => {
 const pGet  = n => STORE.participants[n] || { name: n };
 const pAll  = () => Object.values(STORE.participants);
 
-/* Auto-save hook — debounced save on change, immediate save on unmount */
+/* Auto-save hook — debounces save 800ms after last change only */
 const useAutoSave = (name, getData) => {
   const getDataRef = useRef(getData);
   getDataRef.current = getData;
   useEffect(() => {
-    return () => { if (name) pSave(name, getDataRef.current()); };
-  }, []);
-  useEffect(() => {
     if (!name) return;
-    const timer = setTimeout(() => { pSave(name, getData()); }, 800);
+    const timer = setTimeout(() => { pSave(name, getDataRef.current()); }, 800);
     return () => clearTimeout(timer);
   }, [JSON.stringify(getData())]);
 };
@@ -172,19 +169,19 @@ const THEMES        = ["Business Transformation and Growth","People, Skills and 
 
 /* ── MARKET BENCHMARKS — UK business schools 2024→2028 ─────────────────── */
 const MARKET_BENCHMARKS = [
-  { id: "ft_mba",      label: "FT MBA", range: "−2% to 0% CAGR", fbamTrend: "Declining with international market pressure", fbamCurrent: "Under pressure from Graduate Route compression and international levy.", mid: -8, context: "MBA market under pressure from Graduate Route visa compression. Premium residential MBA retains some insulation — but volume growth is unlikely." },
-  { id: "ft_msc_prog", label: "FT MSc programmes", range: "−2% to 0% CAGR", fbamTrend: "Peaked £21.9m (22/23), now reversing sharply", fbamCurrent: "Poor Jan 2026 intake (4 vs 10 forecast). Withdrawals continuing.", mid: -8, context: "Sector declining due to Graduate Route compression. CAGR of −8% reflects continuation of current trajectory." },
+  { id: "ft_mba",      label: "FT MBA", range: "−2% to 0% CAGR", fbamTrend: "Declining", fbamCurrent: "Under pressure from Graduate Route compression and international levy.", mid: -8, context: "MBA market under pressure from Graduate Route visa compression." },
+  { id: "ft_msc_prog", label: "FT MSc programmes", range: "−2% to 0% CAGR", fbamTrend: "Peaked £21.9m (22/23), now reversing", fbamCurrent: "Poor Jan 2026 intake (4 vs 10 forecast).", mid: -8, context: "Sector declining due to Graduate Route compression." },
   { id: "pt_levy",     label: "Apprenticeships / Levy",
     range: "Eliminated",
     fbamTrend: "Structural decline — last intakes completed",
     fbamCurrent: "Going to zero. Final Level 7 SLA intakes done. No further cohorts planned.",
     mid: -100,
     context: "Level 7 defunded Jan 2026. This income does not exist by 2028. Revenue at zero by mid-2027 at latest. Any residual is marginal employer self-funded activity." },
-  { id: "ced_custom",  label: "CED Customised", range: "+6% to +9% sector CAGR", fbamTrend: "Consistent growth — main revenue growth lever", fbamCurrent: "Pipeline 86% confirmed.", mid: -13, context: "Sector growing strongly. CED Customised is the primary growth lever. Default CAGR reflects structural drag from SLEP loss." },
-  { id: "slep",        label: "SLEP / Non-Award Bearing", range: "Structural elimination", fbamTrend: "Ending", fbamCurrent: "Going to near-zero. Default −80%.", mid: -80, context: "Structural loss. This £2.8m does not exist by 2028." },
-  { id: "cabinet",     label: "Cabinet Office", range: "Growing", fbamTrend: "Established and growing", fbamCurrent: "Active contract. Default +20%.", mid: 20, context: "Genuine growth opportunity aligned with government outsourcing." },
-  { id: "ced_other",   label: "Other exec ed", range: "Follows exec ed trend", fbamTrend: "Broadly stable", fbamCurrent: "Small residual line.", mid: -13, context: "Other customised exec ed. Follows overall exec ed market trend." },
-  { id: "micro_cred",  label: "Micro credentials / award bearing exec ed", range: "Emerging", fbamTrend: "New line — £0 baseline", fbamCurrent: "No current income.", mid: 0, context: "Emerging market. Baseline £0k — net new income." },
+  { id: "ced_custom",  label: "CED Customised", range: "+6% to +9% sector CAGR", fbamTrend: "Consistent growth — main growth lever", fbamCurrent: "Pipeline 86% confirmed.", mid: -13, context: "Sector growing strongly. CED Customised is the primary growth lever." },
+  { id: "slep",        label: "SLEP / Non-Award Bearing", range: "Structural elimination", fbamTrend: "Ending", fbamCurrent: "Default −80%.", mid: -80, context: "Structural loss. Does not exist by 2028." },
+  { id: "cabinet",     label: "Cabinet Office", range: "Growing", fbamTrend: "Established and growing", fbamCurrent: "Active contract. Default +20%.", mid: 20, context: "Growing government relationship." },
+  { id: "ced_other",   label: "Other exec ed", range: "Follows exec ed trend", fbamTrend: "Stable", fbamCurrent: "Small residual line.", mid: -13, context: "Other exec ed. Follows overall market trend." },
+  { id: "micro_cred",  label: "Micro credentials / award bearing exec ed", range: "Emerging", fbamTrend: "New line — £0 baseline", fbamCurrent: "No current income.", mid: 0, context: "Emerging market. Baseline £0k." },
   { id: "open",        label: "Open Programmes",
     range: "+6% to +9% CAGR",
     fbamTrend: "Recovering from Covid low — below sector pace",
@@ -510,6 +507,7 @@ function Entry({ onEnter }) {
 function Step1({ pData, confirmed, onConfirm, onBack }) {
   const [val, setVal] = useState(nv(pData.targetPct, 7.5));
   useAutoSave(pData.name, () => ({ targetPct: val }));
+  const handleBack = () => { pSave(pData.name, { targetPct: val }); onBack(); };
 
   const desc = () => {
     if (val <= -5) return "Significant managed deficit";
@@ -528,7 +526,7 @@ function Step1({ pData, confirmed, onConfirm, onBack }) {
 
   return (
     <div className="sl-content">
-      <BackBtn onClick={onBack} />
+      <BackBtn onClick={handleBack} />
       {confirmed && <ConfirmedBanner stepN={1} />}
       <div className="sl-step-h">What operating surplus should FBaM achieve by 31 July 2028?</div>
       <div className="sl-prompt">Before we look at the numbers, agree your target. This is what you think is genuinely achievable by 31 July 2028.</div>
@@ -551,6 +549,7 @@ function Step2({ pData, confirmed, onConfirm, onBack }) {
   const [revs, setRevs] = useState(init);
   const total = REV_LINES.reduce((s, l) => s + nv(revs[l.id], l.prefillK), 0);
   useAutoSave(pData.name, () => { const revenues = {}; REV_LINES.forEach(l => revenues[l.id] = nv(revs[l.id], l.prefillK)); return { revenues }; });
+  const handleBack = () => { const revenues = {}; REV_LINES.forEach(l => revenues[l.id] = nv(revs[l.id], l.prefillK)); pSave(pData.name, { revenues }); onBack(); };
 
   const doConfirm = () => {
     const revenues = {}; REV_LINES.forEach(l => revenues[l.id] = nv(revs[l.id], l.prefillK));
@@ -560,7 +559,7 @@ function Step2({ pData, confirmed, onConfirm, onBack }) {
 
   return (
     <div className="sl-content">
-      <BackBtn onClick={onBack} />
+      <BackBtn onClick={handleBack} />
       {confirmed && <ConfirmedBanner stepN={2} />}
       <div className="sl-step-h">Current situation: Revenue</div>
       <div className="sl-prompt">These are the Q2 2025/26 forecasts. Please check the figures and change any figures you think are inaccurate or are likely to change.</div>
@@ -595,6 +594,7 @@ function Step3({ pData, confirmed, onConfirm, onBack }) {
   const init = () => { const c = {}; COST_LINES.forEach(l => { c[l.id] = String(nv(pData.costs?.[l.id], l.baseK)); }); return c; };
   const [costs, setCosts] = useState(init);
   useAutoSave(pData.name, () => { const c = {}; COST_LINES.forEach(l => c[l.id] = nv(costs[l.id], l.baseK)); return { costs: c }; });
+  const handleBack = () => { const c = {}; COST_LINES.forEach(l => c[l.id] = nv(costs[l.id], l.baseK)); pSave(pData.name, { costs: c }); onBack(); };
 
   const contribTotal = COST_LINES.filter(l => l.id !== "uni_charge").reduce((s, l) => s + nv(costs[l.id], l.baseK), 0);
   const uniCharge    = nv(costs["uni_charge"], 10325);
@@ -611,7 +611,7 @@ function Step3({ pData, confirmed, onConfirm, onBack }) {
 
   return (
     <div className="sl-content">
-      <BackBtn onClick={onBack} />
+      <BackBtn onClick={handleBack} />
       {confirmed && <ConfirmedBanner stepN={3} />}
       <div className="sl-step-h">Current situation: Costs</div>
       <div className="sl-prompt">These are the Q2 2025/26 forecasts. Please check the figures and change any figures you think are inaccurate or are likely to change. The university service charge is the final line — the TRAC adjusted service charge is not yet available.</div>
@@ -719,6 +719,7 @@ function Step5MarketContext({ pData, confirmed, onConfirm, onBack }) {
   const [rates, setRates] = useState(init);
   const [expanded, setExpanded] = useState({});
   useAutoSave(pData.name, () => { const marketRates = {}; MARKET_BENCHMARKS.forEach(b => { marketRates[b.id] = nv(rates[b.id], b.mid); }); return { marketRates }; });
+  const handleBack = () => { const marketRates = {}; MARKET_BENCHMARKS.forEach(b => { marketRates[b.id] = nv(rates[b.id], b.mid); }); pSave(pData.name, { marketRates }); onBack(); };
 
   const doConfirm = () => {
     const marketRates = {};
@@ -729,7 +730,7 @@ function Step5MarketContext({ pData, confirmed, onConfirm, onBack }) {
 
   return (
     <div className="sl-content">
-      <BackBtn onClick={onBack} />
+      <BackBtn onClick={handleBack} />
       {confirmed && <ConfirmedBanner stepN={5} />}
       <div className="sl-step-h">Market trends and FBaM trajectory</div>
       <div className="sl-prompt">This section shows sector trends on CAGR (compound annual growth rate). It also shows longer term and recent FBaM trends.</div>
@@ -810,6 +811,7 @@ function PredStep({ stepN, lines, defRates, lineRates, setLineRates, baseRevTota
     return s;
   });
   useAutoSave(autoSaveName, () => { const rates = {}; lines.forEach(l => { rates[l.id] = annlRate(nv(state[l.id]?.pctTotal, 0)); }); return isCost ? { costRates: rates } : { revRates: rates }; });
+  const handleBack = () => { const rates = {}; lines.forEach(l => { rates[l.id] = annlRate(nv(state[l.id]?.pctTotal, 0)); }); if (autoSaveName) pSave(autoSaveName, isCost ? { costRates: rates } : { revRates: rates }); onBack(); };
 
   const updateFromPct = (id, pctTotal) => {
     const base = nv(lines.find(l => l.id === id)?.prefillK ?? lines.find(l => l.id === id)?.baseK, 0);
@@ -850,7 +852,7 @@ function PredStep({ stepN, lines, defRates, lineRates, setLineRates, baseRevTota
 
   return (
     <div className="sl-content">
-      <BackBtn onClick={onBack} />
+      <BackBtn onClick={handleBack} />
       {confirmed && <ConfirmedBanner stepN={stepN} />}
       <div className="sl-yr-banner">
         <div className="sl-yr-h">NOW ASSUME IT IS 31 JULY 2028.</div>
@@ -1161,7 +1163,7 @@ function Step9({ pData, onConfirm, onBack, confirmed }) {
 
   return (
     <div className="sl-content">
-      <BackBtn onClick={onBack} />
+      <BackBtn onClick={handleBack} />
       {confirmed && <ConfirmedBanner stepN={9} />}
       <div className="sl-step-h">Rank the scenarios</div>
       <div className="sl-prompt">Rank each scenario on financial credibility — how likely is it to work — and on purpose alignment — how well does it describe the FBaM you want to lead.</div>
@@ -1751,6 +1753,7 @@ function Step17CloseGap({ pData, confirmed, onConfirm, onBack }) {
   const [costs, setCosts] = useState(pData.s17Costs || initCosts());
   const [stmt,  setStmt]  = useState(pData.s17Stmt  || "");
   useAutoSave(pData.name, () => ({ s17Revs: revs, s17Costs: costs, s17Stmt: stmt }));
+  const handleBack = () => { pSave(pData.name, { s17Revs: revs, s17Costs: costs, s17Stmt: stmt }); onBack(); };
 
   const totalRev   = REV_LINES.reduce((s, l) => s + nv(revs[l.id]), 0);
   const totalCost  = COST_LINES.reduce((s, l) => s + nv(costs[l.id]), 0);
@@ -1870,7 +1873,7 @@ Respond in this EXACT JSON format only — no text outside the JSON:
 
   return (
     <div className="sl-content">
-      <BackBtn onClick={onBack} />
+      <BackBtn onClick={handleBack} />
       {confirmed && <ConfirmedBanner stepN={17} />}
       <div className="sl-step-h">Close the gap</div>
       <div className="sl-prompt">Based on your strategic choices, what does the revenue and cost structure need to look like to be both coherent and financially viable by July 2028?</div>
@@ -2096,6 +2099,7 @@ function Step18ThemePL({ pData, confirmed, onConfirm, onBack }) {
   const [mixes,     setMixes]     = useState(pData.s18Mixes     || { btg: { ...DEFAULT_MIXES.btg }, psl: { ...DEFAULT_MIXES.psl }, scpss: { ...DEFAULT_MIXES.scpss } });
   const [locked,    setLockedAll] = useState(pData.s18Locked    || { btg: {}, psl: {}, scpss: {} });
   useAutoSave(pData.name, () => ({ s18RevAlloc: revAlloc, s18CostAlloc: costAlloc, s18Mixes: mixes }));
+  const handleBack = () => { pSave(pData.name, { s18RevAlloc: revAlloc, s18CostAlloc: costAlloc, s18Mixes: mixes }); onBack(); };
 
   const setMixForTheme = (tid, mix) => setMixes(m => ({ ...m, [tid]: mix }));
   const setLockedForTheme = (tid, setter) => setLockedAll(l => ({ ...l, [tid]: typeof setter === "function" ? setter(l[tid]) : setter }));
@@ -2111,7 +2115,7 @@ function Step18ThemePL({ pData, confirmed, onConfirm, onBack }) {
 
   return (
     <div className="sl-content">
-      <BackBtn onClick={onBack} />
+      <BackBtn onClick={handleBack} />
       {confirmed && <ConfirmedBanner stepN={13} />}
       <div className="sl-step-h">Theme P&L</div>
       <div className="sl-prompt">Each theme has a different product mix. Use the sliders to show what each theme does more or less of. Lock a category to pin it while adjusting others. The total always stays at 100%.</div>
@@ -2371,6 +2375,7 @@ function PurposeStep8({ pData, confirmed, onConfirm, onBack }) {
   const [groups, setGroups] = useState(init);
   const [others, setOthers] = useState(pData.purposeGroupOthers || [{ label: "", score: 5 }]);
   useAutoSave(pData.name, () => ({ purposeGroups: groups, purposeGroupOthers: others }));
+  const handleBack = () => { pSave(pData.name, { purposeGroups: groups, purposeGroupOthers: others }); onBack(); };
 
   const MAX_HIGH = 3;
   const highCount = Object.values(groups).filter(v => nv(v) >= 8).length
@@ -2464,6 +2469,7 @@ function PurposeStep9({ pData, confirmed, onConfirm, onBack }) {
   const init = () => { const t = {}; PURPOSE_TENSIONS.forEach(x => t[x.key] = nv(pData.purposeTensions?.[x.key], 50)); return t; };
   const [tensions, setTensions] = useState(init);
   useAutoSave(pData.name, () => ({ purposeTensions: tensions }));
+  const handleBack = () => { pSave(pData.name, { purposeTensions: tensions }); onBack(); };
 
   const doConfirm = () => {
     pSave(pData.name, { purposeTensions: tensions, step10Confirmed: true });
@@ -2472,7 +2478,7 @@ function PurposeStep9({ pData, confirmed, onConfirm, onBack }) {
 
   return (
     <div className="sl-content">
-      <BackBtn onClick={onBack} />
+      <BackBtn onClick={handleBack} />
       {confirmed && <ConfirmedBanner stepN={10} />}
       <div className="sl-step-h">Strategic positioning</div>
       <div className="sl-prompt">These sliders define where you believe FBaM should position itself by July 2028. They shape the strategic changes generated in the next step. Set each to your honest view — the disagreements across the group are the conversation.</div>
