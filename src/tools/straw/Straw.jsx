@@ -15,13 +15,16 @@ const pSave = (name, d) => {
 const pGet  = n => STORE.participants[n] || { name: n };
 const pAll  = () => Object.values(STORE.participants);
 
-/* Auto-save hook — fires pSave 800ms after last state change */
+/* Auto-save hook — debounced save on change, immediate save on unmount */
 const useAutoSave = (name, getData) => {
+  const getDataRef = { current: getData };
+  getDataRef.current = getData;
+  useEffect(() => {
+    return () => { if (name) pSave(name, getDataRef.current()); };
+  }, []);
   useEffect(() => {
     if (!name) return;
-    const timer = setTimeout(() => {
-      pSave(name, getData());
-    }, 800);
+    const timer = setTimeout(() => { pSave(name, getData()); }, 800);
     return () => clearTimeout(timer);
   }, [JSON.stringify(getData())]);
 };
@@ -501,7 +504,6 @@ function Entry({ onEnter }) {
 /* ── STEP 1: SET GOAL ─────────────────────────────────────────────────────── */
 function Step1({ pData, confirmed, onConfirm, onBack }) {
   const [val, setVal] = useState(nv(pData.targetPct, 7.5));
-
   useAutoSave(pData.name, () => ({ targetPct: val }));
 
   const desc = () => {
@@ -543,11 +545,7 @@ function Step2({ pData, confirmed, onConfirm, onBack }) {
   const init = () => { const r = {}; REV_LINES.forEach(l => { r[l.id] = String(nv(pData.revenues?.[l.id], l.prefillK)); }); return r; };
   const [revs, setRevs] = useState(init);
   const total = REV_LINES.reduce((s, l) => s + nv(revs[l.id], l.prefillK), 0);
-
-  useAutoSave(pData.name, () => {
-    const revenues = {}; REV_LINES.forEach(l => revenues[l.id] = nv(revs[l.id], l.prefillK));
-    return { revenues };
-  });
+  useAutoSave(pData.name, () => { const revenues = {}; REV_LINES.forEach(l => revenues[l.id] = nv(revs[l.id], l.prefillK)); return { revenues }; });
 
   const doConfirm = () => {
     const revenues = {}; REV_LINES.forEach(l => revenues[l.id] = nv(revs[l.id], l.prefillK));
@@ -591,11 +589,7 @@ function Step2({ pData, confirmed, onConfirm, onBack }) {
 function Step3({ pData, confirmed, onConfirm, onBack }) {
   const init = () => { const c = {}; COST_LINES.forEach(l => { c[l.id] = String(nv(pData.costs?.[l.id], l.baseK)); }); return c; };
   const [costs, setCosts] = useState(init);
-
-  useAutoSave(pData.name, () => {
-    const c = {}; COST_LINES.forEach(l => c[l.id] = nv(costs[l.id], l.baseK));
-    return { costs: c };
-  });
+  useAutoSave(pData.name, () => { const c = {}; COST_LINES.forEach(l => c[l.id] = nv(costs[l.id], l.baseK)); return { costs: c }; });
 
   const contribTotal = COST_LINES.filter(l => l.id !== "uni_charge").reduce((s, l) => s + nv(costs[l.id], l.baseK), 0);
   const uniCharge    = nv(costs["uni_charge"], 10325);
@@ -719,12 +713,7 @@ function Step5MarketContext({ pData, confirmed, onConfirm, onBack }) {
   };
   const [rates, setRates] = useState(init);
   const [expanded, setExpanded] = useState({});
-
-  useAutoSave(pData.name, () => {
-    const marketRates = {};
-    MARKET_BENCHMARKS.forEach(b => { marketRates[b.id] = nv(rates[b.id], b.mid); });
-    return { marketRates };
-  });
+  useAutoSave(pData.name, () => { const marketRates = {}; MARKET_BENCHMARKS.forEach(b => { marketRates[b.id] = nv(rates[b.id], b.mid); }); return { marketRates }; });
 
   const doConfirm = () => {
     const marketRates = {};
@@ -815,12 +804,7 @@ function PredStep({ stepN, lines, defRates, lineRates, setLineRates, baseRevTota
     });
     return s;
   });
-
-  useAutoSave(autoSaveName, () => {
-    const rates = {};
-    lines.forEach(l => { rates[l.id] = annlRate(nv(state[l.id]?.pctTotal, 0)); });
-    return isCost ? { costRates: rates } : { revRates: rates };
-  });
+  useAutoSave(autoSaveName, () => { const rates = {}; lines.forEach(l => { rates[l.id] = annlRate(nv(state[l.id]?.pctTotal, 0)); }); return isCost ? { costRates: rates } : { revRates: rates }; });
 
   const updateFromPct = (id, pctTotal) => {
     const base = nv(lines.find(l => l.id === id)?.prefillK ?? lines.find(l => l.id === id)?.baseK, 0);
@@ -1756,7 +1740,6 @@ function Step17CloseGap({ pData, confirmed, onConfirm, onBack }) {
   const [revs,  setRevs]  = useState(pData.s17Revs  || initRevs());
   const [costs, setCosts] = useState(pData.s17Costs || initCosts());
   const [stmt,  setStmt]  = useState(pData.s17Stmt  || "");
-
   useAutoSave(pData.name, () => ({ s17Revs: revs, s17Costs: costs, s17Stmt: stmt }));
 
   const totalRev   = REV_LINES.reduce((s, l) => s + nv(revs[l.id]), 0);
@@ -2097,7 +2080,6 @@ function Step18ThemePL({ pData, confirmed, onConfirm, onBack }) {
   const [costAlloc, setCostAlloc] = useState(pData.s18CostAlloc || initCostAlloc());
   const [mixes,     setMixes]     = useState(pData.s18Mixes     || { btg: { ...DEFAULT_MIXES.btg }, psl: { ...DEFAULT_MIXES.psl }, scpss: { ...DEFAULT_MIXES.scpss } });
   const [locked,    setLockedAll] = useState(pData.s18Locked    || { btg: {}, psl: {}, scpss: {} });
-
   useAutoSave(pData.name, () => ({ s18RevAlloc: revAlloc, s18CostAlloc: costAlloc, s18Mixes: mixes }));
 
   const setMixForTheme = (tid, mix) => setMixes(m => ({ ...m, [tid]: mix }));
@@ -2243,7 +2225,13 @@ function Step18ThemePL({ pData, confirmed, onConfirm, onBack }) {
 
 /* ── PARTICIPANT VIEW ─────────────────────────────────────────────────────── */
 function ParticipantView({ name, tick, onLogout }) {
-  const [displayStep, setDisplayStep] = useState(1);
+  const [displayStep, setDisplayStep] = useState(() => {
+    const pd = pGet(name);
+    const ORDERED = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18];
+    let last = 1;
+    for (const n of ORDERED) { if (pd[`step${n}Confirmed`]) last = n; else break; }
+    return last;
+  });
   const [revRates, setRevRates] = useState({});
   const [submitted, setSubmitted] = useState(false);
 
@@ -2367,7 +2355,6 @@ function PurposeStep8({ pData, confirmed, onConfirm, onBack }) {
   const init = () => { const g = {}; PURPOSE_GROUPS.forEach(k => g[k] = nv(pData.purposeGroups?.[k], 5)); return g; };
   const [groups, setGroups] = useState(init);
   const [others, setOthers] = useState(pData.purposeGroupOthers || [{ label: "", score: 5 }]);
-
   useAutoSave(pData.name, () => ({ purposeGroups: groups, purposeGroupOthers: others }));
 
   const MAX_HIGH = 3;
@@ -2461,7 +2448,6 @@ function PurposeStep8({ pData, confirmed, onConfirm, onBack }) {
 function PurposeStep9({ pData, confirmed, onConfirm, onBack }) {
   const init = () => { const t = {}; PURPOSE_TENSIONS.forEach(x => t[x.key] = nv(pData.purposeTensions?.[x.key], 50)); return t; };
   const [tensions, setTensions] = useState(init);
-
   useAutoSave(pData.name, () => ({ purposeTensions: tensions }));
 
   const doConfirm = () => {
