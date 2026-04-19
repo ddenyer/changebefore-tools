@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 /* ── GLOBAL STORE ─────────────────────────────────────────────────────────── */
 const STORE = { participants: {}, step: 1, revealed: {}, sessionId: "" };
@@ -15,16 +15,13 @@ const pSave = (name, d) => {
 const pGet  = n => STORE.participants[n] || { name: n };
 const pAll  = () => Object.values(STORE.participants);
 
-/* Auto-save hook — debounced save on change, immediate save on unmount */
+/* Auto-save hook — debounces save 800ms after last change */
 const useAutoSave = (name, getData) => {
-  const getDataRef = { current: getData };
+  const getDataRef = useRef(getData);
   getDataRef.current = getData;
   useEffect(() => {
-    return () => { if (name) pSave(name, getDataRef.current()); };
-  }, []);
-  useEffect(() => {
     if (!name) return;
-    const timer = setTimeout(() => { pSave(name, getData()); }, 800);
+    const timer = setTimeout(() => { pSave(name, getDataRef.current()); }, 800);
     return () => clearTimeout(timer);
   }, [JSON.stringify(getData())]);
 };
@@ -222,14 +219,19 @@ const cmpnd    = (base, rate) => base * Math.pow(1 + (nv(rate)) / 100, PERIODS);
 const annlRate = (total) => (Math.pow(1 + total / 100, 1 / PERIODS) - 1) * 100;
 
 const calcPredRevs = (p) => {
-  const rates = p.revRates || {};
-  const revs  = p.revenues || {};
+  const rates  = p.revRates || {};
+  const revs   = p.revenues || {};
+  const direct = p.predRevsDirect || {};
   let total = 0;
   const predRevs = {};
   REV_LINES.forEach(l => {
-    const cur  = nv(revs[l.id], l.prefillK);
-    const rate = nv(rates[l.id], REV_DEF_RATES[l.id]);
-    predRevs[l.id] = cmpnd(cur, rate);
+    if (direct[l.id] !== undefined) {
+      predRevs[l.id] = nv(direct[l.id]);
+    } else {
+      const cur  = nv(revs[l.id], l.prefillK);
+      const rate = nv(rates[l.id], REV_DEF_RATES[l.id]);
+      predRevs[l.id] = cmpnd(cur, rate);
+    }
     total += predRevs[l.id];
   });
   total += nv(p.revOtherK, 0);
@@ -237,14 +239,20 @@ const calcPredRevs = (p) => {
 };
 
 const calcPredCosts = (p, scaleFactor = 1) => {
-  const rates = p.costRates || {};
-  const costs = p.costs || {};
+  const rates  = p.costRates || {};
+  const costs  = p.costs || {};
+  const direct = p.predCostsDirect || {};
   let total = 0;
   const predCosts = {};
   COST_LINES.forEach(l => {
-    const cur  = nv(costs[l.id], l.baseK);
-    const rate = nv(rates[l.id], 0);
-    let pred = cmpnd(cur, rate);
+    let pred;
+    if (direct[l.id] !== undefined) {
+      pred = nv(direct[l.id]);
+    } else {
+      const cur  = nv(costs[l.id], l.baseK);
+      const rate = nv(rates[l.id], 0);
+      pred = cmpnd(cur, rate);
+    }
     if (VARIABLE_COST_IDS.includes(l.id)) pred *= scaleFactor;
     predCosts[l.id] = pred;
     total += pred;
@@ -505,6 +513,7 @@ function Entry({ onEnter }) {
 function Step1({ pData, confirmed, onConfirm, onBack }) {
   const [val, setVal] = useState(nv(pData.targetPct, 7.5));
   useAutoSave(pData.name, () => ({ targetPct: val }));
+  const handleBack = () => { pSave(pData.name, { targetPct: val }); onBack(); };
 
   const desc = () => {
     if (val <= -5) return "Significant managed deficit";
@@ -523,7 +532,7 @@ function Step1({ pData, confirmed, onConfirm, onBack }) {
 
   return (
     <div className="sl-content">
-      <BackBtn onClick={onBack} />
+      <BackBtn onClick={handleBack} />
       {confirmed && <ConfirmedBanner stepN={1} />}
       <div className="sl-step-h">What operating surplus should FBaM achieve by 31 July 2028?</div>
       <div className="sl-prompt">Before we look at the numbers, agree your target. This is what you think is genuinely achievable by 31 July 2028.</div>
@@ -546,6 +555,7 @@ function Step2({ pData, confirmed, onConfirm, onBack }) {
   const [revs, setRevs] = useState(init);
   const total = REV_LINES.reduce((s, l) => s + nv(revs[l.id], l.prefillK), 0);
   useAutoSave(pData.name, () => { const revenues = {}; REV_LINES.forEach(l => revenues[l.id] = nv(revs[l.id], l.prefillK)); return { revenues }; });
+  const handleBack = () => { const revenues = {}; REV_LINES.forEach(l => revenues[l.id] = nv(revs[l.id], l.prefillK)); pSave(pData.name, { revenues }); onBack(); };
 
   const doConfirm = () => {
     const revenues = {}; REV_LINES.forEach(l => revenues[l.id] = nv(revs[l.id], l.prefillK));
@@ -555,7 +565,7 @@ function Step2({ pData, confirmed, onConfirm, onBack }) {
 
   return (
     <div className="sl-content">
-      <BackBtn onClick={onBack} />
+      <BackBtn onClick={handleBack} />
       {confirmed && <ConfirmedBanner stepN={2} />}
       <div className="sl-step-h">Current situation: Revenue</div>
       <div className="sl-prompt">These are the Q2 2025/26 forecasts. Please check the figures and change any figures you think are inaccurate or are likely to change.</div>
@@ -590,6 +600,7 @@ function Step3({ pData, confirmed, onConfirm, onBack }) {
   const init = () => { const c = {}; COST_LINES.forEach(l => { c[l.id] = String(nv(pData.costs?.[l.id], l.baseK)); }); return c; };
   const [costs, setCosts] = useState(init);
   useAutoSave(pData.name, () => { const c = {}; COST_LINES.forEach(l => c[l.id] = nv(costs[l.id], l.baseK)); return { costs: c }; });
+  const handleBack = () => { const c = {}; COST_LINES.forEach(l => c[l.id] = nv(costs[l.id], l.baseK)); pSave(pData.name, { costs: c }); onBack(); };
 
   const contribTotal = COST_LINES.filter(l => l.id !== "uni_charge").reduce((s, l) => s + nv(costs[l.id], l.baseK), 0);
   const uniCharge    = nv(costs["uni_charge"], 10325);
@@ -606,7 +617,7 @@ function Step3({ pData, confirmed, onConfirm, onBack }) {
 
   return (
     <div className="sl-content">
-      <BackBtn onClick={onBack} />
+      <BackBtn onClick={handleBack} />
       {confirmed && <ConfirmedBanner stepN={3} />}
       <div className="sl-step-h">Current situation: Costs</div>
       <div className="sl-prompt">These are the Q2 2025/26 forecasts. Please check the figures and change any figures you think are inaccurate or are likely to change. The university service charge is the final line — the TRAC adjusted service charge is not yet available.</div>
@@ -714,6 +725,7 @@ function Step5MarketContext({ pData, confirmed, onConfirm, onBack }) {
   const [rates, setRates] = useState(init);
   const [expanded, setExpanded] = useState({});
   useAutoSave(pData.name, () => { const marketRates = {}; MARKET_BENCHMARKS.forEach(b => { marketRates[b.id] = nv(rates[b.id], b.mid); }); return { marketRates }; });
+  const handleBack = () => { const marketRates = {}; MARKET_BENCHMARKS.forEach(b => { marketRates[b.id] = nv(rates[b.id], b.mid); }); pSave(pData.name, { marketRates }); onBack(); };
 
   const doConfirm = () => {
     const marketRates = {};
@@ -724,7 +736,7 @@ function Step5MarketContext({ pData, confirmed, onConfirm, onBack }) {
 
   return (
     <div className="sl-content">
-      <BackBtn onClick={onBack} />
+      <BackBtn onClick={handleBack} />
       {confirmed && <ConfirmedBanner stepN={5} />}
       <div className="sl-step-h">Market trends and FBaM trajectory</div>
       <div className="sl-prompt">This section shows sector trends on CAGR (compound annual growth rate). It also shows longer term and recent FBaM trends.</div>
@@ -804,7 +816,17 @@ function PredStep({ stepN, lines, defRates, lineRates, setLineRates, baseRevTota
     });
     return s;
   });
-  useAutoSave(autoSaveName, () => { const rates = {}; lines.forEach(l => { rates[l.id] = annlRate(nv(state[l.id]?.pctTotal, 0)); }); return isCost ? { costRates: rates } : { revRates: rates }; });
+  useAutoSave(autoSaveName, () => {
+    const rates = {}; const predDirect = {};
+    lines.forEach(l => { rates[l.id] = annlRate(nv(state[l.id]?.pctTotal, 0)); predDirect[l.id] = nv(state[l.id]?.predK, 0); });
+    return isCost ? { costRates: rates, predCostsDirect: predDirect } : { revRates: rates, predRevsDirect: predDirect };
+  });
+  const handleBack = () => {
+    const rates = {}; const predDirect = {};
+    lines.forEach(l => { rates[l.id] = annlRate(nv(state[l.id]?.pctTotal, 0)); predDirect[l.id] = nv(state[l.id]?.predK, 0); });
+    if (autoSaveName) pSave(autoSaveName, isCost ? { costRates: rates, predCostsDirect: predDirect } : { revRates: rates, predRevsDirect: predDirect });
+    onBack();
+  };
 
   const updateFromPct = (id, pctTotal) => {
     const base = nv(lines.find(l => l.id === id)?.prefillK ?? lines.find(l => l.id === id)?.baseK, 0);
@@ -828,13 +850,14 @@ function PredStep({ stepN, lines, defRates, lineRates, setLineRates, baseRevTota
   const totalBase = lines.reduce((s, l) => s + nv(l.prefillK ?? l.baseK, 0), 0);
 
   const doConfirm = () => {
-    const rates = {};
+    const rates = {}; const predDirect = {};
     lines.forEach(l => {
       const pctTotal = nv(state[l.id]?.pctTotal, 0);
       rates[l.id] = annlRate(pctTotal);
+      predDirect[l.id] = nv(state[l.id]?.predK, 0);
     });
     if (!isCost) setLineRates({ ...lineRates, ...rates });
-    onConfirm(rates);
+    onConfirm(rates, predDirect);
   };
 
   const changeColor = (changeK) => {
@@ -845,7 +868,7 @@ function PredStep({ stepN, lines, defRates, lineRates, setLineRates, baseRevTota
 
   return (
     <div className="sl-content">
-      <BackBtn onClick={onBack} />
+      <BackBtn onClick={handleBack} />
       {confirmed && <ConfirmedBanner stepN={stepN} />}
       <div className="sl-yr-banner">
         <div className="sl-yr-h">NOW ASSUME IT IS 31 JULY 2028.</div>
@@ -1156,7 +1179,7 @@ function Step9({ pData, onConfirm, onBack, confirmed }) {
 
   return (
     <div className="sl-content">
-      <BackBtn onClick={onBack} />
+      <BackBtn onClick={handleBack} />
       {confirmed && <ConfirmedBanner stepN={9} />}
       <div className="sl-step-h">Rank the scenarios</div>
       <div className="sl-prompt">Rank each scenario on financial credibility — how likely is it to work — and on purpose alignment — how well does it describe the FBaM you want to lead.</div>
@@ -1223,7 +1246,7 @@ function Step10({ pData, onConfirm, onBack, confirmed }) {
 
   return (
     <div className="sl-content">
-      <BackBtn onClick={onBack} />
+      <BackBtn onClick={handleBack} />
       {confirmed && <ConfirmedBanner stepN={10} />}
       <div className="sl-step-h">Your theme</div>
       <div className="sl-prompt">Before you allocate revenue, declare your direction for each line. Then build your mix. This is your strategic intent — not a financial model.</div>
@@ -1570,8 +1593,8 @@ Respond ONLY in this exact JSON format:
     setLoading(true);
     try {
       const txt = await callAI(buildPrompt(), 25000);
-      const clean = txt.replace(/\`\`\`json|\`\`\`/g, "").trim();
-      const parsed = JSON.parse(clean);
+      const m = txt.match(/\{[\s\S]*\}/);
+      const parsed = JSON.parse(m ? m[0] : txt.replace(/```json|```/g, "").trim());
       const newRevs = {}; REV_LINES.forEach(l => newRevs[l.id] = String(Math.round(nv(parsed.revs?.[l.id], nv(predRevs[l.id])))));
       const newCosts = {}; COST_LINES.forEach(l => newCosts[l.id] = String(Math.round(nv(parsed.costs?.[l.id], nv(predCosts[l.id])))));
       newRevs["pt_levy"] = "0";
@@ -1741,6 +1764,7 @@ function Step17CloseGap({ pData, confirmed, onConfirm, onBack }) {
   const [costs, setCosts] = useState(pData.s17Costs || initCosts());
   const [stmt,  setStmt]  = useState(pData.s17Stmt  || "");
   useAutoSave(pData.name, () => ({ s17Revs: revs, s17Costs: costs, s17Stmt: stmt }));
+  const handleBack = () => { pSave(pData.name, { s17Revs: revs, s17Costs: costs, s17Stmt: stmt }); onBack(); };
 
   const totalRev   = REV_LINES.reduce((s, l) => s + nv(revs[l.id]), 0);
   const totalCost  = COST_LINES.reduce((s, l) => s + nv(costs[l.id]), 0);
@@ -1816,8 +1840,8 @@ Respond in this EXACT JSON format only — no text outside the JSON:
 }`);
 
     try {
-      const clean = txt.replace(/```json|```/g, "").trim();
-      const parsed = JSON.parse(clean);
+      const m = txt.match(/{[\s\S]*}/);
+      const parsed = JSON.parse(m ? m[0] : txt.replace(/```json|```/g, "").trim());
       const newRevs = {}; REV_LINES.forEach(l => newRevs[l.id] = String(Math.round(nv(parsed.revs?.[l.id], nv(predRevs[l.id])))));
       const newCosts = {}; COST_LINES.forEach(l => newCosts[l.id] = String(Math.round(nv(parsed.costs?.[l.id], nv(predCosts[l.id])))));
       // Force pt_levy to 0
@@ -1855,7 +1879,7 @@ Respond in this EXACT JSON format only — no text outside the JSON:
 
   return (
     <div className="sl-content">
-      <BackBtn onClick={onBack} />
+      <BackBtn onClick={handleBack} />
       {confirmed && <ConfirmedBanner stepN={17} />}
       <div className="sl-step-h">Close the gap</div>
       <div className="sl-prompt">Based on your strategic choices, what does the revenue and cost structure need to look like to be both coherent and financially viable by July 2028?</div>
@@ -2081,6 +2105,7 @@ function Step18ThemePL({ pData, confirmed, onConfirm, onBack }) {
   const [mixes,     setMixes]     = useState(pData.s18Mixes     || { btg: { ...DEFAULT_MIXES.btg }, psl: { ...DEFAULT_MIXES.psl }, scpss: { ...DEFAULT_MIXES.scpss } });
   const [locked,    setLockedAll] = useState(pData.s18Locked    || { btg: {}, psl: {}, scpss: {} });
   useAutoSave(pData.name, () => ({ s18RevAlloc: revAlloc, s18CostAlloc: costAlloc, s18Mixes: mixes }));
+  const handleBack = () => { pSave(pData.name, { s18RevAlloc: revAlloc, s18CostAlloc: costAlloc, s18Mixes: mixes }); onBack(); };
 
   const setMixForTheme = (tid, mix) => setMixes(m => ({ ...m, [tid]: mix }));
   const setLockedForTheme = (tid, setter) => setLockedAll(l => ({ ...l, [tid]: typeof setter === "function" ? setter(l[tid]) : setter }));
@@ -2096,7 +2121,7 @@ function Step18ThemePL({ pData, confirmed, onConfirm, onBack }) {
 
   return (
     <div className="sl-content">
-      <BackBtn onClick={onBack} />
+      <BackBtn onClick={handleBack} />
       {confirmed && <ConfirmedBanner stepN={13} />}
       <div className="sl-step-h">Theme P&L</div>
       <div className="sl-prompt">Each theme has a different product mix. Use the sliders to show what each theme does more or less of. Lock a category to pin it while adjusting others. The total always stays at 100%.</div>
@@ -2272,25 +2297,29 @@ function ParticipantView({ name, tick, onLogout }) {
       {displayStep === 5 && <Step5MarketContext pData={pd} confirmed={pd.step5Confirmed} onConfirm={(rates) => { pSave(name, { marketRates: rates, step5Confirmed: true }); advance(); }} onBack={() => go(4)} />}
       {displayStep === 6 && (
         <PredStep
-          stepN={6} lines={REV_LINES} defRates={pd.marketRates || REV_DEF_RATES} lineRates={revRates} setLineRates={setRevRates}
+          stepN={6}
+          lines={REV_LINES.map(l => ({ ...l, prefillK: nv(pd.revenues?.[l.id], l.prefillK) }))}
+          defRates={pd.marketRates || REV_DEF_RATES} lineRates={revRates} setLineRates={setRevRates}
           heading="Current trajectory: Predicted revenues by July 2028"
           note="31 July 2028 is chosen as it is FBaM's year end and levy funding should have ended post EPA submissions. Initial figures are based on CAGR from Step 5."
           confirmLabel="Confirm predicted revenues → Step 7: Predicted costs"
           isCost={false} confirmed={pd.step6Confirmed}
           autoSaveName={name}
-          onConfirm={(rates) => { pSave(name, { revRates: rates, step6Confirmed: true }); advance(); }}
+          onConfirm={(rates, predDirect) => { pSave(name, { revRates: rates, predRevsDirect: predDirect, step6Confirmed: true }); advance(); }}
           onBack={() => go(5)}
         />
       )}
       {displayStep === 7 && (
         <PredStep
-          stepN={7} lines={COST_LINES} defRates={{}} lineRates={{}} setLineRates={() => {}}
+          stepN={7}
+          lines={COST_LINES.map(l => ({ ...l, prefillK: nv(pd.costs?.[l.id], l.baseK) }))}
+          defRates={pd.costRates || {}} lineRates={{}} setLineRates={() => {}}
           heading="Current trajectory: Predicted costs by July 2028"
           note="Enter your predicted % change for each cost line. Pay awards, TRAC changes, and headcount reductions all apply here."
           confirmLabel="Confirm predicted costs → Step 8: Prognosis"
           isCost={true} confirmed={pd.step7Confirmed}
           autoSaveName={name}
-          onConfirm={(rates) => { pSave(name, { costRates: rates, step7Confirmed: true }); advance(); }}
+          onConfirm={(rates, predDirect) => { pSave(name, { costRates: rates, predCostsDirect: predDirect, step7Confirmed: true }); advance(); }}
           onBack={() => go(6)}
         />
       )}
@@ -2356,6 +2385,7 @@ function PurposeStep8({ pData, confirmed, onConfirm, onBack }) {
   const [groups, setGroups] = useState(init);
   const [others, setOthers] = useState(pData.purposeGroupOthers || [{ label: "", score: 5 }]);
   useAutoSave(pData.name, () => ({ purposeGroups: groups, purposeGroupOthers: others }));
+  const handleBack = () => { pSave(pData.name, { purposeGroups: groups, purposeGroupOthers: others }); onBack(); };
 
   const MAX_HIGH = 3;
   const highCount = Object.values(groups).filter(v => nv(v) >= 8).length
@@ -2380,7 +2410,7 @@ function PurposeStep8({ pData, confirmed, onConfirm, onBack }) {
 
   return (
     <div className="sl-content">
-      <BackBtn onClick={onBack} />
+      <BackBtn onClick={handleBack} />
       {confirmed && <ConfirmedBanner stepN={9} />}
       <div className="sl-step-h">Who should FBaM serve in July 2028?</div>
       <div className="sl-prompt">Rate each stakeholder group by importance to FBaM's future. Rate 1–9. If everything scores 9, nothing is a priority. Where does FBaM need to make hard choices? A maximum of 3 groups can score 8 or 9 — use your high priority slots deliberately!</div>
@@ -2449,6 +2479,7 @@ function PurposeStep9({ pData, confirmed, onConfirm, onBack }) {
   const init = () => { const t = {}; PURPOSE_TENSIONS.forEach(x => t[x.key] = nv(pData.purposeTensions?.[x.key], 50)); return t; };
   const [tensions, setTensions] = useState(init);
   useAutoSave(pData.name, () => ({ purposeTensions: tensions }));
+  const handleBack = () => { pSave(pData.name, { purposeTensions: tensions }); onBack(); };
 
   const doConfirm = () => {
     pSave(pData.name, { purposeTensions: tensions, step10Confirmed: true });
@@ -2457,7 +2488,7 @@ function PurposeStep9({ pData, confirmed, onConfirm, onBack }) {
 
   return (
     <div className="sl-content">
-      <BackBtn onClick={onBack} />
+      <BackBtn onClick={handleBack} />
       {confirmed && <ConfirmedBanner stepN={10} />}
       <div className="sl-step-h">Strategic positioning</div>
       <div className="sl-prompt">These sliders define where you believe FBaM should position itself by July 2028. They shape the strategic changes generated in the next step. Set each to your honest view — the disagreements across the group are the conversation.</div>
@@ -2527,7 +2558,7 @@ function PurposeOptionsStep({ stepN, heading, prompt, pData, stateKey, rankKey, 
 
   return (
     <div className="sl-content">
-      <BackBtn onClick={onBack} />
+      <BackBtn onClick={handleBack} />
       {confirmed && <ConfirmedBanner stepN={stepN} />}
       <div className="sl-step-h">{heading}</div>
       <div className="sl-prompt">{prompt}</div>
@@ -2699,8 +2730,8 @@ Respond in this EXACT JSON format — no text outside the JSON, no markdown:
 {"why":"2-3 sentences — the belief and conviction, not what FBaM earns","how":"3-4 sentences — specific differentiating practices and assets, concrete not generic","what":"2-3 sentences — the programmes and services that logically follow"}`);
 
     try {
-      const clean = txt.replace(/```json|```/g, "").trim();
-      const parsed = JSON.parse(clean);
+      const m = txt.match(/{[\s\S]*}/);
+      const parsed = JSON.parse(m ? m[0] : txt.replace(/```json|```/g, "").trim());
       if (parsed.why)  setWhy(parsed.why);
       if (parsed.how)  setHow(parsed.how);
       if (parsed.what) setWhat(parsed.what);
