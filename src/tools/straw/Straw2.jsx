@@ -1603,8 +1603,8 @@ Respond ONLY in this exact JSON format:
     setLoading(true);
     try {
       const txt = await callAI(buildPrompt(), 25000);
-      const clean = txt.replace(/\`\`\`json|\`\`\`/g, "").trim();
-      const parsed = JSON.parse(clean);
+      const m = txt.match(/\{[\s\S]*\}/);
+      const parsed = JSON.parse(m ? m[0] : txt.replace(/```json|```/g, "").trim());
       const newRevs = {}; REV_LINES.forEach(l => newRevs[l.id] = String(Math.round(nv(parsed.revs?.[l.id], nv(predRevs[l.id])))));
       const newCosts = {}; COST_LINES.forEach(l => newCosts[l.id] = String(Math.round(nv(parsed.costs?.[l.id], nv(predCosts[l.id])))));
       newRevs["pt_levy"] = "0";
@@ -1855,8 +1855,8 @@ Respond in this EXACT JSON format only — no text outside the JSON:
 }`);
 
     try {
-      const clean = txt.replace(/```json|```/g, "").trim();
-      const parsed = JSON.parse(clean);
+      const m = txt.match(/{[\s\S]*}/);
+      const parsed = JSON.parse(m ? m[0] : txt.replace(/```json|```/g, "").trim());
       const newRevs = {}; REV_LINES.forEach(l => newRevs[l.id] = String(Math.round(nv(parsed.revs?.[l.id], nv(predRevs[l.id])))));
       const newCosts = {}; COST_LINES.forEach(l => newCosts[l.id] = String(Math.round(nv(parsed.costs?.[l.id], nv(predCosts[l.id])))));
       // Force pt_levy to 0
@@ -2745,8 +2745,8 @@ Respond in this EXACT JSON format — no text outside the JSON, no markdown:
 {"why":"2-3 sentences — the belief and conviction, not what FBaM earns","how":"3-4 sentences — specific differentiating practices and assets, concrete not generic","what":"2-3 sentences — the programmes and services that logically follow"}`);
 
     try {
-      const clean = txt.replace(/```json|```/g, "").trim();
-      const parsed = JSON.parse(clean);
+      const m = txt.match(/{[\s\S]*}/);
+      const parsed = JSON.parse(m ? m[0] : txt.replace(/```json|```/g, "").trim());
       if (parsed.why)  setWhy(parsed.why);
       if (parsed.how)  setHow(parsed.how);
       if (parsed.what) setWhat(parsed.what);
