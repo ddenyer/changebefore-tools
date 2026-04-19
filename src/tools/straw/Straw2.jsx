@@ -15,13 +15,16 @@ const pSave = (name, d) => {
 const pGet  = n => STORE.participants[n] || { name: n };
 const pAll  = () => Object.values(STORE.participants);
 
-/* Auto-save hook — fires pSave 800ms after last state change */
+/* Auto-save hook — debounced save on change, immediate save on unmount */
 const useAutoSave = (name, getData) => {
+  const getDataRef = { current: getData };
+  getDataRef.current = getData;
+  useEffect(() => {
+    return () => { if (name) pSave(name, getDataRef.current()); };
+  }, []);
   useEffect(() => {
     if (!name) return;
-    const timer = setTimeout(() => {
-      pSave(name, getData());
-    }, 800);
+    const timer = setTimeout(() => { pSave(name, getData()); }, 800);
     return () => clearTimeout(timer);
   }, [JSON.stringify(getData())]);
 };
@@ -46,19 +49,19 @@ const REV_LINES = [
   { id: "ft_mba",      name: "FT MBA",                                baseK: 3000,  prefillK: 3000,
     note: "Award Bearing Fee Income — MBA programme. Flagship residential MBA cohort." },
   { id: "ft_msc_prog", name: "FT MSc programmes",                     baseK: 8586,  prefillK: 8586,
-    note: "Award Bearing Fee Income — MSc Management, Finance, LSCM, Procurement, BDA, Banking. Q2 actuals: MSc Management 4 students (forecast 10); Finance 9 (met forecast)." },
+    note: "Award Bearing Fee Income — MSc Management, Finance, LSCM, Procurement, BDA, Banking." },
   { id: "pt_levy",     name: "PT Levy / Apprenticeship programmes",   baseK: 4729,  prefillK: 4729,
-    note: "Award Bearing Fee Income – Masterships. Q2 25/26 actuals: £4,729k. Level 7 SLA ends — this income will go to zero. Default rate set to −100%." },
+    note: "Award Bearing Fee Income – Masterships. Level 7 SLA ends — going to zero. Default rate −100%." },
   { id: "ced_custom",  name: "CED Customised",                        baseK: 5000,  prefillK: 5000,
-    note: "Bespoke organisational programmes and customised executive education. Pipeline 86% confirmed. High-growth sector (+6–9% CAGR) — main growth lever." },
+    note: "Bespoke organisational programmes. Pipeline 86% confirmed. High-growth sector (+6–9% CAGR)." },
   { id: "slep",        name: "SLEP / Non-Award Bearing",              baseK: 2798,  prefillK: 2798,
-    note: "SLEP/Non-Award Bearing income. Structural loss — this income is ending. Default rate set to −80%." },
+    note: "SLEP/Non-Award Bearing income. Structural loss — ending. Default rate −80%." },
   { id: "cabinet",     name: "Cabinet Office",                        baseK: 1885,  prefillK: 1885,
-    note: "Cabinet Office contract income. Growing government relationship — default rate set to +20%." },
+    note: "Cabinet Office contract. Growing government relationship. Default rate +20%." },
   { id: "ced_other",   name: "Other exec ed",                         baseK: 266,   prefillK: 266,
-    note: "Other customised and executive education income not captured above." },
+    note: "Other customised and executive education income." },
   { id: "micro_cred",  name: "Micro credentials / award bearing exec ed", baseK: 0, prefillK: 0,
-    note: "New revenue line — micro credentials and short-form award-bearing executive education. Q2 baseline: £0k." },
+    note: "New revenue line — micro credentials and award-bearing exec ed. Q2 baseline: £0k." },
   { id: "open",        name: "Open Programmes",                       baseK: 3216,  prefillK: 3216,
     note: "CMDL £2,709k (LTP, Specialist, Praxis, BGP) + CU Open £505k (Entrepreneurship, Digital Stackable, Specialist Online)." },
   { id: "research_dd", name: "Research, Design & Development",        baseK: 1755,  prefillK: 1755,
@@ -87,7 +90,7 @@ const COST_LINES = [
 ];
 
 const VARIABLE_COST_IDS = ["associates", "prog_costs"];
-const REV_DEF_RATES = { ft_msc: 0, pt_levy: -100, exec_ed: -13.214, open: 0, research_dd: 0, hefce: 0, residences: -6.7374, other_rev: 0 };
+const REV_DEF_RATES = { ft_mba: -8, ft_msc_prog: -8, pt_levy: -100, ced_custom: -13.214, slep: -80, cabinet: 20, ced_other: -13.214, micro_cred: 0, open: 0, research_dd: 0, hefce: 0, residences: -6.7374, other_rev: 0 };
 const COST_DRIVERS  = { academic_staff: "Pay award", support_staff: "Pay award", associates: "Day rate / volume", prog_costs: "Intake volume", ops_overhead: "Inflation / recharge", uni_charge: "TRAC / university allocation" };
 const STEP_NAMES    = ["1. Set goal","2. Revenue","3. Costs","4. Current position","5. Market context","6. Predicted revenues","7. Predicted costs","8. Prognosis","→ Section one","10. Who FBaM serves","11. Positioning","12. Changes","→ Section two","14. Close the gap","15. Theme P&L","16. Comparison","17. Finalise"];
 
@@ -169,54 +172,19 @@ const THEMES        = ["Business Transformation and Growth","People, Skills and 
 
 /* ── MARKET BENCHMARKS — UK business schools 2024→2028 ─────────────────── */
 const MARKET_BENCHMARKS = [
-  { id: "ft_mba",      label: "FT MBA",
-    range: "−2% to 0% CAGR",
-    fbamTrend: "Peaked, now declining with international market pressure",
-    fbamCurrent: "Under pressure from Graduate Route compression and international levy.",
-    mid: -8,
-    context: "MBA market under pressure from Graduate Route visa compression and the £925 international student levy from Aug 2028. Premium residential MBA retains some insulation due to peer network and campus model." },
-  { id: "ft_msc_prog", label: "FT MSc programmes",
-    range: "−2% to 0% CAGR",
-    fbamTrend: "Peaked £21.9m (22/23) combined FT, now reversing sharply",
-    fbamCurrent: "Poor Jan 2026 intake (4 students vs 10 forecast). Withdrawals continuing.",
-    mid: -8,
-    context: "Sector declining due to Graduate Route compression. FBaM performing significantly below sector — Jan intake shortfall and withdrawal rate suggest structural demand problem, not cyclical. CAGR of −8% reflects continuation of current trajectory with modest stabilisation." },
+  { id: "ft_mba",      label: "FT MBA", range: "−2% to 0% CAGR", fbamTrend: "Declining with international market pressure", fbamCurrent: "Under pressure from Graduate Route compression and international levy.", mid: -8, context: "MBA market under pressure from Graduate Route visa compression. Premium residential MBA retains some insulation — but volume growth is unlikely." },
+  { id: "ft_msc_prog", label: "FT MSc programmes", range: "−2% to 0% CAGR", fbamTrend: "Peaked £21.9m (22/23), now reversing sharply", fbamCurrent: "Poor Jan 2026 intake (4 vs 10 forecast). Withdrawals continuing.", mid: -8, context: "Sector declining due to Graduate Route compression. CAGR of −8% reflects continuation of current trajectory." },
   { id: "pt_levy",     label: "Apprenticeships / Levy",
     range: "Eliminated",
     fbamTrend: "Structural decline — last intakes completed",
     fbamCurrent: "Going to zero. Final Level 7 SLA intakes done. No further cohorts planned.",
     mid: -100,
     context: "Level 7 defunded Jan 2026. This income does not exist by 2028. Revenue at zero by mid-2027 at latest. Any residual is marginal employer self-funded activity." },
-  { id: "ced_custom",  label: "CED Customised",
-    range: "+6% to +9% sector CAGR",
-    fbamTrend: "Consistent growth 18/19→24/25 — main revenue growth lever",
-    fbamCurrent: "Pipeline 86% confirmed. High-growth sector — this is where FBaM needs to win.",
-    mid: -13,
-    context: "Sector growing strongly (UNICON 2025). CED Customised is the primary growth lever. Default CAGR of −13% reflects structural drag from SLEP/levy loss — if modelling CED Customised alone and assuming growth, set a positive rate here." },
-  { id: "slep",        label: "SLEP / Non-Award Bearing",
-    range: "Structural elimination",
-    fbamTrend: "Ending — final intakes complete",
-    fbamCurrent: "Going to near-zero. Default −80% reflects managed wind-down.",
-    mid: -80,
-    context: "SLEP/Non-Award Bearing income is a structural loss. This £2.8m does not exist in its current form by 2028. Some residual self-funded activity may persist — adjust upward only if specific replacement contracts are in place." },
-  { id: "cabinet",     label: "Cabinet Office",
-    range: "Growing government relationship",
-    fbamTrend: "Established and growing",
-    fbamCurrent: "Active contract. Government outsourcing trend supports growth. Default +20%.",
-    mid: 20,
-    context: "Cabinet Office contract is a genuine growth opportunity. +20% CAGR default reflects current trajectory — adjust if contract status changes at rebid." },
-  { id: "ced_other",   label: "Other exec ed",
-    range: "Follows overall exec ed trend",
-    fbamTrend: "Broadly stable",
-    fbamCurrent: "Small residual line — stable.",
-    mid: -13,
-    context: "Other customised exec ed income not captured in main lines. Follows overall exec ed market trend." },
-  { id: "micro_cred",  label: "Micro credentials / award bearing exec ed",
-    range: "Emerging — sector growing rapidly",
-    fbamTrend: "New line — £0 baseline",
-    fbamCurrent: "No current income. Emerging opportunity requiring investment.",
-    mid: 0,
-    context: "Micro credentials and short-form award-bearing exec ed is a growing market segment. Baseline is £0k — any revenue here represents net new income. Set your own growth assumption." },
+  { id: "ced_custom",  label: "CED Customised", range: "+6% to +9% sector CAGR", fbamTrend: "Consistent growth — main revenue growth lever", fbamCurrent: "Pipeline 86% confirmed.", mid: -13, context: "Sector growing strongly (UNICON 2025). CED Customised is the primary growth lever. Default CAGR reflects structural drag from SLEP loss." },
+  { id: "slep",        label: "SLEP / Non-Award Bearing", range: "Structural elimination", fbamTrend: "Ending", fbamCurrent: "Going to near-zero. Default −80%.", mid: -80, context: "Structural loss. This £2.8m does not exist by 2028." },
+  { id: "cabinet",     label: "Cabinet Office", range: "Growing", fbamTrend: "Established and growing", fbamCurrent: "Active contract. Default +20%.", mid: 20, context: "Genuine growth opportunity aligned with government outsourcing." },
+  { id: "ced_other",   label: "Other exec ed", range: "Follows exec ed trend", fbamTrend: "Broadly stable", fbamCurrent: "Small residual line.", mid: -13, context: "Other customised exec ed. Follows overall exec ed market trend." },
+  { id: "micro_cred",  label: "Micro credentials / award bearing exec ed", range: "Emerging", fbamTrend: "New line — £0 baseline", fbamCurrent: "No current income.", mid: 0, context: "Emerging market. Baseline £0k — net new income." },
   { id: "open",        label: "Open Programmes",
     range: "+6% to +9% CAGR",
     fbamTrend: "Recovering from Covid low — below sector pace",
@@ -541,7 +509,6 @@ function Entry({ onEnter }) {
 /* ── STEP 1: SET GOAL ─────────────────────────────────────────────────────── */
 function Step1({ pData, confirmed, onConfirm, onBack }) {
   const [val, setVal] = useState(nv(pData.targetPct, 7.5));
-
   useAutoSave(pData.name, () => ({ targetPct: val }));
 
   const desc = () => {
@@ -583,11 +550,7 @@ function Step2({ pData, confirmed, onConfirm, onBack }) {
   const init = () => { const r = {}; REV_LINES.forEach(l => { r[l.id] = String(nv(pData.revenues?.[l.id], l.prefillK)); }); return r; };
   const [revs, setRevs] = useState(init);
   const total = REV_LINES.reduce((s, l) => s + nv(revs[l.id], l.prefillK), 0);
-
-  useAutoSave(pData.name, () => {
-    const revenues = {}; REV_LINES.forEach(l => revenues[l.id] = nv(revs[l.id], l.prefillK));
-    return { revenues };
-  });
+  useAutoSave(pData.name, () => { const revenues = {}; REV_LINES.forEach(l => revenues[l.id] = nv(revs[l.id], l.prefillK)); return { revenues }; });
 
   const doConfirm = () => {
     const revenues = {}; REV_LINES.forEach(l => revenues[l.id] = nv(revs[l.id], l.prefillK));
@@ -631,11 +594,7 @@ function Step2({ pData, confirmed, onConfirm, onBack }) {
 function Step3({ pData, confirmed, onConfirm, onBack }) {
   const init = () => { const c = {}; COST_LINES.forEach(l => { c[l.id] = String(nv(pData.costs?.[l.id], l.baseK)); }); return c; };
   const [costs, setCosts] = useState(init);
-
-  useAutoSave(pData.name, () => {
-    const c = {}; COST_LINES.forEach(l => c[l.id] = nv(costs[l.id], l.baseK));
-    return { costs: c };
-  });
+  useAutoSave(pData.name, () => { const c = {}; COST_LINES.forEach(l => c[l.id] = nv(costs[l.id], l.baseK)); return { costs: c }; });
 
   const contribTotal = COST_LINES.filter(l => l.id !== "uni_charge").reduce((s, l) => s + nv(costs[l.id], l.baseK), 0);
   const uniCharge    = nv(costs["uni_charge"], 10325);
@@ -759,12 +718,7 @@ function Step5MarketContext({ pData, confirmed, onConfirm, onBack }) {
   };
   const [rates, setRates] = useState(init);
   const [expanded, setExpanded] = useState({});
-
-  useAutoSave(pData.name, () => {
-    const marketRates = {};
-    MARKET_BENCHMARKS.forEach(b => { marketRates[b.id] = nv(rates[b.id], b.mid); });
-    return { marketRates };
-  });
+  useAutoSave(pData.name, () => { const marketRates = {}; MARKET_BENCHMARKS.forEach(b => { marketRates[b.id] = nv(rates[b.id], b.mid); }); return { marketRates }; });
 
   const doConfirm = () => {
     const marketRates = {};
@@ -833,7 +787,7 @@ function Step5MarketContext({ pData, confirmed, onConfirm, onBack }) {
 }
 
 /* ── STEP 5 & 6: PREDICTED (three-linked-column) ──────────────────────────── */
-function PredStep({ stepN, lines, defRates, lineRates, setLineRates, baseRevTotal, heading, note, confirmLabel, onConfirm, onBack, confirmed, isCost = false }) {
+function PredStep({ stepN, lines, defRates, lineRates, setLineRates, baseRevTotal, heading, note, confirmLabel, onConfirm, onBack, confirmed, isCost = false, autoSaveName = "" }) {
   const revTotal = REV_LINES.reduce((s, l) => s + nv(lines.find(x => x.id === l.id)?.prefillK ?? l.prefillK, 0), 0);
 
   const computePred = (base, pctTotal) => base * (1 + nv(pctTotal) / 100);
@@ -855,12 +809,7 @@ function PredStep({ stepN, lines, defRates, lineRates, setLineRates, baseRevTota
     });
     return s;
   });
-
-  useAutoSave(autoSaveName, () => {
-    const rates = {};
-    lines.forEach(l => { rates[l.id] = annlRate(nv(state[l.id]?.pctTotal, 0)); });
-    return isCost ? { costRates: rates } : { revRates: rates };
-  });
+  useAutoSave(autoSaveName, () => { const rates = {}; lines.forEach(l => { rates[l.id] = annlRate(nv(state[l.id]?.pctTotal, 0)); }); return isCost ? { costRates: rates } : { revRates: rates }; });
 
   const updateFromPct = (id, pctTotal) => {
     const base = nv(lines.find(l => l.id === id)?.prefillK ?? lines.find(l => l.id === id)?.baseK, 0);
@@ -1636,7 +1585,7 @@ Respond ONLY in this exact JSON format:
       const newRevs = {}; REV_LINES.forEach(l => newRevs[l.id] = String(Math.round(nv(parsed.revs?.[l.id], nv(predRevs[l.id])))));
       const newCosts = {}; COST_LINES.forEach(l => newCosts[l.id] = String(Math.round(nv(parsed.costs?.[l.id], nv(predCosts[l.id])))));
       newRevs["pt_levy"] = "0";
-      // Verify surplus meets target — adjust ced_custom if needed
+      // Verify surplus meets target
       const aiRev = REV_LINES.reduce((s, l) => s + nv(newRevs[l.id]), 0);
       const aiCost = COST_LINES.reduce((s, l) => s + nv(newCosts[l.id]), 0);
       const aiSurplus = aiRev - aiCost;
@@ -1801,7 +1750,6 @@ function Step17CloseGap({ pData, confirmed, onConfirm, onBack }) {
   const [revs,  setRevs]  = useState(pData.s17Revs  || initRevs());
   const [costs, setCosts] = useState(pData.s17Costs || initCosts());
   const [stmt,  setStmt]  = useState(pData.s17Stmt  || "");
-
   useAutoSave(pData.name, () => ({ s17Revs: revs, s17Costs: costs, s17Stmt: stmt }));
 
   const totalRev   = REV_LINES.reduce((s, l) => s + nv(revs[l.id]), 0);
@@ -1889,7 +1837,7 @@ Respond in this EXACT JSON format only — no text outside the JSON:
       const newCosts = {}; COST_LINES.forEach(l => newCosts[l.id] = String(Math.round(nv(parsed.costs?.[l.id], nv(predCosts[l.id])))));
       // Force pt_levy to 0
       newRevs["pt_levy"] = "0";
-      // Verify gap closes — if not, adjust ced_custom upward
+      // Verify gap closes — if not, adjust exec_ed upward until it does
       const aiTotalRev  = REV_LINES.reduce((s, l) => s + nv(newRevs[l.id]), 0);
       const aiTotalCost = COST_LINES.reduce((s, l) => s + nv(newCosts[l.id]), 0);
       const aiSurplus   = aiTotalRev - aiTotalCost;
@@ -2147,7 +2095,6 @@ function Step18ThemePL({ pData, confirmed, onConfirm, onBack }) {
   const [costAlloc, setCostAlloc] = useState(pData.s18CostAlloc || initCostAlloc());
   const [mixes,     setMixes]     = useState(pData.s18Mixes     || { btg: { ...DEFAULT_MIXES.btg }, psl: { ...DEFAULT_MIXES.psl }, scpss: { ...DEFAULT_MIXES.scpss } });
   const [locked,    setLockedAll] = useState(pData.s18Locked    || { btg: {}, psl: {}, scpss: {} });
-
   useAutoSave(pData.name, () => ({ s18RevAlloc: revAlloc, s18CostAlloc: costAlloc, s18Mixes: mixes }));
 
   const setMixForTheme = (tid, mix) => setMixes(m => ({ ...m, [tid]: mix }));
@@ -2417,7 +2364,6 @@ function PurposeStep8({ pData, confirmed, onConfirm, onBack }) {
   const init = () => { const g = {}; PURPOSE_GROUPS.forEach(k => g[k] = nv(pData.purposeGroups?.[k], 5)); return g; };
   const [groups, setGroups] = useState(init);
   const [others, setOthers] = useState(pData.purposeGroupOthers || [{ label: "", score: 5 }]);
-
   useAutoSave(pData.name, () => ({ purposeGroups: groups, purposeGroupOthers: others }));
 
   const MAX_HIGH = 3;
@@ -2511,7 +2457,6 @@ function PurposeStep8({ pData, confirmed, onConfirm, onBack }) {
 function PurposeStep9({ pData, confirmed, onConfirm, onBack }) {
   const init = () => { const t = {}; PURPOSE_TENSIONS.forEach(x => t[x.key] = nv(pData.purposeTensions?.[x.key], 50)); return t; };
   const [tensions, setTensions] = useState(init);
-
   useAutoSave(pData.name, () => ({ purposeTensions: tensions }));
 
   const doConfirm = () => {
