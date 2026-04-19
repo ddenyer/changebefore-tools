@@ -15,7 +15,7 @@ const pSave = (name, d) => {
 const pGet  = n => STORE.participants[n] || { name: n };
 const pAll  = () => Object.values(STORE.participants);
 
-/* Auto-save hook — debounces save 800ms after last change only */
+/* Auto-save hook — debounces save 800ms after last change */
 const useAutoSave = (name, getData) => {
   const getDataRef = useRef(getData);
   getDataRef.current = getData;
@@ -169,7 +169,7 @@ const THEMES        = ["Business Transformation and Growth","People, Skills and 
 
 /* ── MARKET BENCHMARKS — UK business schools 2024→2028 ─────────────────── */
 const MARKET_BENCHMARKS = [
-  { id: "ft_mba",      label: "FT MBA", range: "−2% to 0% CAGR", fbamTrend: "Declining", fbamCurrent: "Under pressure from Graduate Route compression and international levy.", mid: -8, context: "MBA market under pressure from Graduate Route visa compression." },
+  { id: "ft_mba",      label: "FT MBA", range: "−2% to 0% CAGR", fbamTrend: "Declining", fbamCurrent: "Under pressure from Graduate Route compression.", mid: -8, context: "MBA market under pressure from Graduate Route visa compression." },
   { id: "ft_msc_prog", label: "FT MSc programmes", range: "−2% to 0% CAGR", fbamTrend: "Peaked £21.9m (22/23), now reversing", fbamCurrent: "Poor Jan 2026 intake (4 vs 10 forecast).", mid: -8, context: "Sector declining due to Graduate Route compression." },
   { id: "pt_levy",     label: "Apprenticeships / Levy",
     range: "Eliminated",
@@ -177,9 +177,9 @@ const MARKET_BENCHMARKS = [
     fbamCurrent: "Going to zero. Final Level 7 SLA intakes done. No further cohorts planned.",
     mid: -100,
     context: "Level 7 defunded Jan 2026. This income does not exist by 2028. Revenue at zero by mid-2027 at latest. Any residual is marginal employer self-funded activity." },
-  { id: "ced_custom",  label: "CED Customised", range: "+6% to +9% sector CAGR", fbamTrend: "Consistent growth — main growth lever", fbamCurrent: "Pipeline 86% confirmed.", mid: -13, context: "Sector growing strongly. CED Customised is the primary growth lever." },
+  { id: "ced_custom",  label: "CED Customised", range: "+6% to +9% sector CAGR", fbamTrend: "Main growth lever", fbamCurrent: "Pipeline 86% confirmed.", mid: -13, context: "Sector growing strongly. CED Customised is the primary growth lever." },
   { id: "slep",        label: "SLEP / Non-Award Bearing", range: "Structural elimination", fbamTrend: "Ending", fbamCurrent: "Default −80%.", mid: -80, context: "Structural loss. Does not exist by 2028." },
-  { id: "cabinet",     label: "Cabinet Office", range: "Growing", fbamTrend: "Established and growing", fbamCurrent: "Active contract. Default +20%.", mid: 20, context: "Growing government relationship." },
+  { id: "cabinet",     label: "Cabinet Office", range: "Growing", fbamTrend: "Established and growing", fbamCurrent: "Default +20%.", mid: 20, context: "Growing government relationship." },
   { id: "ced_other",   label: "Other exec ed", range: "Follows exec ed trend", fbamTrend: "Stable", fbamCurrent: "Small residual line.", mid: -13, context: "Other exec ed. Follows overall market trend." },
   { id: "micro_cred",  label: "Micro credentials / award bearing exec ed", range: "Emerging", fbamTrend: "New line — £0 baseline", fbamCurrent: "No current income.", mid: 0, context: "Emerging market. Baseline £0k." },
   { id: "open",        label: "Open Programmes",
@@ -2291,7 +2291,9 @@ function ParticipantView({ name, tick, onLogout }) {
       {displayStep === 5 && <Step5MarketContext pData={pd} confirmed={pd.step5Confirmed} onConfirm={(rates) => { pSave(name, { marketRates: rates, step5Confirmed: true }); advance(); }} onBack={() => go(4)} />}
       {displayStep === 6 && (
         <PredStep
-          stepN={6} lines={REV_LINES} defRates={pd.marketRates || REV_DEF_RATES} lineRates={revRates} setLineRates={setRevRates}
+          stepN={6}
+          lines={REV_LINES.map(l => ({ ...l, prefillK: nv(pd.revenues?.[l.id], l.prefillK) }))}
+          defRates={pd.marketRates || REV_DEF_RATES} lineRates={revRates} setLineRates={setRevRates}
           heading="Current trajectory: Predicted revenues by July 2028"
           note="31 July 2028 is chosen as it is FBaM's year end and levy funding should have ended post EPA submissions. Initial figures are based on CAGR from Step 5."
           confirmLabel="Confirm predicted revenues → Step 7: Predicted costs"
@@ -2303,7 +2305,9 @@ function ParticipantView({ name, tick, onLogout }) {
       )}
       {displayStep === 7 && (
         <PredStep
-          stepN={7} lines={COST_LINES} defRates={{}} lineRates={{}} setLineRates={() => {}}
+          stepN={7}
+          lines={COST_LINES.map(l => ({ ...l, prefillK: nv(pd.costs?.[l.id], l.baseK) }))}
+          defRates={pd.costRates || {}} lineRates={{}} setLineRates={() => {}}
           heading="Current trajectory: Predicted costs by July 2028"
           note="Enter your predicted % change for each cost line. Pay awards, TRAC changes, and headcount reductions all apply here."
           confirmLabel="Confirm predicted costs → Step 8: Prognosis"
