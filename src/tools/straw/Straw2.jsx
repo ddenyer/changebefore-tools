@@ -2240,7 +2240,13 @@ function Step18ThemePL({ pData, confirmed, onConfirm, onBack }) {
 
 /* ── PARTICIPANT VIEW ─────────────────────────────────────────────────────── */
 function ParticipantView({ name, tick, onLogout }) {
-  const [displayStep, setDisplayStep] = useState(1);
+  const [displayStep, setDisplayStep] = useState(() => {
+    const pd = pGet(name);
+    const ORDERED = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18];
+    let last = 1;
+    for (const n of ORDERED) { if (pd[`step${n}Confirmed`]) last = n; else break; }
+    return last;
+  });
   const [revRates, setRevRates] = useState({});
   const [submitted, setSubmitted] = useState(false);
 
