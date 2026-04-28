@@ -357,6 +357,7 @@
       <button class="btn-secondary btn" onclick="backToAssessment()">Back to assessment</button>
       <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
         <button class="btn-secondary btn" onclick="restart()">Start again</button>
+        <button class="btn-secondary btn" onclick="emailMyself()">Email myself</button>
         <button class="btn" onclick="exportPDF()">Save as PDF</button>
       </div>
     </div>
@@ -559,6 +560,118 @@ function getRankedItems() {
 function showResults() {
   renderResults();
   showOnly('screen-results');
+  // Fire-and-forget notification to results@changebefore.com
+  notifySubmission();
+}
+
+function notifySubmission() {
+  // Build a payload of the results for the email notification.
+  // Silently fails if endpoint is unavailable — never blocks the user.
+  try {
+    const subscales = calcSubscaleAverages();
+    const weakest = findWeakest(subscales);
+    const ranked = getRankedItems();
+    const strongest = ranked.slice(0, 3);
+    const weakestItems = ranked.slice(-3).reverse();
+
+    const payload = {
+      name: state.participantName,
+      context: state.participantContext,
+      date: new Date().toISOString(),
+      weakest: weakest,
+      subscales: ['Safety', 'Trust', 'Motivation'].map(name => ({
+        name,
+        score: subscales[name],
+        isWeakest: name === weakest,
+      })),
+      strongest: strongest.map(r => ({
+        text: r.item.left,
+        subscale: r.item.subscale,
+        score: Math.round(r.score),
+      })),
+      weakestItems: weakestItems.map(r => ({
+        text: r.item.right,
+        subscale: r.item.subscale,
+        score: Math.round(r.score),
+      })),
+    };
+
+    fetch('/api/notify-engagement', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }).catch(() => {/* silent */});
+  } catch (e) {
+    // Silent fail — user experience continues uninterrupted
+  }
+}
+
+function emailMyself() {
+  // Open user's mail client with a pre-composed email containing their results.
+  // User fills in their own address and sends from their own account.
+  const subscales = calcSubscaleAverages();
+  const weakest = findWeakest(subscales);
+  const ranked = getRankedItems();
+  const strongest = ranked.slice(0, 3);
+  const weakestItems = ranked.slice(-3).reverse();
+  const dateStr = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+
+  const subject = `My Engagement Profile — ${dateStr}`;
+
+  const lines = [];
+  lines.push('THE ENGAGEMENT PROFILE');
+  lines.push('');
+  if (state.participantName) lines.push(`Name: ${state.participantName}`);
+  if (state.participantContext) lines.push(`Team: ${state.participantContext}`);
+  lines.push(`Date: ${dateStr}`);
+  lines.push('');
+  lines.push('---');
+  lines.push('');
+  lines.push('BY AREA');
+  lines.push('');
+  ['Safety', 'Trust', 'Motivation'].forEach(name => {
+    const tag = name === weakest ? '  (weakest)' : '';
+    lines.push(`${name}: ${subscales[name].toFixed(1)} / 5${tag}`);
+  });
+  lines.push('');
+  lines.push('---');
+  lines.push('');
+  lines.push('THE DIAGNOSTIC');
+  lines.push('');
+  let diag = `${weakest} is where you think your team would rate you weakest, at ${subscales[weakest].toFixed(1)} out of 5. `;
+  if (weakest === 'Safety') {
+    diag += `Edmondson's territory — voice, dissent, the willingness to raise tough issues. The work here is climate work.`;
+  } else if (weakest === 'Trust') {
+    diag += `Maister's territory — credibility, reliability, intimacy, low self-orientation. The work here is leader-behaviour work.`;
+  } else {
+    diag += `Deci and Ryan's territory — autonomy, belonging, competence. The work here is about the conditions for intrinsic motivation.`;
+  }
+  lines.push(diag);
+  lines.push('');
+  lines.push('---');
+  lines.push('');
+  lines.push('WHERE YOUR TEAM SCORES YOU MOST POSITIVELY');
+  lines.push('');
+  strongest.forEach(r => {
+    lines.push(`${Math.round(r.score)}  ${r.item.left}  [${r.item.subscale}]`);
+  });
+  lines.push('');
+  lines.push('---');
+  lines.push('');
+  lines.push('WHERE THE WORK IS');
+  lines.push('');
+  weakestItems.forEach(r => {
+    lines.push(`${Math.round(r.score)}  ${r.item.right}  [${r.item.subscale}]`);
+  });
+  lines.push('');
+  lines.push('---');
+  lines.push('');
+  lines.push('Generated at https://tools.changebefore.com/engagement');
+
+  const body = lines.join('\n');
+
+  const mailtoUrl = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  window.location.href = mailtoUrl;
 }
 
 function renderResults() {
