@@ -291,7 +291,7 @@
       <p class="lead">A short self-assessment for leaders. About 4 minutes.</p>
     </div>
 
-    <p>You'll respond to 19 statements about your team. For each one, rate it the way your team would — if they were being completely honest and didn't have to face you afterwards.</p>
+    <p>You'll respond to 19 statements about how your team experiences their work. For each one, rate it the way your team would — being completely honest about how things feel right now.</p>
 
     <p>Each item has two opposite statements. Slide the marker toward the one your team would lean towards, and how strongly. Sit it in the middle if neither pole would feel right to them.</p>
 
@@ -342,7 +342,7 @@
     </div>
 
     <div class="results-section">
-      <h3 style="margin-bottom: 0.5rem;">Where your team scores you most positively</h3>
+      <h3 style="margin-bottom: 0.5rem;">Where your team's experience is most positive</h3>
       <p style="color: var(--muted); font-size: 0.9rem; margin-bottom: 1rem;">The items where you think your team would lean most strongly to the positive pole.</p>
       <div class="item-list" id="strongest-list"></div>
     </div>
@@ -638,7 +638,7 @@ function emailMyself() {
   lines.push('');
   lines.push('THE DIAGNOSTIC');
   lines.push('');
-  let diag = `${weakest} is where you think your team would rate you weakest, at ${subscales[weakest].toFixed(1)} out of 5. `;
+  let diag = `${weakest} is where your team's experience seems weakest, at ${subscales[weakest].toFixed(1)} out of 5. `;
   if (weakest === 'Safety') {
     diag += `Edmondson's territory — voice, dissent, the willingness to raise tough issues. The work here is climate work.`;
   } else if (weakest === 'Trust') {
@@ -650,7 +650,7 @@ function emailMyself() {
   lines.push('');
   lines.push('---');
   lines.push('');
-  lines.push('WHERE YOUR TEAM SCORES YOU MOST POSITIVELY');
+  lines.push("WHERE YOUR TEAM'S EXPERIENCE IS MOST POSITIVE");
   lines.push('');
   strongest.forEach(r => {
     lines.push(`${Math.round(r.score)}  ${r.item.left}  [${r.item.subscale}]`);
@@ -703,7 +703,7 @@ function renderResults() {
   }).join('');
 
   const weakestScore = subscales[weakest].toFixed(1);
-  let diagnosticText = `<strong>${weakest}</strong> is where you think your team would rate you weakest, at ${weakestScore} out of 5. `;
+  let diagnosticText = `<strong>${weakest}</strong> is where your team's experience seems weakest, at ${weakestScore} out of 5. `;
   if (weakest === 'Safety') {
     diagnosticText += `Edmondson's territory — voice, dissent, the willingness to raise tough issues. The work here is climate work.`;
   } else if (weakest === 'Trust') {
@@ -819,7 +819,7 @@ function exportPDF() {
 
   y += 2;
 
-  let diagText = `${weakest} is where you think your team would rate you weakest, at ${subscales[weakest].toFixed(1)} out of 5. `;
+  let diagText = `${weakest} is where your team's experience seems weakest, at ${subscales[weakest].toFixed(1)} out of 5. `;
   if (weakest === 'Safety') {
     diagText += `Edmondson's territory — voice, dissent, the willingness to raise tough issues. The work here is climate work.`;
   } else if (weakest === 'Trust') {
@@ -840,7 +840,7 @@ function exportPDF() {
 
   checkPage(20);
   setFont(11, 'bold', TEXT);
-  doc.text('Where your team scores you most positively', margin, y);
+  doc.text("Where your team's experience is most positive", margin, y);
   y += 5;
   setFont(9, 'italic', MUTED);
   doc.text('The items where you think your team would lean most strongly to the positive pole.', margin, y);
