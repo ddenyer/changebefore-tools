@@ -3,6 +3,7 @@
     { "source": "/stat", "destination": "/stat.html" },
     { "source": "/define", "destination": "/define.html" },
     { "source": "/pace2", "destination": "/pace2.html" },
+    { "source": "/engagement", "destination": "/engagement.html" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
