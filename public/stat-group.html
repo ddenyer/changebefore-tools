@@ -1280,13 +1280,32 @@ function App(){
     return()=>clearTimeout(t);
   },[selectedPrinciples,step,codeNorm,respondentName]);
 
-  // Close facilitator dashboard overlay on Esc; lock body scroll while open
+  // Close facilitator dashboard overlay on Esc; lock body scroll while open;
+  // intercept browser back button on mobile so it closes the overlay instead of leaving the page
   useEffect(()=>{
     if(!facOverlayOpen)return;
     document.body.classList.add('dash-open');
+    // Push a history entry so the next back press lands here (and we close the overlay)
+    let ownsHistoryEntry=false;
+    try{
+      window.history.pushState({statOverlay:true},'');
+      ownsHistoryEntry=true;
+    }catch(e){}
     const onKey=(e)=>{if(e.key==='Escape'){setFacInfoOpen(false);setFacOverlayOpen(false);}};
+    const onPop=()=>{setFacInfoOpen(false);setFacOverlayOpen(false);};
     document.addEventListener('keydown',onKey);
-    return()=>{document.body.classList.remove('dash-open');document.removeEventListener('keydown',onKey);};
+    window.addEventListener('popstate',onPop);
+    return()=>{
+      document.body.classList.remove('dash-open');
+      document.removeEventListener('keydown',onKey);
+      window.removeEventListener('popstate',onPop);
+      // If the overlay was closed by something other than a back press
+      // (Esc, button click), step back through the entry we added so the
+      // history stack stays consistent.
+      if(ownsHistoryEntry&&window.history.state&&window.history.state.statOverlay){
+        try{window.history.back();}catch(e){}
+      }
+    };
   },[facOverlayOpen]);
 
   // Facilitator org-name override: load on session change, persist on edit
@@ -1511,6 +1530,14 @@ function App(){
           <p className="land-desc">Your individual report appears at the end. Your responses are also shared with your sponsor to produce an organisational view. You will not see the group results — those are reviewed separately with your sponsor.</p>
           <div className="land-time">About 20 minutes</div>
         </div>
+
+        <div style={{background:'#fff8f5',border:'1px solid #f5c8b0',borderLeft:'4px solid #e07030',borderRadius:'4px',padding:'.85rem 1rem',marginBottom:'1.25rem',fontFamily:"'DM Sans',sans-serif"}}>
+          <div style={{fontSize:'.7rem',fontWeight:700,color:'#e07030',marginBottom:'.3rem',letterSpacing:'.05em',textTransform:'uppercase'}}>Before you start</div>
+          <div style={{fontSize:'.82rem',color:'#1a1a1a',lineHeight:1.55}}>
+            Use the <strong>Next</strong> and <strong>Back</strong> buttons inside the tool to move between steps — your phone or browser back button will leave the survey. Your answers are saved automatically as you go, so if you do leave by accident, just re-enter your name and session code to resume.
+          </div>
+        </div>
+
         <div style={{marginBottom:'1rem'}}>
           <label className="field-lbl">Your name</label>
           <input className="inp" placeholder="e.g. Alex Johnson" value={respondentName} onChange={e=>{
