@@ -6,6 +6,7 @@
 <title>STAT — Strategic Tensions Assessment Tool</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.development.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.development.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
 <style>
@@ -933,6 +934,586 @@ function saveProgress(name,data){try{localStorage.setItem(lsKey(name),JSON.strin
 function loadProgress(name){try{const raw=localStorage.getItem(lsKey(name));return raw?JSON.parse(raw):null;}catch(e){return null;}}
 function clearProgress(name){try{localStorage.removeItem(lsKey(name));}catch(e){}}
 
+// ── PDF REPORT GENERATOR ─────────────────────────────────────────────────────
+// Builds a polished workshop deliverable using jsPDF.
+// Default anonymous (R1, R2, R3...). Optional `useNames=true` for named version.
+function generateStatGroupPDF(opts){
+  const {
+    realRespondents, withTobe,
+    gMean, gTobeMean, groupStrat, groupTobeStrat, groupIsSplit,
+    bigGap, qVariances,
+    principlesCluster, aiQuestions,
+    sessionCode, orgName, useNames,
+    SLABELS, getStrategy,
+  } = opts;
+
+  if(!window.jspdf||!window.jspdf.jsPDF){
+    alert('PDF library failed to load. Please refresh the page and try again.');
+    return;
+  }
+  if(realRespondents.length<2){
+    alert('Need at least 2 respondents to generate a report. Currently '+realRespondents.length+'.');
+    return;
+  }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const pageW = 210, pageH = 297, margin = 18;
+  let y = margin;
+  let pageNum = 0;
+
+  const TEXT = [26, 26, 26];
+  const MUTED = [107, 107, 107];
+  const ACCENT = [224, 112, 48];
+  const BG = [240, 237, 232];
+  const BORDER = [216, 211, 203];
+  const WHITE = [255, 255, 255];
+  const RED = [192, 57, 43];
+
+  // Anonymisation map by created_at order
+  const sorted = [...realRespondents].sort((a,b)=>{
+    const da=new Date(a.created_at||a.date||0).getTime();
+    const db=new Date(b.created_at||b.date||0).getTime();
+    return da-db;
+  });
+  const aliasMap = {};
+  sorted.forEach((r,i)=>{aliasMap[r.respondent_name]='R'+(i+1);});
+  const labelOf = (name)=>useNames ? (name||'') : (aliasMap[name]||name||'');
+
+  // Helpers
+  function setFont(size, weight, color){
+    doc.setFont('helvetica', weight||'normal');
+    doc.setFontSize(size);
+    if(color)doc.setTextColor(...color);
+  }
+  function rule(yPos){
+    doc.setDrawColor(...BORDER);
+    doc.setLineWidth(0.2);
+    doc.line(margin, yPos||y, pageW-margin, yPos||y);
+  }
+  function checkPage(needed){
+    if(y+needed > pageH-margin-15){
+      addFooter();
+      doc.addPage();
+      pageNum++;
+      y = margin;
+      addHeader();
+    }
+  }
+  function addHeader(){
+    if(pageNum===0)return;
+    setFont(8, 'normal', MUTED);
+    doc.text('CHANGEBEFORE', margin, 10);
+    doc.text('STAT — Group Report'+(orgName?(' · '+orgName):''), pageW-margin, 10, {align:'right'});
+    doc.setDrawColor(...BORDER);
+    doc.setLineWidth(0.15);
+    doc.line(margin, 12, pageW-margin, 12);
+    y = margin+2;
+  }
+  function addFooter(){
+    if(pageNum===0)return;
+    const fy = pageH-12;
+    doc.setDrawColor(...BORDER);
+    doc.setLineWidth(0.15);
+    doc.line(margin, fy-4, pageW-margin, fy-4);
+    setFont(8, 'normal', MUTED);
+    doc.text('ChangeBefore · Strategic Tensions Assessment', margin, fy);
+    doc.text(String(pageNum), pageW-margin, fy, {align:'right'});
+  }
+  function sectionTitle(title){
+    checkPage(20);
+    doc.setFont('times','bold');
+    doc.setFontSize(16);
+    doc.setTextColor(...TEXT);
+    doc.text(title, margin, y);
+    doc.setFont('helvetica','normal');
+    y += 3;
+    rule();
+    y += 8;
+  }
+  function paragraph(text, opt){
+    opt = opt||{};
+    const sz = opt.size||10;
+    const wrapped = doc.splitTextToSize(text, pageW-2*margin);
+    setFont(sz, opt.weight||'normal', opt.color||TEXT);
+    const lh = sz*0.42;
+    checkPage(wrapped.length*lh+2);
+    doc.text(wrapped, margin, y);
+    y += wrapped.length*lh + 2;
+  }
+  function localVariance(arr){
+    if(arr.length<2)return 0;
+    const m=arr.reduce((s,v)=>s+v,0)/arr.length;
+    return arr.reduce((s,v)=>s+(v-m)**2,0)/arr.length;
+  }
+
+  // ───── COVER PAGE ─────
+  doc.setFillColor(...BG);
+  doc.rect(0, 0, pageW, pageH, 'F');
+
+  setFont(9, 'bold', TEXT);
+  doc.text('CHANGEBEFORE', margin, 30);
+  setFont(8, 'normal', MUTED);
+  doc.text('Diagnostic consulting · Understand before you act', margin, 35);
+  doc.setDrawColor(...ACCENT);
+  doc.setLineWidth(0.8);
+  doc.line(margin, 42, margin+30, 42);
+
+  doc.setFont('times','bold');
+  doc.setFontSize(34);
+  doc.setTextColor(...TEXT);
+  doc.text('Strategic', margin, 110);
+  doc.text('Tensions', margin, 124);
+  doc.text('Assessment', margin, 138);
+
+  doc.setFont('times','italic');
+  doc.setFontSize(20);
+  doc.setTextColor(...ACCENT);
+  doc.text('Group Profile', margin, 155);
+
+  if(orgName){
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(11);
+    doc.setTextColor(...MUTED);
+    doc.text('Prepared for', margin, 180);
+    doc.setFont('times','bold');
+    doc.setFontSize(18);
+    doc.setTextColor(...TEXT);
+    doc.text(orgName, margin, 190);
+  }
+
+  const coverFY = pageH-30;
+  doc.setDrawColor(...BORDER);
+  doc.setLineWidth(0.2);
+  doc.line(margin, coverFY-8, pageW-margin, coverFY-8);
+
+  setFont(8, 'normal', MUTED);
+  doc.text('SESSION', margin, coverFY-2);
+  doc.text('RESPONDENTS', margin+50, coverFY-2);
+  doc.text('DATE', margin+100, coverFY-2);
+
+  setFont(11, 'bold', TEXT);
+  doc.text(sessionCode||'—', margin, coverFY+4);
+  doc.text(String(realRespondents.length), margin+50, coverFY+4);
+  doc.text(new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'}), margin+100, coverFY+4);
+
+  setFont(7, 'normal', MUTED);
+  doc.text((useNames?'Named report':'Anonymised report')+' · ChangeBefore · tools.changebefore.com',
+    pageW/2, pageH-10, {align:'center'});
+
+  // ───── PAGE 2: EXECUTIVE SUMMARY ─────
+  doc.addPage(); pageNum=1; y=margin+5; addHeader();
+  sectionTitle('Executive summary');
+
+  const N = realRespondents.length;
+  const tobeN = withTobe.length;
+  const dominantStrategy = SLABELS[groupStrat]+(groupIsSplit?' (group is split)':'');
+  const biggestShift = bigGap && Math.abs(bigGap.gap)>=8 ? bigGap : null;
+
+  let bits = [];
+  bits.push(`Across ${N} respondents${tobeN<N&&tobeN>0?' ('+tobeN+' completed the desired-state exercise)':''}, the group's dominant current strategy is ${dominantStrategy}.`);
+  if(groupIsSplit){
+    bits.push(`Significant variance on at least one axis suggests the group does not see the organisation through a single lens — there are real differences of view about how the organisation operates today.`);
+  } else {
+    bits.push(`The group is broadly aligned in how it sees the organisation today.`);
+  }
+  if(biggestShift){
+    const dir = biggestShift.gap>0?'up':'down';
+    bits.push(`The most significant collective shift sought is ${biggestShift.lbl} ${dir} ${Math.abs(biggestShift.gap)} points.`);
+  }
+  if(qVariances && qVariances.length>0){
+    const sharpestQ = qVariances[0];
+    const sharpestSD = Math.sqrt(sharpestQ.variance).toFixed(1);
+    bits.push(`The sharpest individual disagreement is on Question ${sharpestQ.qi+1} (SD ${sharpestSD}) — surface this first in the debrief.`);
+  }
+  paragraph(bits.join(' '));
+  y += 3;
+
+  // Three boxes
+  checkPage(28);
+  const boxW = (pageW-2*margin-8)/3;
+  const boxes = [
+    {label:'RESPONDENTS', value:String(N), sub:tobeN<N&&tobeN>0?(tobeN+' incl. desired'):''},
+    {label:'DOMINANT STRATEGY', value:SLABELS[groupStrat], sub:groupIsSplit?'Group is split':'Aligned'},
+    {label:'BIGGEST SHIFT', value:biggestShift?(biggestShift.lbl):'—', sub:biggestShift?(((biggestShift.gap>0?'+':'')+biggestShift.gap)+' pts'):'No major shift'}
+  ];
+  boxes.forEach((b,i)=>{
+    const x = margin+i*(boxW+4);
+    doc.setFillColor(...WHITE);
+    doc.setDrawColor(...BORDER);
+    doc.setLineWidth(0.2);
+    doc.rect(x, y, boxW, 24, 'FD');
+    setFont(7, 'bold', MUTED);
+    doc.text(b.label, x+3, y+6);
+    let valSize = 13;
+    if(doc.getTextWidth(b.value)>boxW-6) valSize = 10;
+    setFont(valSize, 'bold', TEXT);
+    doc.text(b.value, x+3, y+14);
+    setFont(8, 'normal', MUTED);
+    doc.text(b.sub||'', x+3, y+20);
+  });
+  y += 30;
+
+  // ───── GROUP PROFILE ─────
+  checkPage(80);
+  sectionTitle('Group profile');
+  paragraph('Group mean scores across the four mindset and approach dimensions.', {color:MUTED, size:9});
+  y += 2;
+
+  const dims = [
+    {key:'prog', label:'PROGRESSIVE', value:gMean.prog},
+    {key:'def',  label:'DEFENSIVE',   value:gMean.def},
+    {key:'con',  label:'CONSISTENT',  value:gMean.con},
+    {key:'flex', label:'FLEXIBLE',    value:gMean.flex},
+  ];
+  const dimW = (pageW-2*margin-9)/4;
+  dims.forEach((d,i)=>{
+    const x = margin+i*(dimW+3);
+    doc.setFillColor(...WHITE);
+    doc.setDrawColor(...BORDER);
+    doc.setLineWidth(0.2);
+    doc.rect(x, y, dimW, 24, 'FD');
+    setFont(7, 'bold', MUTED);
+    doc.text(d.label, x+2.5, y+6);
+    setFont(18, 'bold', ACCENT);
+    doc.text(String(d.value), x+2.5, y+18);
+    setFont(7, 'normal', MUTED);
+    doc.text('/ 120', x+dimW-2, y+18, {align:'right'});
+  });
+  y += 30;
+
+  checkPage(20);
+  doc.setFillColor(...TEXT);
+  doc.rect(margin, y, pageW-2*margin, 16, 'F');
+  setFont(7, 'bold', ACCENT);
+  doc.text('CURRENT STRATEGY', margin+5, y+6);
+  setFont(13, 'bold', WHITE);
+  doc.text(SLABELS[groupStrat]+(groupIsSplit?' [group is split]':''), margin+5, y+12);
+  y += 22;
+
+  if(groupTobeStrat && groupTobeStrat!==groupStrat){
+    checkPage(20);
+    doc.setDrawColor(...ACCENT);
+    doc.setLineWidth(0.4);
+    doc.rect(margin, y, pageW-2*margin, 16);
+    setFont(7, 'bold', ACCENT);
+    doc.text('DESIRED STRATEGY', margin+5, y+6);
+    setFont(13, 'bold', TEXT);
+    doc.text(SLABELS[groupTobeStrat], margin+5, y+12);
+    y += 22;
+  }
+
+  if(biggestShift && Math.abs(biggestShift.gap)>=4){
+    checkPage(15);
+    setFont(9, 'italic', MUTED);
+    const dir = biggestShift.gap>0?'increase':'decrease';
+    doc.text(`Strongest desired shift: ${biggestShift.lbl} — collective ${dir} of ${Math.abs(biggestShift.gap)} points.`, margin, y);
+    y += 6;
+  }
+
+  // ───── DISAGREEMENTS ─────
+  if(qVariances && qVariances.length>0){
+    doc.addPage(); pageNum++; y=margin+5; addHeader();
+    sectionTitle('Where the group disagrees');
+    paragraph('The questions where opinions diverged most. SD = standard deviation of right-pole scores. Higher = more disagreement.', {color:MUTED, size:9});
+    y += 3;
+
+    const top = qVariances.slice(0, Math.min(8, qVariances.length));
+    const sdMaxRef = Math.sqrt(qVariances[0].variance);
+
+    top.forEach((qv,i)=>{
+      const sd = Math.sqrt(qv.variance);
+      checkPage(34);
+      // Header row: index/section, then question
+      setFont(9, 'bold', ACCENT);
+      doc.text('#'+(i+1), margin, y+5);
+      setFont(7, 'normal', MUTED);
+      doc.text((qv.isS1?'§1':'§2')+' Q'+(qv.qi+1), margin, y+10);
+
+      setFont(10, 'bold', TEXT);
+      const qWrap = doc.splitTextToSize(qv.q.q||'', pageW-2*margin-26);
+      doc.text(qWrap, margin+18, y+5);
+      let qy = y + 5 + qWrap.length*4;
+
+      // Options A/B
+      setFont(8, 'normal', MUTED);
+      const halfW = (pageW-2*margin-26)/2-2;
+      const aWrap = doc.splitTextToSize('A: '+(qv.q.l||''), halfW);
+      const bWrap = doc.splitTextToSize('B: '+(qv.q.r||''), halfW);
+      doc.text(aWrap, margin+18, qy+3);
+      doc.text(bWrap, margin+18+halfW+4, qy+3);
+      qy += Math.max(aWrap.length, bWrap.length)*3 + 3;
+
+      // SD bar
+      const barX = margin+18, barW = pageW-2*margin-26-30;
+      const fillW = sdMaxRef>0 ? barW*(sd/sdMaxRef) : 0;
+      doc.setFillColor(...BORDER);
+      doc.rect(barX, qy, barW, 2.5, 'F');
+      const sdColor = sd>=2.5?RED:sd>=1.5?[245,158,11]:sd>=0.8?[132,204,22]:[34,197,94];
+      doc.setFillColor(...sdColor);
+      doc.rect(barX, qy, fillW, 2.5, 'F');
+      setFont(8, 'bold', TEXT);
+      doc.text('SD '+sd.toFixed(1), pageW-margin, qy+2.5, {align:'right'});
+
+      y = qy + 7;
+      if(i<top.length-1){
+        doc.setDrawColor(...BORDER);
+        doc.setLineWidth(0.1);
+        doc.line(margin, y-2, pageW-margin, y-2);
+        y += 1;
+      }
+    });
+  }
+
+  // ───── OUTLIERS ─────
+  const outliers = [];
+  if(N>=3){
+    ['prog','def','con','flex'].forEach(dim=>{
+      const vals = realRespondents.map(r=>r[dim]||0);
+      const m = vals.reduce((s,v)=>s+v,0)/vals.length;
+      const sd = Math.sqrt(localVariance(vals));
+      if(sd<5) return;
+      realRespondents.forEach(r=>{
+        const v = r[dim]||0;
+        if(Math.abs(v-m)>=1.5*sd && Math.abs(v-m)>=10){
+          outliers.push({name:r.respondent_name, dim, value:v, mean:Math.round(m), gap:Math.round(v-m)});
+        }
+      });
+    });
+  }
+  if(outliers.length>0){
+    doc.addPage(); pageNum++; y=margin+5; addHeader();
+    sectionTitle('Outliers and split views');
+    paragraph('Individual scores that diverge most from the group mean — at least 1.5 SD and 10 points away. These are the people whose lens is different. Worth surfacing in the debrief.', {color:MUTED, size:9});
+    y += 3;
+
+    outliers.sort((a,b)=>Math.abs(b.gap)-Math.abs(a.gap));
+    const dimLabels = {prog:'Progressive',def:'Defensive',con:'Consistent',flex:'Flexible'};
+    outliers.slice(0, 12).forEach((o,i)=>{
+      checkPage(10);
+      setFont(10, 'bold', TEXT);
+      doc.text(labelOf(o.name), margin, y+4);
+      setFont(8, 'normal', MUTED);
+      doc.text(dimLabels[o.dim], margin+45, y+4);
+      setFont(10, 'normal', TEXT);
+      doc.text(String(o.value), margin+85, y+4);
+      setFont(8, 'normal', MUTED);
+      doc.text('vs group mean '+o.mean, margin+98, y+4);
+      const gapColor = Math.abs(o.gap)>=20?RED:ACCENT;
+      setFont(10, 'bold', gapColor);
+      doc.text((o.gap>0?'+':'')+o.gap+' pts', pageW-margin, y+4, {align:'right'});
+      y += 7;
+      if(i<Math.min(11,outliers.length-1)){
+        doc.setDrawColor(...BORDER);
+        doc.setLineWidth(0.1);
+        doc.line(margin, y, pageW-margin, y);
+        y += 1;
+      }
+    });
+  }
+
+  // ───── PRINCIPLES ─────
+  // principlesCluster shape: { clusters: [{theme, summary, items: [{text, author}]}] }
+  const hasPrinciples = principlesCluster && principlesCluster.clusters && principlesCluster.clusters.length>0;
+  // Check raw selected principles too — show those if no cluster
+  const respondentsWithPrinciples = realRespondents.filter(r=>Array.isArray(r.selected_principles)&&r.selected_principles.length>0);
+
+  if(hasPrinciples || respondentsWithPrinciples.length>0){
+    doc.addPage(); pageNum++; y=margin+5; addHeader();
+    sectionTitle('Selected principles');
+
+    if(hasPrinciples){
+      paragraph('AI-clustered themes from individual selections. Names in brackets show which respondents chose principles in each theme.', {color:MUTED, size:9});
+      y += 3;
+      principlesCluster.clusters.forEach(cl=>{
+        checkPage(20);
+        setFont(11, 'bold', TEXT);
+        doc.text(cl.theme||'Untitled theme', margin, y+4);
+        y += 7;
+        if(cl.summary){
+          setFont(9, 'italic', MUTED);
+          const sw = doc.splitTextToSize(cl.summary, pageW-2*margin);
+          checkPage(sw.length*4+2);
+          doc.text(sw, margin, y+3);
+          y += sw.length*4 + 2;
+        }
+        if(cl.items && cl.items.length){
+          setFont(9, 'normal', TEXT);
+          cl.items.forEach(it=>{
+            const author = labelOf(it.author||'');
+            const line = '• '+(it.text||'')+(author?' ('+author+')':'');
+            const wrapped = doc.splitTextToSize(line, pageW-2*margin-4);
+            checkPage(wrapped.length*4+1);
+            doc.text(wrapped, margin+2, y+3);
+            y += wrapped.length*4 + 1;
+          });
+        }
+        y += 4;
+      });
+    } else {
+      paragraph('Individual respondents selected these as the principles most worth committing to. Cluster the themes manually.', {color:MUTED, size:9});
+      y += 3;
+      respondentsWithPrinciples.forEach(r=>{
+        checkPage(15);
+        setFont(10, 'bold', TEXT);
+        doc.text(labelOf(r.respondent_name), margin, y+4);
+        y += 6;
+        setFont(9, 'normal', TEXT);
+        (r.selected_principles||[]).forEach(p=>{
+          const wrapped = doc.splitTextToSize('• '+p, pageW-2*margin-6);
+          checkPage(wrapped.length*4+1);
+          doc.text(wrapped, margin+4, y+3);
+          y += wrapped.length*4 + 1;
+        });
+        y += 3;
+      });
+    }
+  }
+
+  // ───── DISCUSSION QUESTIONS ─────
+  let questionsList = [];
+  if(aiQuestions && Array.isArray(aiQuestions) && aiQuestions.length>0){
+    questionsList = aiQuestions;
+  } else if(aiQuestions && aiQuestions.questions && Array.isArray(aiQuestions.questions)){
+    questionsList = aiQuestions.questions;
+  } else {
+    const fallback = {
+      'Adaptive Innovation':[
+        'Where is the gap between our ambition and our ability to deliver?',
+        'What are we most likely to miss while pursuing growth?',
+        'What would slow us down right now — and is that a feature or a bug?'
+      ],
+      'Mindful Action':[
+        'What signal would tell us we have to shift gear, and would we see it?',
+        'Where is our flexibility costing us reliability?',
+        'Which capabilities have we kept developing, and which have decayed?'
+      ],
+      'Performance Optimisation':[
+        'What are we protecting that no longer needs protection?',
+        'Where would a small experiment be lower-risk than continued caution?',
+        'What does the next generation of capability look like for us?'
+      ],
+      'Preventative Control':[
+        'What threats are we organised around that have changed shape?',
+        'Where is our defensiveness limiting our ability to learn?',
+        'What would change if we treated this as a strategy problem, not a risk problem?'
+      ],
+    };
+    questionsList = fallback[SLABELS[groupStrat]] || [
+      'What did this exercise surface that you weren\'t expecting?',
+      'Where are the divergent views in this room, and what do they tell us?',
+      'What is the one decision this work points toward?'
+    ];
+  }
+
+  doc.addPage(); pageNum++; y=margin+5; addHeader();
+  sectionTitle('Recommended discussion questions');
+  paragraph(aiQuestions?'AI-generated debrief prompts based on this group\'s specific data.':'Suggested debrief prompts based on the group\'s dominant strategy.', {color:MUTED, size:9});
+  y += 3;
+
+  questionsList.forEach((q,i)=>{
+    checkPage(15);
+    setFont(11, 'bold', ACCENT);
+    doc.text(String(i+1), margin, y+5);
+    setFont(10, 'normal', TEXT);
+    const qStr = typeof q==='string' ? q : (q.text||q.question||q.prompt||'');
+    const wrapped = doc.splitTextToSize(qStr, pageW-2*margin-12);
+    doc.text(wrapped, margin+8, y+5);
+    y += Math.max(wrapped.length*4+3, 8);
+    if(i<questionsList.length-1){
+      doc.setDrawColor(...BORDER);
+      doc.setLineWidth(0.1);
+      doc.line(margin+8, y, pageW-margin, y);
+      y += 3;
+    }
+  });
+
+  // ───── APPENDIX 1: PROFILES TABLE ─────
+  doc.addPage(); pageNum++; y=margin+5; addHeader();
+  sectionTitle('Appendix: per-respondent profiles');
+  paragraph(useNames?'Individual scores for every respondent.':'Individual scores for every respondent (anonymised).', {color:MUTED, size:9});
+  y += 3;
+
+  checkPage(10);
+  doc.setFillColor(...TEXT);
+  doc.rect(margin, y, pageW-2*margin, 7, 'F');
+  setFont(8, 'bold', WHITE);
+  doc.text('Respondent', margin+2, y+5);
+  doc.text('Prog', margin+45, y+5);
+  doc.text('Def', margin+62, y+5);
+  doc.text('Con', margin+79, y+5);
+  doc.text('Flex', margin+96, y+5);
+  doc.text('Strategy', margin+115, y+5);
+  y += 7;
+
+  sorted.forEach((r,i)=>{
+    checkPage(7);
+    if(i%2===0){
+      doc.setFillColor(...BG);
+      doc.rect(margin, y, pageW-2*margin, 6, 'F');
+    }
+    setFont(8, 'normal', TEXT);
+    doc.text(labelOf(r.respondent_name), margin+2, y+4);
+    doc.text(String(r.prog||0), margin+45, y+4);
+    doc.text(String(r.def||0), margin+62, y+4);
+    doc.text(String(r.con||0), margin+79, y+4);
+    doc.text(String(r.flex||0), margin+96, y+4);
+    let indStrat='—';
+    if(r.prog||r.def||r.con||r.flex){
+      const s = getStrategy(r.def||0, r.prog||0, r.con||0, r.flex||0);
+      indStrat = SLABELS[s]||'';
+    }
+    doc.text(indStrat, margin+115, y+4);
+    y += 6;
+  });
+
+  // ───── APPENDIX 2: ALL QUESTIONS BY SPREAD ─────
+  if(qVariances && qVariances.length>0){
+    doc.addPage(); pageNum++; y=margin+5; addHeader();
+    sectionTitle('Appendix: full question spread');
+    paragraph('All questions ranked by spread (SD descending).', {color:MUTED, size:9});
+    y += 3;
+
+    checkPage(8);
+    doc.setFillColor(...TEXT);
+    doc.rect(margin, y, pageW-2*margin, 7, 'F');
+    setFont(8, 'bold', WHITE);
+    doc.text('#', margin+2, y+5);
+    doc.text('Question', margin+12, y+5);
+    doc.text('Mean', pageW-margin-30, y+5);
+    doc.text('SD', pageW-margin, y+5, {align:'right'});
+    y += 7;
+
+    qVariances.forEach((qv,i)=>{
+      checkPage(7);
+      const sd = Math.sqrt(qv.variance);
+      if(i%2===0){
+        doc.setFillColor(...BG);
+        doc.rect(margin, y, pageW-2*margin, 6, 'F');
+      }
+      setFont(7, 'normal', MUTED);
+      doc.text((qv.isS1?'§1':'§2')+' '+(qv.qi+1), margin+2, y+4);
+      setFont(8, 'normal', TEXT);
+      const qt = doc.splitTextToSize(qv.q.q||'', pageW-2*margin-58);
+      const display = qt[0]+(qt.length>1?'…':'');
+      doc.text(display, margin+12, y+4);
+      doc.text(qv.rMean.toFixed(1), pageW-margin-30, y+4);
+      const sdColor = sd>=2.5?RED:sd>=1.5?[180,90,30]:TEXT;
+      setFont(8, 'bold', sdColor);
+      doc.text(sd.toFixed(2), pageW-margin, y+4, {align:'right'});
+      y += 6;
+    });
+  }
+
+  addFooter();
+
+  const dateStr = new Date().toISOString().slice(0,10);
+  const safeOrg = (orgName||'').replace(/[^a-zA-Z0-9-_]/g,'_').slice(0,30);
+  const filename = 'STAT_Group'+(safeOrg?('_'+safeOrg):'')+'_'+(sessionCode||'session')+'_'+dateStr+'.pdf';
+  doc.save(filename);
+}
+
+
 // ── MAIN APP ─────────────────────────────────────────────────────────────────
 function App(){
   const [step,setStep]=useState(0);
@@ -1034,6 +1615,7 @@ function App(){
   const [removeLoading,setRemoveLoading]=useState(false);
   const [facilitatorNotes,setFacilitatorNotes]=useState('');
   const [printAll,setPrintAll]=useState(false);
+  const [useNamesInPDF,setUseNamesInPDF]=useState(false);
   const [aiQuestions,setAiQuestions]=useState(null);
   const [aiQLoading,setAiQLoading]=useState(false);
   const [aiQError,setAiQError]=useState(null);
@@ -2448,7 +3030,28 @@ function App(){
               Refresh now
             </button>
             <button className="csv-btn" onClick={exportCSV}>⬇ CSV</button>
-            <button className="csv-btn" style={{background:'#444'}} onClick={()=>{setPrintAll(true);setTimeout(()=>{window.print();setTimeout(()=>setPrintAll(false),800);},800);}}>🖨 Print all</button>
+            <button className="csv-btn" style={{background:'#1a1a1a',display:'inline-flex',alignItems:'center',gap:'.4rem'}} onClick={()=>{
+              try{
+                generateStatGroupPDF({
+                  realRespondents, withTobe,
+                  gMean, gTobeMean, groupStrat, groupTobeStrat, groupIsSplit,
+                  bigGap, qVariances,
+                  principlesCluster, aiQuestions,
+                  sessionCode:codeNorm,
+                  orgName:(orgNameOverride||thing||'').trim(),
+                  useNames:useNamesInPDF,
+                  SLABELS, getStrategy,
+                });
+              }catch(e){
+                console.error('PDF generate error:',e);
+                alert('Could not generate PDF: '+(e&&e.message||'unknown error'));
+              }
+            }}>📄 Generate report (PDF)</button>
+            <label style={{display:'inline-flex',alignItems:'center',gap:'.35rem',padding:'.4rem .65rem',background:'#fff',border:'1px solid #d8d3cb',borderRadius:'4px',fontSize:'.7rem',color:'#1a1a1a',fontFamily:"'DM Sans',sans-serif",cursor:'pointer',userSelect:'none'}} title="If on, the PDF will use real participant names. Off (default) uses anonymous labels R1, R2, R3...">
+              <input type="checkbox" checked={useNamesInPDF} onChange={e=>setUseNamesInPDF(e.target.checked)} style={{margin:0}}/>
+              Use names in PDF
+            </label>
+            <button className="csv-btn" style={{background:'#888'}} onClick={()=>{setPrintAll(true);setTimeout(()=>{window.print();setTimeout(()=>setPrintAll(false),800);},800);}} title="Legacy print-all view (browser print)">🖨 Print all</button>
           </div>
         </div>
 
