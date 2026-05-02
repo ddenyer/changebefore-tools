@@ -188,8 +188,8 @@ html,body{font-family:'DM Sans',sans-serif;background:#f0ede8;color:#1a1a1a;-web
 @page{margin:0;size:A4}
 @media print{
   *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
-  .prog-wrap,.back-btn,.btn-row,.rpt-tabs,.diamond-expand-hint,
-  .resume-box,.land-hero,.disc{display:none!important}
+  .prog-wrap,.back-btn,.btn-row,.rpt-tabs,.fac-tab-bar,.diamond-expand-hint,
+  .resume-box,.land-hero,.disc,.refresh-btn,.csv-btn,.code-fix-box,.ticker{display:none!important}
   .rpt-tab-content{display:block!important;margin-bottom:0!important}
   .rpt-tab-content+.rpt-tab-content{margin-top:2rem;padding-top:1.5rem;border-top:2px solid #e07030}
   body{background:#fff!important}
@@ -201,16 +201,19 @@ html,body{font-family:'DM Sans',sans-serif;background:#f0ede8;color:#1a1a1a;-web
   .da-grid{grid-template-columns:1fr!important}
   .da-card,.da-lower-card,.rpt-section,.gap-summary,.score-card{break-inside:avoid}
   .da-summary{margin-bottom:.75rem}
-  .print-section-title{display:block!important;font-size:.65rem;font-weight:700;
-    letter-spacing:.1em;text-transform:uppercase;color:#e07030;margin-bottom:.5rem;
-    font-family:'DM Sans',sans-serif;padding-top:1rem;border-top:1px solid #e0dbd4}
-  svg{max-height:220px!important;width:auto!important}
+  .print-section-title{display:block!important;font-size:.85rem;font-weight:700;
+    letter-spacing:.1em;text-transform:uppercase;color:#e07030;margin:1rem 0 .5rem;
+    font-family:'DM Sans',sans-serif;padding-top:1rem;border-top:2px solid #e07030;page-break-before:always}
+  .print-section-title:first-of-type{page-break-before:auto;border-top:none;padding-top:0}
+  svg{max-height:240px!important;width:auto!important}
   h2.pg-title{font-size:1.3rem;margin-bottom:.25rem}
   .sug-item{break-inside:avoid}
   .score-grid{grid-template-columns:1fr 1fr}
   .pg-sub{font-size:.8rem;color:#555;margin-bottom:1rem}
   .strat-badge,.da-lower-card{background:#fff!important}
   .feedback-section,.was-useful{display:none!important}
+  .insight-grid{grid-template-columns:1fr 1fr!important}
+  .pres-overlay{display:none!important}
 }
 .print-header{display:none;margin-bottom:1.5rem}
 .print-header-bar{background:#1a1a1a;padding:.75rem 1.25rem;display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem}
@@ -822,12 +825,15 @@ function App(){
   const [facTab,setFacTab]=useState('progress');
   const [presentationMode,setPresentationMode]=useState(false);
   const [revealedCount,setRevealedCount]=useState(0);
+  const [selectedForPresent,setSelectedForPresent]=useState(null); // null = all visible
   const [selectedRespondent,setSelectedRespondent]=useState(null);
   const [removeTarget,setRemoveTarget]=useState(null);
   const [removeLoading,setRemoveLoading]=useState(false);
   const [facilitatorNotes,setFacilitatorNotes]=useState('');
+  const [printAll,setPrintAll]=useState(false);
   const [aiQuestions,setAiQuestions]=useState(null);
   const [aiQLoading,setAiQLoading]=useState(false);
+  const [aiQError,setAiQError]=useState(null);
   const [principlesStep,setPrinciplesStep]=useState(false);
   const [principles,setPrinciples]=useState(null);
   const [principlesLoading,setPrinciplesLoading]=useState(false);
@@ -987,14 +993,23 @@ function App(){
   async function loadAiQuestions(){
     if(!codeNorm||groupRespondents.length<2)return;
     setAiQLoading(true);
+    setAiQError(null);
     try{
       const resp=await fetch('/api/stat-ai-questions',{
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({sessionCode:codeNorm,respondents:groupRespondents,thing}),
       });
-      if(resp.ok){const d=await resp.json();setAiQuestions(d);}
-    }catch(e){console.warn('ai-q error:',e);}
+      const data=await resp.json().catch(()=>null);
+      if(!resp.ok){
+        setAiQError(`Server returned ${resp.status}${data&&data.error?': '+data.error:''}`);
+      }else if(data){
+        setAiQuestions(data);
+      }
+    }catch(e){
+      console.warn('ai-q error:',e);
+      setAiQError('Network error: '+(e.message||'unknown'));
+    }
     setAiQLoading(false);
   }
 
@@ -1168,11 +1183,10 @@ function App(){
         </div>
         <div className="btn-row">
           <button className="btn-p" disabled={!respondentName.trim()||!sessionCode.trim()} onClick={()=>{if(isAdmin){setShowReport(true);go(6);}else{go(1);}}}>Begin →</button>
-          <button className="btn-s" disabled={!sessionCode.trim()} onClick={()=>{
+          <button className="btn-s" disabled={!respondentName.trim()||!sessionCode.trim()} onClick={()=>{
             const pw=window.prompt('Enter facilitator password:');
             if(pw==='Admin1*'){
               setFacilitatorUnlocked(true);
-              setRespondentName('admin');
               setShowReport(true);
               setRptTab(5);
               go(6);
@@ -1181,7 +1195,7 @@ function App(){
           }} style={{color:'#e07030',borderColor:'#e07030'}}>Facilitator ★</button>
         </div>
         <div style={{fontSize:'.72rem',color:'#888',marginTop:'.5rem',fontFamily:"'DM Sans',sans-serif",lineHeight:1.6}}>
-          <strong style={{color:'#e07030'}}>Facilitator ★</strong> — skip the survey and go straight to the group dashboard. Requires session code and password.
+          Enter your name and session code first. <strong style={{color:'#e07030'}}>Facilitator ★</strong> skips the survey and goes straight to the group dashboard (requires password).
         </div>
       </div>
     );
@@ -2035,6 +2049,7 @@ function App(){
               Refresh
             </button>
             <button className="csv-btn" onClick={exportCSV}>⬇ CSV</button>
+            <button className="csv-btn" style={{background:'#444'}} onClick={()=>{setPrintAll(true);setTimeout(()=>{window.print();setTimeout(()=>setPrintAll(false),800);},800);}}>🖨 Print all</button>
           </div>
         </div>
 
@@ -2058,14 +2073,16 @@ function App(){
         </div>
 
         {/* Overview tab */}
-        {facTab==='group-report'&&(
+        {(facTab==='group-report'||printAll)&&(
           <div>
+            {printAll&&<div className="print-section-title">Group Report</div>}
             {renderGroupReportTab()}
           </div>
         )}
 
-        {facTab==='overview'&&(
+        {(facTab==='overview'||printAll)&&(
           <div>
+            {printAll&&<div className="print-section-title">Overview</div>}
             {/* Live Ticker */}
             {(()=>{
               const started=groupRespondents.filter(r=>r.respondent_name&&r.respondent_name!=='__facilitator__'&&!(r.prog));
@@ -2077,7 +2094,7 @@ function App(){
                   <div className="ticker-item"><div className="ticker-dot started"/><span className="ticker-count">{started.length}</span> in progress</div>
                   <div className="ticker-divider">·</div>
                   <div className="ticker-item"><div className="ticker-dot waiting"/><span className="ticker-count">{done.length+started.length}</span> total</div>
-                  {done.length>0&&(<><div className="ticker-divider">·</div><div className="ticker-item" style={{marginLeft:'auto'}}><button className="pres-btn primary" style={{padding:'.35rem .9rem',fontSize:'.72rem'}} onClick={()=>{setRevealedCount(0);setPresentationMode(true);}}>Present →</button></div></>)}
+                  {done.length>0&&(<><div className="ticker-divider">·</div><div className="ticker-item" style={{marginLeft:'auto'}}><button className="pres-btn primary" style={{padding:'.35rem .9rem',fontSize:'.72rem'}} onClick={()=>{setSelectedForPresent(null);setPresentationMode(true);}}>Share / Present →</button></div></>)}
                 </div>
               );
             })()}
@@ -2123,7 +2140,7 @@ function App(){
               if(outliers.length>0)questions.push(`${outliers.map(r=>r.respondent_name.split(' ')[0]).join(' and ')} ${outliers.length===1?'sees':'see'} the organisation quite differently from the rest of the group. What might explain that?`);
               if(questions.length<4)questions.push('If you had to identify the single biggest thing holding this organisation back from where it wants to be, what would it be?');
               /* Quadrant map SVG */
-              const QW=280,QH=220,QPX=40,QPY=30;
+              const QW=320,QH=300,QPX=50,QPY=44;
               const qw=QW-QPX*2,qh=QH-QPY*2;
               function qx(flex,con){return QPX+(((flex||0)-(con||0)+120)/240)*qw;}
               function qy(prog,def){return QPY+qh-(((prog||0)-(def||0)+120)/240)*qh;}
@@ -2183,36 +2200,34 @@ function App(){
                       <rect x={QPX+qw/2} y={QPY} width={qw/2} height={qh/2} fill="#f0f7f0" stroke="none"/>
                       <rect x={QPX} y={QPY+qh/2} width={qw/2} height={qh/2} fill="#f5f0f8" stroke="none"/>
                       <rect x={QPX+qw/2} y={QPY+qh/2} width={qw/2} height={qh/2} fill="#f0f4f8" stroke="none"/>
+                      {/* Outer frame */}
+                      <rect x={QPX} y={QPY} width={qw} height={qh} fill="none" stroke="#d8d3cb" strokeWidth={1}/>
                       {/* Axes */}
-                      <line x1={QPX} y1={QPY+qh/2} x2={QPX+qw} y2={QPY+qh/2} stroke="#d8d3cb" strokeWidth={1.5}/>
-                      <line x1={QPX+qw/2} y1={QPY} x2={QPX+qw/2} y2={QPY+qh} stroke="#d8d3cb" strokeWidth={1.5}/>
-                      {/* Quadrant labels */}
+                      <line x1={QPX} y1={QPY+qh/2} x2={QPX+qw} y2={QPY+qh/2} stroke="#b0a898" strokeWidth={1.5}/>
+                      <line x1={QPX+qw/2} y1={QPY} x2={QPX+qw/2} y2={QPY+qh} stroke="#b0a898" strokeWidth={1.5}/>
+                      {/* Quadrant labels (subtle, in corners) */}
                       <text x={QPX+qw/4} y={QPY+14} textAnchor="middle" fontSize={8} fontWeight={700} fill="#b0a898" fontFamily="DM Sans,sans-serif">PERFORMANCE OPT.</text>
                       <text x={QPX+qw*3/4} y={QPY+14} textAnchor="middle" fontSize={8} fontWeight={700} fill="#b0a898" fontFamily="DM Sans,sans-serif">ADAPTIVE INNOV.</text>
                       <text x={QPX+qw/4} y={QPY+qh-6} textAnchor="middle" fontSize={8} fontWeight={700} fill="#b0a898" fontFamily="DM Sans,sans-serif">PREVENTATIVE CTRL</text>
                       <text x={QPX+qw*3/4} y={QPY+qh-6} textAnchor="middle" fontSize={8} fontWeight={700} fill="#b0a898" fontFamily="DM Sans,sans-serif">MINDFUL ACTION</text>
-                      {/* Axis labels */}
-                      <text x={QPX} y={QPY+qh/2-5} textAnchor="start" fontSize={7.5} fill="#888" fontFamily="DM Sans,sans-serif">Consistent</text>
-                      <text x={QPX+qw} y={QPY+qh/2-5} textAnchor="end" fontSize={7.5} fill="#888" fontFamily="DM Sans,sans-serif">Flexible</text>
-                      <text x={QPX+qw/2+4} y={QPY+12} textAnchor="start" fontSize={7.5} fill="#888" fontFamily="DM Sans,sans-serif">Progressive</text>
-                      <text x={QPX+qw/2+4} y={QPY+qh-4} textAnchor="start" fontSize={7.5} fill="#888" fontFamily="DM Sans,sans-serif">Defensive</text>
-                      {/* Participant dots */}
+                      {/* Axis labels — OUTSIDE the chart */}
+                      <text x={QPX+qw/2} y={QPY-12} textAnchor="middle" fontSize={9} fontWeight={700} fill="#1a1a1a" fontFamily="DM Sans,sans-serif">Progressive</text>
+                      <text x={QPX+qw/2} y={QPY+qh+18} textAnchor="middle" fontSize={9} fontWeight={700} fill="#1a1a1a" fontFamily="DM Sans,sans-serif">Defensive</text>
+                      <text x={QPX-6} y={QPY+qh/2+3} textAnchor="end" fontSize={9} fontWeight={700} fill="#1a1a1a" fontFamily="DM Sans,sans-serif">Consistent</text>
+                      <text x={QPX+qw+6} y={QPY+qh/2+3} textAnchor="start" fontSize={9} fontWeight={700} fill="#1a1a1a" fontFamily="DM Sans,sans-serif">Flexible</text>
+                      {/* Participant dots — small, uniform, no labels */}
                       {completedRespondents.map((r,i)=>{
                         const x=qx(r.flex||0,r.con||0);
                         const y=qy(r.prog||0,r.def||0);
                         const col=PAX_COLORS[i%PAX_COLORS.length];
-                        const isOutlier=outliers.includes(r);
                         return(
-                          <g key={i}>
-                            <circle cx={x} cy={y} r={isOutlier?7:5.5} fill={col} fillOpacity={.85} stroke={isOutlier?'#1a1a1a':'none'} strokeWidth={isOutlier?1.5:0}/>
-                            <text x={x} y={y-9} textAnchor="middle" fontSize={7} fill={col} fontWeight={600} fontFamily="DM Sans,sans-serif">{r.respondent_name.split(' ')[0]}</text>
-                          </g>
+                          <circle key={i} cx={x} cy={y} r={4} fill={col} fillOpacity={.9} stroke="#fff" strokeWidth={1}/>
                         );
                       })}
-                      {/* Group mean cross */}
-                      <line x1={qMeanX-8} y1={qMeanY} x2={qMeanX+8} y2={qMeanY} stroke="#1a1a1a" strokeWidth={2}/>
-                      <line x1={qMeanX} y1={qMeanY-8} x2={qMeanX} y2={qMeanY+8} stroke="#1a1a1a" strokeWidth={2}/>
-                      <text x={qMeanX+10} y={qMeanY+4} fontSize={7} fill="#1a1a1a" fontWeight={700} fontFamily="DM Sans,sans-serif">Mean</text>
+                      {/* Group mean cross — label below */}
+                      <line x1={qMeanX-7} y1={qMeanY} x2={qMeanX+7} y2={qMeanY} stroke="#1a1a1a" strokeWidth={2.5}/>
+                      <line x1={qMeanX} y1={qMeanY-7} x2={qMeanX} y2={qMeanY+7} stroke="#1a1a1a" strokeWidth={2.5}/>
+                      <text x={qMeanX} y={qMeanY+18} textAnchor="middle" fontSize={8} fill="#1a1a1a" fontWeight={700} fontFamily="DM Sans,sans-serif">Mean</text>
                     </svg>
                   </div>
 
@@ -2224,8 +2239,9 @@ function App(){
         )}
 
         {/* Variance tab */}
-        {facTab==='variance'&&(
+        {(facTab==='variance'||printAll)&&(
           <div>
+            {printAll&&<div className="print-section-title">Variance</div>}
             <div className="rpt-section">
               <div className="rpt-heading">Per-Dimension Spread</div>
               <p className="rpt-body" style={{marginBottom:'1rem'}}>How tightly the group agrees on each dimension. SD &lt; 6 = strong consensus; 6–10 = moderate spread; 10–15 = significant disagreement; &gt; 15 = highly polarised.</p>
@@ -2282,8 +2298,20 @@ function App(){
                         <div style={{fontSize:'.75rem',lineHeight:1.45,color:'#1a1a1a'}}>{item.q.r}</div>
                       </div>
                     </div>
-                    <div style={{fontSize:'.72rem',color:'#666',fontFamily:"'DM Sans',sans-serif"}}>
-                      <strong>SD: {sd.toFixed(1)}</strong> · Range on Option B: {item.rMin} to {item.rMax}
+                    <div style={{display:'flex',gap:'.4rem',alignItems:'center',flexWrap:'wrap'}}>
+                      <div style={{display:'inline-flex',alignItems:'center',gap:'.3rem',background:'#ebe7e0',border:'1px solid #d8d3cb',borderRadius:'3px',padding:'.2rem .55rem',fontSize:'.7rem',color:'#1a1a1a',fontFamily:"'DM Sans',sans-serif"}}>
+                        <strong style={{color:'#888'}}>LOW</strong> {item.rMin}
+                      </div>
+                      <div style={{display:'inline-flex',alignItems:'center',gap:'.3rem',background:'#fff8f5',border:'1px solid #f5c8b0',borderRadius:'3px',padding:'.2rem .55rem',fontSize:'.7rem',color:'#1a1a1a',fontWeight:600,fontFamily:"'DM Sans',sans-serif"}}>
+                        <strong style={{color:'#e07030'}}>MEAN</strong> {item.rMean.toFixed(1)}
+                      </div>
+                      <div style={{display:'inline-flex',alignItems:'center',gap:'.3rem',background:'#ebe7e0',border:'1px solid #d8d3cb',borderRadius:'3px',padding:'.2rem .55rem',fontSize:'.7rem',color:'#1a1a1a',fontFamily:"'DM Sans',sans-serif"}}>
+                        <strong style={{color:'#888'}}>HIGH</strong> {item.rMax}
+                      </div>
+                      <div style={{display:'inline-flex',alignItems:'center',gap:'.3rem',background:'#1a1a1a',color:'#f0ede8',borderRadius:'3px',padding:'.2rem .55rem',fontSize:'.7rem',fontFamily:"'DM Sans',sans-serif"}}>
+                        <strong>SD</strong> {sd.toFixed(1)}
+                      </div>
+                      <span style={{fontSize:'.68rem',color:'#888',fontFamily:"'DM Sans',sans-serif",marginLeft:'.25rem'}}>(scores on Option B across {realRespondents.length} respondents)</span>
                     </div>
                   </div>
                 );
@@ -2293,8 +2321,9 @@ function App(){
         )}
 
         {/* Individuals tab */}
-        {facTab==='individuals'&&(
+        {(facTab==='individuals'||printAll)&&(
           <div>
+            {printAll&&<div className="print-section-title">Individuals</div>}
             <div className="rpt-section">
               <div className="rpt-heading">Individual Profiles</div>
               {realRespondents.map((r,i)=>{
@@ -2360,8 +2389,9 @@ function App(){
         )}
 
         {/* Progress tab */}
-        {facTab==='progress'&&(
+        {(facTab==='progress'||printAll)&&(
           <div>
+            {printAll&&<div className="print-section-title">Progress</div>}
             <div className="rpt-section">
               <div className="rpt-heading">Session Progress</div>
               <p className="rpt-body" style={{marginBottom:'.75rem'}}>Steps completed per respondent based on data available in Supabase.</p>
@@ -2395,12 +2425,13 @@ function App(){
         )}
 
         {/* AI Questions tab */}
-        {facTab==='ai-questions'&&(
+        {(facTab==='ai-questions'||printAll)&&(
           <div>
+            {printAll&&<div className="print-section-title">AI Facilitation Questions</div>}
             <div className="rpt-section">
               <div className="rpt-heading">AI Facilitation Questions</div>
               <p className="rpt-body" style={{marginBottom:'.75rem'}}>A structured prompt sequence for opening the group debrief — drawn from the group's responses and the source material.</p>
-              {!aiQuestions&&!aiQLoading&&(
+              {!aiQuestions&&!aiQLoading&&!aiQError&&(
                 <button className="btn-p" onClick={loadAiQuestions} disabled={realRespondents.length<2}>
                   Generate Prompts →
                 </button>
@@ -2408,10 +2439,18 @@ function App(){
               {aiQLoading&&(
                 <div className="think"><div className="dots"><div className="dot"/><div className="dot"/><div className="dot"/></div><span className="think-txt">Analysing group data…</span></div>
               )}
+              {aiQError&&!aiQLoading&&(
+                <div className="warn-box" style={{marginBottom:'.75rem'}}>
+                  <strong>Could not generate prompts.</strong> {aiQError}
+                  <div style={{marginTop:'.65rem'}}>
+                    <button className="btn-s" onClick={()=>{setAiQError(null);loadAiQuestions();}}>Try again</button>
+                  </div>
+                </div>
+              )}
               {aiQuestions&&renderAiFacilitationPrompts(aiQuestions)}
               {aiQuestions&&(
                 <div className="btn-row" style={{marginTop:'1rem'}}>
-                  <button className="btn-s" onClick={()=>{setAiQuestions(null);}}>Regenerate</button>
+                  <button className="btn-s" onClick={()=>{setAiQuestions(null);setAiQError(null);}}>Regenerate</button>
                   <button className="btn-s" onClick={()=>{
                     const text=aiPromptsToPlainText(aiQuestions);
                     navigator.clipboard.writeText(text).catch(()=>{});
@@ -2423,8 +2462,9 @@ function App(){
         )}
 
         {/* Notes tab */}
-        {facTab==='notes'&&(
+        {(facTab==='notes'||printAll)&&(
           <div>
+            {printAll&&<div className="print-section-title">Facilitator Notes</div>}
             <div className="rpt-section">
               <div className="rpt-heading">Facilitator Notes</div>
               <p className="rpt-body" style={{marginBottom:'.75rem'}}>Notes are saved automatically and are only visible to you as facilitator.</p>
@@ -2570,7 +2610,7 @@ function App(){
                         return(<path key={i} d={sp(scores[0],scores[1],scores[2],scores[3])} fill={col} fillOpacity={.05} stroke={col} strokeWidth={1.25} strokeLinejoin="round" strokeDasharray="3,3" opacity={.55}/>);
                       })}
                       {mean&&<path d={sp(mean.prog||0,mean.def||0,mean.con||0,mean.flex||0)} fill="#1a1a1a" fillOpacity={.05} stroke="#1a1a1a" strokeWidth={3} strokeLinejoin="round"/>}
-                      {tobe&&gTobeStrat3&&<path d={sp(gTobe3.p,gTobe3.d,gTobe3.c,gTobe3.f)} fill="#e07030" fillOpacity={.05} stroke="#e07030" strokeWidth={3} strokeLinejoin="round" strokeDasharray="6,3"/>}
+                      {tobe&&gTobeStrat3&&<path d={sp(gTobe3.p,gTobe3.d,gTobe3.c,gTobe3.f)} fill="#e07030" fillOpacity={.05} stroke="#e07030" strokeWidth={3} strokeLinejoin="round"/>}
                       <text x={CX} y={CY-RD-8} textAnchor="middle" fill="#555" fontSize={9} fontWeight={700} fontFamily="DM Sans,sans-serif">Progressive</text>
                       <text x={CX+RD+6} y={CY+4} textAnchor="start" fill="#555" fontSize={9} fontWeight={700} fontFamily="DM Sans,sans-serif">Flexible</text>
                       <text x={CX} y={CY+RD+16} textAnchor="middle" fill="#555" fontSize={9} fontWeight={700} fontFamily="DM Sans,sans-serif">Defensive</text>
@@ -2590,22 +2630,19 @@ function App(){
                 </div>
               );
             })()}
-            {/* Kept for legend below */}
-            <div style={{display:'none'}}>
-              {groupDiamond()}
-              <div style={{display:'flex',gap:'.75rem',justifyContent:'center',marginTop:'.6rem',flexWrap:'wrap'}}>
-                {realRespondents.map((r,i)=>{
-                  const isMe=r.respondent_name===respondentName.trim();
-                  const label=anonymousMode&&!isMe?null:(isMe?`You${r.respondent_name!==respondentName.trim()?'':''}`:r.respondent_name);
-                  if(!label)return null;
-                  return(<div key={i} style={{display:'flex',alignItems:'center',gap:'.3rem',fontSize:'.68rem',color:'#555',fontFamily:"'DM Sans',sans-serif"}}>
-                    <div style={{width:10,height:10,borderRadius:'50%',background:PAX_COLORS[i%PAX_COLORS.length],flexShrink:0}}/>
-                    {isMe?<strong>{label} (you)</strong>:label}
-                  </div>);
-                })}
-                <div style={{display:'flex',alignItems:'center',gap:'.3rem',fontSize:'.68rem',color:'#555',fontFamily:"'DM Sans',sans-serif"}}>
-                  <div style={{width:16,height:2,background:'#1a1a1a'}}/>Group mean
-                </div>
+            {/* Legend */}
+            <div style={{display:'flex',gap:'1.25rem',justifyContent:'center',flexWrap:'wrap',marginTop:'.4rem',marginBottom:'1.25rem',padding:'.6rem .9rem',background:'#fff',border:'1px solid #d8d3cb',borderRadius:'4px',fontSize:'.72rem',color:'#555',fontFamily:"'DM Sans',sans-serif"}}>
+              <div style={{display:'flex',alignItems:'center',gap:'.4rem'}}>
+                <svg width="22" height="6"><line x1="0" y1="3" x2="22" y2="3" stroke="#1a1a1a" strokeWidth="3"/></svg>
+                <span><strong>Group mean (as-is)</strong></span>
+              </div>
+              <div style={{display:'flex',alignItems:'center',gap:'.4rem'}}>
+                <svg width="22" height="6"><line x1="0" y1="3" x2="22" y2="3" stroke="#e07030" strokeWidth="3"/></svg>
+                <span><strong>Group mean (desired)</strong></span>
+              </div>
+              <div style={{display:'flex',alignItems:'center',gap:'.4rem'}}>
+                <svg width="22" height="6"><line x1="0" y1="3" x2="22" y2="3" stroke="#888" strokeWidth="1.25" strokeDasharray="3,3"/></svg>
+                <span>Individual respondents</span>
               </div>
             </div>
 
@@ -2645,53 +2682,70 @@ function App(){
   function renderPresentationMode(){
     const PAX_C=['#e07030','#1a4fa0','#2d7d46','#b87a20','#b83232','#6a3d9a','#0891b2','#78350f','#374151'];
     const comp=groupRespondents.filter(r=>r.respondent_name&&r.respondent_name!=='__facilitator__'&&r.prog);
+    // Default: all selected
+    const visibleSet=selectedForPresent===null?new Set(comp.map(r=>r.respondent_name)):selectedForPresent;
+    const visible=comp.filter(r=>visibleSet.has(r.respondent_name));
     const gM={prog:0,def:0,con:0,flex:0};
     if(comp.length>0){comp.forEach(r=>{gM.prog+=(r.prog||0);gM.def+=(r.def||0);gM.con+=(r.con||0);gM.flex+=(r.flex||0);});['prog','def','con','flex'].forEach(k=>{gM[k]=Math.round(gM[k]/comp.length);});}
+    // Group to-be mean
+    const compTobe=comp.filter(r=>r.tobe_prog);
+    const gT={p:0,d:0,c:0,f:0};
+    if(compTobe.length>0){compTobe.forEach(r=>{gT.p+=(r.tobe_prog||60);gT.d+=(r.tobe_def||60);gT.c+=(r.tobe_con||60);gT.f+=(r.tobe_flex||60);});['p','d','c','f'].forEach(k=>{gT[k]=Math.round(gT[k]/compTobe.length);});}
     const gStrat=comp.length>0?getStrategy(gM.def,gM.prog,gM.con,gM.flex):null;
-    const visible=comp.slice(0,revealedCount);
     const W=480,H=480,CX=240,CY=240,RD=170;
     const vBox='0 0 '+W+' '+H;
-    const subText=revealedCount===0?'Group mean only':(revealedCount+' of '+comp.length+' revealed');
-    const nextName=visible.length>0?(comp[revealedCount]&&comp[revealedCount].respondent_name.split(' ')[0])||'next':'first profile';
     function sp(p,d,co,f){
       const pts=[[CX,CY-(p/120)*RD],[CX+(f/120)*RD,CY],[CX,CY+(d/120)*RD],[CX-(co/120)*RD,CY]];
       return pts.map((pt,i)=>(i===0?'M':'L')+pt[0]+','+pt[1]).join(' ')+' Z';
     }
     function gp(pct){const r=RD*pct;return 'M'+CX+','+(CY-r)+' L'+(CX+r)+','+CY+' L'+CX+','+(CY+r)+' L'+(CX-r)+','+CY+' Z';}
+    function toggleOne(name){
+      const cur=new Set(visibleSet);
+      if(cur.has(name))cur.delete(name);else cur.add(name);
+      setSelectedForPresent(cur);
+    }
+    function selectAll(){setSelectedForPresent(new Set(comp.map(r=>r.respondent_name)));}
+    function selectNone(){setSelectedForPresent(new Set());}
     return(
-      <div className="pres-overlay">
+      <div className="pres-overlay" style={{justifyContent:'flex-start',overflowY:'auto',paddingTop:'1.5rem'}}>
         <button className="pres-exit" onClick={()=>setPresentationMode(false)}>✕ Exit</button>
         <div className="pres-title">{codeNorm} — Group Profile</div>
-        <div className="pres-sub">{subText} · {SLABELS[gStrat]||''}</div>
+        <div className="pres-sub">{visible.length} of {comp.length} shown · {SLABELS[gStrat]||''}</div>
         <div className="pres-diamond-wrap">
           <svg width="100%" height="100%" viewBox={vBox} style={{overflow:'visible'}}>
             {[.25,.5,.75,1].map(pct=><path key={pct} d={gp(pct)} fill="none" stroke="rgba(255,255,255,.15)" strokeWidth={pct===1?1.5:0.8}/>)}
             <line x1={CX} y1={CY-RD} x2={CX} y2={CY+RD} stroke="rgba(255,255,255,.15)"/>
             <line x1={CX-RD} y1={CY} x2={CX+RD} y2={CY} stroke="rgba(255,255,255,.15)"/>
-            {visible.map((r,i)=>(<path key={i} d={sp(r.prog||0,r.def||0,r.con||0,r.flex||0)} fill={PAX_C[i%PAX_C.length]} fillOpacity={.12} stroke={PAX_C[i%PAX_C.length]} strokeWidth={2} strokeLinejoin="round"/>))}
-            {comp.length>0&&<path d={sp(gM.prog,gM.def,gM.con,gM.flex)} fill="none" stroke="#e07030" strokeWidth={2.5} strokeLinejoin="round"/>}
+            {visible.map((r,i)=>{const ci=comp.findIndex(x=>x.respondent_name===r.respondent_name);const col=PAX_C[ci%PAX_C.length];return(<path key={i} d={sp(r.prog||0,r.def||0,r.con||0,r.flex||0)} fill={col} fillOpacity={.12} stroke={col} strokeWidth={2} strokeLinejoin="round"/>);})}
+            {comp.length>0&&<path d={sp(gM.prog,gM.def,gM.con,gM.flex)} fill="none" stroke="#fff" strokeWidth={3} strokeLinejoin="round"/>}
+            {compTobe.length>0&&<path d={sp(gT.p,gT.d,gT.c,gT.f)} fill="none" stroke="#e07030" strokeWidth={3} strokeLinejoin="round"/>}
             <text x={CX} y={CY-RD-14} textAnchor="middle" fill="rgba(255,255,255,.6)" fontSize={13} fontWeight={700} fontFamily="DM Sans,sans-serif">Progressive</text>
             <text x={CX+RD+12} y={CY+5} textAnchor="start" fill="rgba(255,255,255,.6)" fontSize={13} fontWeight={700} fontFamily="DM Sans,sans-serif">Flexible</text>
             <text x={CX} y={CY+RD+22} textAnchor="middle" fill="rgba(255,255,255,.6)" fontSize={13} fontWeight={700} fontFamily="DM Sans,sans-serif">Defensive</text>
             <text x={CX-RD-12} y={CY+5} textAnchor="end" fill="rgba(255,255,255,.6)" fontSize={13} fontWeight={700} fontFamily="DM Sans,sans-serif">Consistent</text>
           </svg>
         </div>
-        <div className="pres-controls">
-          {revealedCount<comp.length&&(
-            <button className="pres-btn primary" onClick={()=>setRevealedCount(c=>Math.min(c+1,comp.length))}>
-              Reveal {nextName} →
-            </button>
-          )}
-          {revealedCount>0&&<button className="pres-btn" onClick={()=>setRevealedCount(c=>c-1)}>← Back</button>}
-          {revealedCount===comp.length&&comp.length>0&&<button className="pres-btn" style={{background:'#22c55e',borderColor:'#22c55e'}} onClick={()=>setRevealedCount(comp.length)}>All revealed ✓</button>}
-          <button className="pres-btn" onClick={()=>setRevealedCount(0)}>Reset</button>
+        <div style={{marginTop:'1.5rem',display:'flex',gap:'.5rem'}}>
+          <button className="pres-btn" onClick={selectAll}>Show all</button>
+          <button className="pres-btn" onClick={selectNone}>Hide all</button>
         </div>
-        {visible.length>0&&(
-          <div className="pres-legend">
-            {visible.map((r,i)=>(<div key={i} className="pres-leg-item"><div className="pres-leg-dot" style={{background:PAX_C[i%PAX_C.length]}}/>{r.respondent_name}</div>))}
-            <div className="pres-leg-item"><div style={{width:16,height:2,background:'#e07030',marginRight:2}}/> Group mean</div>
-          </div>
-        )}
+        <div style={{marginTop:'1rem',display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))',gap:'.4rem',width:'100%',maxWidth:'720px'}}>
+          {comp.map((r,i)=>{
+            const col=PAX_C[i%PAX_C.length];
+            const on=visibleSet.has(r.respondent_name);
+            return(
+              <label key={i} onClick={()=>toggleOne(r.respondent_name)} style={{display:'flex',alignItems:'center',gap:'.5rem',padding:'.45rem .65rem',borderRadius:'3px',cursor:'pointer',background:on?'rgba(255,255,255,.08)':'transparent',border:`1px solid ${on?col:'rgba(255,255,255,.15)'}`,fontSize:'.78rem',color:on?'#fff':'#888',fontFamily:"'DM Sans',sans-serif",userSelect:'none'}}>
+                <input type="checkbox" checked={on} readOnly style={{accentColor:col,width:14,height:14,pointerEvents:'none',flexShrink:0}}/>
+                <div style={{width:10,height:10,borderRadius:'50%',background:col,flexShrink:0}}/>
+                <span style={{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',fontWeight:on?700:400}}>{r.respondent_name}</span>
+              </label>
+            );
+          })}
+        </div>
+        <div style={{marginTop:'1rem',display:'flex',gap:'1rem',flexWrap:'wrap',justifyContent:'center',fontSize:'.7rem',color:'rgba(255,255,255,.6)',fontFamily:"'DM Sans',sans-serif"}}>
+          <div style={{display:'flex',alignItems:'center',gap:'.4rem'}}><svg width="22" height="6"><line x1="0" y1="3" x2="22" y2="3" stroke="#fff" strokeWidth="3"/></svg>Group mean (as-is)</div>
+          {compTobe.length>0&&<div style={{display:'flex',alignItems:'center',gap:'.4rem'}}><svg width="22" height="6"><line x1="0" y1="3" x2="22" y2="3" stroke="#e07030" strokeWidth="3"/></svg>Group mean (desired)</div>}
+        </div>
       </div>
     );
   }
