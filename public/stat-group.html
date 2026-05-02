@@ -1061,11 +1061,38 @@ function App(){
   // Persist selectedPrinciples to Supabase whenever they change.
   // Only fires once user has reached the report step and a session exists.
   // Debounced 600ms so rapid toggling doesn't spam the API.
+  const [principlesSaveCount,setPrinciplesSaveCount]=useState(0);
+  const [principlesLastSave,setPrinciplesLastSave]=useState('never');
   useEffect(()=>{
     if(!codeNorm)return;
     if(!respondentName.trim())return;
     if(step<5)return;
-    const t=setTimeout(()=>{saveToGroup();},600);
+    console.log('[principles-persist] effect fired',{step,codeNorm,respondentName,selectedPrinciples});
+    const t=setTimeout(async()=>{
+      console.log('[principles-persist] saving',selectedPrinciples);
+      try{
+        const resp=await fetch('/api/stat-save',{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({
+            session_code:codeNorm,
+            respondent_name:respondentName.trim(),
+            role:role==='None of the above'?roleCustom:role,
+            seniority:'',org_size:orgSize,sector,
+            thing,prog,def:def,con,flex,
+            tobe_prog:tobe.p,tobe_def:tobe.d,tobe_con:tobe.c,tobe_flex:tobe.f,
+            s1_answers:s1ans,s2_answers:s2ans,
+            strategy_type:SLABELS[asIsStrat],
+            date:new Date().toISOString(),
+            tool_label:'STAT',
+            selected_principles:selectedPrinciples,
+          }),
+        });
+        console.log('[principles-persist] save resp',resp.status);
+        setPrinciplesSaveCount(n=>n+1);
+        setPrinciplesLastSave(new Date().toLocaleTimeString());
+      }catch(e){console.warn('[principles-persist] save error',e);}
+    },600);
     return()=>clearTimeout(t);
   },[selectedPrinciples,step,codeNorm,respondentName]);
 
@@ -1520,6 +1547,10 @@ function App(){
             </div>
           </div>
         )}
+
+        <div style={{background:'#fff8e1',border:'1px solid #f59e0b',borderRadius:'4px',padding:'.45rem .7rem',margin:'.85rem 0',fontSize:'.7rem',fontFamily:"'DM Sans',sans-serif",color:'#78350f'}}>
+          DEBUG · saves fired: <strong>{principlesSaveCount}</strong> · last: <strong>{principlesLastSave}</strong> · selected: <strong>{selectedPrinciples.length}</strong>
+        </div>
 
         <div className="btn-row">
           {loading?(
