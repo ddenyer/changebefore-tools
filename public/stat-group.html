@@ -529,8 +529,27 @@ function renderAiFacilitationPrompts(payload){
   }
 
   // Structured shape
-  const {current,future,dominantStrategy,agreementPattern,futurePattern,n}=payload||{};
-  if(!current||!future)return <div style={{color:'#888',fontStyle:'italic',padding:'1rem 0'}}>Unexpected response shape from facilitation API.</div>;
+  const {current,future,dominantStrategy,agreementPattern,futurePattern,n,questions}=payload||{};
+  // Fallback 1: if structured fields missing but we have a flat questions array, render that
+  if((!current||!future)&&Array.isArray(questions)&&questions.length){
+    return(
+      <div>
+        <div style={{fontSize:'.7rem',color:'#888',marginBottom:'.5rem',fontFamily:"'DM Sans',sans-serif"}}>
+          {n?`Based on ${n} respondent${n!==1?'s':''}`:'Facilitation prompts'}
+        </div>
+        {questions.map((q,i)=>(
+          <div key={i} style={{padding:'.85rem 0',borderBottom:'1px solid #ebe7e0'}}>
+            <div style={{display:'flex',gap:'.65rem',alignItems:'flex-start'}}>
+              <div className="sug-num">{i+1}</div>
+              <div className="sug-txt">{q}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  // Fallback 2: nothing renderable
+  if(!current||!future)return <div style={{color:'#888',fontStyle:'italic',padding:'1rem 0'}}>The facilitation API returned an unexpected response. Try regenerating, or contact support if this persists.</div>;
 
   function renderItem(item,i){
     return(
@@ -2065,9 +2084,9 @@ function App(){
 
         {/* Facilitator sub-tabs */}
         <div className="fac-tab-bar">
-          {['progress','group-report','overview','variance','ai-questions','individuals','notes'].map(t=>(
+          {['progress','group-report','present','overview','variance','ai-questions','individuals','notes'].map(t=>(
             <div key={t} className={`fac-tab${facTab===t?' active':''}`} onClick={()=>setFacTab(t)}>
-              {t==='progress'?'Progress':t==='group-report'?'Group Report':t==='overview'?'Overview':t==='variance'?'Variance':t==='ai-questions'?'AI Questions':t==='individuals'?'Individuals':'Notes'}
+              {t==='progress'?'Progress':t==='group-report'?'Group Report':t==='present'?'Share / Present':t==='overview'?'Overview':t==='variance'?'Variance':t==='ai-questions'?'AI Questions':t==='individuals'?'Individuals':'Notes'}
             </div>
           ))}
         </div>
@@ -2077,6 +2096,13 @@ function App(){
           <div>
             {printAll&&<div className="print-section-title">Group Report</div>}
             {renderGroupReportTab()}
+          </div>
+        )}
+
+        {(facTab==='present'||printAll)&&(
+          <div>
+            {printAll&&<div className="print-section-title">Share / Present</div>}
+            {renderPresentTab()}
           </div>
         )}
 
@@ -2094,7 +2120,7 @@ function App(){
                   <div className="ticker-item"><div className="ticker-dot started"/><span className="ticker-count">{started.length}</span> in progress</div>
                   <div className="ticker-divider">·</div>
                   <div className="ticker-item"><div className="ticker-dot waiting"/><span className="ticker-count">{done.length+started.length}</span> total</div>
-                  {done.length>0&&(<><div className="ticker-divider">·</div><div className="ticker-item" style={{marginLeft:'auto'}}><button className="pres-btn primary" style={{padding:'.35rem .9rem',fontSize:'.72rem'}} onClick={()=>{setSelectedForPresent(null);setPresentationMode(true);}}>Share / Present →</button></div></>)}
+                  {done.length>0&&(<><div className="ticker-divider">·</div><div className="ticker-item" style={{marginLeft:'auto'}}><button className="pres-btn primary" style={{padding:'.35rem .9rem',fontSize:'.72rem'}} onClick={()=>{setSelectedForPresent(null);setFacTab('present');}}>Share / Present →</button></div></>)}
                 </div>
               );
             })()}
@@ -2482,6 +2508,125 @@ function App(){
             </div>
           </div>
         )}
+      </div>
+    );
+  }
+
+  function renderPresentTab(){
+    const PAX_C=['#e07030','#1a4fa0','#2d7d46','#b87a20','#b83232','#6a3d9a','#0891b2','#78350f','#374151'];
+    const comp=groupRespondents.filter(r=>r.respondent_name&&r.respondent_name!=='__facilitator__'&&r.prog);
+    const visibleSet=selectedForPresent===null?new Set(comp.map(r=>r.respondent_name)):selectedForPresent;
+    const visible=comp.filter(r=>visibleSet.has(r.respondent_name));
+    // As-is mean
+    const gM={prog:0,def:0,con:0,flex:0};
+    if(comp.length>0){comp.forEach(r=>{gM.prog+=(r.prog||0);gM.def+=(r.def||0);gM.con+=(r.con||0);gM.flex+=(r.flex||0);});['prog','def','con','flex'].forEach(k=>{gM[k]=Math.round(gM[k]/comp.length);});}
+    // To-be mean
+    const compTobe=comp.filter(r=>r.tobe_prog);
+    const gT={p:0,d:0,c:0,f:0};
+    if(compTobe.length>0){compTobe.forEach(r=>{gT.p+=(r.tobe_prog||60);gT.d+=(r.tobe_def||60);gT.c+=(r.tobe_con||60);gT.f+=(r.tobe_flex||60);});['p','d','c','f'].forEach(k=>{gT[k]=Math.round(gT[k]/compTobe.length);});}
+    const gStrat=comp.length>0?getStrategy(gM.def,gM.prog,gM.con,gM.flex):null;
+    const W=320,H=320,DCX=160,DCY=160,RD=110;
+    const vBox='0 0 '+W+' '+H;
+    function sp(p,d,co,f){
+      const pts=[[DCX,DCY-(p/120)*RD],[DCX+(f/120)*RD,DCY],[DCX,DCY+(d/120)*RD],[DCX-(co/120)*RD,DCY]];
+      return pts.map((pt,i)=>(i===0?'M':'L')+pt[0]+','+pt[1]).join(' ')+' Z';
+    }
+    function gp(pct){const r=RD*pct;return 'M'+DCX+','+(DCY-r)+' L'+(DCX+r)+','+DCY+' L'+DCX+','+(DCY+r)+' L'+(DCX-r)+','+DCY+' Z';}
+    function toggleOne(name){
+      const cur=new Set(visibleSet);
+      if(cur.has(name))cur.delete(name);else cur.add(name);
+      setSelectedForPresent(cur);
+    }
+    function selectAll(){setSelectedForPresent(new Set(comp.map(r=>r.respondent_name)));}
+    function selectNone(){setSelectedForPresent(new Set());}
+    function renderDiamond(asIs){
+      const path=asIs?sp(gM.prog,gM.def,gM.con,gM.flex):sp(gT.p,gT.d,gT.c,gT.f);
+      const meanColor=asIs?'#1a1a1a':'#e07030';
+      const hasMean=asIs?comp.length>0:compTobe.length>0;
+      return(
+        <svg width="100%" viewBox={vBox} style={{overflow:'visible',maxWidth:'100%'}}>
+          {[.25,.5,.75,1].map(pct=><path key={pct} d={gp(pct)} fill="none" stroke="#d8d3cb" strokeWidth={pct===1?1.5:1}/>)}
+          <line x1={DCX} y1={DCY-RD} x2={DCX} y2={DCY+RD} stroke="#d8d3cb"/>
+          <line x1={DCX-RD} y1={DCY} x2={DCX+RD} y2={DCY} stroke="#d8d3cb"/>
+          {visible.map((r,i)=>{
+            const ci=comp.findIndex(x=>x.respondent_name===r.respondent_name);
+            const col=PAX_C[ci%PAX_C.length];
+            const indPath=asIs?sp(r.prog||0,r.def||0,r.con||0,r.flex||0):(r.tobe_prog?sp(r.tobe_prog,r.tobe_def,r.tobe_con,r.tobe_flex):null);
+            if(!indPath)return null;
+            return(<path key={i} d={indPath} fill="none" stroke={col} strokeWidth={1.25} strokeDasharray="3,3" opacity={0.7} strokeLinejoin="round"/>);
+          })}
+          {hasMean&&<path d={path} fill={meanColor} fillOpacity={.06} stroke={meanColor} strokeWidth={3} strokeLinejoin="round"/>}
+          <text x={DCX} y={DCY-RD-10} textAnchor="middle" fill="#555" fontSize={10} fontWeight={700} fontFamily="DM Sans,sans-serif">Progressive</text>
+          <text x={DCX+RD+8} y={DCY+4} textAnchor="start" fill="#555" fontSize={10} fontWeight={700} fontFamily="DM Sans,sans-serif">Flexible</text>
+          <text x={DCX} y={DCY+RD+18} textAnchor="middle" fill="#555" fontSize={10} fontWeight={700} fontFamily="DM Sans,sans-serif">Defensive</text>
+          <text x={DCX-RD-8} y={DCY+4} textAnchor="end" fill="#555" fontSize={10} fontWeight={700} fontFamily="DM Sans,sans-serif">Consistent</text>
+        </svg>
+      );
+    }
+    if(comp.length===0){
+      return(
+        <div className="rpt-section">
+          <div className="rpt-heading">Share / Present</div>
+          <div className="waiting-state"><div className="wait-icon">📊</div><h3>No completed responses yet</h3><p style={{fontSize:'.82rem',color:'#888',marginTop:'.5rem'}}>Once participants finish the survey, you can use this tab to display their profiles to the group.</p></div>
+        </div>
+      );
+    }
+    return(
+      <div className="rpt-section">
+        <div className="rpt-heading">Share / Present</div>
+        <div className="inf-box" style={{marginBottom:'1.25rem'}}>
+          <strong>Facilitator instructions:</strong> Use this tab to display the group's profiles to the room. Tick the boxes below to show or hide each participant's profile on the diamonds. The bold lines are the group means (black = current, orange = desired). Reveal profiles one at a time to spark discussion, or show them all together to compare.
+        </div>
+
+        <div className="dual-diamond-wrap">
+          <div className="chart-box">
+            <div className="chart-lbl">Current (As-Is) — {visible.length} of {comp.length} shown</div>
+            {renderDiamond(true)}
+            <div style={{fontSize:'.72rem',fontWeight:700,color:'#888',fontFamily:"'DM Sans',sans-serif",marginTop:'.4rem'}}>{SLABELS[gStrat]||''}</div>
+          </div>
+          <div className="chart-box">
+            <div className="chart-lbl">Desired (To-Be) — {compTobe.length} response{compTobe.length!==1?'s':''}</div>
+            {compTobe.length>0?renderDiamond(false):<div style={{padding:'2rem 0',color:'#b0a898',fontSize:'.82rem',fontFamily:"'DM Sans',sans-serif"}}>No to-be data yet</div>}
+            {compTobe.length>0&&(()=>{const ts=getStrategy(gT.d,gT.p,gT.c,gT.f);return <div style={{fontSize:'.72rem',fontWeight:700,color:'#888',fontFamily:"'DM Sans',sans-serif",marginTop:'.4rem'}}>{SLABELS[ts]||''}</div>;})()}
+          </div>
+        </div>
+
+        <div style={{display:'flex',gap:'.75rem',flexWrap:'wrap',justifyContent:'center',marginBottom:'1rem',padding:'.6rem .9rem',background:'#fff',border:'1px solid #d8d3cb',borderRadius:'4px',fontSize:'.72rem',color:'#555',fontFamily:"'DM Sans',sans-serif"}}>
+          <div style={{display:'flex',alignItems:'center',gap:'.4rem'}}>
+            <svg width="22" height="6"><line x1="0" y1="3" x2="22" y2="3" stroke="#1a1a1a" strokeWidth="3"/></svg>
+            <span><strong>Group mean (current)</strong></span>
+          </div>
+          <div style={{display:'flex',alignItems:'center',gap:'.4rem'}}>
+            <svg width="22" height="6"><line x1="0" y1="3" x2="22" y2="3" stroke="#e07030" strokeWidth="3"/></svg>
+            <span><strong>Group mean (desired)</strong></span>
+          </div>
+          <div style={{display:'flex',alignItems:'center',gap:'.4rem'}}>
+            <svg width="22" height="6"><line x1="0" y1="3" x2="22" y2="3" stroke="#888" strokeWidth="1.25" strokeDasharray="3,3"/></svg>
+            <span>Selected individuals</span>
+          </div>
+        </div>
+
+        <div style={{display:'flex',gap:'.5rem',marginBottom:'.75rem',flexWrap:'wrap'}}>
+          <button className="btn-s" onClick={selectAll}>Show all</button>
+          <button className="btn-s" onClick={selectNone}>Hide all</button>
+          <span style={{fontSize:'.72rem',color:'#888',alignSelf:'center',marginLeft:'.5rem',fontFamily:"'DM Sans',sans-serif"}}>Tap a name to show or hide that profile.</span>
+        </div>
+
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))',gap:'.4rem'}}>
+          {comp.map((r,i)=>{
+            const col=PAX_C[i%PAX_C.length];
+            const on=visibleSet.has(r.respondent_name);
+            return(
+              <button key={i} type="button" onClick={()=>toggleOne(r.respondent_name)} style={{display:'flex',alignItems:'center',gap:'.5rem',padding:'.5rem .7rem',borderRadius:'3px',cursor:'pointer',background:on?'#fff':'#f5f1ea',border:`1.5px solid ${on?col:'#d8d3cb'}`,fontSize:'.78rem',color:on?'#1a1a1a':'#888',fontFamily:"'DM Sans',sans-serif",textAlign:'left',outline:'none',transition:'all .15s'}}>
+                <span style={{display:'inline-block',width:14,height:14,border:`1.5px solid ${on?col:'#b0a898'}`,borderRadius:'2px',background:on?col:'#fff',position:'relative',flexShrink:0}}>
+                  {on&&<span style={{position:'absolute',top:'-2px',left:'2px',color:'#fff',fontSize:'.85rem',fontWeight:700,lineHeight:1}}>✓</span>}
+                </span>
+                <span style={{display:'inline-block',width:10,height:10,borderRadius:'50%',background:col,flexShrink:0}}/>
+                <span style={{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',fontWeight:on?700:400,flex:1}}>{r.respondent_name}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
     );
   }
