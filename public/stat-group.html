@@ -158,6 +158,45 @@ html,body{font-family:'DM Sans',sans-serif;background:#f0ede8;color:#1a1a1a;-web
 .fac-tab{padding:.5rem .85rem;font-size:.72rem;font-weight:700;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;color:#b0a898;transition:all .2s;white-space:nowrap;font-family:'DM Sans',sans-serif}
 .fac-tab.active{color:#1a1a1a;border-bottom-color:#1a1a1a}
 .fac-tab:hover:not(.active){color:#555}
+
+/* Facilitator dashboard tiles */
+.fac-dash{display:grid;grid-template-columns:repeat(4,1fr);gap:.85rem;margin-bottom:1.5rem}
+@media(max-width:900px){.fac-dash{grid-template-columns:repeat(2,1fr)}}
+.dash-tile{background:#fff;border:1px solid #e2ddd3;border-radius:4px;overflow:hidden;min-height:180px;display:flex;flex-direction:column;cursor:pointer;transition:border-color .15s,box-shadow .15s;font-family:'DM Sans',sans-serif}
+.dash-tile:hover{border-color:#c8c2b4;box-shadow:0 1px 4px rgba(0,0,0,.04)}
+.dash-tile-inner{padding:1rem 1.1rem;display:flex;align-items:flex-start;justify-content:space-between;gap:.75rem;flex:1}
+.dash-tile-l{flex:1;min-width:0}
+.dash-tile-name{font-size:.62rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#888;margin-bottom:.55rem;display:flex;align-items:center;gap:.4rem}
+.dash-tile-headline{font-family:'Cormorant Garamond',serif;font-size:1.15rem;font-weight:500;color:#1a1a1a;line-height:1.25;margin-bottom:.35rem}
+.dash-tile-sub{font-size:.72rem;color:#555;line-height:1.5}
+.dash-tile-chev{flex-shrink:0;color:#aaa;font-size:.95rem;line-height:1}
+.dash-pips{display:flex;gap:3px;margin-top:.5rem;flex-wrap:wrap}
+.dash-pip{width:14px;height:5px;background:#dcd6c8;border-radius:1px}
+.dash-pip.done{background:#16a34a}
+.dash-pip.partial{background:#f59e0b}
+.dash-chip{display:inline-flex;align-items:center;gap:.25rem;padding:.1rem .45rem;font-size:.6rem;font-weight:700;letter-spacing:.03em;text-transform:uppercase;border-radius:10px;background:#f5f1e9;color:#444;border:1px solid #e2ddd3}
+.dash-chip.alert{background:#fef3e2;color:#b45309;border-color:#f59e0b}
+.dash-chip.live{background:#e8f5ec;color:#166534;border-color:#86efac}
+.dash-chip.live::before{content:'';width:5px;height:5px;background:#16a34a;border-radius:50%;display:inline-block;animation:dash-pulse 1.5s infinite}
+@keyframes dash-pulse{0%,100%{opacity:1}50%{opacity:.4}}
+/* Fullscreen overlay for an opened tile */
+body.dash-open{overflow:hidden}
+.dash-overlay{position:fixed;inset:0;background:#f0ede8;z-index:1000;display:flex;flex-direction:column;overflow:hidden;animation:dash-fade .15s ease-out}
+@keyframes dash-fade{from{opacity:0;transform:scale(.98)}to{opacity:1;transform:scale(1)}}
+.dash-ovr-head{flex-shrink:0;padding:1.25rem 1.75rem 1rem;border-bottom:1px solid #d8d3cb;background:#fff;display:flex;justify-content:space-between;align-items:flex-start;gap:1.5rem}
+.dash-ovr-head-l{flex:1;min-width:0}
+.dash-ovr-name{font-size:.7rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#e07030;margin-bottom:.4rem;font-family:'DM Sans',sans-serif}
+.dash-ovr-headline{font-family:'Cormorant Garamond',serif;font-size:1.85rem;font-weight:500;color:#1a1a1a;line-height:1.1;margin-bottom:.3rem}
+.dash-ovr-sub{font-size:.82rem;color:#555;font-family:'DM Sans',sans-serif}
+.dash-ovr-close{flex-shrink:0;width:42px;height:42px;border-radius:50%;background:#fff;border:1px solid #d8d3cb;color:#555;font-size:1.35rem;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit;font-weight:300;transition:all .15s}
+.dash-ovr-close:hover{background:#1a1a1a;border-color:#1a1a1a;color:#fff;transform:rotate(90deg)}
+.dash-ovr-body{flex:1;overflow-y:auto;padding:1.5rem 1.75rem;background:#f0ede8}
+.dash-ovr-body-inner{max-width:1200px;margin:0 auto}
+@media print{
+  .dash-overlay{position:relative;display:block!important;z-index:auto;animation:none}
+  .dash-ovr-close,.dash-ovr-head{display:none!important}
+  .dash-ovr-body{padding:0;overflow:visible}
+}
 .var-bar{height:6px;background:#d8d3cb;border-radius:3px;margin-top:.3rem;overflow:hidden}
 .var-fill{height:100%;border-radius:3px}
 .split-callout{background:#fffbeb;border:1px solid #fde68a;border-radius:4px;padding:.75rem 1rem;margin:.75rem 0;font-size:.82rem;color:#92400e;line-height:1.6}
@@ -842,6 +881,7 @@ function App(){
   const [anonymousMode,setAnonymousMode]=useState(false);
   const [groupReportMode,setGroupReportMode]=useState(false);
   const [facTab,setFacTab]=useState('progress');
+  const [facOverlayOpen,setFacOverlayOpen]=useState(false);
   const [presentationMode,setPresentationMode]=useState(false);
   const [revealedCount,setRevealedCount]=useState(0);
   const [selectedForPresent,setSelectedForPresent]=useState(null); // null = all visible
@@ -1061,46 +1101,22 @@ function App(){
   // Persist selectedPrinciples to Supabase whenever they change.
   // Only fires once user has reached the report step and a session exists.
   // Debounced 600ms so rapid toggling doesn't spam the API.
-  const [principlesSaveCount,setPrinciplesSaveCount]=useState(0);
-  const [principlesLastSave,setPrinciplesLastSave]=useState('never');
-  const [principlesLastStatus,setPrinciplesLastStatus]=useState('—');
   useEffect(()=>{
     if(!codeNorm)return;
     if(!respondentName.trim())return;
     if(step<5)return;
-    console.log('[principles-persist] effect fired',{step,codeNorm,respondentName,selectedPrinciples});
-    const t=setTimeout(async()=>{
-      console.log('[principles-persist] saving',selectedPrinciples);
-      try{
-        const resp=await fetch('/api/stat-save',{
-          method:'POST',
-          headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({
-            session_code:codeNorm,
-            respondent_name:respondentName.trim(),
-            role:role==='None of the above'?roleCustom:role,
-            seniority:'',org_size:orgSize,sector,
-            thing,prog,def:def,con,flex,
-            tobe_prog:tobe.p,tobe_def:tobe.d,tobe_con:tobe.c,tobe_flex:tobe.f,
-            s1_answers:s1ans,s2_answers:s2ans,
-            strategy_type:SLABELS[asIsStrat],
-            date:new Date().toISOString(),
-            tool_label:'STAT',
-            selected_principles:selectedPrinciples,
-          }),
-        });
-        const txt=await resp.text();
-        console.log('[principles-persist] save resp',resp.status,txt.slice(0,300));
-        setPrinciplesSaveCount(n=>n+1);
-        setPrinciplesLastSave(new Date().toLocaleTimeString());
-        setPrinciplesLastStatus(resp.ok?`OK ${resp.status}`:`ERR ${resp.status}: ${txt.slice(0,80)}`);
-      }catch(e){
-        console.warn('[principles-persist] save error',e);
-        setPrinciplesLastStatus('THROW: '+(e.message||'unknown'));
-      }
-    },600);
+    const t=setTimeout(()=>{saveToGroup();},600);
     return()=>clearTimeout(t);
   },[selectedPrinciples,step,codeNorm,respondentName]);
+
+  // Close facilitator dashboard overlay on Esc; lock body scroll while open
+  useEffect(()=>{
+    if(!facOverlayOpen)return;
+    document.body.classList.add('dash-open');
+    const onKey=(e)=>{if(e.key==='Escape')setFacOverlayOpen(false);};
+    document.addEventListener('keydown',onKey);
+    return()=>{document.body.classList.remove('dash-open');document.removeEventListener('keydown',onKey);};
+  },[facOverlayOpen]);
 
   function exportCSV(){
     const rows=groupRespondents.filter(r=>r.respondent_name&&r.respondent_name!=='__facilitator__');
@@ -1553,10 +1569,6 @@ function App(){
             </div>
           </div>
         )}
-
-        <div style={{background:'#fff8e1',border:'1px solid #f59e0b',borderRadius:'4px',padding:'.45rem .7rem',margin:'.85rem 0',fontSize:'.7rem',fontFamily:"'DM Sans',sans-serif",color:'#78350f'}}>
-          DEBUG · saves: <strong>{principlesSaveCount}</strong> · last: <strong>{principlesLastSave}</strong> · selected: <strong>{selectedPrinciples.length}</strong> · status: <strong>{principlesLastStatus}</strong>
-        </div>
 
         <div className="btn-row">
           {loading?(
@@ -2154,33 +2166,115 @@ function App(){
           </div>
         )}
 
-
-
-        {/* Facilitator sub-tabs */}
-        <div className="fac-tab-bar">
-          {['progress','group-report','present','overview','variance','ai-questions','principles','individuals','notes'].map(t=>(
-            <div key={t} className={`fac-tab${facTab===t?' active':''}`} onClick={()=>setFacTab(t)}>
-              {t==='progress'?'Progress':t==='group-report'?'Group Report':t==='present'?'Share / Present':t==='overview'?'Overview':t==='variance'?'Variance':t==='ai-questions'?'AI Questions':t==='principles'?'Principles':t==='individuals'?'Individuals':'Notes'}
+        {/* ── Facilitator dashboard tiles ─────────────────────────── */}
+        {(()=>{
+          const realCount=realRespondents.length;
+          const submittedCount=realRespondents.filter(r=>r.s1_answers&&r.s2_answers&&r.tobe_prog).length;
+          const inProgressCount=realCount-submittedCount;
+          const contestedCount=qVariances.filter(v=>v.variance>=1.5).length;
+          const outliers=[];
+          if(realCount>=2){
+            const meanProg=realRespondents.reduce((s,r)=>s+(r.prog||0),0)/realCount;
+            const meanDef=realRespondents.reduce((s,r)=>s+(r.def||0),0)/realCount;
+            const meanCon=realRespondents.reduce((s,r)=>s+(r.con||0),0)/realCount;
+            const meanFlex=realRespondents.reduce((s,r)=>s+(r.flex||0),0)/realCount;
+            realRespondents.forEach(r=>{
+              const gaps=[
+                {dim:'progressive',gap:(r.prog||0)-meanProg},
+                {dim:'defensive',gap:(r.def||0)-meanDef},
+                {dim:'consistent',gap:(r.con||0)-meanCon},
+                {dim:'flexible',gap:(r.flex||0)-meanFlex},
+              ];
+              const biggest=gaps.reduce((m,g)=>Math.abs(g.gap)>Math.abs(m.gap)?g:m,gaps[0]);
+              if(Math.abs(biggest.gap)>=20)outliers.push({name:r.respondent_name,dim:biggest.dim,gap:biggest.gap});
+            });
+          }
+          const totalPrinciples=realRespondents.reduce((n,r)=>n+(Array.isArray(r.selected_principles)?r.selected_principles.length:0),0);
+          const respondentsWithPrinciples=realRespondents.filter(r=>Array.isArray(r.selected_principles)&&r.selected_principles.length>0).length;
+          const aiQReady=aiQuestions&&Array.isArray(aiQuestions.current)&&aiQuestions.current.length>0;
+          const presentVisibleCount=selectedForPresent===null?realCount:selectedForPresent.size;
+          const tiles=[
+            {key:'progress',name:'Progress',headline:`${submittedCount} of ${realCount} in`,sub:inProgressCount>0?`${inProgressCount} still completing`:'All respondents complete',extra:'pips'},
+            {key:'group-report',name:'Group Report',headline:groupStrat?SLABELS[groupStrat]:'Awaiting data',sub:realCount>=2?'Group profile and means':'Need at least 2 respondents'},
+            {key:'present',name:'Share / Present',chip:'live',headline:`${presentVisibleCount} visible`,sub:'Reveal one at a time on the projector'},
+            {key:'overview',name:'Overview',headline:outliers.length>0?`${outliers.length} outlier${outliers.length!==1?'s':''}`:realCount>=2?'No outliers':'Awaiting data',sub:outliers.length>0?outliers.slice(0,2).map(o=>`${o.name} on ${o.dim}`).join(' · '):'Headlines and group totals'},
+            {key:'variance',name:'Variance',headline:contestedCount>0?`${contestedCount} contested question${contestedCount!==1?'s':''}`:realCount>=2?'Group aligned':'Awaiting data',sub:contestedCount>0?'Sharp split worth surfacing':'Where the group disagrees'},
+            {key:'ai-questions',name:'AI Questions',headline:aiQReady?`${(aiQuestions.current||[]).length+(aiQuestions.future||[]).length} questions ready`:'Generate facilitation questions',sub:aiQReady?'Tailored to this group':'Click to generate from data'},
+            {key:'principles',name:'Principles',headline:totalPrinciples>0?`${totalPrinciples} chosen`:'No principles yet',sub:respondentsWithPrinciples>0?`From ${respondentsWithPrinciples} respondent${respondentsWithPrinciples!==1?'s':''} · cluster by theme`:'Appear once respondents reach Step 5'},
+            {key:'individuals',name:'Individuals',headline:`${realCount} profile${realCount!==1?'s':''}`,sub:'Drill into one respondent at a time'},
+          ];
+          // Notes sits in second row only if needed; we keep an 8th tile constant
+          tiles.push({key:'notes',name:'Notes',headline:facilitatorNotes&&facilitatorNotes.trim()?'Notes saved':'Add session notes',sub:'Private to you · saved automatically'});
+          return(
+            <div className="fac-dash">
+              {tiles.map(tile=>(
+                <div key={tile.key} className="dash-tile" onClick={()=>{setFacTab(tile.key);setFacOverlayOpen(true);}}>
+                  <div className="dash-tile-inner">
+                    <div className="dash-tile-l">
+                      <div className="dash-tile-name">
+                        <span>{tile.name}</span>
+                        {tile.chip==='live'&&<span className="dash-chip live">Live</span>}
+                      </div>
+                      <div className="dash-tile-headline">{tile.headline}</div>
+                      <div className="dash-tile-sub">{tile.sub}</div>
+                      {tile.extra==='pips'&&realCount>0&&(
+                        <div className="dash-pips">
+                          {realRespondents.map((r,i)=>{
+                            const done=r.s1_answers&&r.s2_answers&&r.tobe_prog;
+                            const partial=r.s1_answers||r.s2_answers;
+                            return <div key={i} className={`dash-pip${done?' done':partial?' partial':''}`}/>;
+                          })}
+                        </div>
+                      )}
+                    </div>
+                    <div className="dash-tile-chev">›</div>
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          );
+        })()}
 
-        {/* Overview tab */}
-        {(facTab==='group-report'||printAll)&&(
-          <div>
-            {printAll&&<div className="print-section-title">Group Report</div>}
-            {renderGroupReportTab()}
-          </div>
-        )}
+        {/* ── Facilitator overlay (renders selected tab full-screen) ─ */}
+        {(facOverlayOpen||printAll)&&(
+          <div className="dash-overlay">
+            {!printAll&&(
+              <div className="dash-ovr-head">
+                <div className="dash-ovr-head-l">
+                  <div className="dash-ovr-name">{
+                    facTab==='progress'?'Progress':
+                    facTab==='group-report'?'Group Report':
+                    facTab==='present'?'Share / Present':
+                    facTab==='overview'?'Overview':
+                    facTab==='variance'?'Variance':
+                    facTab==='ai-questions'?'AI Questions':
+                    facTab==='principles'?'Principles':
+                    facTab==='individuals'?'Individuals':'Facilitator Notes'
+                  }</div>
+                  <div className="dash-ovr-headline">{thing||'the organisation'}</div>
+                  <div className="dash-ovr-sub">Session {codeNorm} · {realRespondents.length} respondent{realRespondents.length!==1?'s':''}{groupStrat?` · ${SLABELS[groupStrat]}`:''}</div>
+                </div>
+                <button className="dash-ovr-close" onClick={()=>setFacOverlayOpen(false)} aria-label="Close">×</button>
+              </div>
+            )}
+            <div className="dash-ovr-body">
+              <div className="dash-ovr-body-inner">
+              {/* Group Report tab */}
+              {(facTab==='group-report'||printAll)&&(
+                <div>
+                  {printAll&&<div className="print-section-title">Group Report</div>}
+                  {renderGroupReportTab()}
+                </div>
+              )}
 
-        {(facTab==='present'||printAll)&&(
-          <div>
-            {printAll&&<div className="print-section-title">Share / Present</div>}
-            {renderPresentTab()}
-          </div>
-        )}
+              {(facTab==='present'||printAll)&&(
+                <div>
+                  {printAll&&<div className="print-section-title">Share / Present</div>}
+                  {renderPresentTab()}
+                </div>
+              )}
 
-        {(facTab==='overview'||printAll)&&(
+              {(facTab==='overview'||printAll)&&(
           <div>
             {printAll&&<div className="print-section-title">Overview</div>}
             {/* Live Ticker */}
@@ -2590,6 +2684,10 @@ function App(){
             </div>
           </div>
         )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -2738,15 +2836,6 @@ function App(){
       <div>
         <div className="rpt-section">
           <div className="rpt-heading">Group Principles</div>
-          <div style={{background:'#fff8e1',border:'1px solid #f59e0b',borderRadius:'4px',padding:'.55rem .75rem',marginBottom:'.85rem',fontSize:'.7rem',fontFamily:"'DM Sans',monospace",color:'#78350f',whiteSpace:'pre-wrap'}}>
-            <strong>DEBUG · raw load:</strong>
-            {'\n'}respondents loaded: {real.length}
-            {real.map(r=>{
-              const sp=r.selected_principles;
-              const kind=sp===undefined?'undefined':sp===null?'null':Array.isArray(sp)?`array(${sp.length})`:typeof sp;
-              return `\n  • ${r.respondent_name}: selected_principles = ${kind}`;
-            }).join('')}
-          </div>
           <div className="inf-box">
             Each participant chose principles — commitments to a way of seeing — they want to take into how the organisation operates. This view groups those principles by underlying commitment so you can see the patterns at a glance.
           </div>
