@@ -9,6 +9,24 @@ export default async function handler(req, res) {
   const { session_code, respondent_name } = body;
   if (!session_code || !respondent_name) return res.status(400).json({error:'Missing session_code or respondent_name'});
 
+  // Detect closed session — late submissions go into a pending-review queue
+  const isMarker = respondent_name === '__session_closed__' || respondent_name === '__facilitator__';
+  let sessionIsClosed = false;
+  if (!isMarker) {
+    try {
+      const closedCheck = await fetch(
+        `${SUPABASE_URL}/rest/v1/stat_responses?session_code=eq.${encodeURIComponent(session_code)}&respondent_name=eq.__session_closed__&select=id`,
+        { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
+      );
+      if (closedCheck.ok) {
+        const closedRows = await closedCheck.json();
+        if (Array.isArray(closedRows) && closedRows.length > 0) {
+          sessionIsClosed = true;
+        }
+      }
+    } catch (e) { /* if check fails, fall through and write normally */ }
+  }
+
   // Tool label travels in the body but is NOT a Supabase column. Used only for email subject.
   // Defaults to 'STAT Group' for backward compatibility with the original Group tool.
   const toolLabel = (typeof body.tool_label === 'string' && body.tool_label.trim()) ? body.tool_label.trim() : 'STAT Group';
@@ -32,8 +50,12 @@ export default async function handler(req, res) {
     const allowed = ['session_code','respondent_name','role','thing',
       'prog','def','con','flex','tobe_prog','tobe_def','tobe_con','tobe_flex',
       's1_answers','s2_answers','seniority','org_size','sector','strategy_type',
-      'notes','started','selected_principles'];
+      'notes','started','selected_principles','pending_review'];
     const safeBody = Object.fromEntries(Object.entries(body).filter(([k]) => allowed.includes(k)));
+    // If session is closed and this is a regular respondent, mark as pending review.
+    if (sessionIsClosed && !isMarker) {
+      safeBody.pending_review = true;
+    }
 
     let writeResp;
     if (existing && existing.length > 0) {
@@ -90,7 +112,7 @@ export default async function handler(req, res) {
       } catch(e) { console.warn('Email error:', e); }
     }
 
-    return res.status(200).json({ok:true});
+    return res.status(200).json({ok:true, pending_review: !!(sessionIsClosed && !isMarker)});
   } catch(e) {
     console.error('stat-save error:', e);
     return res.status(500).json({error:e.message});
