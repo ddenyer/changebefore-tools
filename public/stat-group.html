@@ -953,7 +953,7 @@ function App(){
   function togglePrinciple(p){
     setSelectedPrinciples(prev=>{
       if(prev.includes(p))return prev.filter(x=>x!==p);
-      return [...prev,p];
+      return [p,...prev];
     });
   }
 
@@ -961,7 +961,7 @@ function App(){
     const p=customPrinciple.trim();
     if(!p)return;
     if(selectedPrinciples.includes(p))return;
-    setSelectedPrinciples([...selectedPrinciples,p]);
+    setSelectedPrinciples([p,...selectedPrinciples]);
     setCustomPrinciple('');
   }
 
@@ -1349,68 +1349,12 @@ function App(){
       <div className="fade">
         <div className="sec-tag">Step 6 of 7 · Principles</div>
         <h2 className="pg-title">Choose your principles</h2>
-        <p className="pg-sub">Based on your responses and the gap between where you are and where you want to be, here are some principles that could help you make the shift. <strong>Click in order of importance</strong> — your first click becomes #1, your second click becomes #2, and so on. You can reorder or remove them in the list at the bottom. You can also write your own.</p>
-
-        {principlesLoading&&(
-          <div className="think"><div className="dots"><div className="dot"/><div className="dot"/><div className="dot"/></div><span className="think-txt">Generating principles from your answers…</span></div>
-        )}
-
-        {!principlesLoading&&principles&&principles.length===0&&(
-          <div className="warn-box">We weren't able to generate principles right now. You can write your own below, or skip this step and continue to your report.</div>
-        )}
-
-        {!principlesLoading&&principles&&principles.length>0&&(
-          <div>
-            {count>0&&(
-              <div style={{fontSize:'.78rem',color:'#16a34a',fontWeight:600,marginBottom:'.5rem'}}>
-                {count} selected
-              </div>
-            )}
-            {principles.map((p,i)=>{
-              const isSelected=selectedPrinciples.includes(p);
-              return(
-                <div key={i}
-                  onClick={()=>togglePrinciple(p)}
-                  style={{
-                    border:isSelected?'2px solid #e07030':'1px solid #d8d3cb',
-                    background:isSelected?'#fff8f5':'#fff',
-                    borderRadius:'4px',padding:'.85rem 1rem',marginBottom:'.5rem',
-                    cursor:'pointer',
-                    display:'flex',gap:'.65rem',alignItems:'flex-start',transition:'all .15s'
-                  }}>
-                  <div style={{
-                    width:'18px',height:'18px',borderRadius:'3px',
-                    border:'2px solid '+(isSelected?'#e07030':'#b0a898'),
-                    background:isSelected?'#e07030':'#fff',flexShrink:0,marginTop:'2px',
-                    display:'flex',alignItems:'center',justifyContent:'center'
-                  }}>{isSelected&&<span style={{color:'#fff',fontSize:'.72rem',fontWeight:700,lineHeight:1}}>✓</span>}</div>
-                  <div style={{fontSize:'.88rem',lineHeight:1.6,color:'#1a1a1a',flex:1}}>{p}</div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {!principlesLoading&&(
-          <div style={{marginTop:'1.5rem',paddingTop:'1.25rem',borderTop:'1px solid #d8d3cb'}}>
-            <div className="field-lbl">Write your own principle</div>
-            <div className="field-sub">Use a verb stem like "Make space for…", "Be willing to…", "Stop treating…", "Recognise that…"</div>
-            <div style={{display:'flex',gap:'.5rem',alignItems:'flex-start'}}>
-              <textarea className="inp inp-ta" style={{flex:1,minHeight:'70px'}}
-                placeholder="e.g. Be willing to slow down decisions when consequences are big."
-                value={customPrinciple}
-                onChange={e=>setCustomPrinciple(e.target.value)}/>
-              <button className="btn-s" onClick={addCustomPrinciple}
-                disabled={!customPrinciple.trim()}
-                style={{whiteSpace:'nowrap'}}>+ Add</button>
-            </div>
-          </div>
-        )}
+        <p className="pg-sub">Below are 8 principles drawn from your responses. <strong>Click the ones that resonate, in order of importance to you</strong> — your most important first. Each click adds the principle to the top of your list. Use the arrows to reorder, or × to remove. There is no minimum or maximum.</p>
 
         {selectedPrinciples.length>0&&(
-          <div style={{marginTop:'1.5rem',padding:'1rem 1.25rem',background:'#1a1a1a',borderRadius:'4px'}}>
+          <div style={{margin:'0 0 1.5rem',padding:'1rem 1.25rem',background:'#1a1a1a',borderRadius:'4px'}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:'.6rem'}}>
-              <div style={{fontSize:'.6rem',fontWeight:700,letterSpacing:'.12em',textTransform:'uppercase',color:'#e07030',fontFamily:"'DM Sans',sans-serif"}}>Your selected principles — in order of importance</div>
+              <div style={{fontSize:'.6rem',fontWeight:700,letterSpacing:'.12em',textTransform:'uppercase',color:'#e07030',fontFamily:"'DM Sans',sans-serif"}}>Your selected principles — ranked by importance</div>
               <div style={{fontSize:'.65rem',color:'#888',fontFamily:"'DM Sans',sans-serif"}}>{selectedPrinciples.length} selected</div>
             </div>
             {selectedPrinciples.map((p,i)=>{
@@ -1431,6 +1375,65 @@ function App(){
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {selectedPrinciples.length===0&&!principlesLoading&&principles&&principles.length>0&&(
+          <div style={{margin:'0 0 1.5rem',padding:'.85rem 1.1rem',background:'#ebe7e0',border:'1px dashed #b0a898',borderRadius:'4px',fontSize:'.82rem',color:'#666',fontStyle:'italic',textAlign:'center',fontFamily:"'DM Sans',sans-serif"}}>
+            Click a principle below to add it. Your most important first.
+          </div>
+        )}
+
+        {principlesLoading&&(
+          <div className="think"><div className="dots"><div className="dot"/><div className="dot"/><div className="dot"/></div><span className="think-txt">Generating principles from your answers…</span></div>
+        )}
+
+        {!principlesLoading&&principles&&principles.length===0&&(
+          <div className="warn-box">We weren't able to generate principles right now. You can write your own below, or skip this step and continue to your report.</div>
+        )}
+
+        {!principlesLoading&&principles&&principles.length>0&&(
+          <div>
+            {principles.map((p,i)=>{
+              const isSelected=selectedPrinciples.includes(p);
+              const rank=isSelected?selectedPrinciples.indexOf(p)+1:null;
+              return(
+                <div key={i}
+                  onClick={()=>togglePrinciple(p)}
+                  style={{
+                    border:isSelected?'2px solid #e07030':'1px solid #d8d3cb',
+                    background:isSelected?'#fff8f5':'#fff',
+                    borderRadius:'4px',padding:'.85rem 1rem',marginBottom:'.5rem',
+                    cursor:'pointer',
+                    display:'flex',gap:'.65rem',alignItems:'flex-start',transition:'all .15s'
+                  }}>
+                  <div style={{
+                    width:'22px',height:'22px',borderRadius:isSelected?'50%':'3px',
+                    border:'2px solid '+(isSelected?'#e07030':'#b0a898'),
+                    background:isSelected?'#e07030':'#fff',flexShrink:0,marginTop:'1px',
+                    display:'flex',alignItems:'center',justifyContent:'center',
+                    fontSize:'.78rem',fontWeight:700,color:isSelected?'#fff':'#b0a898',lineHeight:1
+                  }}>{isSelected?rank:''}</div>
+                  <div style={{fontSize:'.88rem',lineHeight:1.6,color:'#1a1a1a',flex:1}}>{p}</div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {!principlesLoading&&(
+          <div style={{marginTop:'1.5rem',paddingTop:'1.25rem',borderTop:'1px solid #d8d3cb'}}>
+            <div className="field-lbl">Write your own principle</div>
+            <div className="field-sub">Use a verb stem like "Make space for…", "Be willing to…", "Stop treating…", "Recognise that…"</div>
+            <div style={{display:'flex',gap:'.5rem',alignItems:'flex-start'}}>
+              <textarea className="inp inp-ta" style={{flex:1,minHeight:'70px'}}
+                placeholder="e.g. Be willing to slow down decisions when consequences are big."
+                value={customPrinciple}
+                onChange={e=>setCustomPrinciple(e.target.value)}/>
+              <button className="btn-s" onClick={addCustomPrinciple}
+                disabled={!customPrinciple.trim()}
+                style={{whiteSpace:'nowrap'}}>+ Add</button>
+            </div>
           </div>
         )}
 
