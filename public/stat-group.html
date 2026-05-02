@@ -1063,6 +1063,7 @@ function App(){
   // Debounced 600ms so rapid toggling doesn't spam the API.
   const [principlesSaveCount,setPrinciplesSaveCount]=useState(0);
   const [principlesLastSave,setPrinciplesLastSave]=useState('never');
+  const [principlesLastStatus,setPrinciplesLastStatus]=useState('—');
   useEffect(()=>{
     if(!codeNorm)return;
     if(!respondentName.trim())return;
@@ -1088,10 +1089,15 @@ function App(){
             selected_principles:selectedPrinciples,
           }),
         });
-        console.log('[principles-persist] save resp',resp.status);
+        const txt=await resp.text();
+        console.log('[principles-persist] save resp',resp.status,txt.slice(0,300));
         setPrinciplesSaveCount(n=>n+1);
         setPrinciplesLastSave(new Date().toLocaleTimeString());
-      }catch(e){console.warn('[principles-persist] save error',e);}
+        setPrinciplesLastStatus(resp.ok?`OK ${resp.status}`:`ERR ${resp.status}: ${txt.slice(0,80)}`);
+      }catch(e){
+        console.warn('[principles-persist] save error',e);
+        setPrinciplesLastStatus('THROW: '+(e.message||'unknown'));
+      }
     },600);
     return()=>clearTimeout(t);
   },[selectedPrinciples,step,codeNorm,respondentName]);
@@ -1549,7 +1555,7 @@ function App(){
         )}
 
         <div style={{background:'#fff8e1',border:'1px solid #f59e0b',borderRadius:'4px',padding:'.45rem .7rem',margin:'.85rem 0',fontSize:'.7rem',fontFamily:"'DM Sans',sans-serif",color:'#78350f'}}>
-          DEBUG · saves fired: <strong>{principlesSaveCount}</strong> · last: <strong>{principlesLastSave}</strong> · selected: <strong>{selectedPrinciples.length}</strong>
+          DEBUG · saves: <strong>{principlesSaveCount}</strong> · last: <strong>{principlesLastSave}</strong> · selected: <strong>{selectedPrinciples.length}</strong> · status: <strong>{principlesLastStatus}</strong>
         </div>
 
         <div className="btn-row">
