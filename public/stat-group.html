@@ -1058,6 +1058,17 @@ function App(){
     setPrinciplesClusterLoading(false);
   }
 
+  // Persist selectedPrinciples to Supabase whenever they change.
+  // Only fires once user has reached the report step and a session exists.
+  // Debounced 600ms so rapid toggling doesn't spam the API.
+  useEffect(()=>{
+    if(!codeNorm)return;
+    if(!respondentName.trim())return;
+    if(step<5)return;
+    const t=setTimeout(()=>{saveToGroup();},600);
+    return()=>clearTimeout(t);
+  },[selectedPrinciples,step,codeNorm,respondentName]);
+
   function exportCSV(){
     const rows=groupRespondents.filter(r=>r.respondent_name&&r.respondent_name!=='__facilitator__');
     const headers=['Name','Role','Sector','Progressive','Defensive','Consistent','Flexible','Strategy','Tobe_P','Tobe_D','Tobe_C','Tobe_F','Date'];
