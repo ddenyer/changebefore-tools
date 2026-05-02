@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>STAT Group — Strategic Tensions Assessment Tool</title>
+<title>STAT — Strategic Tensions Assessment Tool</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.development.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.development.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
@@ -690,7 +690,7 @@ function Progress({step}){
 function BackBtn({onClick}){return(<button className="back-btn" onClick={onClick}>← Back</button>);}
 
 // ── LOCAL STORAGE HELPERS ────────────────────────────────────────────────────
-function lsKey(name){return 'stat_solo_'+(name||'anon').toLowerCase().trim().replace(/\s+/g,'_');}
+function lsKey(name){return 'stat_org_'+(name||'anon').toLowerCase().trim().replace(/\s+/g,'_');}
 function saveProgress(name,data){try{localStorage.setItem(lsKey(name),JSON.stringify({...data,savedAt:Date.now()}));}catch(e){}}
 function loadProgress(name){try{const raw=localStorage.getItem(lsKey(name));return raw?JSON.parse(raw):null;}catch(e){return null;}}
 function clearProgress(name){try{localStorage.removeItem(lsKey(name));}catch(e){}}
@@ -715,6 +715,7 @@ function App(){
   const [loading,setLoading]=useState(false);
   const [showReport,setShowReport]=useState(false);
   const [rptTab,setRptTab]=useState(0);
+  const [facilitatorUnlocked,setFacilitatorUnlocked]=useState(false);
   const [prevSubmission,setPrevSubmission]=useState(null);
   const [thirtyDay,setThirtyDay]=useState('');
   const [feedbackRating,setFeedbackRating]=useState(null);
@@ -793,10 +794,11 @@ function App(){
           role:role==='None of the above'?roleCustom:role,
           seniority:'',org_size:orgSize,sector,
           thing,prog,def:def,con,flex,
-          tobe_p:tobe.p,tobe_d:tobe.d,tobe_c:tobe.c,tobe_f:tobe.f,
+          tobe_prog:tobe.p,tobe_def:tobe.d,tobe_con:tobe.c,tobe_flex:tobe.f,
           s1_answers:s1ans,s2_answers:s2ans,
           strategy_type:SLABELS[asIsStrat],
           date:new Date().toISOString(),
+          tool_label:'STAT',
         }),
       });
     }catch(e){console.warn('stat-save error:',e);}
@@ -876,25 +878,25 @@ function App(){
     setRemoveLoading(false);
   }
 
-  // Poll group data when on step 5 (group report mode) or step 6 with session code
+  // Poll group data for admin or facilitator-unlocked participants
   useEffect(()=>{
-    if(((step===5&&groupReportMode)||step===6)&&codeNorm){
+    if((isAdmin||facilitatorUnlocked)&&((step===5&&groupReportMode)||step===6)&&codeNorm){
       // Small delay so saveToGroup() write completes before first load
       const t=setTimeout(()=>loadGroup(),1200);
       const id=setInterval(loadGroup,15000);
       return()=>{clearTimeout(t);clearInterval(id);};
     }
-  },[step,groupReportMode,codeNorm]);
+  },[step,groupReportMode,codeNorm,isAdmin,facilitatorUnlocked]);
 
-  // Reload when user switches to group report tab (step 5: always tab 0, step 6: tab 4)
+  // Reload when admin or facilitator-unlocked user switches to facilitator tab
   useEffect(()=>{
-    if(((step===5&&groupReportMode)||(rptTab===4&&step===6))&&codeNorm)loadGroup();
-  },[rptTab,groupReportMode]);
+    if((isAdmin||facilitatorUnlocked)&&((step===5&&groupReportMode)||(rptTab===5&&step===6))&&codeNorm)loadGroup();
+  },[rptTab,groupReportMode,facilitatorUnlocked]);
 
-  // Admin: load group on mount if session code set (step 5 group mode or step 6)
+  // Admin or facilitator-unlocked: load group on mount if session code set
   useEffect(()=>{
-    if(isAdmin&&codeNorm&&((step===5&&groupReportMode)||step===6))loadGroup();
-  },[isAdmin,codeNorm,step,groupReportMode]);
+    if((isAdmin||facilitatorUnlocked)&&codeNorm&&((step===5&&groupReportMode)||step===6))loadGroup();
+  },[isAdmin,facilitatorUnlocked,codeNorm,step,groupReportMode]);
 
   async function fireNotification(){
     try{
@@ -984,8 +986,8 @@ function App(){
       <div>
         <div className="land-hero">
           <div className="land-tag">changebefore.com</div>
-          <h1 className="land-title">STAT Group — Strategic Tensions Assessment Tool</h1>
-          <p className="land-desc">Complete the survey to see your individual profile and compare it with the rest of your group. Your facilitator will guide the group debrief.</p>
+          <h1 className="land-title">STAT — Strategic Tensions Assessment Tool</h1>
+          <p className="land-desc">Your individual report appears at the end. Your responses are also shared with your sponsor to produce an organisational view. You will not see the group results — those are reviewed separately with your sponsor.</p>
           <div className="land-time">About 20 minutes</div>
         </div>
         <div style={{marginBottom:'1rem'}}>
@@ -998,7 +1000,7 @@ function App(){
         </div>
         <div style={{marginBottom:'1.5rem'}}>
           <label className="field-lbl">Session code <span style={{color:'#e07030'}}>*</span></label>
-          <div className="field-sub">Enter the code provided by your facilitator.</div>
+          <div className="field-sub">Enter the code provided by your sponsor.</div>
           <input className="inp" placeholder="e.g. SELL-2025" value={sessionCode}
             onChange={e=>setSessionCode(e.target.value.toUpperCase())}
             style={{textTransform:'uppercase',letterSpacing:'.05em'}}/>
@@ -1236,7 +1238,7 @@ function App(){
           ):(
             <button className="btn-p" onClick={generate}>Generate My Report →</button>
           )}
-          {codeNorm && (
+          {codeNorm && isAdmin && (
             <button className="btn-s" onClick={()=>setGroupReportMode(true)} style={{background:'#e07030',color:'#fff',borderColor:'#e07030'}}>Group Report →</button>
           )}
           <button className="btn-s" onClick={()=>go(3)}>← Back</button>
@@ -1270,9 +1272,17 @@ function App(){
           renderFacilitatorTab()
         ):(
         <div className="rpt-tabs">
-          {['Profile & Charts','The Model','Detailed Analysis','Suggestions & Actions','Group Report','Save & Next Steps',...(isAdmin?['Facilitator ★']:[])].map((t,i)=>(
-            <div key={i} className={`rpt-tab${rptTab===i?' active':''}`} onClick={()=>setRptTab(i)} style={{color:t==='Facilitator ★'?'#e07030':undefined}}>{t}</div>
+          {['Profile & Charts','The Model','Detailed Analysis','Suggestions & Actions','Save & Next Steps'].map((t,i)=>(
+            <div key={i} className={`rpt-tab${rptTab===i?' active':''}`} onClick={()=>setRptTab(i)}>{t}</div>
           ))}
+          <div className={`rpt-tab${rptTab===5?' active':''}`} onClick={()=>{
+            if(facilitatorUnlocked){setRptTab(5);}
+            else{
+              const pw=window.prompt('Enter facilitator password:');
+              if(pw==='Admin1*'){setFacilitatorUnlocked(true);setRptTab(5);}
+              else if(pw!==null){window.alert('Incorrect password.');}
+            }
+          }} style={{color:'#e07030'}}>Facilitator ★</div>
         </div>
         )}
 
@@ -1295,12 +1305,14 @@ function App(){
           {renderTab2(pGap,dGap,cGap,fGap)}
         </div>
         <div className="rpt-tab-content" style={{display:rptTab===4?'block':'none'}}>
-          {renderGroupReportTab()}
-        </div>
-        <div className="rpt-tab-content" style={{display:rptTab===5?'block':'none'}}>
           <div className="print-section-title" style={{display:'none'}}>Save &amp; Next Steps</div>
           {renderTab3()}
         </div>
+        {facilitatorUnlocked && (
+          <div className="rpt-tab-content" style={{display:rptTab===5?'block':'none'}}>
+            {renderFacilitatorTab()}
+          </div>
+        )}
           </>
         )}
       </div>
@@ -1641,49 +1653,35 @@ function App(){
           <p className="rpt-body">Click the button below to open your browser's print dialog. Select <strong>Save as PDF</strong> as the destination to download your report. A copy of your results will also be emailed to ChangeBefore.</p>
           <div className="btn-row" style={{marginTop:'1rem'}}>
             <button className="btn-p" onClick={generatePDF}>⬇ Generate PDF</button>
-            <button className="btn-s" onClick={()=>{
-              const s=encodeURIComponent(`STAT Profile — ${thing||'Organisation'}`);
-              const b=encodeURIComponent(`My STAT profile for ${thing||'my organisation'}:\nCurrent: ${SLABELS[asIsStrat]} (P${prog} D${def} C${con} F${flex})\nDesired: ${SLABELS[tobeStrat]} (P${tobe.p} D${tobe.d} C${tobe.c} F${tobe.f})\nTool: changebefore.com/stat-solo-access/`);
-              window.open(`mailto:?subject=${s}&body=${b}`,'_self');
-            }}>✉ Share by email</button>
           </div>
         </div>
         <div className="rpt-section" style={{borderTop:'1px solid #d8d3cb',paddingTop:'1.75rem',marginTop:'1.75rem'}}>
-          <div style={{fontSize:'1rem',fontWeight:700,letterSpacing:'.05em',textTransform:'uppercase',color:'#e07030',marginBottom:'.5rem'}}>Take It Further: Run STAT with Your Team or Organisation</div>
-          <p className="rpt-body">Your individual report is a starting point. It reflects a single perspective on how {th} operates — and what it could become. The real diagnostic power emerges when you compare results across your team or organisation.</p>
-          <p className="rpt-body" style={{marginTop:'.75rem'}}>Even people working side by side often see the current position very differently. And leaders frequently see the organisation in ways that differ sharply from the experience of those they lead. Understanding those differences is not a problem to manage — it is the insight you need to act.</p>
+          <div style={{fontSize:'1rem',fontWeight:700,letterSpacing:'.05em',textTransform:'uppercase',color:'#e07030',marginBottom:'.5rem'}}>What Happens Next</div>
+          <p className="rpt-body">Your facilitator (the person who sent you the link) will receive a group report that combines your responses with everyone else who completes the assessment. They will see the spread of views across {th} — where you agree, where you differ, and what that reveals about how the organisation is actually operating.</p>
+          <p className="rpt-body" style={{marginTop:'.75rem'}}>Even people working side by side often see the current position very differently. People in different roles or parts of the organisation frequently see things in ways that differ sharply from one another. Those differences are not a problem to manage — they are the insight your facilitator needs to act.</p>
           <div style={{marginTop:'1.25rem'}}>
-            <div className="rpt-heading" style={{fontSize:'.85rem',marginBottom:'.6rem'}}>Run STAT with your leadership team to:</div>
+            <div className="rpt-heading" style={{fontSize:'.85rem',marginBottom:'.6rem'}}>Worth thinking about before the debrief:</div>
             <ul style={{paddingLeft:'1.25rem',lineHeight:1.8,fontSize:'.875rem',color:'#555'}}>
-              <li>Find out whether your leadership team shares a common strategic direction — or only assumes it does</li>
-              <li>Surface hidden tensions between what leaders say is the priority and what they actually drive</li>
-              <li>Identify where different parts of leadership are pulling in different directions without realising it</li>
-              <li>Test whether the strategy you intend is the strategy being experienced</li>
-              <li>Create the conditions for an honest, evidence-based conversation about where to go next</li>
-            </ul>
-          </div>
-          <div style={{marginTop:'1.25rem'}}>
-            <div className="rpt-heading" style={{fontSize:'.85rem',marginBottom:'.6rem'}}>Run STAT across {th} to:</div>
-            <ul style={{paddingLeft:'1.25rem',lineHeight:1.8,fontSize:'.875rem',color:'#555'}}>
-              <li>Compare how leaders see the organisation with how it is experienced on the ground</li>
-              <li>Identify where strategic intent is not translating into operational reality</li>
-              <li>Reveal differences in how people across functions and business units see the organisation's current position</li>
-              <li>Generate a baseline you can use to track whether change is actually happening</li>
+              <li>Do you think your team will have a common profile — or will views diverge?</li>
+              <li>Where do you expect the biggest disagreements to be?</li>
+              <li>Where do you expect people in different roles or parts of the organisation to see {th} differently?</li>
+              <li>Is the strategy you intend the strategy people are actually experiencing?</li>
+              <li>What would it tell you if everyone landed in the same place — and what would it tell you if they didn't?</li>
             </ul>
           </div>
           <div style={{marginTop:'1.5rem',padding:'1.25rem',background:'#fff8f5',border:'1px solid #f5c8b0',borderRadius:'6px'}}>
-            <div style={{fontSize:'.85rem',fontWeight:700,color:'#1a1a1a',marginBottom:'.5rem'}}>Ready to run it with your team?</div>
-            <p style={{fontSize:'.85rem',color:'#555',lineHeight:1.7,marginBottom:'1rem'}}>Contact us at <a href="mailto:contact@changebefore.com" style={{color:'#e07030'}}>contact@changebefore.com</a> or visit <a href="https://changebefore.com/contact/" target="_blank" rel="noopener noreferrer" style={{color:'#e07030'}}>changebefore.com/contact</a> to arrange a conversation.</p>
-            <p style={{fontSize:'.85rem',color:'#555',lineHeight:1.6,marginBottom:'.75rem',fontFamily:"'DM Sans',sans-serif"}}>Arrange a conversation about running this for your group or team.</p>
+            <div style={{fontSize:'.85rem',fontWeight:700,color:'#1a1a1a',marginBottom:'.5rem'}}>Want to run this with a different team, department or function?</div>
+            <p style={{fontSize:'.85rem',color:'#555',lineHeight:1.7,marginBottom:'.75rem'}}>You would be the facilitator — you set up the session, share the link, and receive the group report.</p>
+            <p style={{fontSize:'.85rem',color:'#555',lineHeight:1.7,marginBottom:'1rem'}}>Talk to us about setting up another STAT session. Contact us at <a href="mailto:contact@changebefore.com" style={{color:'#e07030'}}>contact@changebefore.com</a> or visit <a href="https://changebefore.com/contact/" target="_blank" rel="noopener noreferrer" style={{color:'#e07030'}}>changebefore.com/contact</a>.</p>
             <button className="btn-p" onClick={()=>{
-              const s=encodeURIComponent(`Group STAT session — ${thing||'Organisation'}`);
-              const b=encodeURIComponent(`Hi,\n\nI've completed the STAT for ${thing||'my organisation'} and would like to discuss a group session.\n\nProfile: ${SLABELS[asIsStrat]} → ${SLABELS[tobeStrat]}\n\nBest regards`);
+              const s=encodeURIComponent(`STAT — additional session — ${thing||'Organisation'}`);
+              const b=encodeURIComponent(`Hi,\n\nI've completed the STAT assessment for ${thing||'my organisation'} and would like to discuss running it with another team, department or function.\n\nMy profile: ${SLABELS[asIsStrat]} → ${SLABELS[tobeStrat]}\n\nBest regards`);
               window.open(`mailto:contact@changebefore.com?subject=${s}&body=${b}`,'_self');
             }} style={{marginTop:'.25rem'}}>Contact us →</button>
           </div>
         </div>
         <div className="btn-row" style={{marginTop:'1.75rem'}}>
-          <button className="btn-s" onClick={()=>setRptTab(2)}>← Suggestions & Actions</button>
+          <button className="btn-s" onClick={()=>setRptTab(3)}>← Suggestions & Actions</button>
           <button className="btn-s" onClick={restart}>Start Again</button>
         </div>
       </div>
