@@ -884,6 +884,7 @@ function App(){
   const [facTab,setFacTab]=useState('progress');
   const [facOverlayOpen,setFacOverlayOpen]=useState(false);
   const [quadrantHoverIdx,setQuadrantHoverIdx]=useState(null);
+  const [expandedVarianceIdx,setExpandedVarianceIdx]=useState(null);
   const [orgNameOverride,setOrgNameOverride]=useState('');
   const [orgNameEditing,setOrgNameEditing]=useState(false);
   const [orgNameDraft,setOrgNameDraft]=useState('');
@@ -979,7 +980,7 @@ function App(){
   async function loadGroup(){
     if(!codeNorm)return;
     try{
-      const resp=await fetch(`/api/stat-load?code=${encodeURIComponent(codeNorm)}`);
+      const resp=await fetch(`/api/stat-load?code=${encodeURIComponent(codeNorm)}&_=${Date.now()}`,{cache:'no-store',headers:{'Cache-Control':'no-cache','Pragma':'no-cache'}});
       if(!resp.ok)return;
       const data=await resp.json();
       if(Array.isArray(data)){
@@ -2226,7 +2227,7 @@ function App(){
             {key:'group-report',name:'Group Report',headline:groupStrat?SLABELS[groupStrat]:'Awaiting data',sub:realCount>=2?'Group profile and means':'Need at least 2 respondents'},
             {key:'present',name:'Share / Present',chip:'live',headline:`${presentVisibleCount} visible`,sub:'Reveal one at a time on the projector'},
             {key:'overview',name:'Overview',headline:outliers.length>0?`${outliers.length} outlier${outliers.length!==1?'s':''}`:realCount>=2?'No outliers':'Awaiting data',sub:outliers.length>0?outliers.slice(0,2).map(o=>`${o.name} on ${o.dim}`).join(' · '):'Headlines and group totals'},
-            {key:'variance',name:'Variance',headline:contestedCount>0?`${contestedCount} contested question${contestedCount!==1?'s':''}`:realCount>=2?'Group aligned':'Awaiting data',sub:contestedCount>0?'Sharp split worth surfacing':'Where the group disagrees'},
+            {key:'variance',name:'Variance',headline:realCount>=2?(contestedCount>0?`${contestedCount} sharply split`:'Group aligned'):'Awaiting data',sub:realCount>=2?`All ${qVariances.length} questions ranked by spread`:'Where the group disagrees'},
             {key:'ai-questions',name:'AI Questions',headline:aiQReady?`${(aiQuestions.current||[]).length+(aiQuestions.future||[]).length} questions ready`:'Generate facilitation questions',sub:aiQReady?'Tailored to this group':'Click to generate from data'},
             {key:'principles',name:'Principles',headline:totalPrinciples>0?`${totalPrinciples} chosen`:'No principles yet',sub:respondentsWithPrinciples>0?`From ${respondentsWithPrinciples} respondent${respondentsWithPrinciples!==1?'s':''} · cluster by theme`:'Appear once respondents reach Step 5'},
             {key:'individuals',name:'Individuals',headline:`${realCount} profile${realCount!==1?'s':''}`,sub:'Drill into one respondent at a time'},
@@ -2538,41 +2539,51 @@ function App(){
               })()}
             </div>
             <div className="rpt-section">
-              <div className="rpt-heading">Most Contested Questions</div>
-              <p className="rpt-body" style={{marginBottom:'1rem'}}>The five questions on which respondents disagreed most. Each shows the two poles, the group mean for the right-hand option, and the spread.</p>
-              {topVarianceQ.map((item,i)=>{
+              <div className="rpt-heading">All Questions by Spread</div>
+              <p className="rpt-body" style={{marginBottom:'1rem'}}>All {qVariances.length} questions ranked from most contested to most aligned. SD shows how spread the scores are on Option B (0 = identical answers, higher = more disagreement). Click any row to expand.</p>
+              {qVariances.map((item,i)=>{
                 const sd=Math.sqrt(item.variance);
+                const isExpanded=expandedVarianceIdx===i;
+                const sdMax=Math.max(...qVariances.map(v=>Math.sqrt(v.variance)),1);
+                const fillPct=(sd/sdMax)*100;
+                const sdColor=sd>=2.5?'#dc2626':sd>=1.5?'#f59e0b':sd>=0.8?'#65a30d':'#16a34a';
                 return(
-                  <div key={i} style={{background:'#fff',border:'1px solid #d8d3cb',borderRadius:'4px',padding:'.85rem 1rem',marginBottom:'.75rem'}}>
-                    <div style={{display:'flex',gap:'.5rem',alignItems:'baseline',marginBottom:'.5rem',flexWrap:'wrap'}}>
-                      <div style={{fontSize:'.8rem',fontWeight:700,color:'#1a1a1a',fontFamily:"'DM Sans',sans-serif",flex:1,minWidth:'200px'}}>{i+1}. {item.q.q}</div>
-                      <div style={{fontSize:'.65rem',fontWeight:600,color:item.isS1?'#2563eb':'#7c3aed',fontFamily:"'DM Sans',sans-serif",whiteSpace:'nowrap'}}>{item.isS1?'§1 Mindset':'§2 Approach'}</div>
+                  <div key={i} style={{background:'#fff',border:'1px solid #d8d3cb',borderRadius:'4px',marginBottom:'.4rem',overflow:'hidden'}}>
+                    <div onClick={()=>setExpandedVarianceIdx(isExpanded?null:i)} style={{display:'grid',gridTemplateColumns:'2.5rem 1fr 7rem 4rem',gap:'.5rem',alignItems:'center',padding:'.55rem .85rem',cursor:'pointer',transition:'background .12s',background:isExpanded?'#faf8f5':'#fff'}}>
+                      <div style={{fontSize:'.78rem',fontWeight:700,color:'#888',fontFamily:"'DM Sans',sans-serif"}}>{i+1}.</div>
+                      <div style={{display:'flex',gap:'.5rem',alignItems:'center',minWidth:0}}>
+                        <span style={{fontSize:'.6rem',fontWeight:700,color:item.isS1?'#2563eb':'#7c3aed',fontFamily:"'DM Sans',sans-serif",flexShrink:0}}>{item.isS1?'§1':'§2'}</span>
+                        <span style={{fontSize:'.78rem',fontWeight:600,color:'#1a1a1a',fontFamily:"'DM Sans',sans-serif",overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={item.q.q}>{item.q.q}</span>
+                      </div>
+                      <div style={{position:'relative',height:'8px',background:'#ebe7e0',borderRadius:'4px',overflow:'hidden'}}>
+                        <div style={{position:'absolute',left:0,top:0,height:'100%',width:`${fillPct}%`,background:sdColor,transition:'width .3s'}}/>
+                      </div>
+                      <div style={{display:'flex',alignItems:'center',justifyContent:'flex-end',gap:'.4rem'}}>
+                        <span style={{fontSize:'.78rem',fontWeight:700,color:sdColor,fontFamily:"'DM Sans',sans-serif",fontVariantNumeric:'tabular-nums'}}>{sd.toFixed(1)}</span>
+                        <span style={{fontSize:'.7rem',color:'#bbb',fontFamily:"'DM Sans',sans-serif"}}>{isExpanded?'▾':'▸'}</span>
+                      </div>
                     </div>
-                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'.5rem',marginBottom:'.5rem'}}>
-                      <div style={{padding:'.55rem .7rem',background:'#faf8f5',border:'1px solid #e0dbd4',borderRadius:'3px'}}>
-                        <div style={{fontSize:'.58rem',fontWeight:700,letterSpacing:'.08em',textTransform:'uppercase',color:'#888',marginBottom:'.2rem',fontFamily:"'DM Sans',sans-serif"}}>Option A · mean {item.lMean.toFixed(1)}/10</div>
-                        <div style={{fontSize:'.75rem',lineHeight:1.45,color:'#555'}}>{item.q.l}</div>
+                    {isExpanded&&(
+                      <div style={{padding:'.85rem 1rem 1rem',borderTop:'1px solid #ebe7e0',background:'#faf8f5'}}>
+                        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'.5rem',marginBottom:'.65rem'}}>
+                          <div style={{padding:'.55rem .7rem',background:'#fff',border:'1px solid #e0dbd4',borderRadius:'3px'}}>
+                            <div style={{fontSize:'.58rem',fontWeight:700,letterSpacing:'.08em',textTransform:'uppercase',color:'#888',marginBottom:'.25rem',fontFamily:"'DM Sans',sans-serif"}}>Option A · group mean {item.lMean.toFixed(1)}/10</div>
+                            <div style={{fontSize:'.78rem',lineHeight:1.5,color:'#555'}}>{item.q.l}</div>
+                          </div>
+                          <div style={{padding:'.55rem .7rem',background:'#fff',border:'1px solid #f5c8b0',borderRadius:'3px'}}>
+                            <div style={{fontSize:'.58rem',fontWeight:700,letterSpacing:'.08em',textTransform:'uppercase',color:'#e07030',marginBottom:'.25rem',fontFamily:"'DM Sans',sans-serif"}}>Option B · group mean {item.rMean.toFixed(1)}/10</div>
+                            <div style={{fontSize:'.78rem',lineHeight:1.5,color:'#1a1a1a'}}>{item.q.r}</div>
+                          </div>
+                        </div>
+                        <div style={{display:'flex',gap:'.4rem',alignItems:'center',flexWrap:'wrap',fontSize:'.7rem',fontFamily:"'DM Sans',sans-serif"}}>
+                          <span style={{color:'#888'}}>Across {item.n} respondent{item.n!==1?'s':''}, scores on Option B ranged</span>
+                          <span style={{background:'#ebe7e0',padding:'.15rem .5rem',borderRadius:'3px'}}><strong style={{color:'#888'}}>LOW</strong> {item.rMin}</span>
+                          <span style={{background:'#fff8f5',border:'1px solid #f5c8b0',padding:'.15rem .5rem',borderRadius:'3px'}}><strong style={{color:'#e07030'}}>MEAN</strong> {item.rMean.toFixed(1)}</span>
+                          <span style={{background:'#ebe7e0',padding:'.15rem .5rem',borderRadius:'3px'}}><strong style={{color:'#888'}}>HIGH</strong> {item.rMax}</span>
+                          <span style={{background:'#1a1a1a',color:'#f0ede8',padding:'.15rem .5rem',borderRadius:'3px'}}><strong>SD</strong> {sd.toFixed(1)}</span>
+                        </div>
                       </div>
-                      <div style={{padding:'.55rem .7rem',background:'#fff8f5',border:'1px solid #f5c8b0',borderRadius:'3px'}}>
-                        <div style={{fontSize:'.58rem',fontWeight:700,letterSpacing:'.08em',textTransform:'uppercase',color:'#e07030',marginBottom:'.2rem',fontFamily:"'DM Sans',sans-serif"}}>Option B · mean {item.rMean.toFixed(1)}/10</div>
-                        <div style={{fontSize:'.75rem',lineHeight:1.45,color:'#1a1a1a'}}>{item.q.r}</div>
-                      </div>
-                    </div>
-                    <div style={{display:'flex',gap:'.4rem',alignItems:'center',flexWrap:'wrap'}}>
-                      <div style={{display:'inline-flex',alignItems:'center',gap:'.3rem',background:'#ebe7e0',border:'1px solid #d8d3cb',borderRadius:'3px',padding:'.2rem .55rem',fontSize:'.7rem',color:'#1a1a1a',fontFamily:"'DM Sans',sans-serif"}}>
-                        <strong style={{color:'#888'}}>LOW</strong> {item.rMin}
-                      </div>
-                      <div style={{display:'inline-flex',alignItems:'center',gap:'.3rem',background:'#fff8f5',border:'1px solid #f5c8b0',borderRadius:'3px',padding:'.2rem .55rem',fontSize:'.7rem',color:'#1a1a1a',fontWeight:600,fontFamily:"'DM Sans',sans-serif"}}>
-                        <strong style={{color:'#e07030'}}>MEAN</strong> {item.rMean.toFixed(1)}
-                      </div>
-                      <div style={{display:'inline-flex',alignItems:'center',gap:'.3rem',background:'#ebe7e0',border:'1px solid #d8d3cb',borderRadius:'3px',padding:'.2rem .55rem',fontSize:'.7rem',color:'#1a1a1a',fontFamily:"'DM Sans',sans-serif"}}>
-                        <strong style={{color:'#888'}}>HIGH</strong> {item.rMax}
-                      </div>
-                      <div style={{display:'inline-flex',alignItems:'center',gap:'.3rem',background:'#1a1a1a',color:'#f0ede8',borderRadius:'3px',padding:'.2rem .55rem',fontSize:'.7rem',fontFamily:"'DM Sans',sans-serif"}}>
-                        <strong>SD</strong> {sd.toFixed(1)}
-                      </div>
-                      <span style={{fontSize:'.68rem',color:'#888',fontFamily:"'DM Sans',sans-serif",marginLeft:'.25rem'}}>(scores on Option B across {realRespondents.length} respondents)</span>
-                    </div>
+                    )}
                   </div>
                 );
               })}
