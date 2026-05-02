@@ -1642,6 +1642,7 @@ function App(){
   // ── STEP 5: REPORT ───────────────────────────────────────────────────────
   function renderReport(){
     const {pGap,dGap,cGap,fGap}={pGap:tobe.p-prog,dGap:tobe.d-def,cGap:tobe.c-con,fGap:tobe.f-flex};
+    const inFacMode=isAdmin||facilitatorUnlocked;
     return(
       <div>
         <div className="print-header">
@@ -1657,10 +1658,10 @@ function App(){
             <div className="print-header-strat">Current: <strong>{SLABELS[asIsStrat]}</strong> &nbsp;→&nbsp; Desired: <strong>{SLABELS[tobeStrat]}</strong> &nbsp;·&nbsp; {new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'})}</div>
           </div>
         </div>
-        {!isAdmin&&<div className="sec-tag">Organisational Resilience Report</div>}
-        {!isAdmin&&<h2 className="pg-title">{th}</h2>}
-        {!isAdmin&&<p className="pg-sub">Current: <strong>{SLABELS[asIsStrat]}</strong> · Desired: <strong>{SLABELS[tobeStrat]}</strong></p>}
-        {isAdmin?(
+        {!inFacMode&&<div className="sec-tag">Organisational Resilience Report</div>}
+        {!inFacMode&&<h2 className="pg-title">{th}</h2>}
+        {!inFacMode&&<p className="pg-sub">Current: <strong>{SLABELS[asIsStrat]}</strong> · Desired: <strong>{SLABELS[tobeStrat]}</strong></p>}
+        {inFacMode?(
           renderFacilitatorTab()
         ):(
         <div className="rpt-tabs">
@@ -1678,7 +1679,7 @@ function App(){
         </div>
         )}
 
-        {!isAdmin&&(
+        {!inFacMode&&(
           <>
         <div className="rpt-tab-content" style={{display:rptTab===0?'block':'none'}}>
           <div className="print-section-title" style={{display:'none'}}>Profile &amp; Charts</div>
@@ -2171,7 +2172,7 @@ function App(){
           const realCount=realRespondents.length;
           const submittedCount=realRespondents.filter(r=>r.s1_answers&&r.s2_answers&&r.tobe_prog).length;
           const inProgressCount=realCount-submittedCount;
-          const contestedCount=qVariances.filter(v=>v.variance>=1.5).length;
+          const contestedCount=qVariances.filter(v=>Math.sqrt(v.variance)>=1.5).length;
           const outliers=[];
           if(realCount>=2){
             const meanProg=realRespondents.reduce((s,r)=>s+(r.prog||0),0)/realCount;
@@ -2236,7 +2237,7 @@ function App(){
         })()}
 
         {/* ── Facilitator overlay (renders selected tab full-screen) ─ */}
-        {(facOverlayOpen||printAll)&&(
+        {(facOverlayOpen||printAll)&&ReactDOM.createPortal(
           <div className="dash-overlay">
             {!printAll&&(
               <div className="dash-ovr-head">
@@ -2687,7 +2688,7 @@ function App(){
               </div>
             </div>
           </div>
-        )}
+        ,document.body)}
       </div>
     );
   }
