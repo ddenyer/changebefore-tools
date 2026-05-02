@@ -9,6 +9,10 @@ export default async function handler(req, res) {
   const { session_code, respondent_name } = body;
   if (!session_code || !respondent_name) return res.status(400).json({error:'Missing session_code or respondent_name'});
 
+  // Tool label travels in the body but is NOT a Supabase column. Used only for email subject.
+  // Defaults to 'STAT Group' for backward compatibility with the original Group tool.
+  const toolLabel = (typeof body.tool_label === 'string' && body.tool_label.trim()) ? body.tool_label.trim() : 'STAT Group';
+
   try {
     // GET existing row
     const getResp = await fetch(
@@ -76,8 +80,8 @@ export default async function handler(req, res) {
         );
         const all = await countResp.json();
         const n = all.length;
-        const subject = `STAT Group — ${session_code} — ${n} respondent${n!==1?'s':''} — ${new Date().toLocaleDateString('en-GB')}`;
-        const html = `<h2>STAT Group Submission</h2><p><strong>Session:</strong> ${session_code}</p><p><strong>Respondents:</strong> ${n}</p><p><strong>Latest:</strong> ${respondent_name} (${body.role||''})</p><p><strong>Strategy:</strong> ${body.strategy_type||''}</p><p><em>${body.date||''}</em></p>`;
+        const subject = `${toolLabel} — ${session_code} — ${n} respondent${n!==1?'s':''} — ${new Date().toLocaleDateString('en-GB')}`;
+        const html = `<h2>${toolLabel} Submission</h2><p><strong>Session:</strong> ${session_code}</p><p><strong>Respondents:</strong> ${n}</p><p><strong>Latest:</strong> ${respondent_name} (${body.role||''})</p><p><strong>Strategy:</strong> ${body.strategy_type||''}</p><p><em>${body.date||''}</em></p>`;
         await fetch('https://api.resend.com/emails', {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${RESEND_KEY}`, 'Content-Type': 'application/json' },
