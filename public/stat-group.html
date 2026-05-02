@@ -1168,6 +1168,20 @@ function App(){
         </div>
         <div className="btn-row">
           <button className="btn-p" disabled={!respondentName.trim()||!sessionCode.trim()} onClick={()=>{if(isAdmin){setShowReport(true);go(6);}else{go(1);}}}>Begin →</button>
+          <button className="btn-s" disabled={!sessionCode.trim()} onClick={()=>{
+            const pw=window.prompt('Enter facilitator password:');
+            if(pw==='Admin1*'){
+              setFacilitatorUnlocked(true);
+              setRespondentName('admin');
+              setShowReport(true);
+              setRptTab(5);
+              go(6);
+            }
+            else if(pw!==null){window.alert('Incorrect password.');}
+          }} style={{color:'#e07030',borderColor:'#e07030'}}>Facilitator ★</button>
+        </div>
+        <div style={{fontSize:'.72rem',color:'#888',marginTop:'.5rem',fontFamily:"'DM Sans',sans-serif",lineHeight:1.6}}>
+          <strong style={{color:'#e07030'}}>Facilitator ★</strong> — skip the survey and go straight to the group dashboard. Requires session code and password.
         </div>
       </div>
     );
@@ -1990,11 +2004,13 @@ function App(){
     const allQ12=[...S1.categories.flatMap(c=>c.qs),...S2.categories.flatMap(c=>c.qs)];
     const qVariances=allQ12.map((q,qi)=>{
       const isS1=qi<12;
-      const scores=realRespondents.map(r=>{
-        const ans=isS1?(r.s1_answers||[])[qi]:((r.s2_answers||[])[qi-12]);
-        return parseInt(ans?.r)||0;
-      });
-      return{q,qi,isS1,variance:variance(scores),mean:scores.reduce((s,v)=>s+v,0)/Math.max(scores.length,1)};
+      const lScores=realRespondents.map(r=>{const ans=isS1?(r.s1_answers||[])[qi]:((r.s2_answers||[])[qi-12]);return parseInt(ans?.l)||0;});
+      const rScores=realRespondents.map(r=>{const ans=isS1?(r.s1_answers||[])[qi]:((r.s2_answers||[])[qi-12]);return parseInt(ans?.r)||0;});
+      const lMean=lScores.reduce((s,v)=>s+v,0)/Math.max(lScores.length,1);
+      const rMean=rScores.reduce((s,v)=>s+v,0)/Math.max(rScores.length,1);
+      const rMin=rScores.length?Math.min(...rScores):0;
+      const rMax=rScores.length?Math.max(...rScores):0;
+      return{q,qi,isS1,variance:variance(rScores),mean:rMean,lMean,rMean,rMin,rMax};
     }).sort((a,b)=>b.variance-a.variance);
 
     const topVarianceQ=qVariances.slice(0,5);
@@ -2131,7 +2147,20 @@ function App(){
                     <div className="insight-card outlier">
                       <div className="insight-label">Outliers</div>
                       <div className="insight-value">{outliers.length>0?outliers.length:'None'}</div>
-                      <div className="insight-desc">{outliers.length>0?`${outliers.map(r=>r.respondent_name.split(' ')[0]).join(', ')} ${outliers.length===1?'sits':'sit'} more than 1 SD from the group mean on at least one dimension.`:'All respondents are within one standard deviation of the group mean.'}</div>
+                      {outliers.length===0?(
+                        <div className="insight-desc">All respondents are within one standard deviation of the group mean.</div>
+                      ):(
+                        <div className="insight-desc">
+                          {outliers.map((r,oi)=>{
+                            const flagged=dims.filter(d=>{const v=d.key==='prog'?r.prog:d.key==='def'?r.def:d.key==='con'?r.con:r.flex;return d.sd>5&&Math.abs((v||0)-d.mean)>d.sd;}).map(d=>{const v=d.key==='prog'?r.prog:d.key==='def'?r.def:d.key==='con'?r.con:r.flex;const gap=Math.round((v||0)-d.mean);return d.lbl+' '+(gap>0?'+':'')+gap;});
+                            return(
+                              <div key={oi} style={{marginBottom:oi<outliers.length-1?'.35rem':0}}>
+                                <strong style={{color:'#1a1a1a'}}>{r.respondent_name.split(' ')[0]}:</strong> {flagged.join(', ')}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                     <div className="insight-card shift">
                       <div className="insight-label">Desired Shift</div>
@@ -2187,16 +2216,7 @@ function App(){
                     </svg>
                   </div>
 
-                  {/* Debrief questions */}
-                  <div className="rpt-section">
-                    <div className="rpt-heading">Debrief Questions</div>
-                    {questions.map((q,i)=>(
-                      <div key={i} className="dq-item">
-                        <div className="dq-num">{i+1}</div>
-                        <div className="dq-text">{q}</div>
-                      </div>
-                    ))}
-                  </div>
+                  {/* Debrief questions moved to AI Questions tab */}
                 </>
               );
             })()}
@@ -2208,27 +2228,66 @@ function App(){
           <div>
             <div className="rpt-section">
               <div className="rpt-heading">Per-Dimension Spread</div>
-              <p className="rpt-body" style={{marginBottom:'1rem'}}>Higher variance = more disagreement across the group on that dimension.</p>
-              {[{lbl:'Progressive',v:dimVariance.prog},{lbl:'Defensive',v:dimVariance.def},{lbl:'Consistent',v:dimVariance.con},{lbl:'Flexible',v:dimVariance.flex}].map(({lbl,v})=>(
-                <div key={lbl} style={{marginBottom:'.85rem'}}>
-                  <div style={{display:'flex',justifyContent:'space-between',fontSize:'.82rem',fontWeight:600,marginBottom:'.2rem',fontFamily:"'DM Sans',sans-serif"}}>
-                    <span>{lbl}</span><span style={{color:'#e07030'}}>{Math.sqrt(v).toFixed(1)} SD</span>
-                  </div>
-                  <div className="var-bar"><div className="var-fill" style={{width:`${Math.min((v/(maxVar||1))*100,100)}%`,background:v>100?'#dc2626':v>40?'#f59e0b':'#22c55e'}}/></div>
-                </div>
-              ))}
+              <p className="rpt-body" style={{marginBottom:'1rem'}}>How tightly the group agrees on each dimension. SD &lt; 6 = strong consensus; 6–10 = moderate spread; 10–15 = significant disagreement; &gt; 15 = highly polarised.</p>
+              {(()=>{
+                const pairs=[
+                  {l:'Progressive',r:'Defensive',ls:Math.sqrt(dimVariance.prog),rs:Math.sqrt(dimVariance.def)},
+                  {l:'Consistent',r:'Flexible',ls:Math.sqrt(dimVariance.con),rs:Math.sqrt(dimVariance.flex)},
+                ];
+                function band(sd){
+                  if(sd<6)return 'strong consensus';
+                  if(sd<10)return 'moderate spread';
+                  if(sd<15)return 'significant disagreement';
+                  return 'highly polarised';
+                }
+                function bandColor(sd){
+                  if(sd<6)return '#16a34a';
+                  if(sd<10)return '#65a30d';
+                  if(sd<15)return '#f59e0b';
+                  return '#dc2626';
+                }
+                return pairs.map(p=>{
+                  const sd=Math.max(p.ls,p.rs);
+                  return(
+                    <div key={p.l} style={{padding:'.65rem .85rem',marginBottom:'.6rem',background:'#fff',border:'1px solid #d8d3cb',borderLeft:`3px solid ${bandColor(sd)}`,borderRadius:'4px'}}>
+                      <div style={{fontSize:'.88rem',fontWeight:600,color:'#1a1a1a',fontFamily:"'DM Sans',sans-serif",marginBottom:'.15rem'}}>
+                        {p.l}–{p.r}: SD = {sd.toFixed(1)}
+                      </div>
+                      <div style={{fontSize:'.78rem',color:bandColor(sd),fontFamily:"'DM Sans',sans-serif",fontWeight:600}}>
+                        {band(sd)} on this axis
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
             </div>
             <div className="rpt-section">
               <div className="rpt-heading">Most Contested Questions</div>
-              {topVarianceQ.map((item,i)=>(
-                <div key={i} style={{padding:'.65rem 0',borderBottom:'1px solid #ebe7e0'}}>
-                  <div style={{fontSize:'.78rem',fontWeight:600,color:'#1a1a1a',marginBottom:'.2rem',fontFamily:"'DM Sans',sans-serif"}}>{i+1}. {item.q.q}</div>
-                  <div style={{fontSize:'.72rem',color:'#888',fontFamily:"'DM Sans',sans-serif"}}>
-                    SD: {Math.sqrt(item.variance).toFixed(1)} · Mean: {item.mean.toFixed(1)}/10
-                    <span style={{marginLeft:'.75rem',color:item.isS1?'#2563eb':'#7c3aed',fontWeight:600}}>{item.isS1?'Section 1 — Defensive/Progressive':'Section 2 — Consistent/Flexible'}</span>
+              <p className="rpt-body" style={{marginBottom:'1rem'}}>The five questions on which respondents disagreed most. Each shows the two poles, the group mean for the right-hand option, and the spread.</p>
+              {topVarianceQ.map((item,i)=>{
+                const sd=Math.sqrt(item.variance);
+                return(
+                  <div key={i} style={{background:'#fff',border:'1px solid #d8d3cb',borderRadius:'4px',padding:'.85rem 1rem',marginBottom:'.75rem'}}>
+                    <div style={{display:'flex',gap:'.5rem',alignItems:'baseline',marginBottom:'.5rem',flexWrap:'wrap'}}>
+                      <div style={{fontSize:'.8rem',fontWeight:700,color:'#1a1a1a',fontFamily:"'DM Sans',sans-serif",flex:1,minWidth:'200px'}}>{i+1}. {item.q.q}</div>
+                      <div style={{fontSize:'.65rem',fontWeight:600,color:item.isS1?'#2563eb':'#7c3aed',fontFamily:"'DM Sans',sans-serif",whiteSpace:'nowrap'}}>{item.isS1?'§1 Mindset':'§2 Approach'}</div>
+                    </div>
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'.5rem',marginBottom:'.5rem'}}>
+                      <div style={{padding:'.55rem .7rem',background:'#faf8f5',border:'1px solid #e0dbd4',borderRadius:'3px'}}>
+                        <div style={{fontSize:'.58rem',fontWeight:700,letterSpacing:'.08em',textTransform:'uppercase',color:'#888',marginBottom:'.2rem',fontFamily:"'DM Sans',sans-serif"}}>Option A · mean {item.lMean.toFixed(1)}/10</div>
+                        <div style={{fontSize:'.75rem',lineHeight:1.45,color:'#555'}}>{item.q.l}</div>
+                      </div>
+                      <div style={{padding:'.55rem .7rem',background:'#fff8f5',border:'1px solid #f5c8b0',borderRadius:'3px'}}>
+                        <div style={{fontSize:'.58rem',fontWeight:700,letterSpacing:'.08em',textTransform:'uppercase',color:'#e07030',marginBottom:'.2rem',fontFamily:"'DM Sans',sans-serif"}}>Option B · mean {item.rMean.toFixed(1)}/10</div>
+                        <div style={{fontSize:'.75rem',lineHeight:1.45,color:'#1a1a1a'}}>{item.q.r}</div>
+                      </div>
+                    </div>
+                    <div style={{fontSize:'.72rem',color:'#666',fontFamily:"'DM Sans',sans-serif"}}>
+                      <strong>SD: {sd.toFixed(1)}</strong> · Range on Option B: {item.rMin} to {item.rMax}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
@@ -2505,15 +2564,13 @@ function App(){
                       <line x1={CX} y1={CY-RD} x2={CX} y2={CY+RD} stroke="#d8d3cb"/>
                       <line x1={CX-RD} y1={CY} x2={CX+RD} y2={CY} stroke="#d8d3cb"/>
                       {respondents.map((r,i)=>{
-                        const isMe=r.respondent_name===respondentName.trim();
-                        if(!isMe&&anonymousMode)return null;
                         const col=PAX_COLORS[i%PAX_COLORS.length];
                         const scores=tobe?[r.tobe_prog||60,r.tobe_def||60,r.tobe_con||60,r.tobe_flex||60]:[r.prog||0,r.def||0,r.con||0,r.flex||0];
                         if(tobe&&!r.tobe_prog)return null;
-                        return(<path key={i} d={sp(scores[0],scores[1],scores[2],scores[3])} fill={col} fillOpacity={.06} stroke={col} strokeWidth={isMe?2.5:1.5} strokeLinejoin="round" strokeDasharray={isMe?undefined:'4,3'}/>);
+                        return(<path key={i} d={sp(scores[0],scores[1],scores[2],scores[3])} fill={col} fillOpacity={.05} stroke={col} strokeWidth={1.25} strokeLinejoin="round" strokeDasharray="3,3" opacity={.55}/>);
                       })}
-                      {mean&&<path d={sp(mean.prog||0,mean.def||0,mean.con||0,mean.flex||0)} fill="none" stroke="#1a1a1a" strokeWidth={2} strokeLinejoin="round"/>}
-                      {tobe&&gTobeStrat3&&<path d={sp(gTobe3.p,gTobe3.d,gTobe3.c,gTobe3.f)} fill="none" stroke="#e07030" strokeWidth={2} strokeLinejoin="round" strokeDasharray="6,3"/>}
+                      {mean&&<path d={sp(mean.prog||0,mean.def||0,mean.con||0,mean.flex||0)} fill="#1a1a1a" fillOpacity={.05} stroke="#1a1a1a" strokeWidth={3} strokeLinejoin="round"/>}
+                      {tobe&&gTobeStrat3&&<path d={sp(gTobe3.p,gTobe3.d,gTobe3.c,gTobe3.f)} fill="#e07030" fillOpacity={.05} stroke="#e07030" strokeWidth={3} strokeLinejoin="round" strokeDasharray="6,3"/>}
                       <text x={CX} y={CY-RD-8} textAnchor="middle" fill="#555" fontSize={9} fontWeight={700} fontFamily="DM Sans,sans-serif">Progressive</text>
                       <text x={CX+RD+6} y={CY+4} textAnchor="start" fill="#555" fontSize={9} fontWeight={700} fontFamily="DM Sans,sans-serif">Flexible</text>
                       <text x={CX} y={CY+RD+16} textAnchor="middle" fill="#555" fontSize={9} fontWeight={700} fontFamily="DM Sans,sans-serif">Defensive</text>
@@ -2552,24 +2609,18 @@ function App(){
               </div>
             </div>
 
-            {/* Your profile vs group mean */}
-            {myEntry&&(
+            {/* Group score table */}
+            {realRespondents.length>0&&(
               <div className="rpt-section">
-                <div className="rpt-heading" style={{fontSize:'.63rem',fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:'#e07030',marginBottom:'.75rem'}}>Your Profile vs Group Mean</div>
+                <div className="rpt-heading" style={{fontSize:'.63rem',fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:'#e07030',marginBottom:'.75rem'}}>Group Mean Scores</div>
                 <div className="group-mean-row">
-                  {[{lbl:'Progressive',you:prog,mean:gMean.prog},{lbl:'Defensive',you:def,mean:gMean.def},{lbl:'Consistent',you:con,mean:gMean.con},{lbl:'Flexible',you:flex,mean:gMean.flex}].map(({lbl,you,mean})=>{
-                    const diff=you-mean;
-                    return(
-                      <div key={lbl} className="gm-cell">
-                        <div className="gm-lbl">{lbl}</div>
-                        <div className="gm-you">{you}</div>
-                        <div className="gm-mean">Group mean: {mean}</div>
-                        <div className={`gm-diff ${diff>3?'up':diff<-3?'down':'flat'}`}>
-                          {diff>3?`+${diff} above mean`:diff<-3?`${diff} below mean`:'Near mean'}
-                        </div>
-                      </div>
-                    );
-                  })}
+                  {[{lbl:'Progressive',mean:gMean.prog},{lbl:'Defensive',mean:gMean.def},{lbl:'Consistent',mean:gMean.con},{lbl:'Flexible',mean:gMean.flex}].map(({lbl,mean})=>(
+                    <div key={lbl} className="gm-cell">
+                      <div className="gm-lbl">{lbl}</div>
+                      <div className="gm-you" style={{color:'#1a1a1a'}}>{mean}</div>
+                      <div className="gm-mean">Group mean</div>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
