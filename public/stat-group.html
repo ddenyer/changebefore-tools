@@ -858,6 +858,9 @@ function App(){
   const [principlesLoading,setPrinciplesLoading]=useState(false);
   const [selectedPrinciples,setSelectedPrinciples]=useState([]);
   const [customPrinciple,setCustomPrinciple]=useState('');
+  const [principlesCluster,setPrinciplesCluster]=useState(null);
+  const [principlesClusterLoading,setPrinciplesClusterLoading]=useState(false);
+  const [principlesClusterError,setPrinciplesClusterError]=useState(null);
   const topRef=useRef(null);
 
   useEffect(()=>{topRef.current&&topRef.current.scrollIntoView({behavior:'smooth'});},[step]);
@@ -1030,6 +1033,29 @@ function App(){
       setAiQError('Network error: '+(e.message||'unknown'));
     }
     setAiQLoading(false);
+  }
+
+  async function loadPrinciplesCluster(){
+    if(!codeNorm||groupRespondents.length<1)return;
+    setPrinciplesClusterLoading(true);
+    setPrinciplesClusterError(null);
+    try{
+      const resp=await fetch('/api/stat-principles-cluster',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({sessionCode:codeNorm,respondents:groupRespondents,thing}),
+      });
+      const data=await resp.json().catch(()=>null);
+      if(!resp.ok){
+        setPrinciplesClusterError(`Server returned ${resp.status}${data&&data.error?': '+data.error:''}`);
+      }else if(data){
+        setPrinciplesCluster(data);
+      }
+    }catch(e){
+      console.warn('principles-cluster error:',e);
+      setPrinciplesClusterError('Network error: '+(e.message||'unknown'));
+    }
+    setPrinciplesClusterLoading(false);
   }
 
   function exportCSV(){
@@ -2084,9 +2110,9 @@ function App(){
 
         {/* Facilitator sub-tabs */}
         <div className="fac-tab-bar">
-          {['progress','group-report','present','overview','variance','ai-questions','individuals','notes'].map(t=>(
+          {['progress','group-report','present','overview','variance','ai-questions','principles','individuals','notes'].map(t=>(
             <div key={t} className={`fac-tab${facTab===t?' active':''}`} onClick={()=>setFacTab(t)}>
-              {t==='progress'?'Progress':t==='group-report'?'Group Report':t==='present'?'Share / Present':t==='overview'?'Overview':t==='variance'?'Variance':t==='ai-questions'?'AI Questions':t==='individuals'?'Individuals':'Notes'}
+              {t==='progress'?'Progress':t==='group-report'?'Group Report':t==='present'?'Share / Present':t==='overview'?'Overview':t==='variance'?'Variance':t==='ai-questions'?'AI Questions':t==='principles'?'Principles':t==='individuals'?'Individuals':'Notes'}
             </div>
           ))}
         </div>
@@ -2487,6 +2513,14 @@ function App(){
           </div>
         )}
 
+        {/* Principles tab */}
+        {(facTab==='principles'||printAll)&&(
+          <div>
+            {printAll&&<div className="print-section-title">Group Principles</div>}
+            {renderPrinciplesTab()}
+          </div>
+        )}
+
         {/* Notes tab */}
         {(facTab==='notes'||printAll)&&(
           <div>
@@ -2626,6 +2660,106 @@ function App(){
               </button>
             );
           })}
+        </div>
+      </div>
+    );
+  }
+
+  function renderPrinciplesTab(){
+    const PAX_C=['#e07030','#1a4fa0','#2d7d46','#b87a20','#b83232','#6a3d9a','#0891b2','#78350f','#374151'];
+    const real=groupRespondents.filter(r=>r.respondent_name&&r.respondent_name!=='__facilitator__');
+    const withPrinciples=real.filter(r=>Array.isArray(r.selected_principles)&&r.selected_principles.length>0);
+    const totalPrinciples=withPrinciples.reduce((n,r)=>n+r.selected_principles.length,0);
+    // Map respondent name to colour (consistent with present tab)
+    const colourFor=(name)=>{const i=real.findIndex(r=>r.respondent_name===name);return PAX_C[(i>=0?i:0)%PAX_C.length];};
+
+    function copyAsText(){
+      if(!principlesCluster||!principlesCluster.clusters)return;
+      const lines=[];
+      principlesCluster.clusters.forEach(c=>{
+        lines.push(c.theme.toUpperCase());
+        if(c.summary)lines.push(c.summary);
+        lines.push('');
+        c.items.forEach(it=>lines.push(`  • ${it.text} (${it.author})`));
+        lines.push('');
+      });
+      navigator.clipboard.writeText(lines.join('\n').trim()).catch(()=>{});
+    }
+
+    return(
+      <div>
+        <div className="rpt-section">
+          <div className="rpt-heading">Group Principles</div>
+          <div className="inf-box">
+            Each participant chose principles — commitments to a way of seeing — they want to take into how the organisation operates. This view groups those principles by underlying commitment so you can see the patterns at a glance.
+          </div>
+
+          {withPrinciples.length===0&&(
+            <div className="waiting-state">
+              <div className="wait-icon">📝</div>
+              <h3>No principles selected yet</h3>
+              <div style={{fontSize:'.82rem',color:'#888',marginTop:'.5rem',fontFamily:"'DM Sans',sans-serif"}}>
+                Principles appear here once participants reach Step 5 and confirm their selections.
+              </div>
+            </div>
+          )}
+
+          {withPrinciples.length>0&&(
+            <div style={{fontSize:'.78rem',color:'#555',marginBottom:'.85rem',fontFamily:"'DM Sans',sans-serif"}}>
+              <strong>{totalPrinciples}</strong> principle{totalPrinciples!==1?'s':''} chosen by <strong>{withPrinciples.length}</strong> participant{withPrinciples.length!==1?'s':''}
+            </div>
+          )}
+
+          {withPrinciples.length>0&&!principlesCluster&&!principlesClusterLoading&&!principlesClusterError&&(
+            <button className="btn-p" onClick={loadPrinciplesCluster}>
+              Cluster by theme →
+            </button>
+          )}
+
+          {principlesClusterLoading&&(
+            <div className="think"><div className="dots"><div className="dot"/><div className="dot"/><div className="dot"/></div><span className="think-txt">Clustering principles by theme…</span></div>
+          )}
+
+          {principlesClusterError&&!principlesClusterLoading&&(
+            <div className="warn-box" style={{marginBottom:'.75rem'}}>
+              <strong>Could not cluster principles.</strong> {principlesClusterError}
+              <div style={{marginTop:'.65rem'}}>
+                <button className="btn-s" onClick={()=>{setPrinciplesClusterError(null);loadPrinciplesCluster();}}>Try again</button>
+              </div>
+            </div>
+          )}
+
+          {principlesCluster&&Array.isArray(principlesCluster.clusters)&&principlesCluster.clusters.length>0&&(
+            <div>
+              <div style={{fontSize:'.7rem',color:'#888',marginBottom:'.75rem',fontFamily:"'DM Sans',sans-serif"}}>
+                {principlesCluster.clusters.length} cluster{principlesCluster.clusters.length!==1?'s':''} · {principlesCluster.meta&&principlesCluster.meta.n_principles||totalPrinciples} principle{(principlesCluster.meta&&principlesCluster.meta.n_principles||totalPrinciples)!==1?'s':''}
+              </div>
+
+              {principlesCluster.clusters.map((c,ci)=>(
+                <div key={ci} className="da-card" style={{marginBottom:'.85rem'}}>
+                  <div className="da-card-heading">Theme {ci+1}</div>
+                  <div style={{fontSize:'1.05rem',fontWeight:600,color:'#1a1a1a',fontFamily:"'Cormorant Garamond',serif",lineHeight:1.3,marginBottom:'.4rem'}}>{c.theme}</div>
+                  {c.summary&&<div style={{fontSize:'.82rem',color:'#555',lineHeight:1.55,marginBottom:'.75rem',fontFamily:"'DM Sans',sans-serif"}}>{c.summary}</div>}
+                  <div style={{display:'flex',flexDirection:'column',gap:'.5rem',marginTop:'.5rem'}}>
+                    {c.items.map((it,ii)=>{
+                      const col=colourFor(it.author);
+                      return(
+                        <div key={ii} style={{display:'flex',gap:'.65rem',alignItems:'flex-start',padding:'.55rem .7rem',background:'#faf8f5',borderLeft:`3px solid ${col}`,borderRadius:'0 3px 3px 0'}}>
+                          <div style={{flex:1,fontSize:'.86rem',lineHeight:1.55,color:'#1a1a1a',fontFamily:"'DM Sans',sans-serif"}}>{it.text}</div>
+                          <span style={{display:'inline-block',padding:'.15rem .55rem',background:col,color:'#fff',borderRadius:'10px',fontSize:'.65rem',fontWeight:700,whiteSpace:'nowrap',fontFamily:"'DM Sans',sans-serif",flexShrink:0,marginTop:'.1rem'}}>{it.author}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+
+              <div className="btn-row" style={{marginTop:'1rem'}}>
+                <button className="btn-s" onClick={()=>{setPrinciplesCluster(null);setPrinciplesClusterError(null);}}>Re-cluster</button>
+                <button className="btn-s" onClick={copyAsText}>Copy to clipboard</button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
