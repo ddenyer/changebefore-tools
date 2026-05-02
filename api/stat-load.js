@@ -11,6 +11,8 @@ export default async function handler(req, res) {
       { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
     );
     const data = await resp.json();
+    res.setHeader('Cache-Control','no-store, no-cache, must-revalidate, max-age=0');
+    res.setHeader('Pragma','no-cache');
     return res.status(200).json(data);
   } catch(e) {
     return res.status(500).json({error:e.message});
