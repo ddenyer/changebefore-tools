@@ -183,13 +183,14 @@ html,body{font-family:'DM Sans',sans-serif;background:#f0ede8;color:#1a1a1a;-web
 body.dash-open{overflow:hidden}
 .dash-overlay{position:fixed;inset:0;background:#f0ede8;z-index:1000;display:flex;flex-direction:column;overflow:hidden;animation:dash-fade .15s ease-out}
 @keyframes dash-fade{from{opacity:0;transform:scale(.98)}to{opacity:1;transform:scale(1)}}
-.dash-ovr-head{flex-shrink:0;padding:1.25rem 1.75rem 1rem;border-bottom:1px solid #d8d3cb;background:#fff;display:flex;justify-content:space-between;align-items:flex-start;gap:1.5rem}
+.dash-ovr-head{flex-shrink:0;padding:1.25rem 1.75rem 1rem;border-bottom:1px solid #d8d3cb;background:#fff;display:flex;justify-content:space-between;align-items:flex-start;gap:1.5rem;position:sticky;top:0;z-index:5;box-shadow:0 1px 3px rgba(0,0,0,.04)}
 .dash-ovr-head-l{flex:1;min-width:0}
 .dash-ovr-name{font-size:.7rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#e07030;margin-bottom:.4rem;font-family:'DM Sans',sans-serif}
 .dash-ovr-headline{font-family:'Cormorant Garamond',serif;font-size:1.85rem;font-weight:500;color:#1a1a1a;line-height:1.1;margin-bottom:.3rem}
 .dash-ovr-sub{font-size:.82rem;color:#555;font-family:'DM Sans',sans-serif}
-.dash-ovr-close{flex-shrink:0;width:42px;height:42px;border-radius:50%;background:#fff;border:1px solid #d8d3cb;color:#555;font-size:1.35rem;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit;font-weight:300;transition:all .15s}
-.dash-ovr-close:hover{background:#1a1a1a;border-color:#1a1a1a;color:#fff;transform:rotate(90deg)}
+.dash-ovr-close{flex-shrink:0;display:inline-flex;align-items:center;gap:.5rem;background:#e07030;border:1.5px solid #e07030;color:#fff;font-size:.82rem;font-weight:700;letter-spacing:.02em;line-height:1;cursor:pointer;font-family:'DM Sans',sans-serif;padding:.7rem 1.1rem .7rem 1rem;border-radius:24px;transition:all .15s;box-shadow:0 1px 3px rgba(224,112,48,.25)}
+.dash-ovr-close:hover{background:#1a1a1a;border-color:#1a1a1a;box-shadow:0 2px 6px rgba(0,0,0,.15)}
+.dash-ovr-close-x{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:rgba(255,255,255,.22);font-size:1rem;font-weight:400;line-height:1}
 .dash-ovr-body{flex:1;overflow-y:auto;padding:1.5rem 1.75rem;background:#f0ede8}
 .dash-ovr-body-inner{max-width:1200px;margin:0 auto}
 @media print{
@@ -882,6 +883,10 @@ function App(){
   const [groupReportMode,setGroupReportMode]=useState(false);
   const [facTab,setFacTab]=useState('progress');
   const [facOverlayOpen,setFacOverlayOpen]=useState(false);
+  const [quadrantHoverIdx,setQuadrantHoverIdx]=useState(null);
+  const [orgNameOverride,setOrgNameOverride]=useState('');
+  const [orgNameEditing,setOrgNameEditing]=useState(false);
+  const [orgNameDraft,setOrgNameDraft]=useState('');
   const [presentationMode,setPresentationMode]=useState(false);
   const [revealedCount,setRevealedCount]=useState(0);
   const [selectedForPresent,setSelectedForPresent]=useState(null); // null = all visible
@@ -946,6 +951,10 @@ function App(){
   // ── GROUP DATA ──────────────────────────────────────────────────────────
   async function saveToGroup(){
     if(!codeNorm)return;
+    // Don't write a respondent row when the user is in pure facilitator-direct
+    // mode (unlocked via password without completing the survey). Otherwise
+    // the facilitator gets counted as a participant.
+    if(facilitatorUnlocked && !s1done && !s2done) return;
     try{
       await fetch('/api/stat-save',{
         method:'POST',
@@ -1118,8 +1127,17 @@ function App(){
     return()=>{document.body.classList.remove('dash-open');document.removeEventListener('keydown',onKey);};
   },[facOverlayOpen]);
 
+  // Facilitator org-name override: load on session change, persist on edit
+  useEffect(()=>{
+    if(!codeNorm){setOrgNameOverride('');return;}
+    try{
+      const saved=localStorage.getItem('stat_org_name_'+codeNorm)||'';
+      setOrgNameOverride(saved);
+    }catch(e){}
+  },[codeNorm]);
+
   function exportCSV(){
-    const rows=groupRespondents.filter(r=>r.respondent_name&&r.respondent_name!=='__facilitator__');
+    const rows=groupRespondents.filter(r=>r.respondent_name&&r.respondent_name!=='__facilitator__'&&((r.s1_answers&&r.s1_answers.length>0)||(r.s2_answers&&r.s2_answers.length>0)||r.prog||r.tobe_prog));
     const headers=['Name','Role','Sector','Progressive','Defensive','Consistent','Flexible','Strategy','Tobe_P','Tobe_D','Tobe_C','Tobe_F','Date'];
     const lines=[headers.join(','),...rows.map(r=>[
       `"${r.respondent_name||''}"`,`"${r.role||''}"`,`"${r.sector||''}"`,
@@ -1654,7 +1672,7 @@ function App(){
             </div>
           </div>
           <div className="print-header-detail">
-            <div className="print-header-org">{th}</div>
+            <div className="print-header-org">{(inFacMode&&orgNameOverride&&orgNameOverride.trim())?orgNameOverride:(th||(groupRespondents.find(r=>r.thing&&r.thing.trim())||{}).thing||'the organisation')}</div>
             <div className="print-header-strat">Current: <strong>{SLABELS[asIsStrat]}</strong> &nbsp;→&nbsp; Desired: <strong>{SLABELS[tobeStrat]}</strong> &nbsp;·&nbsp; {new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'})}</div>
           </div>
         </div>
@@ -2082,7 +2100,7 @@ function App(){
   // ── FACILITATOR TAB ──────────────────────────────────────────────────────
   function renderFacilitatorTab(){
     const PAX_COLORS=['#e07030', '#1a4fa0', '#2d7d46', '#b87a20', '#b83232', '#6a3d9a', '#0891b2', '#78350f', '#374151'];
-    const realRespondents=groupRespondents.filter(r=>r.respondent_name&&r.respondent_name!=='__facilitator__');
+    const realRespondents=groupRespondents.filter(r=>r.respondent_name&&r.respondent_name!=='__facilitator__'&&((r.s1_answers&&r.s1_answers.length>0)||(r.s2_answers&&r.s2_answers.length>0)||r.prog||r.tobe_prog));
     const completedRespondents=realRespondents.filter(r=>!!(r.prog));
 
     // Compute analytics
@@ -2124,14 +2142,23 @@ function App(){
     const allQ12=[...S1.categories.flatMap(c=>c.qs),...S2.categories.flatMap(c=>c.qs)];
     const qVariances=allQ12.map((q,qi)=>{
       const isS1=qi<12;
-      const lScores=realRespondents.map(r=>{const ans=isS1?(r.s1_answers||[])[qi]:((r.s2_answers||[])[qi-12]);return parseInt(ans?.l)||0;});
-      const rScores=realRespondents.map(r=>{const ans=isS1?(r.s1_answers||[])[qi]:((r.s2_answers||[])[qi-12]);return parseInt(ans?.r)||0;});
+      // Only include respondents who actually answered this question (L+R sums to roughly 10).
+      // Mid-survey participants leave later questions blank — including their 0s here would
+      // wrongly skew min/max/variance.
+      const answered=realRespondents.map(r=>{
+        const ans=isS1?(r.s1_answers||[])[qi]:((r.s2_answers||[])[qi-12]);
+        const l=parseInt(ans?.l)||0;
+        const r2=parseInt(ans?.r)||0;
+        return{l,r:r2,total:l+r2,name:r.respondent_name};
+      }).filter(a=>a.total>=10);
+      const lScores=answered.map(a=>a.l);
+      const rScores=answered.map(a=>a.r);
       const lMean=lScores.reduce((s,v)=>s+v,0)/Math.max(lScores.length,1);
       const rMean=rScores.reduce((s,v)=>s+v,0)/Math.max(rScores.length,1);
       const rMin=rScores.length?Math.min(...rScores):0;
       const rMax=rScores.length?Math.max(...rScores):0;
-      return{q,qi,isS1,variance:variance(rScores),mean:rMean,lMean,rMean,rMin,rMax};
-    }).sort((a,b)=>b.variance-a.variance);
+      return{q,qi,isS1,variance:variance(rScores),mean:rMean,lMean,rMean,rMin,rMax,n:answered.length};
+    }).filter(v=>v.n>=2).sort((a,b)=>b.variance-a.variance);
 
     const topVarianceQ=qVariances.slice(0,5);
 
@@ -2204,8 +2231,6 @@ function App(){
             {key:'principles',name:'Principles',headline:totalPrinciples>0?`${totalPrinciples} chosen`:'No principles yet',sub:respondentsWithPrinciples>0?`From ${respondentsWithPrinciples} respondent${respondentsWithPrinciples!==1?'s':''} · cluster by theme`:'Appear once respondents reach Step 5'},
             {key:'individuals',name:'Individuals',headline:`${realCount} profile${realCount!==1?'s':''}`,sub:'Drill into one respondent at a time'},
           ];
-          // Notes sits in second row only if needed; we keep an 8th tile constant
-          tiles.push({key:'notes',name:'Notes',headline:facilitatorNotes&&facilitatorNotes.trim()?'Notes saved':'Add session notes',sub:'Private to you · saved automatically'});
           return(
             <div className="fac-dash">
               {tiles.map(tile=>(
@@ -2252,10 +2277,57 @@ function App(){
                     facTab==='principles'?'Principles':
                     facTab==='individuals'?'Individuals':'Facilitator Notes'
                   }</div>
-                  <div className="dash-ovr-headline">{thing||'the organisation'}</div>
+                  {orgNameEditing?(
+                    <div style={{display:'flex',gap:'.5rem',alignItems:'center',marginBottom:'.3rem'}}>
+                      <input
+                        autoFocus
+                        type="text"
+                        value={orgNameDraft}
+                        onChange={e=>setOrgNameDraft(e.target.value)}
+                        onKeyDown={e=>{
+                          if(e.key==='Enter'){
+                            const v=orgNameDraft.trim();
+                            setOrgNameOverride(v);
+                            try{if(codeNorm){if(v)localStorage.setItem('stat_org_name_'+codeNorm,v);else localStorage.removeItem('stat_org_name_'+codeNorm);}}catch(err){}
+                            setOrgNameEditing(false);
+                          }else if(e.key==='Escape'){setOrgNameEditing(false);}
+                        }}
+                        placeholder="Organisation name"
+                        style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.6rem',fontWeight:500,color:'#1a1a1a',padding:'.2rem .5rem',border:'1.5px solid #e07030',borderRadius:'3px',background:'#fff',minWidth:'260px',outline:'none'}}
+                      />
+                      <button onClick={()=>{
+                        const v=orgNameDraft.trim();
+                        setOrgNameOverride(v);
+                        try{if(codeNorm){if(v)localStorage.setItem('stat_org_name_'+codeNorm,v);else localStorage.removeItem('stat_org_name_'+codeNorm);}}catch(err){}
+                        setOrgNameEditing(false);
+                      }} style={{background:'#e07030',color:'#fff',border:'none',padding:'.45rem .8rem',fontSize:'.78rem',fontWeight:700,borderRadius:'3px',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>Save</button>
+                      <button onClick={()=>setOrgNameEditing(false)} style={{background:'none',border:'none',padding:'.45rem .4rem',fontSize:'.78rem',color:'#888',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>Cancel</button>
+                    </div>
+                  ):(
+                    <div className="dash-ovr-headline" style={{display:'flex',alignItems:'baseline',gap:'.55rem'}}>
+                      <span>{(()=>{
+                        if(orgNameOverride&&orgNameOverride.trim())return orgNameOverride;
+                        if(thing&&thing.trim())return thing;
+                        const fromGroup=realRespondents.find(r=>r.thing&&r.thing.trim());
+                        return fromGroup?fromGroup.thing:'the organisation';
+                      })()}</span>
+                      <button
+                        onClick={()=>{
+                          const cur=(orgNameOverride||thing||(realRespondents.find(r=>r.thing&&r.thing.trim())||{}).thing||'').trim();
+                          setOrgNameDraft(cur);
+                          setOrgNameEditing(true);
+                        }}
+                        title="Edit organisation name"
+                        style={{background:'none',border:'1px solid #d8d3cb',color:'#888',cursor:'pointer',fontSize:'.65rem',fontWeight:700,letterSpacing:'.05em',textTransform:'uppercase',padding:'.25rem .55rem',borderRadius:'3px',fontFamily:"'DM Sans',sans-serif",lineHeight:1}}
+                      >✎ Edit</button>
+                    </div>
+                  )}
                   <div className="dash-ovr-sub">Session {codeNorm} · {realRespondents.length} respondent{realRespondents.length!==1?'s':''}{groupStrat?` · ${SLABELS[groupStrat]}`:''}</div>
                 </div>
-                <button className="dash-ovr-close" onClick={()=>setFacOverlayOpen(false)} aria-label="Close">×</button>
+                <button className="dash-ovr-close" onClick={()=>setFacOverlayOpen(false)} aria-label="Close view and return to dashboard">
+                  <span className="dash-ovr-close-x">×</span>
+                  <span>Close view</span>
+                </button>
               </div>
             )}
             <div className="dash-ovr-body">
@@ -2278,21 +2350,7 @@ function App(){
               {(facTab==='overview'||printAll)&&(
           <div>
             {printAll&&<div className="print-section-title">Overview</div>}
-            {/* Live Ticker */}
-            {(()=>{
-              const started=groupRespondents.filter(r=>r.respondent_name&&r.respondent_name!=='__facilitator__'&&!(r.prog));
-              const done=completedRespondents;
-              return(
-                <div className="ticker">
-                  <div className="ticker-item"><div className="ticker-dot done"/><span className="ticker-count">{done.length}</span> completed</div>
-                  <div className="ticker-divider">·</div>
-                  <div className="ticker-item"><div className="ticker-dot started"/><span className="ticker-count">{started.length}</span> in progress</div>
-                  <div className="ticker-divider">·</div>
-                  <div className="ticker-item"><div className="ticker-dot waiting"/><span className="ticker-count">{done.length+started.length}</span> total</div>
-                  {done.length>0&&(<><div className="ticker-divider">·</div><div className="ticker-item" style={{marginLeft:'auto'}}><button className="pres-btn primary" style={{padding:'.35rem .9rem',fontSize:'.72rem'}} onClick={()=>{setSelectedForPresent(null);setFacTab('present');}}>Share / Present →</button></div></>)}
-                </div>
-              );
-            })()}
+
 
             {completedRespondents.length===0&&(
               <div style={{textAlign:'center',padding:'2rem',color:'#888',fontSize:'.875rem',fontFamily:"'DM Sans',sans-serif"}}>Waiting for participants to complete the survey.</div>
@@ -2354,7 +2412,7 @@ function App(){
                     <div className="insight-card tension">
                       <div className="insight-label">Key Tension</div>
                       <div className="insight-value">{topTension.lbl}</div>
-                      <div className="insight-desc">Highest disagreement — SD {topTension.sd.toFixed(1)}. {topTension.sd>8?'Surface this first in the debrief.':'Relatively good consensus.'}</div>
+                      <div className="insight-desc">Highest disagreement — SD {topTension.sd.toFixed(1)}.</div>
                     </div>
                     <div className="insight-card outlier">
                       <div className="insight-label">Outliers</div>
@@ -2415,8 +2473,15 @@ function App(){
                         const x=qx(r.flex||0,r.con||0);
                         const y=qy(r.prog||0,r.def||0);
                         const col=PAX_COLORS[i%PAX_COLORS.length];
+                        const sel=quadrantHoverIdx===i;
                         return(
-                          <circle key={i} cx={x} cy={y} r={4} fill={col} fillOpacity={.9} stroke="#fff" strokeWidth={1}/>
+                          <g key={i} style={{cursor:'pointer'}} onClick={()=>setQuadrantHoverIdx(sel?null:i)}>
+                            <circle cx={x} cy={y} r={sel?7:4} fill={col} fillOpacity={sel?1:.9} stroke="#fff" strokeWidth={sel?2:1}/>
+                            {sel&&<g>
+                              <rect x={x+8} y={y-12} width={r.respondent_name.length*5.6+10} height={18} fill="#1a1a1a" rx={3}/>
+                              <text x={x+13} y={y+1} fontSize={9} fontWeight={700} fill="#fff" fontFamily="DM Sans,sans-serif">{r.respondent_name}</text>
+                            </g>}
+                          </g>
                         );
                       })}
                       {/* Group mean cross — label below */}
@@ -2685,6 +2750,14 @@ function App(){
             </div>
           </div>
         )}
+              {!printAll&&(
+                <div style={{display:'flex',justifyContent:'center',marginTop:'2.5rem',paddingTop:'1.5rem',borderTop:'1px solid #d8d3cb'}}>
+                  <button className="dash-ovr-close" onClick={()=>setFacOverlayOpen(false)} aria-label="Close view and return to dashboard">
+                    <span className="dash-ovr-close-x">×</span>
+                    <span>Close view and return to dashboard</span>
+                  </button>
+                </div>
+              )}
               </div>
             </div>
           </div>
@@ -2814,7 +2887,7 @@ function App(){
 
   function renderPrinciplesTab(){
     const PAX_C=['#e07030','#1a4fa0','#2d7d46','#b87a20','#b83232','#6a3d9a','#0891b2','#78350f','#374151'];
-    const real=groupRespondents.filter(r=>r.respondent_name&&r.respondent_name!=='__facilitator__');
+    const real=groupRespondents.filter(r=>r.respondent_name&&r.respondent_name!=='__facilitator__'&&((r.s1_answers&&r.s1_answers.length>0)||(r.s2_answers&&r.s2_answers.length>0)||r.prog||r.tobe_prog));
     const withPrinciples=real.filter(r=>Array.isArray(r.selected_principles)&&r.selected_principles.length>0);
     const totalPrinciples=withPrinciples.reduce((n,r)=>n+r.selected_principles.length,0);
     // Map respondent name to colour (consistent with present tab)
@@ -2913,7 +2986,7 @@ function App(){
   }
 
   function renderGroupReportTab(){
-    const realRespondents=groupRespondents.filter(r=>r.respondent_name&&r.respondent_name!=='__facilitator__');
+    const realRespondents=groupRespondents.filter(r=>r.respondent_name&&r.respondent_name!=='__facilitator__'&&((r.s1_answers&&r.s1_answers.length>0)||(r.s2_answers&&r.s2_answers.length>0)||r.prog||r.tobe_prog));
     const myEntry=realRespondents.find(r=>r.respondent_name===respondentName.trim());
     const PAX_COLORS=['#e07030', '#1a4fa0', '#2d7d46', '#b87a20', '#b83232', '#6a3d9a', '#0891b2', '#78350f', '#374151'];
 
@@ -2936,14 +3009,7 @@ function App(){
           {[.25,.5,.75,1].map(pct=><path key={pct} d={gridPath(pct)} fill="none" stroke="#d8d3cb" strokeWidth={pct===1?1.5:0.8}/>)}
           <line x1={CX} y1={CY-RD} x2={CX} y2={CY+RD} stroke="#d8d3cb"/>
           <line x1={CX-RD} y1={CY} x2={CX+RD} y2={CY} stroke="#d8d3cb"/>
-          {realRespondents.map((r,i)=>{
-            const isMe=r.respondent_name===respondentName.trim();
-            const hidden=!isMe&&anonymousMode;
-            if(hidden)return null;
-            const col=PAX_COLORS[i%PAX_COLORS.length];
-            return(<path key={i} d={sp(r.prog||0,r.def||0,r.con||0,r.flex||0)} fill={col} fillOpacity={.06} stroke={col} strokeWidth={isMe?2.5:1.5} strokeLinejoin="round" strokeDasharray={isMe?undefined:'4,3'}/>);
-          })}
-          {realRespondents.length>0&&<path d={sp(gMean.prog,gMean.def,gMean.con,gMean.flex)} fill="none" stroke="#1a1a1a" strokeWidth={2} strokeLinejoin="round"/>}
+          {realRespondents.length>0&&<path d={sp(gMean.prog,gMean.def,gMean.con,gMean.flex)} fill="#1a1a1a" fillOpacity={.04} stroke="#1a1a1a" strokeWidth={2.5} strokeLinejoin="round"/>}
           <text x={CX} y={CY-RD-10} textAnchor="middle" fill="#555" fontSize={10} fontWeight={700} fontFamily="DM Sans,sans-serif">Progressive</text>
           <text x={CX+RD+8} y={CY+4} textAnchor="start" fill="#555" fontSize={10} fontWeight={700} fontFamily="DM Sans,sans-serif">Flexible</text>
           <text x={CX} y={CY+RD+18} textAnchor="middle" fill="#555" fontSize={10} fontWeight={700} fontFamily="DM Sans,sans-serif">Defensive</text>
@@ -2984,30 +3050,7 @@ function App(){
           </div>
         </div>
 
-        {/* Can't see others */}
-        <div style={{marginBottom:'.75rem'}}>
-          <button style={{background:'none',border:'none',padding:0,color:'#e07030',cursor:'pointer',textDecoration:'underline',fontSize:'.78rem',fontFamily:"'DM Sans',sans-serif"}}
-            onClick={()=>{setCodeFixOpen(o=>!o);setCodeFixVal(codeNorm);}}>
-            ⚠ Can't see other group members? Check your session code →
-          </button>
-          {codeFixOpen&&(
-            <div className="code-fix-box">
-              <span style={{fontSize:'.78rem',color:'#1e40af',fontWeight:600,fontFamily:"'DM Sans',sans-serif",whiteSpace:'nowrap'}}>Session code:</span>
-              <input value={codeFixVal} onChange={e=>setCodeFixVal(e.target.value.toUpperCase())} placeholder="e.g. SELL-2025" autoFocus/>
-              <button className="apply-btn" onClick={()=>{const v=codeFixVal.trim();if(!v)return;setSessionCode(v);setCodeFixOpen(false);setTimeout(loadGroup,500);}}>Apply</button>
-              <button style={{background:'none',border:'none',color:'#6b7280',cursor:'pointer',fontSize:'.78rem',fontFamily:"'DM Sans',sans-serif"}} onClick={()=>setCodeFixOpen(false)}>Cancel</button>
-            </div>
-          )}
-        </div>
-
         <>
-            {/* Anonymity toggle */}
-            <div style={{display:'flex',justifyContent:'flex-end',marginBottom:'.75rem'}}>
-              <label className="anon-toggle">
-                <input type="checkbox" checked={anonymousMode} onChange={e=>setAnonymousMode(e.target.checked)}/>
-                Show my profile only
-              </label>
-            </div>
 
             {/* Group diamonds: as-is + to-be */}
             {(()=>{
@@ -3029,12 +3072,6 @@ function App(){
                       {[.25,.5,.75,1].map(pct=><path key={pct} d={gridPath(pct)} fill="none" stroke="#d8d3cb" strokeWidth={pct===1?1.5:0.8}/>)}
                       <line x1={CX} y1={CY-RD} x2={CX} y2={CY+RD} stroke="#d8d3cb"/>
                       <line x1={CX-RD} y1={CY} x2={CX+RD} y2={CY} stroke="#d8d3cb"/>
-                      {respondents.map((r,i)=>{
-                        const col=PAX_COLORS[i%PAX_COLORS.length];
-                        const scores=tobe?[r.tobe_prog||60,r.tobe_def||60,r.tobe_con||60,r.tobe_flex||60]:[r.prog||0,r.def||0,r.con||0,r.flex||0];
-                        if(tobe&&!r.tobe_prog)return null;
-                        return(<path key={i} d={sp(scores[0],scores[1],scores[2],scores[3])} fill={col} fillOpacity={.05} stroke={col} strokeWidth={1.25} strokeLinejoin="round" strokeDasharray="3,3" opacity={.55}/>);
-                      })}
                       {mean&&<path d={sp(mean.prog||0,mean.def||0,mean.con||0,mean.flex||0)} fill="#1a1a1a" fillOpacity={.05} stroke="#1a1a1a" strokeWidth={3} strokeLinejoin="round"/>}
                       {tobe&&gTobeStrat3&&<path d={sp(gTobe3.p,gTobe3.d,gTobe3.c,gTobe3.f)} fill="#e07030" fillOpacity={.05} stroke="#e07030" strokeWidth={3} strokeLinejoin="round"/>}
                       <text x={CX} y={CY-RD-8} textAnchor="middle" fill="#555" fontSize={9} fontWeight={700} fontFamily="DM Sans,sans-serif">Progressive</text>
@@ -3065,10 +3102,6 @@ function App(){
               <div style={{display:'flex',alignItems:'center',gap:'.4rem'}}>
                 <svg width="22" height="6"><line x1="0" y1="3" x2="22" y2="3" stroke="#e07030" strokeWidth="3"/></svg>
                 <span><strong>Group mean (desired)</strong></span>
-              </div>
-              <div style={{display:'flex',alignItems:'center',gap:'.4rem'}}>
-                <svg width="22" height="6"><line x1="0" y1="3" x2="22" y2="3" stroke="#888" strokeWidth="1.25" strokeDasharray="3,3"/></svg>
-                <span>Individual respondents</span>
               </div>
             </div>
 
