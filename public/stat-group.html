@@ -178,6 +178,9 @@ html,body{font-family:'DM Sans',sans-serif;background:#f0ede8;color:#1a1a1a;-web
 .dash-chip.alert{background:#fef3e2;color:#b45309;border-color:#f59e0b}
 .dash-chip.live{background:#e8f5ec;color:#166534;border-color:#86efac}
 .dash-chip.live::before{content:'';width:5px;height:5px;background:#16a34a;border-radius:50%;display:inline-block;animation:dash-pulse 1.5s infinite}
+.dash-chip.closed{background:#fef2f2;color:#c0392b;border-color:#fca5a5}
+.dash-chip.review{background:#fff8f5;color:#b45309;border-color:#f5c8b0}
+.dash-chip.review::before{content:'';width:5px;height:5px;background:#e07030;border-radius:50%;display:inline-block;animation:dash-pulse 1.5s infinite}
 @keyframes dash-pulse{0%,100%{opacity:1}50%{opacity:.4}}
 /* Fullscreen overlay for an opened tile */
 body.dash-open{overflow:hidden}
@@ -899,7 +902,7 @@ function App(){
   const FAC_INFO={
     progress:{
       look:`A live count of who has submitted (green) versus still working (amber) versus not started (grey). Each pip is one respondent in the order they joined.`,
-      do:`Wait for at least 5 of the group to be in before opening the dashboard live. If someone has been on the same step for a while, check Individuals to see exactly where they are. Do not share Progress on screen during the workshop — participants can already see their own status.`,
+      do:`Wait for at least 5 of the group to be in before opening the dashboard live. If someone is stuck on the same step for a while, check Individuals to see exactly where they are. At the end of the workshop, click "Close session" to freeze the data — late submissions go into a review queue where you can accept (include them) or reject (discard) each one. Closing is reversible.`,
       watch:`A respondent showing as "in progress" but with no activity for several minutes may have closed the tab. Their data is saved at every step, so they can resume.`
     },
     'group-report':{
@@ -942,6 +945,12 @@ function App(){
   const [facTab,setFacTab]=useState('progress');
   const [facOverlayOpen,setFacOverlayOpen]=useState(false);
   const [facInfoOpen,setFacInfoOpen]=useState(false);
+  const [sessionClosed,setSessionClosed]=useState(false);
+  const [sessionClosedAt,setSessionClosedAt]=useState(null);
+  const [closeConfirmOpen,setCloseConfirmOpen]=useState(false);
+  const [closeBusy,setCloseBusy]=useState(false);
+  const [pendingActionName,setPendingActionName]=useState(null);
+  const [pendingReviewSelf,setPendingReviewSelf]=useState(false);
   const [quadrantHoverIdx,setQuadrantHoverIdx]=useState(null);
   const [expandedVarianceIdx,setExpandedVarianceIdx]=useState(null);
   const [orgNameOverride,setOrgNameOverride]=useState('');
@@ -1015,8 +1024,10 @@ function App(){
     // mode (unlocked via password without completing the survey). Otherwise
     // the facilitator gets counted as a participant.
     if(facilitatorUnlocked && !s1done && !s2done) return;
+    // If we already know the session is closed, don't even attempt the write.
+    if(sessionClosed && !isAdmin && !facilitatorUnlocked) return;
     try{
-      await fetch('/api/stat-save',{
+      const _r=await fetch('/api/stat-save',{
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({
@@ -1033,6 +1044,18 @@ function App(){
           selected_principles:selectedPrinciples,
         }),
       });
+      if(_r&&_r.status===403){
+        try{
+          const j=await _r.json();
+          if(j&&j.session_closed){setSessionClosed(true);}
+        }catch(_e){}
+      }
+      if(_r&&_r.ok){
+        try{
+          const j=await _r.json();
+          if(j&&j.pending_review){setPendingReviewSelf(true);}
+        }catch(_e){}
+      }
     }catch(e){console.warn('stat-save error:',e);}
   }
 
@@ -1045,6 +1068,15 @@ function App(){
       if(Array.isArray(data)){
         setGroupRespondents(data);
         setLastRefreshed(new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}));
+        // Detect session-closed marker
+        const closedEntry=data.find(d=>d.respondent_name==='__session_closed__');
+        if(closedEntry){
+          setSessionClosed(true);
+          setSessionClosedAt(closedEntry.notes||closedEntry.created_at||null);
+        }else{
+          setSessionClosed(false);
+          setSessionClosedAt(null);
+        }
         // Load facilitator notes if admin
         if(isAdmin){
           const notesEntry=data.find(d=>d.respondent_name==='__facilitator__');
@@ -1209,6 +1241,75 @@ function App(){
     a.href=URL.createObjectURL(blob);
     a.download=`STAT_${codeNorm}_${new Date().toISOString().slice(0,10)}.csv`;
     a.click();
+  }
+
+  async function closeSession(){
+    if(!codeNorm)return;
+    setCloseBusy(true);
+    try{
+      const ts=new Date().toISOString();
+      await fetch('/api/stat-save',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({session_code:codeNorm,respondent_name:'__session_closed__',notes:ts}),
+      });
+      setSessionClosed(true);
+      setSessionClosedAt(ts);
+      setCloseConfirmOpen(false);
+      await loadGroup();
+    }catch(e){console.warn('close session error:',e);}
+    setCloseBusy(false);
+  }
+
+  async function acceptPending(name){
+    if(!codeNorm||!name)return;
+    setPendingActionName(name);
+    try{
+      // Clear the pending flag by saving the row with pending_review=false, preserving everything else
+      const existing=groupRespondents.find(r=>r.respondent_name===name);
+      if(!existing){setPendingActionName(null);return;}
+      await fetch('/api/stat-save',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          session_code:codeNorm,
+          respondent_name:name,
+          pending_review:false,
+        }),
+      });
+      await loadGroup();
+    }catch(e){console.warn('accept pending error:',e);}
+    setPendingActionName(null);
+  }
+
+  async function rejectPending(name){
+    if(!codeNorm||!name)return;
+    setPendingActionName(name);
+    try{
+      await fetch('/api/stat-delete',{
+        method:'DELETE',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({session_code:codeNorm,respondent_name:name}),
+      });
+      await loadGroup();
+    }catch(e){console.warn('reject pending error:',e);}
+    setPendingActionName(null);
+  }
+
+  async function reopenSession(){
+    if(!codeNorm)return;
+    setCloseBusy(true);
+    try{
+      await fetch('/api/stat-delete',{
+        method:'DELETE',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({session_code:codeNorm,respondent_name:'__session_closed__'}),
+      });
+      setSessionClosed(false);
+      setSessionClosedAt(null);
+      await loadGroup();
+    }catch(e){console.warn('reopen error:',e);}
+    setCloseBusy(false);
   }
 
   async function doRemove(name){
@@ -2160,7 +2261,8 @@ function App(){
   // ── FACILITATOR TAB ──────────────────────────────────────────────────────
   function renderFacilitatorTab(){
     const PAX_COLORS=['#e07030', '#1a4fa0', '#2d7d46', '#b87a20', '#b83232', '#6a3d9a', '#0891b2', '#78350f', '#374151'];
-    const realRespondents=groupRespondents.filter(r=>r.respondent_name&&r.respondent_name!=='__facilitator__'&&((r.s1_answers&&r.s1_answers.length>0)||(r.s2_answers&&r.s2_answers.length>0)||r.prog||r.tobe_prog));
+    const realRespondents=groupRespondents.filter(r=>r.respondent_name&&r.respondent_name!=='__facilitator__'&&r.respondent_name!=='__session_closed__'&&!r.pending_review&&((r.s1_answers&&r.s1_answers.length>0)||(r.s2_answers&&r.s2_answers.length>0)||r.prog||r.tobe_prog));
+    const pendingReviewers=groupRespondents.filter(r=>r.respondent_name&&r.respondent_name!=='__facilitator__'&&r.respondent_name!=='__session_closed__'&&r.pending_review===true);
     const completedRespondents=realRespondents.filter(r=>!!(r.prog));
 
     // Compute analytics
@@ -2301,7 +2403,7 @@ function App(){
           const aiQReady=aiQuestions&&Array.isArray(aiQuestions.current)&&aiQuestions.current.length>0;
           const presentVisibleCount=selectedForPresent===null?realCount:selectedForPresent.size;
           const tiles=[
-            {key:'progress',name:'Progress',headline:`${submittedCount} of ${realCount} in`,sub:inProgressCount>0?`${inProgressCount} still completing`:'All respondents complete',extra:'pips'},
+            {key:'progress',name:'Progress',chip:pendingReviewers.length>0?'review':sessionClosed?'closed':null,headline:`${submittedCount} of ${realCount} in`,sub:pendingReviewers.length>0?`${pendingReviewers.length} late submission${pendingReviewers.length!==1?'s':''} awaiting review`:sessionClosed?'Session closed — no new responses':inProgressCount>0?`${inProgressCount} still completing`:'All respondents complete',extra:'pips'},
             {key:'group-report',name:'Group Report',headline:groupStrat?(SLABELS[groupStrat]+splitTag):'Awaiting data',sub:realCount>=2?'Group profile and means':'Need at least 2 respondents'},
             {key:'present',name:'Share / Present',chip:'live',headline:`${presentVisibleCount} visible`,sub:'Reveal one at a time on the projector'},
             {key:'overview',name:'Overview',headline:realCount<2?'Awaiting data':topSpreadDim&&topSpreadSD>=10?`Biggest spread on ${topSpreadDim}`:outliers.length>0?`${outliers.length} outlier${outliers.length!==1?'s':''}`:'Group well-aligned',sub:realCount<2?'Group profile and headlines':topSpreadDim&&topSpreadSD>=10?`SD ${topSpreadSD.toFixed(1)} · ${outliers.length} outlier${outliers.length!==1?'s':''}`:outliers.length>0?outliers.slice(0,2).map(o=>`${o.name} on ${o.dim}`).join(' · '):'Group profile and headlines'},
@@ -2319,6 +2421,8 @@ function App(){
                       <div className="dash-tile-name">
                         <span>{tile.name}</span>
                         {tile.chip==='live'&&<span className="dash-chip live">Live</span>}
+                        {tile.chip==='closed'&&<span className="dash-chip closed">Closed</span>}
+                        {tile.chip==='review'&&<span className="dash-chip review">Review</span>}
                       </div>
                       <div className="dash-tile-headline">{tile.headline}</div>
                       <div className="dash-tile-sub">{tile.sub}</div>
@@ -2724,15 +2828,22 @@ function App(){
                       </div>
                     </div>
                     {isRemoving&&(
-                      <div style={{marginTop:'.75rem',paddingTop:'.75rem',borderTop:'1px solid #ebe7e0',display:'flex',alignItems:'center',gap:'.75rem',flexWrap:'wrap'}}>
-                        <span style={{fontSize:'.82rem',color:'#c0392b',fontFamily:"'DM Sans',sans-serif"}}>Remove <strong>{r.respondent_name}</strong> from this session?</span>
-                        <button className="btn-p" style={{background:'#c0392b',borderColor:'#c0392b',padding:'.4rem .9rem',fontSize:'.78rem'}}
-                          disabled={removeLoading}
-                          onClick={e=>{e.stopPropagation();doRemove(r.respondent_name);}}>
-                          {removeLoading?'Removing…':'Confirm Remove'}
-                        </button>
-                        <button className="btn-s" style={{padding:'.4rem .9rem',fontSize:'.78rem'}}
-                          onClick={e=>{e.stopPropagation();setRemoveTarget(null);}}>Cancel</button>
+                      <div style={{marginTop:'.75rem',paddingTop:'.75rem',borderTop:'1px solid #ebe7e0',background:'#fff8f5',padding:'.85rem',borderRadius:'4px',border:'1px solid #f5c8b0'}}>
+                        <div style={{fontSize:'.85rem',color:'#1a1a1a',fontFamily:"'DM Sans',sans-serif",marginBottom:'.5rem',fontWeight:600}}>
+                          Permanently remove <strong>{r.respondent_name}</strong> from this session?
+                        </div>
+                        <div style={{fontSize:'.78rem',color:'#c0392b',fontFamily:"'DM Sans',sans-serif",marginBottom:'.75rem',lineHeight:1.5}}>
+                          ⚠ This cannot be undone. All survey responses, scores, principles, and to-be data for this respondent will be deleted from the database.
+                        </div>
+                        <div style={{display:'flex',gap:'.5rem',flexWrap:'wrap'}}>
+                          <button className="btn-p" style={{background:'#c0392b',borderColor:'#c0392b',padding:'.45rem 1rem',fontSize:'.78rem'}}
+                            disabled={removeLoading}
+                            onClick={e=>{e.stopPropagation();doRemove(r.respondent_name);}}>
+                            {removeLoading?'Removing…':'Yes, permanently remove'}
+                          </button>
+                          <button className="btn-s" style={{padding:'.45rem 1rem',fontSize:'.78rem'}}
+                            onClick={e=>{e.stopPropagation();setRemoveTarget(null);}}>Cancel</button>
+                        </div>
                       </div>
                     )}
                     {isSelected&&!isRemoving&&(
@@ -2765,6 +2876,88 @@ function App(){
         {(facTab==='progress'||printAll)&&(
           <div>
             {printAll&&<div className="print-section-title">Progress</div>}
+
+            {/* Session-close control */}
+            <div className="rpt-section" style={{background:sessionClosed?'#fff8f5':'#fff',border:`1px solid ${sessionClosed?'#f5c8b0':'#d8d3cb'}`,borderRadius:'4px',padding:'1rem 1.25rem'}}>
+              <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:'1rem',flexWrap:'wrap'}}>
+                <div style={{flex:1,minWidth:'260px'}}>
+                  <div style={{fontSize:'.65rem',fontWeight:700,letterSpacing:'.08em',textTransform:'uppercase',color:sessionClosed?'#c0392b':'#888',marginBottom:'.35rem',fontFamily:"'DM Sans',sans-serif"}}>
+                    Session status
+                  </div>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.25rem',fontWeight:500,color:'#1a1a1a',lineHeight:1.2,marginBottom:'.25rem'}}>
+                    {sessionClosed?'Session closed':'Session open'}
+                  </div>
+                  <div style={{fontSize:'.78rem',color:'#555',fontFamily:"'DM Sans',sans-serif",lineHeight:1.5}}>
+                    {sessionClosed?(
+                      <>Closed at {sessionClosedAt?new Date(sessionClosedAt).toLocaleString('en-GB',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}):'an unknown time'}. Late submissions are held in a review queue below — accept to include in the data, reject to discard.</>
+                    ):(
+                      <>New responses are accepted. Close the session at the end of the workshop. Late responses won't pollute the data — they go into a review queue for you to accept or reject.</>
+                    )}
+                  </div>
+                </div>
+                <div style={{flexShrink:0}}>
+                  {!sessionClosed&&!closeConfirmOpen&&(
+                    <button className="btn-s" style={{padding:'.55rem 1rem',fontSize:'.78rem'}}
+                      onClick={()=>setCloseConfirmOpen(true)}>Close session</button>
+                  )}
+                  {!sessionClosed&&closeConfirmOpen&&(
+                    <div style={{display:'flex',gap:'.5rem',alignItems:'center',flexWrap:'wrap'}}>
+                      <button className="btn-p" disabled={closeBusy} style={{background:'#c0392b',borderColor:'#c0392b',padding:'.55rem 1rem',fontSize:'.78rem'}}
+                        onClick={closeSession}>{closeBusy?'Closing…':'Yes, close session'}</button>
+                      <button className="btn-s" style={{padding:'.55rem 1rem',fontSize:'.78rem'}}
+                        onClick={()=>setCloseConfirmOpen(false)}>Cancel</button>
+                    </div>
+                  )}
+                  {sessionClosed&&(
+                    <button className="btn-s" disabled={closeBusy} style={{padding:'.55rem 1rem',fontSize:'.78rem'}}
+                      onClick={reopenSession}>{closeBusy?'Reopening…':'Reopen session'}</button>
+                  )}
+                </div>
+              </div>
+              {!sessionClosed&&closeConfirmOpen&&(
+                <div style={{marginTop:'.85rem',paddingTop:'.85rem',borderTop:'1px solid #ebe7e0',fontSize:'.78rem',color:'#c0392b',lineHeight:1.55,fontFamily:"'DM Sans',sans-serif"}}>
+                  ⚠ Closing the session will prevent further responses from being added directly. Late respondents will land in a review queue for you to accept or reject. This is fully reversible — you can reopen the session at any time. All existing data is preserved either way.
+                </div>
+              )}
+            </div>
+
+            {/* Pending-review queue */}
+            {pendingReviewers.length>0&&(
+              <div className="rpt-section" style={{background:'#fff8f5',border:'1px solid #f5c8b0',borderLeft:'4px solid #e07030',borderRadius:'4px',padding:'1rem 1.25rem'}}>
+                <div style={{fontSize:'.65rem',fontWeight:700,letterSpacing:'.08em',textTransform:'uppercase',color:'#e07030',marginBottom:'.35rem',fontFamily:"'DM Sans',sans-serif"}}>
+                  Awaiting facilitator review
+                </div>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.15rem',fontWeight:500,color:'#1a1a1a',lineHeight:1.2,marginBottom:'.65rem'}}>
+                  {pendingReviewers.length} late submission{pendingReviewers.length!==1?'s':''}
+                </div>
+                <div style={{fontSize:'.78rem',color:'#555',fontFamily:"'DM Sans',sans-serif",lineHeight:1.5,marginBottom:'.85rem'}}>
+                  These submissions arrived after you closed the session. They are not included in any analytics yet. Accept to include in the data; Reject to discard.
+                </div>
+                <div style={{display:'flex',flexDirection:'column',gap:'.55rem'}}>
+                  {pendingReviewers.map((r,i)=>{
+                    const busy=pendingActionName===r.respondent_name;
+                    const submittedAt=r.date?new Date(r.date).toLocaleString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'—';
+                    return(
+                      <div key={i} style={{background:'#fff',border:'1px solid #e0dbd4',borderRadius:'4px',padding:'.7rem .9rem',display:'flex',alignItems:'center',justifyContent:'space-between',gap:'.75rem',flexWrap:'wrap'}}>
+                        <div style={{flex:1,minWidth:'180px'}}>
+                          <div style={{fontSize:'.88rem',fontWeight:700,color:'#1a1a1a',fontFamily:"'DM Sans',sans-serif"}}>{r.respondent_name}</div>
+                          <div style={{fontSize:'.7rem',color:'#888',fontFamily:"'DM Sans',sans-serif",marginTop:'.15rem'}}>
+                            {r.role?`${r.role} · `:''}submitted {submittedAt}
+                          </div>
+                        </div>
+                        <div style={{display:'flex',gap:'.4rem',flexShrink:0}}>
+                          <button className="btn-p" disabled={busy} style={{background:'#16a34a',borderColor:'#16a34a',padding:'.4rem .85rem',fontSize:'.74rem'}}
+                            onClick={()=>acceptPending(r.respondent_name)}>{busy?'…':'Accept'}</button>
+                          <button className="btn-s" disabled={busy} style={{padding:'.4rem .85rem',fontSize:'.74rem',color:'#c0392b',borderColor:'#f5c8b0'}}
+                            onClick={()=>rejectPending(r.respondent_name)}>{busy?'…':'Reject'}</button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             <div className="rpt-section">
               <div className="rpt-heading">Session Progress</div>
               <p className="rpt-body" style={{marginBottom:'.75rem'}}>Steps completed per respondent based on data available in Supabase.</p>
@@ -3095,7 +3288,7 @@ function App(){
   }
 
   function renderGroupReportTab(){
-    const realRespondents=groupRespondents.filter(r=>r.respondent_name&&r.respondent_name!=='__facilitator__'&&((r.s1_answers&&r.s1_answers.length>0)||(r.s2_answers&&r.s2_answers.length>0)||r.prog||r.tobe_prog));
+    const realRespondents=groupRespondents.filter(r=>r.respondent_name&&r.respondent_name!=='__facilitator__'&&r.respondent_name!=='__session_closed__'&&!r.pending_review&&((r.s1_answers&&r.s1_answers.length>0)||(r.s2_answers&&r.s2_answers.length>0)||r.prog||r.tobe_prog));
     const myEntry=realRespondents.find(r=>r.respondent_name===respondentName.trim());
     const PAX_COLORS=['#e07030', '#1a4fa0', '#2d7d46', '#b87a20', '#b83232', '#6a3d9a', '#0891b2', '#78350f', '#374151'];
 
@@ -3331,6 +3524,26 @@ function App(){
     <div className="shell" ref={topRef}>
       {presentationMode&&renderPresentationMode()}
       <Progress step={step} principlesStep={principlesStep}/>
+      {pendingReviewSelf&&!isAdmin&&!facilitatorUnlocked&&codeNorm&&(
+        <div style={{maxWidth:'760px',margin:'1.25rem auto 0',padding:'0 1.5rem'}}>
+          <div style={{background:'#fff8f5',border:'1px solid #f5c8b0',borderLeft:'4px solid #e07030',borderRadius:'4px',padding:'.85rem 1.1rem',fontFamily:"'DM Sans',sans-serif"}}>
+            <div style={{fontSize:'.78rem',fontWeight:700,color:'#e07030',marginBottom:'.3rem',letterSpacing:'.05em',textTransform:'uppercase'}}>Submission received — awaiting review</div>
+            <div style={{fontSize:'.85rem',color:'#1a1a1a',lineHeight:1.55}}>
+              Your responses for session <strong>{codeNorm}</strong> arrived after the facilitator closed responses. They have been saved and the facilitator will choose whether to include them. You don't need to do anything else.
+            </div>
+          </div>
+        </div>
+      )}
+      {sessionClosed&&!pendingReviewSelf&&!isAdmin&&!facilitatorUnlocked&&codeNorm&&(
+        <div style={{maxWidth:'760px',margin:'1.25rem auto 0',padding:'0 1.5rem'}}>
+          <div style={{background:'#fff8f5',border:'1px solid #f5c8b0',borderLeft:'4px solid #e07030',borderRadius:'4px',padding:'.85rem 1.1rem',fontFamily:"'DM Sans',sans-serif"}}>
+            <div style={{fontSize:'.78rem',fontWeight:700,color:'#e07030',marginBottom:'.3rem',letterSpacing:'.05em',textTransform:'uppercase'}}>This session is closed — late submissions reviewed individually</div>
+            <div style={{fontSize:'.85rem',color:'#1a1a1a',lineHeight:1.55}}>
+              The facilitator has closed responses for session <strong>{codeNorm}</strong>. You can still complete the survey; your responses will go into a review queue and the facilitator will decide whether to include them.
+            </div>
+          </div>
+        </div>
+      )}
       <div className="main">
         <div className="content fade" key={step}>
           {step===0&&renderLanding()}
