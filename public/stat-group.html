@@ -170,10 +170,12 @@ html,body{font-family:'DM Sans',sans-serif;background:#f0ede8;color:#1a1a1a;-web
 .dash-tile-headline{font-family:'Cormorant Garamond',serif;font-size:1.15rem;font-weight:500;color:#1a1a1a;line-height:1.25;margin-bottom:.35rem}
 .dash-tile-sub{font-size:.72rem;color:#555;line-height:1.5}
 .dash-tile-chev{flex-shrink:0;color:#aaa;font-size:.95rem;line-height:1}
-.dash-pips{display:flex;gap:3px;margin-top:.5rem;flex-wrap:wrap}
-.dash-pip{width:14px;height:5px;background:#dcd6c8;border-radius:1px}
-.dash-pip.done{background:#16a34a}
+.dash-pips{display:flex;gap:4px;margin-top:.5rem;flex-wrap:wrap;align-items:center}
+.dash-pip{width:11px;height:11px;background:#dcd6c8;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:transparent;font-size:8px;line-height:1}
+.dash-pip.done{background:#16a34a;color:#fff}
+.dash-pip.done::after{content:'✓';font-weight:700}
 .dash-pip.partial{background:#f59e0b}
+.dash-pip.partial::after{content:'·';color:#fff;font-weight:900;font-size:14px;line-height:0;margin-top:-2px}
 .dash-chip{display:inline-flex;align-items:center;gap:.25rem;padding:.1rem .45rem;font-size:.6rem;font-weight:700;letter-spacing:.03em;text-transform:uppercase;border-radius:10px;background:#f5f1e9;color:#444;border:1px solid #e2ddd3}
 .dash-chip.alert{background:#fef3e2;color:#b45309;border-color:#f59e0b}
 .dash-chip.live{background:#e8f5ec;color:#166534;border-color:#86efac}
@@ -208,6 +210,74 @@ body.dash-open{overflow:hidden}
 .fac-info-block-text li{margin-bottom:.3rem}
 .fac-info-block-text code{background:#f0ede8;padding:.05rem .3rem;border-radius:2px;font-size:.78rem}
 @media print{.fac-info-btn,.fac-info-panel{display:none!important}}
+/* ── Mobile optimisation for the facilitator dashboard + overlays ─── */
+@media(max-width:640px){
+  /* Dashboard tiles: single column on phones for legibility */
+  .fac-dash{grid-template-columns:1fr!important;gap:.6rem}
+  .dash-tile{min-height:auto}
+  .dash-tile-inner{padding:.85rem 1rem}
+  .dash-tile-headline{font-size:1.05rem}
+  .dash-tile-sub{font-size:.7rem}
+  /* Overlay header: stack header text above buttons; smaller type */
+  .dash-ovr-head{flex-direction:column;align-items:stretch;padding:.85rem 1rem .65rem;gap:.7rem}
+  .dash-ovr-headline{font-size:1.3rem!important;line-height:1.2}
+  .dash-ovr-name{font-size:.62rem}
+  .dash-ovr-sub{font-size:.72rem}
+  .dash-ovr-head>div:last-child,
+  .dash-ovr-head .fac-info-btn+div,
+  /* the right-side button group (info + close) */
+  .dash-ovr-head>div[style*="display:flex"]{justify-content:flex-start;flex-wrap:wrap;gap:.4rem!important}
+  /* Make both header buttons compact on phones */
+  .fac-info-btn,.dash-ovr-close{padding:.5rem .8rem;font-size:.74rem;border-radius:20px}
+  .fac-info-btn span:last-child{display:inline}
+  /* Body padding tighter */
+  .dash-ovr-body{padding:1rem .85rem}
+  /* Info panel: single column */
+  .fac-info-panel{padding:.85rem 1rem 1.1rem}
+  .fac-info-panel-inner{grid-template-columns:1fr;gap:.85rem}
+  .fac-info-block-text{font-size:.78rem}
+  /* Section headings smaller */
+  .rpt-heading{font-size:.85rem}
+  .rpt-section{margin-bottom:1rem}
+  /* Variance compact rows: collapse the 4-col layout to 2 stacked rows */
+  .var-row{grid-template-columns:2rem 1fr!important;grid-template-rows:auto auto}
+  .var-row > :nth-child(3),
+  .var-row > :nth-child(4){grid-column:1/-1}
+  /* Quadrant + diamond charts: ensure they shrink and labels remain visible */
+  .quadrant-wrap,.chart-box{padding:.85rem!important}
+  .dual-diamond-wrap{grid-template-columns:1fr!important;gap:.85rem!important}
+  /* Inline org-name editor on overlay header */
+  .dash-ovr-head input[type="text"]{min-width:0!important;width:100%}
+  /* Pending review row buttons — stack if space tight */
+  .pending-row-actions{flex-wrap:wrap}
+  /* Group Report header */
+  .group-mean-row{grid-template-columns:1fr 1fr!important;gap:.4rem}
+  /* Progress per-person grid */
+  .progress-grid{grid-template-columns:1fr!important}
+  /* Refresh button + CSV controls in header — wrap */
+  .refresh-btn,.csv-btn{font-size:.72rem;padding:.5rem .8rem}
+  /* Footer close button stays inline but smaller */
+  .dash-ovr-body-inner>div:last-child .dash-ovr-close{padding:.55rem 1rem;font-size:.78rem}
+  /* To-be screen: stack sliders above diamond on phones */
+  .tobe-layout{grid-template-columns:1fr!important;gap:1rem!important}
+  .tobe-layout .chart-box{padding:.85rem!important}
+  /* Pending review queue — stack content + buttons */
+  .pending-row{flex-direction:column!important;align-items:stretch!important}
+  .pending-row .actions{justify-content:flex-end;margin-top:.5rem}
+  /* Close-session card buttons */
+  .session-status-card>div:first-child{flex-direction:column;align-items:flex-start!important}
+}
+
+@media(max-width:380px){
+  /* Even smaller phones — extra-tight tile padding */
+  .dash-tile-inner{padding:.7rem .85rem}
+  .dash-tile-headline{font-size:.98rem}
+  .dash-ovr-head{padding:.7rem .85rem .5rem}
+  .dash-ovr-headline{font-size:1.15rem!important}
+  .fac-info-btn span:last-child,
+  .dash-ovr-close span:last-child{display:none}
+  /* Show only icons on tiny screens */
+}
 .dash-ovr-body{flex:1;overflow-y:auto;padding:1.5rem 1.75rem;background:#f0ede8}
 .dash-ovr-body-inner{max-width:1200px;margin:0 auto}
 @media print{
@@ -667,7 +737,7 @@ function aiPromptsToPlainText(payload){
 // Shows as-is (orange, fixed) and to-be (dark, live) simultaneously
 function CombinedTobeDiamond({asIs,tobe}){
   return(
-    <svg width={SZ} height={SZ} style={{overflow:'visible',maxWidth:'100%'}}>
+    <svg viewBox="-30 -30 320 320" width="100%" preserveAspectRatio="xMidYMid meet" style={{maxWidth:'320px',display:'block',margin:'0 auto'}}>
       {[.25,.5,.75,1].map(pct=><path key={pct} d={gridPath(pct)} fill="none" stroke="#d8d3cb" strokeWidth={pct===1?1.5:1}/>)}
       <line x1={CX} y1={CY-RD} x2={CX} y2={CY+RD} stroke="#d8d3cb"/>
       <line x1={CX-RD} y1={CY} x2={CX+RD} y2={CY} stroke="#d8d3cb"/>
@@ -724,7 +794,7 @@ function ExpandableDiamond({children,title=''}){
 
 function DiamondChart({p=0,d=0,c=0,f=0,color='#e07030',prevProfile=null}){
   return(
-    <svg width={SZ} height={SZ} style={{overflow:'visible',maxWidth:'100%'}}>
+    <svg viewBox="-30 -30 320 320" width="100%" preserveAspectRatio="xMidYMid meet" style={{maxWidth:'320px',display:'block',margin:'0 auto'}}>
       {[.25,.5,.75,1].map(pct=><path key={pct} d={gridPath(pct)} fill="none" stroke="#d8d3cb" strokeWidth={pct===1?1.5:1}/>)}
       <line x1={CX} y1={CY-RD} x2={CX} y2={CY+RD} stroke="#d8d3cb"/>
       <line x1={CX-RD} y1={CY} x2={CX+RD} y2={CY} stroke="#d8d3cb"/>
@@ -1770,7 +1840,7 @@ function App(){
         <h2 className="pg-title">Where do you want <em style={{fontStyle:'normal',color:'#e07030'}}>{th}</em> to be?</h2>
         <p className="pg-sub">Drag the sliders to set your desired future profile. Sliders start from your current as-is scores. Moving one slider up will automatically adjust its paired dimension. The diamond updates in real time.</p>
 
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'1.25rem',alignItems:'start',marginBottom:'1rem'}}>
+        <div className="tobe-layout" style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'1.25rem',alignItems:'start',marginBottom:'1rem'}}>
           <div>
             <div className="slider-section">
               <div className="sec-tag" style={{marginBottom:'.85rem'}}>Mindset — Progressive & Defensive</div>
@@ -2346,9 +2416,9 @@ function App(){
             </div>
           </div>
           <div style={{display:'flex',gap:'.5rem',flexWrap:'wrap'}}>
-            <button className="refresh-btn" onClick={loadGroup}>
+            <button className="refresh-btn" onClick={loadGroup} title="Auto-refreshes every 15s. Click to fetch the latest data immediately.">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-              Refresh
+              Refresh now
             </button>
             <button className="csv-btn" onClick={exportCSV}>⬇ CSV</button>
             <button className="csv-btn" style={{background:'#444'}} onClick={()=>{setPrintAll(true);setTimeout(()=>{window.print();setTimeout(()=>setPrintAll(false),800);},800);}}>🖨 Print all</button>
@@ -2698,6 +2768,32 @@ function App(){
                     </svg>
                   </div>
 
+                  {/* Quadrant legend — solves dot overlap by listing names */}
+                  {completedRespondents.length>0&&(
+                    <div style={{marginTop:'.65rem',padding:'.6rem .85rem',background:'#fff',border:'1px solid #d8d3cb',borderRadius:'4px'}}>
+                      <div style={{fontSize:'.6rem',fontWeight:700,letterSpacing:'.08em',textTransform:'uppercase',color:'#888',marginBottom:'.45rem',fontFamily:"'DM Sans',sans-serif"}}>Click a name to highlight on the chart</div>
+                      <div style={{display:'flex',flexWrap:'wrap',gap:'.35rem'}}>
+                        {completedRespondents.map((r,i)=>{
+                          const col=PAX_COLORS[i%PAX_COLORS.length];
+                          const sel=quadrantHoverIdx===i;
+                          return(
+                            <button key={i} onClick={()=>setQuadrantHoverIdx(sel?null:i)}
+                              style={{display:'inline-flex',alignItems:'center',gap:'.35rem',padding:'.25rem .55rem',background:sel?'#1a1a1a':'#f0ede8',color:sel?'#fff':'#1a1a1a',border:`1px solid ${sel?'#1a1a1a':'#d8d3cb'}`,borderRadius:'12px',fontSize:'.72rem',fontWeight:600,cursor:'pointer',fontFamily:"'DM Sans',sans-serif",transition:'all .12s'}}>
+                              <span style={{display:'inline-block',width:'8px',height:'8px',borderRadius:'50%',background:col,border:sel?'1.5px solid #fff':'none'}}/>
+                              {r.respondent_name}
+                            </button>
+                          );
+                        })}
+                        {quadrantHoverIdx!==null&&(
+                          <button onClick={()=>setQuadrantHoverIdx(null)}
+                            style={{padding:'.25rem .55rem',background:'none',border:'1px dashed #d8d3cb',borderRadius:'12px',fontSize:'.7rem',color:'#888',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>
+                            Clear selection
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Debrief questions moved to AI Questions tab */}
                 </>
               );
@@ -2755,7 +2851,7 @@ function App(){
                 const sdColor=sd>=2.5?'#dc2626':sd>=1.5?'#f59e0b':sd>=0.8?'#65a30d':'#16a34a';
                 return(
                   <div key={i} style={{background:'#fff',border:'1px solid #d8d3cb',borderRadius:'4px',marginBottom:'.4rem',overflow:'hidden'}}>
-                    <div onClick={()=>setExpandedVarianceIdx(isExpanded?null:i)} style={{display:'grid',gridTemplateColumns:'2.5rem 1fr 7rem 4rem',gap:'.5rem',alignItems:'center',padding:'.55rem .85rem',cursor:'pointer',transition:'background .12s',background:isExpanded?'#faf8f5':'#fff'}}>
+                    <div className="var-row" onClick={()=>setExpandedVarianceIdx(isExpanded?null:i)} style={{display:'grid',gridTemplateColumns:'2.5rem 1fr 7rem 4rem',gap:'.5rem',alignItems:'center',padding:'.55rem .85rem',cursor:'pointer',transition:'background .12s',background:isExpanded?'#faf8f5':'#fff'}}>
                       <div style={{fontSize:'.78rem',fontWeight:700,color:'#888',fontFamily:"'DM Sans',sans-serif"}}>{i+1}.</div>
                       <div style={{display:'flex',gap:'.5rem',alignItems:'center',minWidth:0}}>
                         <span style={{fontSize:'.6rem',fontWeight:700,color:item.isS1?'#2563eb':'#7c3aed',fontFamily:"'DM Sans',sans-serif",flexShrink:0}}>{item.isS1?'§1':'§2'}</span>
@@ -2878,7 +2974,7 @@ function App(){
             {printAll&&<div className="print-section-title">Progress</div>}
 
             {/* Session-close control */}
-            <div className="rpt-section" style={{background:sessionClosed?'#fff8f5':'#fff',border:`1px solid ${sessionClosed?'#f5c8b0':'#d8d3cb'}`,borderRadius:'4px',padding:'1rem 1.25rem'}}>
+            <div className="rpt-section session-status-card" style={{background:sessionClosed?'#fff8f5':'#fff',border:`1px solid ${sessionClosed?'#f5c8b0':'#d8d3cb'}`,borderRadius:'4px',padding:'1rem 1.25rem'}}>
               <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:'1rem',flexWrap:'wrap'}}>
                 <div style={{flex:1,minWidth:'260px'}}>
                   <div style={{fontSize:'.65rem',fontWeight:700,letterSpacing:'.08em',textTransform:'uppercase',color:sessionClosed?'#c0392b':'#888',marginBottom:'.35rem',fontFamily:"'DM Sans',sans-serif"}}>
@@ -2938,14 +3034,14 @@ function App(){
                     const busy=pendingActionName===r.respondent_name;
                     const submittedAt=r.date?new Date(r.date).toLocaleString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'—';
                     return(
-                      <div key={i} style={{background:'#fff',border:'1px solid #e0dbd4',borderRadius:'4px',padding:'.7rem .9rem',display:'flex',alignItems:'center',justifyContent:'space-between',gap:'.75rem',flexWrap:'wrap'}}>
+                      <div key={i} className="pending-row" style={{background:'#fff',border:'1px solid #e0dbd4',borderRadius:'4px',padding:'.7rem .9rem',display:'flex',alignItems:'center',justifyContent:'space-between',gap:'.75rem',flexWrap:'wrap'}}>
                         <div style={{flex:1,minWidth:'180px'}}>
                           <div style={{fontSize:'.88rem',fontWeight:700,color:'#1a1a1a',fontFamily:"'DM Sans',sans-serif"}}>{r.respondent_name}</div>
                           <div style={{fontSize:'.7rem',color:'#888',fontFamily:"'DM Sans',sans-serif",marginTop:'.15rem'}}>
                             {r.role?`${r.role} · `:''}submitted {submittedAt}
                           </div>
                         </div>
-                        <div style={{display:'flex',gap:'.4rem',flexShrink:0}}>
+                        <div className="actions" style={{display:'flex',gap:'.4rem',flexShrink:0}}>
                           <button className="btn-p" disabled={busy} style={{background:'#16a34a',borderColor:'#16a34a',padding:'.4rem .85rem',fontSize:'.74rem'}}
                             onClick={()=>acceptPending(r.respondent_name)}>{busy?'…':'Accept'}</button>
                           <button className="btn-s" disabled={busy} style={{padding:'.4rem .85rem',fontSize:'.74rem',color:'#c0392b',borderColor:'#f5c8b0'}}
@@ -3353,11 +3449,11 @@ function App(){
             {realRespondents.length>0&&<div style={{fontSize:'.72rem',color:'#555',marginTop:'.35rem',fontFamily:"'DM Sans',sans-serif"}}>{realRespondents.length} respondent{realRespondents.length!==1?'s':''} — {SLABELS[groupStrat]||'…'}{splitTag}</div>}
           </div>
           <div style={{textAlign:'right'}}>
-            <button className="refresh-btn" onClick={loadGroup}>
+            <button className="refresh-btn" onClick={loadGroup} title="Auto-refreshes every 15s. Click to fetch the latest data immediately.">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-              Refresh
+              Refresh now
             </button>
-            {lastRefreshed&&<div style={{fontSize:'.65rem',color:'#b0a898',marginTop:'.2rem',fontFamily:"'DM Sans',sans-serif"}}>Last updated {lastRefreshed}</div>}
+            {lastRefreshed&&<div style={{fontSize:'.65rem',color:'#b0a898',marginTop:'.2rem',fontFamily:"'DM Sans',sans-serif"}}>Last updated {lastRefreshed} · auto every 15s</div>}
           </div>
         </div>
 
