@@ -2701,6 +2701,15 @@ function App(){
       <div>
         <div className="rpt-section">
           <div className="rpt-heading">Group Principles</div>
+          <div style={{background:'#fff8e1',border:'1px solid #f59e0b',borderRadius:'4px',padding:'.55rem .75rem',marginBottom:'.85rem',fontSize:'.7rem',fontFamily:"'DM Sans',monospace",color:'#78350f',whiteSpace:'pre-wrap'}}>
+            <strong>DEBUG · raw load:</strong>
+            {'\n'}respondents loaded: {real.length}
+            {real.map(r=>{
+              const sp=r.selected_principles;
+              const kind=sp===undefined?'undefined':sp===null?'null':Array.isArray(sp)?`array(${sp.length})`:typeof sp;
+              return `\n  • ${r.respondent_name}: selected_principles = ${kind}`;
+            }).join('')}
+          </div>
           <div className="inf-box">
             Each participant chose principles — commitments to a way of seeing — they want to take into how the organisation operates. This view groups those principles by underlying commitment so you can see the patterns at a glance.
           </div>
