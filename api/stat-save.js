@@ -34,7 +34,7 @@ export default async function handler(req, res) {
   try {
     // GET existing row — also pull scores so we can detect completion transitions for email
     const getResp = await fetch(
-      `${SUPABASE_URL}/rest/v1/stat_responses?session_code=eq.${encodeURIComponent(session_code)}&respondent_name=eq.${encodeURIComponent(respondent_name)}&select=id,prog,def,con,flex`,
+      `${SUPABASE_URL}/rest/v1/stat_responses?session_code=eq.${encodeURIComponent(session_code)}&respondent_name=eq.${encodeURIComponent(respondent_name)}&select=id,prog,def,con,flex,started`,
       { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
     );
 
@@ -94,21 +94,53 @@ export default async function handler(req, res) {
       return res.status(500).json({error:`Write failed: ${errText}`});
     }
 
-    // Fire rich submission email ONCE per respondent, at the moment they complete the survey.
-    // "Complete" = all four scores are non-zero in this write.
-    // To avoid duplicate emails on re-saves, we only send if the existing row was incomplete
-    // before this write (or didn't exist). This means one email per real submission, not per save.
+    // Fire rich submission email ONCE per respondent.
+    // Uses the `started` column as an atomic "email already sent" flag — once set to
+    // 'emailed:<timestamp>', no further emails fire regardless of how many saves happen.
+    // This makes the email idempotent across concurrent saves and re-saves.
     const newProg = body.prog || 0, newDef = body.def || 0, newCon = body.con || 0, newFlex = body.flex || 0;
     const writeIsComplete = newProg > 0 && newDef > 0 && newCon > 0 && newFlex > 0;
 
-    let existingWasComplete = false;
+    // Has email already been sent for this row?
+    let alreadyEmailed = false;
     if (existing && existing.length > 0) {
-      const e = existing[0];
-      const eProg = e.prog || 0, eDef = e.def || 0, eCon = e.con || 0, eFlex = e.flex || 0;
-      existingWasComplete = eProg > 0 && eDef > 0 && eCon > 0 && eFlex > 0;
+      const startedVal = existing[0].started;
+      alreadyEmailed = typeof startedVal === 'string' && startedVal.startsWith('emailed:');
     }
 
-    const shouldEmail = RESEND_KEY && !isMarker && !sessionIsClosed && writeIsComplete && !existingWasComplete;
+    const shouldEmail = RESEND_KEY && !isMarker && !sessionIsClosed && writeIsComplete && !alreadyEmailed;
+
+    if (shouldEmail) {
+      // Mark as emailed FIRST — atomic claim. If this succeeds, we own the email.
+      // If another concurrent save also tried, only one of the two PATCHes wins
+      // because Supabase serialises writes per-row. The losing one will see the
+      // 'emailed:' marker on its next read and skip.
+      try {
+        const claimResp = await fetch(
+          `${SUPABASE_URL}/rest/v1/stat_responses?session_code=eq.${encodeURIComponent(session_code)}&respondent_name=eq.${encodeURIComponent(respondent_name)}&started=is.null`,
+          {
+            method: 'PATCH',
+            headers: {
+              'apikey': SUPABASE_KEY,
+              'Authorization': `Bearer ${SUPABASE_KEY}`,
+              'Content-Type': 'application/json',
+              'Prefer': 'return=representation'
+            },
+            body: JSON.stringify({ started: 'emailed:' + new Date().toISOString() }),
+          }
+        );
+        // If 0 rows were updated, another save beat us to it — bail.
+        if (claimResp.ok) {
+          const claimed = await claimResp.json();
+          if (!Array.isArray(claimed) || claimed.length === 0) {
+            // Lost the race — no email this time
+            return res.status(200).json({ ok:true, pending_review: !!(sessionIsClosed && !isMarker) });
+          }
+        }
+      } catch (e) {
+        console.warn('email claim error (continuing without claim):', e);
+      }
+    }
 
     if (shouldEmail) {
       try {
