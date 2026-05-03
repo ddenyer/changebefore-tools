@@ -2144,26 +2144,6 @@ function App(){
     setFeedbackSending(false);
   }
 
-  async function fireNotification(){
-    try{
-      const resp=await fetch('/api/notify',{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({
-          type:codeNorm?'group':'solo',orgName:thing||'(unnamed)',role:role==='None of the above'?roleCustom:role,
-          sessionCode:codeNorm||'',
-          seniority:'',orgSize,sector,
-          asIs:{prog,def,con,flex},tobe:{p:tobe.p,d:tobe.d,c:tobe.c,f:tobe.f},
-          strategyType:SLABELS[asIsStrat],tobeType:SLABELS[tobeStrat],
-          date:new Date().toISOString(),respondentName,contextText:contextText.slice(0,200),
-          thirtyDayCommitment:thirtyDay||'',
-          feedbackComment:feedbackComment||'',
-        }),
-      });
-      if(!resp.ok)console.warn('notify failed:',resp.status);
-    }catch(e){console.warn('notify error:',e);}
-  }
-
   function generate(){
     // Save to group if session code present.
     // Pass true to mark this as the explicit "Generate My Report" submission —
@@ -2182,7 +2162,6 @@ function App(){
         if(pp||pd)setPrevSubmission({prog:pp,def:pd,con:pc,flex:pf,date:prev.savedAt?new Date(prev.savedAt).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}):'previously'});
       }
     }catch(e){}
-    fireNotification();
     setLoading(true);
     setTimeout(()=>{setLoading(false);setShowReport(true);go(6);},1600);
   }
@@ -3006,7 +2985,6 @@ function App(){
 
   function renderTab3(){
     function generatePDF(){
-      fireNotification();
       window.print();
     }
     return(
