@@ -6,6 +6,7 @@
 <title>STAT — Strategic Tensions Assessment Tool</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.development.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.development.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
 <style>
@@ -130,11 +131,193 @@ html,body{font-family:'DM Sans',sans-serif;background:#f0ede8;color:#1a1a1a;-web
 .resume-box{background:#fff8f5;border:1px solid #f5c8b0;border-radius:6px;padding:1.25rem;margin-bottom:1.25rem}
 .resume-box h3{font-size:.9rem;font-weight:700;color:#1a1a1a;margin-bottom:.5rem}
 .resume-box p{font-size:.82rem;color:#555;line-height:1.55;margin-bottom:.75rem}
+
+/* ── GROUP STYLES ────────────────────────────────────────────── */
+.chip-row{display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:.5rem}
+.p-chip{width:28px;height:28px;border-radius:50%;border:2px solid #d8d3cb;background:#f0ede8;font-size:.68rem;font-weight:700;display:flex;align-items:center;justify-content:center;color:#555;flex-shrink:0;position:relative}
+.p-chip.done{background:#1a1a1a;border-color:#1a1a1a;color:#fff}
+.p-chip.you{border-color:#e07030}
+.p-chip .you-dot{position:absolute;bottom:-2px;right:-2px;width:8px;height:8px;border-radius:50%;background:#e07030;border:1.5px solid #f0ede8}
+.refresh-btn{display:inline-flex;align-items:center;gap:.35rem;background:#f0ede8;border:1px solid #d8d3cb;border-radius:3px;padding:.4rem .8rem;font-size:.75rem;font-weight:600;cursor:pointer;color:#555;font-family:'DM Sans',sans-serif;transition:border-color .15s}
+.refresh-btn:hover{border-color:#1a1a1a;color:#1a1a1a}
+.pulse{display:inline-block;width:8px;height:8px;border-radius:50%;background:#22c55e;animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.85)}}
+.code-fix-box{display:flex;gap:.5rem;align-items:center;margin-top:.5rem;background:#fff8f5;border:1px solid #f5c8b0;border-radius:4px;padding:.5rem .75rem;flex-wrap:wrap}
+.code-fix-box input{border:1px solid #d8d3cb;border-radius:3px;padding:.35rem .6rem;font-size:.82rem;font-family:'DM Sans',sans-serif;outline:none;width:140px;text-transform:uppercase}
+.code-fix-box input:focus{border-color:#e07030}
+.apply-btn{background:#e07030;color:#fff;border:none;border-radius:3px;padding:.35rem .75rem;font-size:.78rem;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif}
+.anon-toggle{display:inline-flex;align-items:center;gap:.5rem;cursor:pointer;font-size:.78rem;color:#555;font-family:'DM Sans',sans-serif;user-select:none}
+.anon-toggle input{accent-color:#e07030;width:14px;height:14px;cursor:pointer}
+.group-mean-row{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:.5rem;margin:1rem 0}
+.gm-cell{background:#fff;border:1px solid #d8d3cb;border-radius:4px;padding:.75rem .6rem;text-align:center}
+.gm-lbl{font-size:.6rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#888;margin-bottom:.25rem}
+.gm-you{font-size:1.1rem;font-weight:700;color:#e07030;line-height:1}
+.gm-mean{font-size:.72rem;color:#666;margin-top:.15rem}
+.gm-diff{font-size:.65rem;font-weight:600;margin-top:.1rem}
+.gm-diff.up{color:#16a34a}.gm-diff.down{color:#dc2626}.gm-diff.flat{color:#888}
+.fac-tab-bar{display:flex;gap:0;border-bottom:2px solid #d8d3cb;margin-bottom:1.5rem;overflow-x:auto}
+.fac-tab{padding:.5rem .85rem;font-size:.72rem;font-weight:700;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;color:#b0a898;transition:all .2s;white-space:nowrap;font-family:'DM Sans',sans-serif}
+.fac-tab.active{color:#1a1a1a;border-bottom-color:#1a1a1a}
+.fac-tab:hover:not(.active){color:#555}
+
+/* Facilitator dashboard tiles */
+.fac-dash{display:grid;grid-template-columns:repeat(4,1fr);gap:.85rem;margin-bottom:1.5rem}
+@media(max-width:900px){.fac-dash{grid-template-columns:repeat(2,1fr)}}
+.dash-tile{background:#fff;border:1px solid #e2ddd3;border-radius:4px;overflow:hidden;min-height:180px;display:flex;flex-direction:column;cursor:pointer;transition:border-color .15s,box-shadow .15s;font-family:'DM Sans',sans-serif}
+.dash-tile:hover{border-color:#c8c2b4;box-shadow:0 1px 4px rgba(0,0,0,.04)}
+.dash-tile-inner{padding:1rem 1.1rem;display:flex;align-items:flex-start;justify-content:space-between;gap:.75rem;flex:1}
+.dash-tile-l{flex:1;min-width:0}
+.dash-tile-name{font-size:.62rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#888;margin-bottom:.55rem;display:flex;align-items:center;gap:.4rem}
+.dash-tile-headline{font-family:'Cormorant Garamond',serif;font-size:1.15rem;font-weight:500;color:#1a1a1a;line-height:1.25;margin-bottom:.35rem}
+.dash-tile-sub{font-size:.72rem;color:#555;line-height:1.5}
+.dash-tile-chev{flex-shrink:0;color:#aaa;font-size:.95rem;line-height:1}
+.dash-pips{display:flex;gap:4px;margin-top:.5rem;flex-wrap:wrap;align-items:center}
+.dash-pip{width:11px;height:11px;background:#dcd6c8;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:transparent;font-size:8px;line-height:1}
+.dash-pip.done{background:#16a34a;color:#fff}
+.dash-pip.done::after{content:'✓';font-weight:700}
+.dash-pip.partial{background:#f59e0b}
+.dash-pip.partial::after{content:'·';color:#fff;font-weight:900;font-size:14px;line-height:0;margin-top:-2px}
+.dash-chip{display:inline-flex;align-items:center;gap:.25rem;padding:.1rem .45rem;font-size:.6rem;font-weight:700;letter-spacing:.03em;text-transform:uppercase;border-radius:10px;background:#f5f1e9;color:#444;border:1px solid #e2ddd3}
+.dash-chip.alert{background:#fef3e2;color:#b45309;border-color:#f59e0b}
+.dash-chip.live{background:#e8f5ec;color:#166534;border-color:#86efac}
+.dash-chip.live::before{content:'';width:5px;height:5px;background:#16a34a;border-radius:50%;display:inline-block;animation:dash-pulse 1.5s infinite}
+.dash-chip.closed{background:#fef2f2;color:#c0392b;border-color:#fca5a5}
+.dash-chip.review{background:#fff8f5;color:#b45309;border-color:#f5c8b0}
+.dash-chip.review::before{content:'';width:5px;height:5px;background:#e07030;border-radius:50%;display:inline-block;animation:dash-pulse 1.5s infinite}
+@keyframes dash-pulse{0%,100%{opacity:1}50%{opacity:.4}}
+/* Fullscreen overlay for an opened tile */
+body.dash-open{overflow:hidden}
+.dash-overlay{position:fixed;inset:0;background:#f0ede8;z-index:1000;display:flex;flex-direction:column;overflow:hidden;animation:dash-fade .15s ease-out}
+@keyframes dash-fade{from{opacity:0;transform:scale(.98)}to{opacity:1;transform:scale(1)}}
+.dash-ovr-head{flex-shrink:0;padding:1.25rem 1.75rem 1rem;border-bottom:1px solid #d8d3cb;background:#fff;display:flex;justify-content:space-between;align-items:flex-start;gap:1.5rem;position:sticky;top:0;z-index:5;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.dash-ovr-head-l{flex:1;min-width:0}
+.dash-ovr-name{font-size:.7rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#e07030;margin-bottom:.4rem;font-family:'DM Sans',sans-serif}
+.dash-ovr-headline{font-family:'Cormorant Garamond',serif;font-size:1.85rem;font-weight:500;color:#1a1a1a;line-height:1.1;margin-bottom:.3rem}
+.dash-ovr-sub{font-size:.82rem;color:#555;font-family:'DM Sans',sans-serif}
+.dash-ovr-close{flex-shrink:0;display:inline-flex;align-items:center;gap:.5rem;background:#e07030;border:1.5px solid #e07030;color:#fff;font-size:.82rem;font-weight:700;letter-spacing:.02em;line-height:1;cursor:pointer;font-family:'DM Sans',sans-serif;padding:.7rem 1.1rem .7rem 1rem;border-radius:24px;transition:all .15s;box-shadow:0 1px 3px rgba(224,112,48,.25)}
+.dash-ovr-close:hover{background:#1a1a1a;border-color:#1a1a1a;box-shadow:0 2px 6px rgba(0,0,0,.15)}
+.dash-ovr-close-x{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:rgba(255,255,255,.22);font-size:1rem;font-weight:400;line-height:1}
+.fac-info-btn{flex-shrink:0;display:inline-flex;align-items:center;gap:.4rem;background:#fff;border:1.5px solid #d8d3cb;color:#555;font-size:.78rem;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;padding:.6rem .85rem;border-radius:24px;transition:all .15s;line-height:1}
+.fac-info-btn:hover{border-color:#1a1a1a;color:#1a1a1a;background:#f0ede8}
+.fac-info-btn.active{background:#1a1a1a;border-color:#1a1a1a;color:#fff}
+.fac-info-icon{display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;border-radius:50%;border:1.5px solid currentColor;font-size:.7rem;font-weight:700;font-style:italic;font-family:Georgia,serif;line-height:1}
+.fac-info-panel{background:#fff;border-bottom:1px solid #d8d3cb;padding:1.25rem 1.75rem 1.5rem;animation:fac-info-slide .2s ease-out;flex-shrink:0}
+@keyframes fac-info-slide{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+.fac-info-panel-inner{max-width:1200px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1.25rem 1.75rem}
+.fac-info-block{}
+.fac-info-block-label{font-size:.6rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#e07030;margin-bottom:.45rem;font-family:'DM Sans',sans-serif}
+.fac-info-block-text{font-size:.84rem;line-height:1.6;color:#1a1a1a;font-family:'DM Sans',sans-serif}
+.fac-info-block-text ul{margin:.25rem 0 0 1rem;padding:0}
+.fac-info-block-text li{margin-bottom:.3rem}
+.fac-info-block-text code{background:#f0ede8;padding:.05rem .3rem;border-radius:2px;font-size:.78rem}
+@media print{.fac-info-btn,.fac-info-panel{display:none!important}}
+/* ── Mobile optimisation for the facilitator dashboard + overlays ─── */
+@media(max-width:640px){
+  /* Dashboard tiles: single column on phones for legibility */
+  .fac-dash{grid-template-columns:1fr!important;gap:.6rem}
+  .dash-tile{min-height:auto}
+  .dash-tile-inner{padding:.85rem 1rem}
+  .dash-tile-headline{font-size:1.05rem}
+  .dash-tile-sub{font-size:.7rem}
+  /* Overlay header: stack header text above buttons; smaller type */
+  .dash-ovr-head{flex-direction:column;align-items:stretch;padding:.85rem 1rem .65rem;gap:.7rem}
+  .dash-ovr-headline{font-size:1.3rem!important;line-height:1.2}
+  .dash-ovr-name{font-size:.62rem}
+  .dash-ovr-sub{font-size:.72rem}
+  .dash-ovr-head>div:last-child,
+  .dash-ovr-head .fac-info-btn+div,
+  /* the right-side button group (info + close) */
+  .dash-ovr-head>div[style*="display:flex"]{justify-content:flex-start;flex-wrap:wrap;gap:.4rem!important}
+  /* Make both header buttons compact on phones */
+  .fac-info-btn,.dash-ovr-close{padding:.5rem .8rem;font-size:.74rem;border-radius:20px}
+  .fac-info-btn span:last-child{display:inline}
+  /* Body padding tighter */
+  .dash-ovr-body{padding:1rem .85rem}
+  /* Info panel: single column */
+  .fac-info-panel{padding:.85rem 1rem 1.1rem}
+  .fac-info-panel-inner{grid-template-columns:1fr;gap:.85rem}
+  .fac-info-block-text{font-size:.78rem}
+  /* Section headings smaller */
+  .rpt-heading{font-size:.85rem}
+  .rpt-section{margin-bottom:1rem}
+  /* Variance compact rows: collapse the 4-col layout to 2 stacked rows */
+  .var-row{grid-template-columns:2rem 1fr!important;grid-template-rows:auto auto}
+  .var-row > :nth-child(3),
+  .var-row > :nth-child(4){grid-column:1/-1}
+  /* Quadrant + diamond charts: ensure they shrink and labels remain visible */
+  .quadrant-wrap,.chart-box{padding:.85rem!important}
+  .dual-diamond-wrap{grid-template-columns:1fr!important;gap:.85rem!important}
+  /* Inline org-name editor on overlay header */
+  .dash-ovr-head input[type="text"]{min-width:0!important;width:100%}
+  /* Pending review row buttons — stack if space tight */
+  .pending-row-actions{flex-wrap:wrap}
+  /* Group Report header */
+  .group-mean-row{grid-template-columns:1fr 1fr!important;gap:.4rem}
+  /* Progress per-person grid */
+  .progress-grid{grid-template-columns:1fr!important}
+  /* Refresh button + CSV controls in header — wrap */
+  .refresh-btn,.csv-btn{font-size:.72rem;padding:.5rem .8rem}
+  /* Footer close button stays inline but smaller */
+  .dash-ovr-body-inner>div:last-child .dash-ovr-close{padding:.55rem 1rem;font-size:.78rem}
+  /* To-be screen: stack sliders above diamond on phones */
+  .tobe-layout{grid-template-columns:1fr!important;gap:1rem!important}
+  .tobe-layout .chart-box{padding:.85rem!important}
+  /* Pending review queue — stack content + buttons */
+  .pending-row{flex-direction:column!important;align-items:stretch!important}
+  .pending-row .actions{justify-content:flex-end;margin-top:.5rem}
+  /* Close-session card buttons */
+  .session-status-card>div:first-child{flex-direction:column;align-items:flex-start!important}
+}
+
+@media(max-width:380px){
+  /* Even smaller phones — extra-tight tile padding */
+  .dash-tile-inner{padding:.7rem .85rem}
+  .dash-tile-headline{font-size:.98rem}
+  .dash-ovr-head{padding:.7rem .85rem .5rem}
+  .dash-ovr-headline{font-size:1.15rem!important}
+  .fac-info-btn span:last-child,
+  .dash-ovr-close span:last-child{display:none}
+  /* Show only icons on tiny screens */
+}
+.dash-ovr-body{flex:1;overflow-y:auto;padding:1.5rem 1.75rem;background:#f0ede8}
+.dash-ovr-body-inner{max-width:1200px;margin:0 auto}
+@media print{
+  .dash-overlay{position:relative;display:block!important;z-index:auto;animation:none}
+  .dash-ovr-close,.dash-ovr-head{display:none!important}
+  .dash-ovr-body{padding:0;overflow:visible}
+}
+.var-bar{height:6px;background:#d8d3cb;border-radius:3px;margin-top:.3rem;overflow:hidden}
+.var-fill{height:100%;border-radius:3px}
+.split-callout{background:#fffbeb;border:1px solid #fde68a;border-radius:4px;padding:.75rem 1rem;margin:.75rem 0;font-size:.82rem;color:#92400e;line-height:1.6}
+.waiting-state{text-align:center;padding:3rem 1rem;color:#888}
+.waiting-state .wait-icon{font-size:2.5rem;margin-bottom:1rem;opacity:.4}
+.waiting-state h3{font-size:1rem;font-weight:600;color:#555;margin-bottom:.5rem;font-family:'Cormorant Garamond',serif;font-size:1.3rem}
+.csv-btn{display:inline-flex;align-items:center;gap:.4rem;background:#1a1a1a;color:#fff;border:none;border-radius:3px;padding:.65rem 1.2rem;font-size:.82rem;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif}
+.all-in-badge{display:inline-flex;align-items:center;gap:.35rem;background:#dcfce7;color:#16a34a;border-radius:3px;padding:.2rem .6rem;font-size:.72rem;font-weight:700}
+.progress-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:.75rem;margin:1rem 0}
+.prog-person{background:#fff;border:1px solid #d8d3cb;border-radius:4px;padding:.75rem;font-size:.78rem}
+.prog-person .pp-name{font-weight:700;color:#1a1a1a;margin-bottom:.4rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prog-person .pp-steps{display:flex;gap:3px}
+.step-dot{width:10px;height:10px;border-radius:2px;background:#d8d3cb}
+.step-dot.done{background:#22c55e}.step-dot.current{background:#e07030}
+.notes-area{width:100%;border:1px solid #d8d3cb;border-radius:3px;padding:.75rem;font-family:'DM Sans',sans-serif;font-size:.875rem;color:#1a1a1a;outline:none;min-height:120px;resize:vertical;line-height:1.55;background:#fff}
+.notes-area:focus{border-color:#e07030}
+.respondent-card{background:#fff;border:1px solid #d8d3cb;border-radius:4px;padding:1rem;margin-bottom:.75rem}
+.respondent-card.selected{border-color:#1a1a1a;border-left:3px solid #e07030}
+.rc-header{display:flex;align-items:center;gap:.75rem;cursor:pointer;justify-content:space-between}
+.rc-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0}
+.rc-name{font-size:.88rem;font-weight:700;color:#1a1a1a}
+.rc-role{font-size:.72rem;color:#888}
+.rc-strategy{font-size:.72rem;font-weight:600;color:#e07030}
+.significant-gap{background:#fff8f5;border-left:4px solid #e07030;border-radius:0 4px 4px 0;padding:.85rem 1.1rem;margin-bottom:1.25rem}
+.sg-label{font-size:.6rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#e07030;margin-bottom:.3rem}
+.sg-text{font-size:.95rem;font-weight:600;color:#1a1a1a;line-height:1.4;font-family:'Cormorant Garamond',serif}
+
 @page{margin:0;size:A4}
 @media print{
   *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
-  .prog-wrap,.back-btn,.btn-row,.rpt-tabs,.diamond-expand-hint,
-  .resume-box,.land-hero,.disc{display:none!important}
+  .prog-wrap,.back-btn,.btn-row,.rpt-tabs,.fac-tab-bar,.diamond-expand-hint,
+  .resume-box,.land-hero,.disc,.refresh-btn,.csv-btn,.code-fix-box,.ticker{display:none!important}
   .rpt-tab-content{display:block!important;margin-bottom:0!important}
   .rpt-tab-content+.rpt-tab-content{margin-top:2rem;padding-top:1.5rem;border-top:2px solid #e07030}
   body{background:#fff!important}
@@ -146,16 +329,19 @@ html,body{font-family:'DM Sans',sans-serif;background:#f0ede8;color:#1a1a1a;-web
   .da-grid{grid-template-columns:1fr!important}
   .da-card,.da-lower-card,.rpt-section,.gap-summary,.score-card{break-inside:avoid}
   .da-summary{margin-bottom:.75rem}
-  .print-section-title{display:block!important;font-size:.65rem;font-weight:700;
-    letter-spacing:.1em;text-transform:uppercase;color:#e07030;margin-bottom:.5rem;
-    font-family:'DM Sans',sans-serif;padding-top:1rem;border-top:1px solid #e0dbd4}
-  svg{max-height:220px!important;width:auto!important}
+  .print-section-title{display:block!important;font-size:.85rem;font-weight:700;
+    letter-spacing:.1em;text-transform:uppercase;color:#e07030;margin:1rem 0 .5rem;
+    font-family:'DM Sans',sans-serif;padding-top:1rem;border-top:2px solid #e07030;page-break-before:always}
+  .print-section-title:first-of-type{page-break-before:auto;border-top:none;padding-top:0}
+  svg{max-height:240px!important;width:auto!important}
   h2.pg-title{font-size:1.3rem;margin-bottom:.25rem}
   .sug-item{break-inside:avoid}
   .score-grid{grid-template-columns:1fr 1fr}
   .pg-sub{font-size:.8rem;color:#555;margin-bottom:1rem}
   .strat-badge,.da-lower-card{background:#fff!important}
   .feedback-section,.was-useful{display:none!important}
+  .insight-grid{grid-template-columns:1fr 1fr!important}
+  .pres-overlay{display:none!important}
 }
 .print-header{display:none;margin-bottom:1.5rem}
 .print-header-bar{background:#1a1a1a;padding:.75rem 1.25rem;display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem}
@@ -178,6 +364,65 @@ html,body{font-family:'DM Sans',sans-serif;background:#f0ede8;color:#1a1a1a;-web
   .rpt-tab{padding:.5rem .55rem;font-size:.68rem}
   .slider-input{height:44px}
 }
+
+/* ── LIVE TICKER ── */
+.ticker{display:flex;gap:.5rem;align-items:center;background:#fff;border:1px solid #d8d3cb;border-radius:4px;padding:.6rem 1rem;margin-bottom:1.25rem;flex-wrap:wrap}
+.ticker-item{display:flex;align-items:center;gap:.4rem;font-size:.78rem;font-family:'DM Sans',sans-serif;color:#555}
+.ticker-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.ticker-dot.started{background:#f59e0b}
+.ticker-dot.done{background:#22c55e}
+.ticker-dot.waiting{background:#d8d3cb}
+.ticker-count{font-weight:700;color:#1a1a1a}
+.ticker-divider{color:#d8d3cb;font-size:1rem}
+
+/* ── NARRATIVE SUMMARY ── */
+.narrative-card{background:#1a1a1a;border-radius:4px;padding:1.25rem 1.5rem;margin-bottom:1.5rem}
+.narrative-label{font-size:.6rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#e07030;margin-bottom:.5rem;font-family:'DM Sans',sans-serif}
+.narrative-text{font-size:.95rem;line-height:1.75;color:#f0ede8;font-family:'DM Sans',sans-serif}
+
+/* ── TENSION + OUTLIER CARDS ── */
+.insight-grid{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:1.5rem}
+.insight-card{background:#fff;border:1px solid #d8d3cb;border-radius:4px;padding:1rem 1.1rem}
+.insight-card.tension{border-top:3px solid #dc2626}
+.insight-card.alignment{border-top:3px solid #2563eb}
+.insight-card.outlier{border-top:3px solid #f59e0b}
+.insight-card.shift{border-top:3px solid #16a34a}
+.insight-label{font-size:.6rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.35rem;font-family:'DM Sans',sans-serif}
+.insight-card.tension .insight-label{color:#dc2626}
+.insight-card.alignment .insight-label{color:#2563eb}
+.insight-card.outlier .insight-label{color:#f59e0b}
+.insight-card.shift .insight-label{color:#16a34a}
+.insight-value{font-size:1.3rem;font-weight:700;color:#1a1a1a;font-family:'Cormorant Garamond',serif;line-height:1.2;margin-bottom:.25rem}
+.insight-desc{font-size:.78rem;color:#666;line-height:1.55;font-family:'DM Sans',sans-serif}
+@media(max-width:600px){.insight-grid{grid-template-columns:1fr}}
+
+/* ── DEBRIEF QUESTIONS ── */
+.dq-item{display:flex;gap:.75rem;padding:.75rem 0;border-bottom:1px solid #ebe7e0;align-items:flex-start}
+.dq-num{width:22px;height:22px;border-radius:50%;background:#1a1a1a;color:#fff;font-size:.65rem;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:'DM Sans',sans-serif;margin-top:.1rem}
+.dq-text{font-size:.875rem;line-height:1.65;color:#1a1a1a;font-family:'DM Sans',sans-serif}
+
+/* ── QUADRANT MAP ── */
+.quadrant-wrap{position:relative;background:#fff;border:1px solid #d8d3cb;border-radius:4px;padding:1.25rem;margin-bottom:1.5rem}
+.quadrant-label{font-size:.6rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#888;margin-bottom:.75rem;font-family:'DM Sans',sans-serif}
+
+/* ── DUAL DIAMOND (Group Report to-be) ── */
+.dual-diamond-wrap{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem}
+@media(max-width:500px){.dual-diamond-wrap{grid-template-columns:1fr}}
+
+/* ── PRESENTATION MODE ── */
+.pres-overlay{position:fixed;inset:0;background:#1a1a1a;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2rem}
+.pres-title{font-family:'Cormorant Garamond',serif;font-size:clamp(1.4rem,3vw,2.2rem);font-weight:400;color:#fff;text-align:center;margin-bottom:.5rem}
+.pres-sub{font-size:.8rem;color:#888;text-align:center;margin-bottom:2rem;font-family:'DM Sans',sans-serif;letter-spacing:.05em}
+.pres-diamond-wrap{width:min(70vw,480px);height:min(70vw,480px)}
+.pres-controls{display:flex;gap:.75rem;margin-top:2rem;flex-wrap:wrap;justify-content:center}
+.pres-btn{background:transparent;border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:3px;padding:.6rem 1.2rem;font-family:'DM Sans',sans-serif;font-size:.82rem;font-weight:600;cursor:pointer;transition:border-color .15s}
+.pres-btn:hover{border-color:#fff}
+.pres-btn.primary{background:#e07030;border-color:#e07030}
+.pres-btn.primary:hover{background:#c05a20;border-color:#c05a20}
+.pres-exit{position:absolute;top:1.5rem;right:1.5rem;background:none;border:none;color:#888;cursor:pointer;font-size:1.2rem;font-family:'DM Sans',sans-serif}
+.pres-legend{display:flex;gap:.75rem;flex-wrap:wrap;justify-content:center;margin-top:1rem}
+.pres-leg-item{display:flex;align-items:center;gap:.3rem;font-size:.7rem;color:#888;font-family:'DM Sans',sans-serif}
+.pres-leg-dot{width:10px;height:10px;border-radius:50%}
 </style>
 </head>
 <body>
@@ -381,11 +626,119 @@ function generateSuggestions(prog,def,con,flex,tp,td,tc,tf,thing,s1ans,s2ans){
 }
 
 
+// ── AI FACILITATION PROMPTS (structured renderer) ───────────────────────────
+// Renders the structured response from /api/stat-ai-questions into Current/Future
+// sections. Falls back gracefully to a flat list if the server returns an old shape.
+function renderInlineMarkdown(text){
+  if(!text)return null;
+  // Render **bold** segments
+  const parts=String(text).split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((p,i)=>{
+    if(/^\*\*[^*]+\*\*$/.test(p))return <strong key={i}>{p.slice(2,-2)}</strong>;
+    return <span key={i}>{p}</span>;
+  });
+}
+
+function renderAiFacilitationPrompts(payload){
+  // Backward-compat: if payload is a flat array of strings, render simple list
+  if(Array.isArray(payload)){
+    return(
+      <div>
+        {payload.map((q,i)=>(
+          <div key={i} style={{padding:'.85rem 0',borderBottom:'1px solid #ebe7e0'}}>
+            <div style={{display:'flex',gap:'.65rem',alignItems:'flex-start'}}>
+              <div className="sug-num">{i+1}</div>
+              <div className="sug-txt">{q}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // Structured shape
+  const {current,future,dominantStrategy,agreementPattern,futurePattern,n,questions}=payload||{};
+  // Fallback 1: if structured fields missing but we have a flat questions array, render that
+  if((!current||!future)&&Array.isArray(questions)&&questions.length){
+    return(
+      <div>
+        <div style={{fontSize:'.7rem',color:'#888',marginBottom:'.5rem',fontFamily:"'DM Sans',sans-serif"}}>
+          {n?`Based on ${n} respondent${n!==1?'s':''}`:'Facilitation prompts'}
+        </div>
+        {questions.map((q,i)=>(
+          <div key={i} style={{padding:'.85rem 0',borderBottom:'1px solid #ebe7e0'}}>
+            <div style={{display:'flex',gap:'.65rem',alignItems:'flex-start'}}>
+              <div className="sug-num">{i+1}</div>
+              <div className="sug-txt">{q}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  // Fallback 2: nothing renderable
+  if(!current||!future)return <div style={{color:'#888',fontStyle:'italic',padding:'1rem 0'}}>The facilitation API returned an unexpected response. Try regenerating, or contact support if this persists.</div>;
+
+  function renderItem(item,i){
+    return(
+      <div key={i} style={{padding:'.9rem 0',borderBottom:'1px solid #ebe7e0'}}>
+        {item.prompt&&(
+          <div style={{fontSize:'.875rem',lineHeight:1.7,color:'#1a1a1a',marginBottom:item.bullets||item.question?'.5rem':0,fontFamily:"'DM Sans',sans-serif"}}>
+            {renderInlineMarkdown(item.prompt)}
+          </div>
+        )}
+        {item.bullets&&item.bullets.length>0&&(
+          <ul style={{margin:'.4rem 0 .6rem 1.25rem',padding:0,fontSize:'.84rem',lineHeight:1.65,color:'#333'}}>
+            {item.bullets.map((b,bi)=><li key={bi} style={{marginBottom:'.25rem'}}>{b}</li>)}
+          </ul>
+        )}
+        {item.question&&(
+          <div style={{display:'flex',gap:'.65rem',alignItems:'flex-start',marginTop:item.prompt||item.bullets?'.4rem':0}}>
+            <div className="sug-num">?</div>
+            <div className="sug-txt" style={{fontWeight:600}}>{item.question}</div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return(
+    <div>
+      <div style={{fontSize:'.7rem',color:'#888',marginBottom:'.5rem',fontFamily:"'DM Sans',sans-serif"}}>
+        Based on {n} respondent{n!==1?'s':''} · Dominant pattern: <strong>{dominantStrategy?dominantStrategy.name:'—'}</strong>
+      </div>
+      <div style={{marginTop:'1rem'}}>
+        <div className="rpt-heading" style={{fontSize:'.75rem',color:'#1a1a1a',borderBottom:'2px solid #1a1a1a',paddingBottom:'.35rem',marginBottom:'.6rem'}}>{current.heading}</div>
+        {current.items.map(renderItem)}
+      </div>
+      <div style={{marginTop:'1.5rem'}}>
+        <div className="rpt-heading" style={{fontSize:'.75rem',color:'#1a1a1a',borderBottom:'2px solid #1a1a1a',paddingBottom:'.35rem',marginBottom:'.6rem'}}>{future.heading}</div>
+        {future.items.map(renderItem)}
+      </div>
+    </div>
+  );
+}
+
+function aiPromptsToPlainText(payload){
+  if(Array.isArray(payload))return payload.map((q,i)=>`${i+1}. ${q}`).join('\n');
+  const {current,future}=payload||{};
+  const lines=[];
+  function emitItem(item){
+    if(item.prompt)lines.push(item.prompt.replace(/\*\*/g,''));
+    if(item.bullets&&item.bullets.length){item.bullets.forEach(b=>lines.push(`  • ${b}`));}
+    if(item.question)lines.push(`  ? ${item.question}`);
+    lines.push('');
+  }
+  if(current){lines.push(current.heading.toUpperCase());lines.push('');current.items.forEach(emitItem);}
+  if(future){lines.push(future.heading.toUpperCase());lines.push('');future.items.forEach(emitItem);}
+  return lines.join('\n').trim();
+}
+
 // ── COMBINED TO-BE DIAMOND ──────────────────────────────────────────────────
 // Shows as-is (orange, fixed) and to-be (dark, live) simultaneously
 function CombinedTobeDiamond({asIs,tobe}){
   return(
-    <svg width={SZ} height={SZ} style={{overflow:'visible',maxWidth:'100%'}}>
+    <svg viewBox="-30 -30 320 320" width="100%" preserveAspectRatio="xMidYMid meet" style={{maxWidth:'320px',display:'block',margin:'0 auto'}}>
       {[.25,.5,.75,1].map(pct=><path key={pct} d={gridPath(pct)} fill="none" stroke="#d8d3cb" strokeWidth={pct===1?1.5:1}/>)}
       <line x1={CX} y1={CY-RD} x2={CX} y2={CY+RD} stroke="#d8d3cb"/>
       <line x1={CX-RD} y1={CY} x2={CX+RD} y2={CY} stroke="#d8d3cb"/>
@@ -442,7 +795,7 @@ function ExpandableDiamond({children,title=''}){
 
 function DiamondChart({p=0,d=0,c=0,f=0,color='#e07030',prevProfile=null}){
   return(
-    <svg width={SZ} height={SZ} style={{overflow:'visible',maxWidth:'100%'}}>
+    <svg viewBox="-30 -30 320 320" width="100%" preserveAspectRatio="xMidYMid meet" style={{maxWidth:'320px',display:'block',margin:'0 auto'}}>
       {[.25,.5,.75,1].map(pct=><path key={pct} d={gridPath(pct)} fill="none" stroke="#d8d3cb" strokeWidth={pct===1?1.5:1}/>)}
       <line x1={CX} y1={CY-RD} x2={CX} y2={CY+RD} stroke="#d8d3cb"/>
       <line x1={CX-RD} y1={CY} x2={CX+RD} y2={CY} stroke="#d8d3cb"/>
@@ -562,10 +915,10 @@ function Slider({label,value,onChange,max=120,asIs=null}){
 }
 
 // ── PROGRESS BAR ─────────────────────────────────────────────────────────────
-const STEPS=['Start','About','Survey','Profile','Future','Report'];
-function stepToNav(s){if(s<=1)return s;if(s<=3)return 2;if(s===4)return 3;if(s===5)return 4;return 5;}
-function Progress({step}){
-  const nav=stepToNav(step);
+const STEPS=['Start','About','Survey','Profile','Future','Principles','Report'];
+function stepToNav(s,principlesStep){if(s<=1)return s;if(s<=3)return 2;if(s===4)return 3;if(s===5)return principlesStep?5:4;return 6;}
+function Progress({step,principlesStep}){
+  const nav=stepToNav(step,principlesStep);
   return(
     <div className="prog-wrap">
       <div className="prog-bars">{STEPS.map((_,i)=><div key={i} className={`prog-bar${i<nav?' done':i===nav?' now':''}`}/>)}</div>
@@ -576,10 +929,725 @@ function Progress({step}){
 function BackBtn({onClick}){return(<button className="back-btn" onClick={onClick}>← Back</button>);}
 
 // ── LOCAL STORAGE HELPERS ────────────────────────────────────────────────────
-function lsKey(name){return 'stat_solo_'+(name||'anon').toLowerCase().trim().replace(/\s+/g,'_');}
+function lsKey(name){return 'stat_org_'+(name||'anon').toLowerCase().trim().replace(/\s+/g,'_');}
 function saveProgress(name,data){try{localStorage.setItem(lsKey(name),JSON.stringify({...data,savedAt:Date.now()}));}catch(e){}}
 function loadProgress(name){try{const raw=localStorage.getItem(lsKey(name));return raw?JSON.parse(raw):null;}catch(e){return null;}}
 function clearProgress(name){try{localStorage.removeItem(lsKey(name));}catch(e){}}
+
+// ── PDF REPORT GENERATORS ────────────────────────────────────────────────────
+// Two PDFs are generated by this app:
+//   generateStatParticipantPDF — individual respondent's personal report
+//   generateStatGroupPDF       — facilitator's combined group report
+// Both share the same brand palette, fonts, header/footer treatment, and closing
+// About ChangeBefore page.
+
+// Builds an individual participant deliverable using jsPDF.
+// Mirrors generateStatGroupPDF conventions: A4 mm, brand palette, Times for headlines,
+// Helvetica for body, cover + header/footer treatment, closing About ChangeBefore page.
+function generateStatParticipantPDF(opts){
+  const {
+    respondentName, thing, role, sector, orgSize,
+    contextText, thingDesc,
+    prog, def, con, flex,
+    tobe, tobeInit,
+    asIsStrat, tobeStrat,
+    s1ans, s2ans,
+    selectedPrinciples,
+    SLABELS, SDESC, getStrategyText, gapLabel, gapBadgeText,
+    S1, S2,
+    industryContext,
+  } = opts;
+
+  if(!window.jspdf||!window.jspdf.jsPDF){
+    alert('PDF library failed to load. Please refresh the page and try again.');
+    return;
+  }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const pageW = 210, pageH = 297, margin = 18;
+  let y = margin;
+  let pageNum = 0;
+
+  const TEXT = [26, 26, 26];
+  const MUTED = [107, 107, 107];
+  const ACCENT = [224, 112, 48];
+  const BG = [240, 237, 232];
+  const BORDER = [216, 211, 203];
+  const WHITE = [255, 255, 255];
+  const RED = [192, 57, 43];
+
+  const orgLabel = thing || 'the organisation';
+  const SD = getStrategyText(asIsStrat, orgLabel);
+  const SDtobe = getStrategyText(tobeStrat, orgLabel);
+
+  // ───── HELPERS ─────
+  function setFont(size, weight, color){
+    doc.setFont('helvetica', weight||'normal');
+    doc.setFontSize(size);
+    if(color)doc.setTextColor(...color);
+  }
+  function rule(yPos){
+    doc.setDrawColor(...BORDER);
+    doc.setLineWidth(0.2);
+    doc.line(margin, yPos||y, pageW-margin, yPos||y);
+  }
+  function checkPage(needed){
+    if(y+needed > pageH-margin-15){
+      addFooter();
+      doc.addPage();
+      pageNum++;
+      y = margin;
+      addHeader();
+    }
+  }
+  function addHeader(){
+    if(pageNum===0)return;
+    setFont(8, 'normal', MUTED);
+    doc.text('CHANGEBEFORE', margin, 10);
+    // Right-aligned label is bounded by available space after the wordmark.
+    // CHANGEBEFORE at 8pt is roughly 25mm; add 5mm gutter and truncate the rest.
+    const headerLabel = 'STAT — Personal Report'+(orgLabel?(' · '+orgLabel):'');
+    const maxLabelW = (pageW-margin) - (margin+30);
+    doc.text(truncToFit(headerLabel, maxLabelW), pageW-margin, 10, {align:'right'});
+    doc.setDrawColor(...BORDER);
+    doc.setLineWidth(0.15);
+    doc.line(margin, 12, pageW-margin, 12);
+    y = margin+2;
+  }
+  function addFooter(){
+    if(pageNum===0)return;
+    const fy = pageH-12;
+    doc.setDrawColor(...BORDER);
+    doc.setLineWidth(0.15);
+    doc.line(margin, fy-4, pageW-margin, fy-4);
+    setFont(8, 'normal', MUTED);
+    doc.text('ChangeBefore · Strategic Tensions Assessment', margin, fy);
+    doc.text(String(pageNum), pageW-margin, fy, {align:'right'});
+  }
+  function sectionTitle(title){
+    checkPage(20);
+    doc.setFont('times','bold');
+    doc.setFontSize(16);
+    doc.setTextColor(...TEXT);
+    doc.text(title, margin, y);
+    doc.setFont('helvetica','normal');
+    y += 3;
+    rule();
+    y += 8;
+  }
+  function paragraph(text, opt){
+    opt = opt||{};
+    const sz = opt.size||10;
+    const wrapped = doc.splitTextToSize(text, pageW-2*margin);
+    setFont(sz, opt.weight||'normal', opt.color||TEXT);
+    const lh = sz*0.42;
+    checkPage(wrapped.length*lh+2);
+    doc.text(wrapped, margin, y);
+    y += wrapped.length*lh + 2;
+  }
+
+  // Truncate a single line of text to fit within maxWidth (mm), adding "..." if cut.
+  // Caller must have already set the font/size that will be used to render.
+  function truncToFit(text, maxWidth){
+    const s = String(text||'');
+    if(!s) return '';
+    if(doc.getTextWidth(s) <= maxWidth) return s;
+    const ellipsis = '...';
+    const eW = doc.getTextWidth(ellipsis);
+    if(eW > maxWidth) return '';
+    let lo = 0, hi = s.length;
+    while(lo < hi){
+      const mid = Math.ceil((lo+hi)/2);
+      if(doc.getTextWidth(s.slice(0, mid)) + eW <= maxWidth) lo = mid;
+      else hi = mid - 1;
+    }
+    return s.slice(0, lo).replace(/\s+$/,'') + ellipsis;
+  }
+
+  // Diamond renderer — draws a diamond chart at PDF coords using doc.lines
+  function drawDiamond(cx, cy, radius, scores, fillColor, strokeColor, label){
+    const MX = 120;
+    function pt(axis, val){
+      const r = (Math.max(0, Math.min(MX, val))/MX) * radius;
+      if (axis === 'prog') return [cx, cy - r];
+      if (axis === 'flex') return [cx + r, cy];
+      if (axis === 'def')  return [cx, cy + r];
+      return [cx - r, cy]; // con
+    }
+    // Grid rings (faint) — closed diamond path: top→right→bottom→left→top
+    doc.setDrawColor(...BORDER);
+    doc.setLineWidth(0.15);
+    [0.25, 0.5, 0.75, 1.0].forEach(pct=>{
+      const r = radius*pct;
+      // Start at top vertex (cx, cy-r), deltas trace clockwise back to top
+      doc.lines([[r,r],[-r,r],[-r,-r],[r,-r]], cx, cy - r, [1,1], 'D', true);
+    });
+    // Cross axes (subtle gray)
+    doc.setDrawColor(...BORDER);
+    doc.setLineWidth(0.1);
+    doc.line(cx-radius, cy, cx+radius, cy);
+    doc.line(cx, cy-radius, cx, cy+radius);
+
+    // Shape
+    const sP = (scores.p !== undefined ? scores.p : scores.prog) || 0;
+    const sD = (scores.d !== undefined ? scores.d : scores.def)  || 0;
+    const sC = (scores.c !== undefined ? scores.c : scores.con)  || 0;
+    const sF = (scores.f !== undefined ? scores.f : scores.flex) || 0;
+    const [px, py]   = pt('prog', sP);
+    const [fx, fy]   = pt('flex', sF);
+    const [dx, dy]   = pt('def',  sD);
+    const [cnx, cny] = pt('con',  sC);
+    if(fillColor) doc.setFillColor(...fillColor);
+    doc.setDrawColor(...strokeColor);
+    doc.setLineWidth(0.6);
+    // Path: prog (top) → flex (right) → def (bottom) → con (left) → prog (close)
+    doc.lines(
+      [[fx-px, fy-py],[dx-fx, dy-fy],[cnx-dx, cny-dy],[px-cnx, py-cny]],
+      px, py, [1,1], fillColor?'FD':'D', true
+    );
+
+    // Axis labels
+    setFont(7.5, 'bold', TEXT);
+    doc.text('Progressive', cx, cy-radius-3, {align:'center'});
+    doc.text('Flexible',    cx+radius+2, cy+1, {align:'left'});
+    doc.text('Defensive',   cx, cy+radius+5, {align:'center'});
+    doc.text('Consistent',  cx-radius-2, cy+1, {align:'right'});
+
+    // Score dots
+    [['prog',sP],['flex',sF],['def',sD],['con',sC]].forEach(([ax,sc])=>{
+      const [x,yy] = pt(ax, sc);
+      doc.setFillColor(...strokeColor);
+      doc.circle(x, yy, 2.6, 'F');
+      setFont(6.5, 'bold', WHITE);
+      doc.text(String(Math.round(sc)), x, yy+1.1, {align:'center'});
+    });
+
+    // Optional label below
+    if(label){
+      setFont(8, 'bold', MUTED);
+      doc.text(label, cx, cy+radius+11, {align:'center'});
+    }
+  }
+
+  // Build flat 12-question lists for each section in the order Purpose×3,People×3,Process×3,Product×3
+  function flattenQs(section){
+    const out = [];
+    section.categories.forEach(cat=>{
+      cat.qs.forEach(q=>{
+        out.push({...q, cat: cat.name});
+      });
+    });
+    return out;
+  }
+  const s1Qs = flattenQs(S1);
+  const s2Qs = flattenQs(S2);
+
+  // ───── COVER PAGE ─────
+  doc.setFillColor(...BG);
+  doc.rect(0, 0, pageW, pageH, 'F');
+
+  setFont(9, 'bold', TEXT);
+  doc.text('CHANGEBEFORE', margin, 30);
+  setFont(8, 'normal', MUTED);
+  doc.text('Diagnostic consulting · Change before you have to.', margin, 35);
+  doc.setDrawColor(...ACCENT);
+  doc.setLineWidth(0.8);
+  doc.line(margin, 42, margin+30, 42);
+
+  doc.setFont('times','bold');
+  doc.setFontSize(34);
+  doc.setTextColor(...TEXT);
+  doc.text('Strategic', margin, 110);
+  doc.text('Tensions', margin, 124);
+  doc.text('Assessment', margin, 138);
+
+  doc.setFont('times','italic');
+  doc.setFontSize(20);
+  doc.setTextColor(...ACCENT);
+  doc.text('Personal Profile', margin, 155);
+
+  // Prepared for / name + organisation
+  // Cover page identity block — sized dynamically so multi-line names
+  // never collide with the "on behalf of" / org block below.
+  let cyId = 178; // start y for "Prepared for" label
+  if(respondentName){
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(11);
+    doc.setTextColor(...MUTED);
+    doc.text('Prepared for', margin, cyId);
+    doc.setFont('times','bold');
+    doc.setFontSize(18);
+    doc.setTextColor(...TEXT);
+    // Wrap across up to 2 lines, truncate if longer
+    const nameLines = doc.splitTextToSize(respondentName, pageW-2*margin);
+    let renderLines;
+    if(nameLines.length>2){
+      const line2 = truncToFit(nameLines.slice(1).join(' '), pageW-2*margin);
+      renderLines = [nameLines[0], line2];
+    } else {
+      renderLines = nameLines;
+    }
+    doc.text(renderLines, margin, cyId+9);
+    // Advance below the rendered name (line height ~7mm at 18pt times-bold)
+    cyId = cyId + 9 + renderLines.length*7 + 1;
+  }
+  if(orgLabel && orgLabel!=='the organisation'){
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(10);
+    doc.setTextColor(...MUTED);
+    doc.text('on behalf of', margin, cyId);
+    doc.setFont('times','bold');
+    doc.setFontSize(13);
+    doc.setTextColor(...TEXT);
+    const orgWrapped = doc.splitTextToSize(orgLabel, pageW-2*margin);
+    let orgLines;
+    if(orgWrapped.length>2){
+      const line2 = truncToFit(orgWrapped.slice(1).join(' '), pageW-2*margin);
+      orgLines = [orgWrapped[0], line2];
+    } else {
+      orgLines = orgWrapped;
+    }
+    doc.text(orgLines, margin, cyId+7);
+  }
+
+  // Contact line above the metadata block
+  const contactY = pageH-50;
+  setFont(8, 'normal', MUTED);
+  doc.text('CONTACT', margin, contactY);
+  setFont(10, 'bold', TEXT);
+  doc.text('contact@changebefore.com', margin, contactY+6);
+  setFont(9, 'normal', MUTED);
+  doc.text('changebefore.com', margin, contactY+11);
+
+  const coverFY = pageH-30;
+  doc.setDrawColor(...BORDER);
+  doc.setLineWidth(0.2);
+  doc.line(margin, coverFY-8, pageW-margin, coverFY-8);
+
+  setFont(8, 'normal', MUTED);
+  doc.text('CURRENT STRATEGY', margin, coverFY-2);
+  doc.text('ROLE', margin+70, coverFY-2);
+  doc.text('DATE', margin+115, coverFY-2);
+
+  setFont(10, 'bold', TEXT);
+  // Each column is ~50mm wide; leave 3mm gutter so columns never collide
+  doc.text(truncToFit(SLABELS[asIsStrat]||'—', 65), margin, coverFY+4);
+  doc.text(truncToFit(role||'—', 42), margin+70, coverFY+4);
+  doc.text(new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'}), margin+115, coverFY+4);
+
+  setFont(7, 'normal', MUTED);
+  doc.text('Personal report · ChangeBefore · tools.changebefore.com',
+    pageW/2, pageH-10, {align:'center'});
+
+  // ───── PAGE 2: YOUR CURRENT PROFILE ─────
+  doc.addPage(); pageNum=1; y=margin+5; addHeader();
+  sectionTitle('Your current profile');
+
+  // Diamond + scores side by side
+  const diamondR = 32;
+  const diamondCX = margin+diamondR+4;
+  const diamondCY = y+diamondR+6;
+  drawDiamond(diamondCX, diamondCY, diamondR, {p:prog,d:def,c:con,f:flex}, [253,232,220], ACCENT);
+
+  // Right-side scores grid
+  const gridX = diamondCX+diamondR+12;
+  const gridW = pageW-margin-gridX;
+  const dims = [
+    {label:'PROGRESSIVE', value:Number.isFinite(prog)?prog:0},
+    {label:'DEFENSIVE',   value:Number.isFinite(def) ?def :0},
+    {label:'CONSISTENT',  value:Number.isFinite(con) ?con :0},
+    {label:'FLEXIBLE',    value:Number.isFinite(flex)?flex:0},
+  ];
+  const dimRowH = 13;
+  dims.forEach((d,i)=>{
+    const dy = y + i*dimRowH;
+    doc.setFillColor(...WHITE);
+    doc.setDrawColor(...BORDER);
+    doc.setLineWidth(0.2);
+    doc.rect(gridX, dy, gridW, dimRowH-1, 'FD');
+    setFont(7, 'bold', MUTED);
+    doc.text(d.label, gridX+3, dy+5);
+    setFont(13, 'bold', ACCENT);
+    doc.text(String(d.value), gridX+3, dy+10.5);
+    setFont(7, 'normal', MUTED);
+    doc.text('/ 120', gridX+gridW-3, dy+10.5, {align:'right'});
+  });
+  y += diamondR*2+14;
+
+  // Strategy banner
+  checkPage(20);
+  doc.setFillColor(...TEXT);
+  doc.rect(margin, y, pageW-2*margin, 16, 'F');
+  setFont(7, 'bold', ACCENT);
+  doc.text('CURRENT STRATEGY', margin+5, y+6);
+  setFont(13, 'bold', WHITE);
+  doc.text(SLABELS[asIsStrat]||'—', margin+5, y+12);
+  y += 22;
+
+  // Summary paragraph
+  paragraph(SD.summary);
+  if(industryContext){ y += 1; paragraph(industryContext); }
+  y += 2;
+
+  // Purpose / People / Process / Product
+  ['purpose','people','process','product'].forEach(key=>{
+    const heading = key.charAt(0).toUpperCase()+key.slice(1)+' — currently';
+    checkPage(28);
+    setFont(10, 'bold', ACCENT);
+    doc.text(heading, margin, y);
+    y += 5;
+    paragraph(SD[key]);
+    y += 2;
+  });
+
+  // At Best / Blind Spots / Areas
+  function colourBlock(headLabel, headColor, body){
+    checkPage(28);
+    // Coloured left bar
+    doc.setFillColor(...headColor);
+    doc.rect(margin, y, 1.2, 6, 'F');
+    setFont(9, 'bold', headColor);
+    doc.text(headLabel, margin+4, y+4.5);
+    y += 9;
+    paragraph(body);
+    y += 3;
+  }
+  colourBlock('At Its Best — currently', [22,163,74], SD.atBest);
+  colourBlock('Current Blind Spots and Risk Factors', [220,38,38], SD.blind);
+  colourBlock('Areas for Consideration — to move toward your desired profile', [37,99,235], SD.areas);
+
+  addFooter();
+
+  // ───── DESIRED PROFILE (gated on tobeInit) ─────
+  if(tobeInit){
+    doc.addPage(); pageNum++; y=margin+5; addHeader();
+    sectionTitle('Your desired profile');
+
+    // Two side-by-side diamonds
+    const halfW = (pageW-2*margin-10)/2;
+    const dR = 28;
+    const lcx = margin+halfW/2;
+    const rcx = margin+halfW+10+halfW/2;
+    const dCY = y+dR+6;
+    drawDiamond(lcx, dCY, dR, {p:prog,d:def,c:con,f:flex}, [253,232,220], ACCENT, 'Current');
+    drawDiamond(rcx, dCY, dR, {p:tobe.p,d:tobe.d,c:tobe.c,f:tobe.f}, null, TEXT, 'Desired');
+    y += dR*2+18;
+
+    // Desired strategy banner
+    checkPage(20);
+    doc.setDrawColor(...ACCENT);
+    doc.setLineWidth(0.4);
+    doc.rect(margin, y, pageW-2*margin, 16);
+    setFont(7, 'bold', ACCENT);
+    doc.text('DESIRED STRATEGY', margin+5, y+6);
+    setFont(13, 'bold', TEXT);
+    doc.text(SLABELS[tobeStrat]||'—', margin+5, y+12);
+    y += 22;
+
+    // Shift commentary
+    if(asIsStrat!==tobeStrat){
+      paragraph(`You want ${orgLabel} to shift from ${SLABELS[asIsStrat]} toward ${SLABELS[tobeStrat]}. This is a meaningful strategic shift that will require deliberate attention to leadership behaviours, structural enablers, and how success is measured and rewarded.`);
+      y += 2;
+    } else {
+      paragraph(`Your desired profile remains within ${SLABELS[asIsStrat]}. The shift you are seeking is one of degree rather than direction — strengthening or rebalancing within the same strategic frame.`);
+      y += 2;
+    }
+
+    // Gap table
+    checkPage(48);
+    setFont(10, 'bold', TEXT);
+    doc.text('Gap analysis', margin, y);
+    y += 5;
+    const colW = (pageW-2*margin)/4;
+    // Header row
+    doc.setFillColor(...BG);
+    doc.rect(margin, y, pageW-2*margin, 7, 'F');
+    setFont(7, 'bold', MUTED);
+    doc.text('DIMENSION', margin+3, y+5);
+    doc.text('NOW', margin+colW+3, y+5);
+    doc.text('DESIRED', margin+colW*2+3, y+5);
+    doc.text('SCALE OF CHANGE', margin+colW*3+3, y+5);
+    y += 7;
+
+    const rows = [
+      {lbl:'Progressive', now:prog, des:tobe.p},
+      {lbl:'Defensive',   now:def,  des:tobe.d},
+      {lbl:'Consistent',  now:con,  des:tobe.c},
+      {lbl:'Flexible',    now:flex, des:tobe.f},
+    ];
+    rows.forEach((r,i)=>{
+      const g = r.des - r.now;
+      const gl = gapLabel(g);
+      const arrow = g>0?('+'+g):(g<0?('-'+Math.abs(g)):'no change');
+      const rowY = y;
+      // alt row shading
+      if(i%2===1){ doc.setFillColor(248,246,243); doc.rect(margin, rowY, pageW-2*margin, 9, 'F'); }
+      setFont(9, 'bold', TEXT);
+      doc.text(r.lbl, margin+3, rowY+6);
+      setFont(9, 'normal', TEXT);
+      doc.text(String(r.now), margin+colW+3, rowY+6);
+      doc.text(String(r.des), margin+colW*2+3, rowY+6);
+      // badge color based on gap size
+      const bColor = gl==='large'?ACCENT:(gl==='medium'?[245,158,11]:[107,114,128]);
+      setFont(8, 'bold', bColor);
+      doc.text(`${gapBadgeText(g)} (${arrow})`, margin+colW*3+3, rowY+6);
+      y += 9;
+    });
+    y += 4;
+
+    addFooter();
+  }
+
+  // ───── STRATEGIC TENSIONS — Q&A TABLE ─────
+  doc.addPage(); pageNum++; y=margin+5; addHeader();
+  sectionTitle('Strategic tensions — your responses');
+  paragraph('Your scores on each of the 24 paired statements. The two numbers on each row show how strongly you weighted the left-hand statement (L) and the right-hand statement (R), each on a 0–10 scale.', {color:MUTED, size:9});
+  y += 3;
+
+  function renderQTable(title, qs, ans){
+    // Column geometry
+    const colNW = 16;         // # + category column (wider so cat fits on row 2)
+    const colLW = 12;         // L value
+    const colRW = 12;         // R value
+    const colQW = pageW-2*margin-colNW-colLW-colRW-4;
+
+    // Pre-compute first question's block height so we can keep the section
+    // heading attached to its first row across page breaks.
+    let firstBlockH = 0;
+    if(qs.length>0){
+      const q0 = qs[0];
+      setFont(8.5, 'bold', TEXT);
+      const q0Wrap = doc.splitTextToSize(q0.q || '', colQW);
+      setFont(7.5, 'normal', MUTED);
+      const l0Wrap = doc.splitTextToSize('L: '+(q0.l||''), colQW);
+      const r0Wrap = doc.splitTextToSize('R: '+(q0.r||''), colQW);
+      firstBlockH = q0Wrap.length*3.6 + l0Wrap.length*3 + r0Wrap.length*3 + 5;
+    }
+    // Title (8mm) + first block — keep them together
+    checkPage(8 + firstBlockH + 4);
+
+    setFont(11, 'bold', ACCENT);
+    doc.text(title, margin, y);
+    y += 5;
+
+    qs.forEach((q,i)=>{
+      const a = ans[i] || {l:'', r:''};
+      const lv = a.l===''?'—':String(parseInt(a.l)||0);
+      const rv = a.r===''?'—':String(parseInt(a.r)||0);
+
+      // Wrap question + L/R statements
+      setFont(8.5, 'bold', TEXT);
+      const qWrap = doc.splitTextToSize(q.q || '', colQW);
+      setFont(7.5, 'normal', MUTED);
+      const lWrap = doc.splitTextToSize('L: '+(q.l||''), colQW);
+      const rWrap = doc.splitTextToSize('R: '+(q.r||''), colQW);
+      const blockH = qWrap.length*3.6 + lWrap.length*3 + rWrap.length*3 + 5;
+      // Skip the page-break check on the first question (already covered above)
+      if(i>0) checkPage(blockH+2);
+
+      const startY = y;
+      // # column — Q number on row 1, category on row 2
+      setFont(8, 'bold', ACCENT);
+      doc.text('Q'+(i+1), margin, startY+4);
+      setFont(6.5, 'normal', MUTED);
+      doc.text(q.cat||'', margin, startY+8);
+
+      // Question text
+      setFont(8.5, 'bold', TEXT);
+      doc.text(qWrap, margin+colNW, startY+4);
+      let cy = startY + 4 + qWrap.length*3.6 + 1;
+      // L statement
+      setFont(7.5, 'normal', MUTED);
+      doc.text(lWrap, margin+colNW, cy);
+      cy += lWrap.length*3 + 0.5;
+      // R statement
+      doc.text(rWrap, margin+colNW, cy);
+      cy += rWrap.length*3 + 0.5;
+
+      // L and R values, right side
+      setFont(11, 'bold', TEXT);
+      doc.text(lv, pageW-margin-colRW-3, startY+5, {align:'right'});
+      doc.text(rv, pageW-margin-3, startY+5, {align:'right'});
+      setFont(6.5, 'normal', MUTED);
+      doc.text('L', pageW-margin-colRW-3, startY+9, {align:'right'});
+      doc.text('R', pageW-margin-3, startY+9, {align:'right'});
+
+      y = startY + blockH;
+      // Faint divider
+      doc.setDrawColor(...BORDER);
+      doc.setLineWidth(0.1);
+      doc.line(margin, y-1, pageW-margin, y-1);
+      y += 1;
+    });
+    y += 4;
+  }
+
+  renderQTable('Section 1 — How we currently work', s1Qs, s1ans);
+  renderQTable('Section 2 — How we adapt', s2Qs, s2ans);
+
+  addFooter();
+
+  // ───── SELECTED PRINCIPLES ─────
+  if(selectedPrinciples && selectedPrinciples.length>0){
+    doc.addPage(); pageNum++; y=margin+5; addHeader();
+    sectionTitle('Your selected principles');
+    paragraph('The principles you identified as the ones most likely to make the biggest difference for '+orgLabel+', in the priority order you ranked them.', {color:MUTED, size:9});
+    y += 3;
+
+    selectedPrinciples.forEach((p,i)=>{
+      checkPage(18);
+      // Numbered circle
+      doc.setFillColor(...ACCENT);
+      doc.circle(margin+4, y+3.5, 3.5, 'F');
+      setFont(8, 'bold', WHITE);
+      doc.text(String(i+1), margin+4, y+4.6, {align:'center'});
+
+      // Principle text
+      setFont(10, 'normal', TEXT);
+      const wrapped = doc.splitTextToSize(p, pageW-2*margin-12);
+      doc.text(wrapped, margin+11, y+4.5);
+      y += Math.max(8, wrapped.length*4.2) + 4;
+    });
+
+    addFooter();
+  }
+
+  // ───── ABOUT THE MODEL ─────
+  doc.addPage(); pageNum++; y=margin+5; addHeader();
+  sectionTitle('About the Model');
+
+  setFont(11, 'bold', TEXT);
+  doc.text('The Strategic Tensions Assessment Tool', margin, y);
+  y += 6;
+
+  paragraph('STAT is built on the Four Strategies framework, which emerged from a multi-year research programme on organisational resilience led by Professor David Denyer at Cranfield School of Management. The framework was first published in 2017 in collaboration with BSI, drawing on a systematic review of academic evidence and extensive practitioner research with high-reliability organisations.');
+  y += 1;
+  paragraph('The model holds that organisational resilience is not a single capability but a strategic balance across four distinct orientations: Preventative Control (defensive consistency), Mindful Action (defensive flexibility), Performance Optimisation (progressive consistency), and Adaptive Innovation (progressive flexibility). Most organisations gravitate toward one or two of these and develop blind spots in the others. The strategic challenge is not to choose between them but to know which combination is right for the conditions you face — and to deliberately build the capability you are short of.');
+  y += 1;
+  paragraph('STAT measures where your organisation currently sits across these four orientations and where you want it to be. The gap between current and desired is the strategic conversation worth having.');
+  y += 4;
+
+  // Citation block
+  checkPage(22);
+  doc.setDrawColor(...ACCENT);
+  doc.setLineWidth(0.6);
+  doc.line(margin, y, margin+30, y);
+  y += 5;
+  setFont(9, 'bold', MUTED);
+  doc.text('TO CITE THIS MODEL', margin, y);
+  y += 5;
+  setFont(10, 'normal', TEXT);
+  paragraph('Denyer, D. (2017). Organizational Resilience: A summary of academic evidence, business insights and new thinking. BSI and Cranfield School of Management.');
+  y += 4;
+
+  // ───── FURTHER READING ─────
+  checkPage(50);
+  setFont(11, 'bold', TEXT);
+  doc.text('Further reading', margin, y);
+  y += 6;
+
+  const links = [
+    { label: 'Executive summary', url: 'https://changebefore.com/wp-content/uploads/2026/05/Organizational-Resilience-Executive-Summary-David-Denyer.pdf' },
+    { label: 'Full report', url: 'https://changebefore.com/wp-content/uploads/2026/05/Organizational-Resilience-Full-Report-David-Denyer.pdf' },
+    { label: 'Resilience Reimagined: A practical guide for organisations', url: 'https://changebefore.com/wp-content/uploads/2026/05/Resilience-Reimagined-A-practical-guide-for-organisations.pdf' },
+  ];
+  links.forEach(L=>{
+    checkPage(14);
+    setFont(10, 'bold', ACCENT);
+    doc.textWithLink(L.label, margin, y, {url: L.url});
+    y += 4.5;
+    setFont(8, 'normal', MUTED);
+    const urlWrap = doc.splitTextToSize(L.url, pageW-2*margin);
+    doc.text(urlWrap, margin, y);
+    y += urlWrap.length*3.4 + 4;
+  });
+
+  addFooter();
+
+  // ───── CLOSING PAGE: ABOUT CHANGEBEFORE ─────
+  doc.addPage(); pageNum++; y=margin;
+  // Full-bleed BG
+  doc.setFillColor(...BG);
+  doc.rect(0, 0, pageW, pageH, 'F');
+
+  // Wordmark
+  setFont(9, 'bold', TEXT);
+  doc.text('CHANGEBEFORE', margin, 30);
+  setFont(8, 'normal', MUTED);
+  doc.text('Diagnostic consulting · Change before you have to.', margin, 35);
+  doc.setDrawColor(...ACCENT);
+  doc.setLineWidth(0.8);
+  doc.line(margin, 42, margin+30, 42);
+
+  // Headline
+  doc.setFont('times','bold');
+  doc.setFontSize(28);
+  doc.setTextColor(...TEXT);
+  doc.text('About ChangeBefore', margin, 80);
+
+  doc.setFont('times','italic');
+  doc.setFontSize(13);
+  doc.setTextColor(...ACCENT);
+  doc.text('Change before you have to.', margin, 92);
+
+  // Body — three paragraphs
+  let cy = 110;
+
+  setFont(10, 'normal', TEXT);
+  const para1 = "This report was generated by a ChangeBefore diagnostic tool. ChangeBefore is a diagnostic consulting practice that works with leaders in complex organisations to assess problems, analyse evidence, design change, and evaluate impact.";
+  const w1 = doc.splitTextToSize(para1, pageW-2*margin);
+  doc.text(w1, margin, cy);
+  cy += w1.length*4.4 + 6;
+
+  const para2 = "Our tools are designed to be used in two ways: on their own, as a structured way to look at a specific question; or as the starting point for a deeper diagnostic conversation when the picture they reveal calls for it.";
+  const w2 = doc.splitTextToSize(para2, pageW-2*margin);
+  doc.text(w2, margin, cy);
+  cy += w2.length*4.4 + 6;
+
+  const para3 = "If anything in this report has surfaced something you'd like to look at more closely, we'd be glad to talk. There's no obligation, no proposal until you ask for one, and no pressure to go further than the conversation.";
+  const w3 = doc.splitTextToSize(para3, pageW-2*margin);
+  doc.text(w3, margin, cy);
+  cy += w3.length*4.4 + 14;
+
+  // Contact line — orange accent rule above
+  doc.setDrawColor(...ACCENT);
+  doc.setLineWidth(0.6);
+  doc.line(margin, cy, margin+30, cy);
+  cy += 8;
+
+  setFont(11, 'bold', TEXT);
+  doc.text('changebefore.com', margin, cy);
+  setFont(11, 'bold', ACCENT);
+  doc.text('contact@changebefore.com', margin+55, cy);
+  cy += 14;
+
+  // Bottom contact strip
+  const closeFY = pageH-30;
+  doc.setDrawColor(...BORDER);
+  doc.setLineWidth(0.2);
+  doc.line(margin, closeFY-8, pageW-margin, closeFY-8);
+
+  setFont(8, 'normal', MUTED);
+  doc.text('EMAIL', margin, closeFY-2);
+  doc.text('WEB', margin+50, closeFY-2);
+  doc.text('TOOLS', margin+100, closeFY-2);
+
+  setFont(10, 'bold', TEXT);
+  doc.text('contact@changebefore.com', margin, closeFY+4);
+  doc.text('changebefore.com', margin+50, closeFY+4);
+  doc.text('tools.changebefore.com', margin+100, closeFY+4);
+
+  setFont(7, 'normal', MUTED);
+  doc.text('ChangeBefore · trading name of Woburn Management Group Ltd', pageW/2, pageH-10, {align:'center'});
+
+  // Filename
+  const slug = (respondentName||'report').toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');
+  const dateStr = new Date().toISOString().slice(0,10);
+  const filename = 'STAT_Personal_'+slug+'_'+dateStr+'.pdf';
+  doc.save(filename);
+}
+
 
 // ── MAIN APP ─────────────────────────────────────────────────────────────────
 function App(){
@@ -591,6 +1659,7 @@ function App(){
   const [contextText,setContextText]=useState('');
   const [role,setRole]=useState('');
   const [roleCustom,setRoleCustom]=useState('');
+
   const [s1ans,setS1]=useState(Array(12).fill(null).map(()=>({l:'',r:''})));
   const [s2ans,setS2]=useState(Array(12).fill(null).map(()=>({l:'',r:''})));
   const [s1active,setS1Active]=useState(0);
@@ -598,21 +1667,29 @@ function App(){
   const [tobe,setTobe]=useState({p:60,d:60,c:60,f:60});
   const [tobeInit,setTobeInit]=useState(false);
   const [loading,setLoading]=useState(false);
-  const [showReport,setShowReport]=useState(false);
   const [rptTab,setRptTab]=useState(0);
   const [prevSubmission,setPrevSubmission]=useState(null);
   const [thirtyDay,setThirtyDay]=useState('');
-  const [feedbackRating,setFeedbackRating]=useState(null);
   const [feedbackComment,setFeedbackComment]=useState('');
+  const [feedbackSent,setFeedbackSent]=useState(false);
+  const [feedbackSending,setFeedbackSending]=useState(false);
+
+  const [orgSize,setOrgSize]=useState('');
+  const [sector,setSector]=useState('');
+  const [principlesStep,setPrinciplesStep]=useState(false);
+  const [principles,setPrinciples]=useState(null);
+  const [principlesLoading,setPrinciplesLoading]=useState(false);
+  const [selectedPrinciples,setSelectedPrinciples]=useState([]);
+  const [customPrinciple,setCustomPrinciple]=useState('');
   const topRef=useRef(null);
 
   useEffect(()=>{topRef.current&&topRef.current.scrollIntoView({behavior:'smooth'});},[step]);
 
-  // Auto-save progress whenever key state changes
+  // Auto-save progress whenever key state changes (Solo: localStorage only)
   useEffect(()=>{
     if(!respondentName.trim()||step===0)return;
-    saveProgress(respondentName,{step,thing,thingDesc,contextText,role,roleCustom,s1ans,s2ans,tobe,tobeInit});
-  },[step,thing,thingDesc,contextText,role,roleCustom,s1ans,s2ans,tobe,tobeInit,respondentName]);
+    saveProgress(respondentName,{step,thing,thingDesc,contextText,s1ans,s2ans,tobe,tobeInit,selectedPrinciples});
+  },[step,thing,thingDesc,contextText,s1ans,s2ans,tobe,tobeInit,respondentName,selectedPrinciples]);
 
   const def=s1ans.reduce((s,a)=>s+(parseInt(a.l)||0),0);
   const prog=s1ans.reduce((s,a)=>s+(parseInt(a.r)||0),0);
@@ -622,6 +1699,7 @@ function App(){
   const tobeStrat=getStrategy(tobe.d,tobe.p,tobe.c,tobe.f);
   const SD=getStrategyText(asIsStrat,thing||'the organisation');
   const th=thing||'the organisation';
+
 
   const s1over=s1ans.some(a=>(parseInt(a.l)||0)+(parseInt(a.r)||0)>10);
   const s2over=s2ans.some(a=>(parseInt(a.l)||0)+(parseInt(a.r)||0)>10);
@@ -642,26 +1720,99 @@ function App(){
   function setTobeC(v){setTobe(t=>({...t,c:v,f:120-v}));}
   function setTobeF(v){setTobe(t=>({...t,f:v,c:120-v}));}
 
-  async function fireNotification(){
+
+  // ── PRINCIPLES (AI-generated) ───────────────────────────────────────────
+  async function loadPrinciples(){
+    setPrinciplesLoading(true);
+    setPrinciples(null);
+    // Don't wipe selectedPrinciples here — the user may already have selections
+    // (from a prior visit, restored from Supabase, or kept across navigation).
     try{
-      const resp=await fetch('/api/notify',{
+      const resp=await fetch('/api/stat-principles-generate',{
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({
-          type:'solo',orgName:thing||'(unnamed)',role:role==='None of the above'?roleCustom:role,
-          seniority:'',orgSize:'',sector:'',
-          asIs:{prog,def,con,flex},tobe:{p:tobe.p,d:tobe.d,c:tobe.c,f:tobe.f},
-          strategyType:SLABELS[asIsStrat],tobeType:SLABELS[tobeStrat],
-          date:new Date().toISOString(),respondentName,contextText:contextText.slice(0,200),
-          thirtyDayCommitment:thirtyDay||'',
-          feedbackRating:feedbackRating||'',feedbackComment:feedbackComment||'',
+          s1_answers:s1ans,
+          s2_answers:s2ans,
+          prog,def,con,flex,
+          tobe_prog:tobe.p,tobe_def:tobe.d,tobe_con:tobe.c,tobe_flex:tobe.f,
+          thing,
         }),
       });
-      if(!resp.ok)console.warn('notify failed:',resp.status);
-    }catch(e){console.warn('notify error:',e);}
+      if(resp.ok){const d=await resp.json();setPrinciples(d.principles||[]);}
+      else{setPrinciples([]);}
+    }catch(e){console.warn('principles error:',e);setPrinciples([]);}
+    setPrinciplesLoading(false);
+  }
+
+  function togglePrinciple(p){
+    setSelectedPrinciples(prev=>{
+      if(prev.includes(p))return prev.filter(x=>x!==p);
+      return [p,...prev];
+    });
+  }
+
+  function addCustomPrinciple(){
+    const p=customPrinciple.trim();
+    if(!p)return;
+    if(selectedPrinciples.includes(p))return;
+    setSelectedPrinciples([p,...selectedPrinciples]);
+    setCustomPrinciple('');
+  }
+
+  function movePrinciple(p,direction){
+    setSelectedPrinciples(prev=>{
+      const idx=prev.indexOf(p);
+      if(idx<0)return prev;
+      const newIdx=idx+direction;
+      if(newIdx<0||newIdx>=prev.length)return prev;
+      const next=[...prev];
+      [next[idx],next[newIdx]]=[next[newIdx],next[idx]];
+      return next;
+    });
+  }
+
+  function goToPrinciples(){
+    setPrinciplesStep(true);
+    loadPrinciples();
+    setStep(5); // stay on step 5, sub-screen flag handles the rest
+    if(topRef.current)topRef.current.scrollIntoView({behavior:'smooth'});
+  }
+
+  // Persist selectedPrinciples and qualitative inputs to localStorage. Solo has
+  // no Supabase to write to — autosave useEffect handles localStorage already.
+
+  // Solo has no Supabase persistence. selectedPrinciples is restored from
+  // localStorage by applyResume (extended below) and saved by the auto-save
+  // useEffect at top of App.
+
+
+
+  // Solo has no group/session/facilitator. The polling and load-on-mount
+  // useEffects from stat-group are removed.
+
+  async function sendFeedback(){
+    if(!feedbackComment.trim()||feedbackSending||feedbackSent)return;
+    setFeedbackSending(true);
+    try{
+      const resp=await fetch('/api/send-feedback',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          tool_label:'STAT Solo',
+          session_code:'',
+          respondent_name:respondentName||'',
+          comment:feedbackComment.trim(),
+        }),
+      });
+      if(resp.ok){setFeedbackSent(true);}
+      else{console.warn('send-feedback failed:',resp.status);}
+    }catch(e){console.warn('send-feedback error:',e);}
+    setFeedbackSending(false);
   }
 
   function generate(){
+    // Solo: no group save; just compute and proceed.
     // Save previous scores for comparison
     try{
       const prev=loadProgress(respondentName);
@@ -673,34 +1824,32 @@ function App(){
         if(pp||pd)setPrevSubmission({prog:pp,def:pd,con:pc,flex:pf,date:prev.savedAt?new Date(prev.savedAt).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}):'previously'});
       }
     }catch(e){}
-    fireNotification();
     setLoading(true);
-    setTimeout(()=>{setLoading(false);setShowReport(true);go(6);},1600);
+    setTimeout(()=>{setLoading(false);go(6);},1600);
   }
 
   function restart(){
     clearProgress(respondentName);
     setStep(0);setRespondentName('');setResumeData(null);setThing('');setThingDesc('');setContextText('');
-    setRole('');setRoleCustom('');
     setS1(Array(12).fill(null).map(()=>({l:'',r:''})));
     setS2(Array(12).fill(null).map(()=>({l:'',r:''})));
     setS1Active(0);setS2Active(0);
     setTobe({p:60,d:60,c:60,f:60});setTobeInit(false);
-    setShowReport(false);setRptTab(0);setPrevSubmission(null);
-    setThirtyDay('');setFeedbackRating(null);setFeedbackComment('');
+    setRptTab(0);setPrevSubmission(null);
+    setThirtyDay('');setFeedbackComment('');setFeedbackSent(false);setFeedbackSending(false);
     setLoading(false);
+    setPrinciplesStep(false);setPrinciples(null);setSelectedPrinciples([]);setCustomPrinciple('');
   }
 
   function applyResume(data){
     if(data.thing)setThing(data.thing);
     if(data.thingDesc)setThingDesc(data.thingDesc);
     if(data.contextText)setContextText(data.contextText);
-    if(data.role)setRole(data.role);
-    if(data.roleCustom)setRoleCustom(data.roleCustom);
     if(data.s1ans)setS1(data.s1ans);
     if(data.s2ans)setS2(data.s2ans);
     if(data.tobe)setTobe(data.tobe);
     if(data.tobeInit)setTobeInit(data.tobeInit);
+    if(Array.isArray(data.selectedPrinciples))setSelectedPrinciples(data.selectedPrinciples);
     setResumeData(null);
     go(data.step||1);
   }
@@ -728,10 +1877,18 @@ function App(){
       <div>
         <div className="land-hero">
           <div className="land-tag">changebefore.com</div>
-          <h1 className="land-title">Strategic Tensions Assessment Tool</h1>
-          <p className="land-desc">You'll complete a survey, see your profile plotted on a chart, set your desired future direction, and receive a personalised interpretation with specific suggestions for change.</p>
+          <h1 className="land-title">STAT — Strategic Tensions Assessment Tool</h1>
+          <p className="land-desc">Your individual report appears at the end. It reflects your own perspective on the organisation or team you have in mind — what is, what could be, and what you would carry forward.</p>
           <div className="land-time">About 20 minutes</div>
         </div>
+
+        <div style={{background:'#fff8f5',border:'1px solid #f5c8b0',borderLeft:'4px solid #e07030',borderRadius:'4px',padding:'.85rem 1rem',marginBottom:'1.25rem',fontFamily:"'DM Sans',sans-serif"}}>
+          <div style={{fontSize:'.7rem',fontWeight:700,color:'#e07030',marginBottom:'.3rem',letterSpacing:'.05em',textTransform:'uppercase'}}>Before you start</div>
+          <div style={{fontSize:'.82rem',color:'#1a1a1a',lineHeight:1.55}}>
+            Use the <strong>Next</strong> and <strong>Back</strong> buttons inside the tool to move between steps — your phone or browser back button will leave the survey. Your answers are saved automatically as you go, so if you do leave by accident, just re-enter your name to resume.
+          </div>
+        </div>
+
         <div style={{marginBottom:'1.5rem'}}>
           <label className="field-lbl">Your name</label>
           <input className="inp" placeholder="e.g. Alex Johnson" value={respondentName} onChange={e=>{
@@ -791,6 +1948,23 @@ function App(){
           {role==='None of the above'&&(
             <input className="inp" placeholder="Describe your role..." value={roleCustom} onChange={e=>setRoleCustom(e.target.value)} style={{maxWidth:'340px'}}/>
           )}
+        </div>
+
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'1rem',marginBottom:'1.25rem'}}>
+          <div>
+            <label className="field-lbl">Organisation size <span style={{color:'#c0b8ae',fontWeight:400}}>(optional)</span></label>
+            <select className="inp" value={orgSize} onChange={e=>setOrgSize(e.target.value)}>
+              <option value="">Select...</option>
+              {['1–50','51–250','251–1,000','1,001–5,000','5,001–20,000','20,000+'].map(o=><option key={o}>{o}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="field-lbl">Sector <span style={{color:'#c0b8ae',fontWeight:400}}>(optional)</span></label>
+            <select className="inp" value={sector} onChange={e=>setSector(e.target.value)}>
+              <option value="">Select...</option>
+              {['Civil Aviation','Construction','Defence','Education','Energy & Utilities','Financial Services','Government / Public Sector','Healthcare / NHS','Housing','Legal & Professional Services','Manufacturing','Nuclear','Rail & Transport','Technology','Other'].map(o=><option key={o}>{o}</option>)}
+            </select>
+          </div>
         </div>
 
         <div className="btn-row">
@@ -909,6 +2083,120 @@ function App(){
   // then on "Set Future Profile →" button we stay at step 4 but switch a local sub-step.
   // Simpler: use step 4 for to-be sliders. Profile is step 3 (was step 4 above — fixed below).
 
+  function renderPrinciples(){
+    const count=selectedPrinciples.length;
+    return(
+      <div className="fade">
+        <div className="sec-tag">Step 6 of 7 · Principles</div>
+        <h2 className="pg-title">Choose your principles</h2>
+        <p className="pg-sub">Below are 8 principles drawn from your responses. <strong>Click the ones that resonate, in order of importance to you</strong> — your most important first. Each click adds the principle to the top of your list. Use the arrows to reorder, or × to remove. There is no minimum or maximum.</p>
+
+        {selectedPrinciples.length>0&&(
+          <div style={{margin:'0 0 1.5rem',padding:'1rem 1.25rem',background:'#1a1a1a',borderRadius:'4px'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:'.6rem'}}>
+              <div style={{fontSize:'.6rem',fontWeight:700,letterSpacing:'.12em',textTransform:'uppercase',color:'#e07030',fontFamily:"'DM Sans',sans-serif"}}>Your selected principles — ranked by importance</div>
+              <div style={{fontSize:'.65rem',color:'#888',fontFamily:"'DM Sans',sans-serif"}}>{selectedPrinciples.length} selected</div>
+            </div>
+            {selectedPrinciples.map((p,i)=>{
+              const isFirst=i===0;
+              const isLast=i===selectedPrinciples.length-1;
+              return(
+                <div key={i} style={{display:'flex',alignItems:'flex-start',gap:'.5rem',padding:'.55rem 0',borderBottom:i<selectedPrinciples.length-1?'1px solid #333':'none'}}>
+                  <div style={{display:'flex',flexDirection:'column',gap:'2px',flexShrink:0,marginTop:'1px'}}>
+                    <button onClick={()=>movePrinciple(p,-1)} disabled={isFirst}
+                      style={{background:'none',border:'1px solid '+(isFirst?'#444':'#666'),color:isFirst?'#444':'#aaa',cursor:isFirst?'not-allowed':'pointer',width:'22px',height:'18px',padding:0,borderRadius:'3px',fontSize:'.7rem',lineHeight:1,fontFamily:'sans-serif'}}>↑</button>
+                    <button onClick={()=>movePrinciple(p,1)} disabled={isLast}
+                      style={{background:'none',border:'1px solid '+(isLast?'#444':'#666'),color:isLast?'#444':'#aaa',cursor:isLast?'not-allowed':'pointer',width:'22px',height:'18px',padding:0,borderRadius:'3px',fontSize:'.7rem',lineHeight:1,fontFamily:'sans-serif'}}>↓</button>
+                  </div>
+                  <div style={{fontSize:'.78rem',color:'#e07030',fontWeight:700,flexShrink:0,minWidth:'18px',marginTop:'2px',fontFamily:"'DM Sans',sans-serif"}}>{i+1}.</div>
+                  <div style={{fontSize:'.88rem',color:'#f0ede8',flex:1,lineHeight:1.6}}>{p}</div>
+                  <button onClick={()=>setSelectedPrinciples(selectedPrinciples.filter(x=>x!==p))}
+                    style={{background:'none',border:'none',color:'#888',cursor:'pointer',fontSize:'1rem',padding:'0 .25rem',fontFamily:'sans-serif',marginTop:'1px'}} title="Remove">×</button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {selectedPrinciples.length===0&&!principlesLoading&&principles&&principles.length>0&&(
+          <div style={{margin:'0 0 1.5rem',padding:'.85rem 1.1rem',background:'#ebe7e0',border:'1px dashed #b0a898',borderRadius:'4px',fontSize:'.82rem',color:'#666',fontStyle:'italic',textAlign:'center',fontFamily:"'DM Sans',sans-serif"}}>
+            Click a principle below to add it. Your most important first.
+          </div>
+        )}
+
+        {principlesLoading&&(
+          <div className="think"><div className="dots"><div className="dot"/><div className="dot"/><div className="dot"/></div><span className="think-txt">Generating principles from your answers…</span></div>
+        )}
+
+        {!principlesLoading&&principles&&principles.length===0&&(
+          <div className="warn-box">We weren't able to generate principles right now. You can write your own below, or skip this step and continue to your report.</div>
+        )}
+
+        {!principlesLoading&&principles&&principles.length>0&&(
+          <div>
+            {principles.map((p,i)=>{
+              const isSelected=selectedPrinciples.includes(p);
+              const rank=isSelected?selectedPrinciples.indexOf(p)+1:null;
+              return(
+                <div key={i}
+                  onClick={()=>togglePrinciple(p)}
+                  style={{
+                    border:isSelected?'2px solid #e07030':'1px solid #d8d3cb',
+                    background:isSelected?'#fff8f5':'#fff',
+                    borderRadius:'4px',padding:'.85rem 1rem',marginBottom:'.5rem',
+                    cursor:'pointer',
+                    display:'flex',gap:'.65rem',alignItems:'flex-start',transition:'all .15s'
+                  }}>
+                  <div style={{
+                    width:'22px',height:'22px',borderRadius:isSelected?'50%':'3px',
+                    border:'2px solid '+(isSelected?'#e07030':'#b0a898'),
+                    background:isSelected?'#e07030':'#fff',flexShrink:0,marginTop:'1px',
+                    display:'flex',alignItems:'center',justifyContent:'center',
+                    fontSize:'.78rem',fontWeight:700,color:isSelected?'#fff':'#b0a898',lineHeight:1
+                  }}>{isSelected?rank:''}</div>
+                  <div style={{fontSize:'.88rem',lineHeight:1.6,color:'#1a1a1a',flex:1}}>{p}</div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {!principlesLoading&&(
+          <div style={{marginTop:'1.5rem',paddingTop:'1.25rem',borderTop:'1px solid #d8d3cb'}}>
+            <div className="field-lbl">Write your own principle</div>
+            <div className="field-sub">Use a verb stem like "Make space for…", "Be willing to…", "Stop treating…", "Recognise that…"</div>
+            <div style={{display:'flex',gap:'.5rem',alignItems:'flex-start'}}>
+              <textarea className="inp inp-ta" style={{flex:1,minHeight:'70px'}}
+                placeholder="e.g. Be willing to slow down decisions when consequences are big."
+                value={customPrinciple}
+                onChange={e=>setCustomPrinciple(e.target.value)}/>
+              <button className="btn-s" onClick={addCustomPrinciple}
+                disabled={!customPrinciple.trim()}
+                style={{whiteSpace:'nowrap'}}>+ Add</button>
+            </div>
+          </div>
+        )}
+
+        <div className="btn-row">
+          {principlesLoading?(
+            <div style={{display:'inline-flex',alignItems:'center',gap:'.5rem',padding:'.65rem 1rem',background:'#ebe7e0',border:'1px solid #d8d3cb',borderRadius:'3px',color:'#888',fontSize:'.82rem',fontFamily:"'DM Sans',sans-serif",fontStyle:'italic'}}>
+              <div className="dots" style={{display:'inline-flex',gap:'4px'}}><div className="dot"/><div className="dot"/><div className="dot"/></div>
+              Waiting for principles to load…
+            </div>
+          ):loading?(
+            <div className="think"><div className="dots"><div className="dot"/><div className="dot"/><div className="dot"/></div><span className="think-txt">Generating your personalised report…</span></div>
+          ):(
+            <>
+              <button className="btn-p" onClick={generate}>Generate My Report →</button>
+              <button className="btn-s" onClick={loadPrinciples}>↻ Regenerate</button>
+            </>
+          )}
+          <button className="btn-s" onClick={()=>setPrinciplesStep(false)}>← Back to Future</button>
+        </div>
+      </div>
+    );
+  }
+
   function renderTobe(){
     return(
       <div>
@@ -917,7 +2205,7 @@ function App(){
         <h2 className="pg-title">Where do you want <em style={{fontStyle:'normal',color:'#e07030'}}>{th}</em> to be?</h2>
         <p className="pg-sub">Drag the sliders to set your desired future profile. Sliders start from your current as-is scores. Moving one slider up will automatically adjust its paired dimension. The diamond updates in real time.</p>
 
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'1.25rem',alignItems:'start',marginBottom:'1rem'}}>
+        <div className="tobe-layout" style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'1.25rem',alignItems:'start',marginBottom:'1rem'}}>
           <div>
             <div className="slider-section">
               <div className="sec-tag" style={{marginBottom:'.85rem'}}>Mindset — Progressive & Defensive</div>
@@ -954,7 +2242,7 @@ function App(){
           {loading?(
             <div className="think"><div className="dots"><div className="dot"/><div className="dot"/><div className="dot"/></div><span className="think-txt">Generating your personalised report…</span></div>
           ):(
-            <button className="btn-p" onClick={generate}>Generate My Report →</button>
+            <button className="btn-p" onClick={goToPrinciples}>Continue to Principles →</button>
           )}
           <button className="btn-s" onClick={()=>go(3)}>← Back</button>
         </div>
@@ -980,7 +2268,7 @@ function App(){
             <div className="print-header-strat">Current: <strong>{SLABELS[asIsStrat]}</strong> &nbsp;→&nbsp; Desired: <strong>{SLABELS[tobeStrat]}</strong> &nbsp;·&nbsp; {new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'})}</div>
           </div>
         </div>
-        <div className="sec-tag">Organisational Resilience Report</div>
+        <div className="sec-tag">Personal Report</div>
         <h2 className="pg-title">{th}</h2>
         <p className="pg-sub">Current: <strong>{SLABELS[asIsStrat]}</strong> · Desired: <strong>{SLABELS[tobeStrat]}</strong></p>
         <div className="rpt-tabs">
@@ -1269,8 +2557,8 @@ function App(){
     return(
       <div>
 <div className="rpt-section">
-          <div className="rpt-heading">About These Actions</div>
-          <p className="rpt-body">For each domain, the strategic priority identifies the most important shift based on your current profile and desired direction. The strategic question is designed to open up the options available to you — not to prescribe a specific action.</p>
+          <div className="rpt-heading">Your Gap and Your Principles</div>
+          <p className="rpt-body">The table below summarises the scale of the shift you are committing to across each dimension. Below it are the principles you selected as the ones most likely to make the biggest difference for {th}.</p>
         </div>
         <div className="gap-summary" style={{marginBottom:'1.5rem'}}>
           <div className="gap-row hdr"><div>Dimension</div><div className="gap-val">Now</div><div className="gap-val">Desired</div><div className="gap-val">Scale of change</div></div>
@@ -1279,28 +2567,22 @@ function App(){
             return(<div key={r.lbl} className="gap-row"><div style={{fontWeight:600}}>{r.lbl}</div><div className="gap-val">{r.now}</div><div className="gap-val">{r.des}</div><div className="gap-val"><span className={`gap-badge gap-${gl}`}>{gapBadgeText(g)}{g>0?` ▲${g}`:g<0?` ▼${Math.abs(g)}`:' —'}</span></div></div>);
           })}
         </div>
-        {['purpose','people','process','product'].map(cat=>{
-          const sec=suggestions[cat];if(!sec)return null;
-          return(
-            <div key={cat} className="rpt-section" style={{marginBottom:'2rem'}}>
-              <div className="rpt-heading" style={{fontSize:'1rem',marginBottom:'1rem'}}>{cat.charAt(0).toUpperCase()+cat.slice(1)}</div>
-              <div style={{marginBottom:'1rem'}}>
-                <div style={{fontSize:'.7rem',fontWeight:800,letterSpacing:'.08em',textTransform:'uppercase',color:'#e07030',marginBottom:'.5rem'}}>Strategic Priority</div>
-                <div className="sug-item">
-                  <div className="sug-num">→</div>
-                  <div className="sug-txt" dangerouslySetInnerHTML={{__html:sec.action}}/>
+        <div className="rpt-section" style={{marginBottom:'2rem'}}>
+          <div className="rpt-heading" style={{fontSize:'1rem',marginBottom:'1rem'}}>Your selected principles</div>
+          {selectedPrinciples&&selectedPrinciples.length>0?(
+            <div>
+              {selectedPrinciples.map((p,i)=>(
+                <div key={i} className="sug-item">
+                  <div className="sug-num">{i+1}</div>
+                  <div className="sug-txt" style={{fontWeight:500}}>{p}</div>
                 </div>
-              </div>
-              <div>
-                <div style={{fontSize:'.7rem',fontWeight:800,letterSpacing:'.08em',textTransform:'uppercase',color:'#2563eb',marginBottom:'.5rem'}}>Strategic Question</div>
-                <div className="sug-item" style={{borderLeft:'3px solid #2563eb'}}>
-                  <div className="sug-num" style={{background:'#eff6ff',color:'#2563eb'}}>?</div>
-                  <div className="sug-txt" style={{fontStyle:'italic'}}>{sec.question}</div>
-                </div>
-              </div>
+              ))}
+              <p style={{fontSize:'.78rem',color:'#888',marginTop:'1rem',lineHeight:1.6,fontFamily:"'DM Sans',sans-serif"}}>These are the commitments to a way of seeing that you believe will most help {th} make the shift you described. They are not actions for next Tuesday — they are positions you are committing to hold and act from.</p>
             </div>
-          );
-        })}
+          ):(
+            <p className="rpt-body" style={{fontStyle:'italic',color:'#888'}}>You did not select any principles. You can go back to the Principles step from the progress bar to choose some, or you can simply use this report's profile and gap analysis as a basis for your own thinking.</p>
+          )}
+        </div>
 
         <div style={{background:'#fff8f5',border:'1px solid #f5c8b0',borderRadius:'5px',padding:'1.25rem',marginBottom:'1.5rem'}}>
           <div style={{fontSize:'.7rem',fontWeight:700,letterSpacing:'.08em',textTransform:'uppercase',color:'#e07030',marginBottom:'.5rem',fontFamily:"'DM Sans',sans-serif"}}>Your 30-day commitment <span style={{fontWeight:400,color:'#b0a898'}}>(optional)</span></div>
@@ -1321,38 +2603,57 @@ function App(){
 
   function renderTab3(){
     function generatePDF(){
-      fireNotification();
-      window.print();
+      try {
+        generateStatParticipantPDF({
+          respondentName,
+          thing,
+          role: role==='None of the above'?roleCustom:role,
+          sector, orgSize,
+          contextText, thingDesc,
+          prog, def, con, flex,
+          tobe, tobeInit,
+          asIsStrat, tobeStrat,
+          s1ans, s2ans,
+          selectedPrinciples,
+          SLABELS, SDESC, getStrategyText, gapLabel, gapBadgeText,
+          S1, S2,
+          industryContext,
+        });
+      } catch(e) {
+        console.error('PDF generation failed:', e);
+        alert('Sorry, the PDF could not be generated. Please refresh the page and try again. If the problem persists, contact contact@changebefore.com.');
+      }
     }
     return(
       <div>
         <div style={{background:'#fff',border:'1px solid #d8d3cb',borderRadius:'5px',padding:'1.25rem',marginBottom:'1.5rem'}}>
-          <div style={{fontSize:'.7rem',fontWeight:700,letterSpacing:'.08em',textTransform:'uppercase',color:'#e07030',marginBottom:'.75rem',fontFamily:"'DM Sans',sans-serif"}}>Was this useful?</div>
-          <div style={{display:'flex',gap:'.75rem',marginBottom:'1rem',flexWrap:'wrap'}}>
-            {[{val:'very',label:'Very useful'},{val:'somewhat',label:'Somewhat useful'},{val:'not',label:'Not really'}].map(opt=>(
-              <button key={opt.val} onClick={()=>setFeedbackRating(opt.val)}
-                style={{padding:'.5rem 1rem',borderRadius:'20px',border:`1.5px solid ${feedbackRating===opt.val?'#e07030':'#d8d3cb'}`,background:feedbackRating===opt.val?'#fff8f5':'#fff',color:feedbackRating===opt.val?'#e07030':'#555',fontSize:'.82rem',fontWeight:feedbackRating===opt.val?700:400,cursor:'pointer',fontFamily:"'DM Sans',sans-serif",transition:'all .15s'}}>
-                {opt.label}
+          <div style={{fontSize:'.7rem',fontWeight:700,letterSpacing:'.08em',textTransform:'uppercase',color:'#e07030',marginBottom:'.5rem',fontFamily:"'DM Sans',sans-serif"}}>Got feedback?</div>
+          <p style={{fontSize:'.82rem',color:'#555',marginBottom:'.75rem',lineHeight:1.55,fontFamily:"'DM Sans',sans-serif"}}>We're always trying to improve our tools. If you have any thoughts on this one — what worked, what didn't, what's missing — drop us a note.</p>
+          {feedbackSent?(
+            <p style={{fontSize:'.85rem',color:'#16a34a',fontWeight:600,fontFamily:"'DM Sans',sans-serif",margin:0}}>✓ Thanks — feedback sent.</p>
+          ):(
+            <div>
+              <textarea value={feedbackComment} onChange={e=>setFeedbackComment(e.target.value)}
+                placeholder="Your feedback (optional)"
+                disabled={feedbackSending}
+                style={{width:'100%',border:'1px solid #d8d3cb',borderRadius:'3px',padding:'.65rem .9rem',fontFamily:"'DM Sans',sans-serif",fontSize:'.85rem',color:'#1a1a1a',outline:'none',minHeight:'80px',resize:'vertical',lineHeight:1.55,background:'#fff',marginBottom:'.75rem'}}
+              />
+              <button className="btn-s" onClick={sendFeedback} disabled={!feedbackComment.trim()||feedbackSending}
+                style={{fontSize:'.82rem'}}>
+                {feedbackSending?'Sending…':'Send feedback'}
               </button>
-            ))}
-          </div>
-          <textarea value={feedbackComment} onChange={e=>setFeedbackComment(e.target.value)}
-            placeholder="Any other comments? (optional)"
-            style={{width:'100%',border:'1px solid #d8d3cb',borderRadius:'3px',padding:'.65rem .9rem',fontFamily:"'DM Sans',sans-serif",fontSize:'.85rem',color:'#1a1a1a',outline:'none',minHeight:'70px',resize:'vertical',lineHeight:1.55,background:'#fff'}}
-          />
-          {feedbackRating&&<p style={{fontSize:'.75rem',color:'#888',marginTop:'.5rem',fontFamily:"'DM Sans',sans-serif"}}>Thank you — your feedback helps improve the tool.</p>}
+            </div>
+          )}
         </div>
         <div className="rpt-section">
           <div className="rpt-heading">Save Your Report</div>
-          <p className="rpt-body">Click the button below to open your browser's print dialog. Select <strong>Save as PDF</strong> as the destination to download your report. A copy of your results will also be emailed to ChangeBefore.</p>
+          <p className="rpt-body">Click the button below to download your report as a PDF. A copy of your results will also be emailed to ChangeBefore.</p>
           <div className="btn-row" style={{marginTop:'1rem'}}>
             <button className="btn-p" onClick={generatePDF}>⬇ Generate PDF</button>
-            <button className="btn-s" onClick={()=>{
-              const s=encodeURIComponent(`STAT Profile — ${thing||'Organisation'}`);
-              const b=encodeURIComponent(`My STAT profile for ${thing||'my organisation'}:\nCurrent: ${SLABELS[asIsStrat]} (P${prog} D${def} C${con} F${flex})\nDesired: ${SLABELS[tobeStrat]} (P${tobe.p} D${tobe.d} C${tobe.c} F${tobe.f})\nTool: changebefore.com/stat-solo-access/`);
-              window.open(`mailto:?subject=${s}&body=${b}`,'_self');
-            }}>✉ Share by email</button>
           </div>
+          <p style={{fontSize:'.72rem',color:'#888',marginTop:'.85rem',marginBottom:0,fontFamily:"'DM Sans',sans-serif"}}>
+            Having trouble? <a onClick={()=>window.print()} style={{color:'#888',textDecoration:'underline',cursor:'pointer'}}>Use your browser's print function as a backup</a>.
+          </p>
         </div>
         <div className="rpt-section" style={{borderTop:'1px solid #d8d3cb',paddingTop:'1.75rem',marginTop:'1.75rem'}}>
           <div style={{fontSize:'1rem',fontWeight:700,letterSpacing:'.05em',textTransform:'uppercase',color:'#e07030',marginBottom:'.5rem'}}>Take It Further: Run STAT with Your Team or Organisation</div>
@@ -1380,7 +2681,6 @@ function App(){
           <div style={{marginTop:'1.5rem',padding:'1.25rem',background:'#fff8f5',border:'1px solid #f5c8b0',borderRadius:'6px'}}>
             <div style={{fontSize:'.85rem',fontWeight:700,color:'#1a1a1a',marginBottom:'.5rem'}}>Ready to run it with your team?</div>
             <p style={{fontSize:'.85rem',color:'#555',lineHeight:1.7,marginBottom:'1rem'}}>Contact us at <a href="mailto:contact@changebefore.com" style={{color:'#e07030'}}>contact@changebefore.com</a> or visit <a href="https://changebefore.com/contact/" target="_blank" rel="noopener noreferrer" style={{color:'#e07030'}}>changebefore.com/contact</a> to arrange a conversation.</p>
-            <p style={{fontSize:'.85rem',color:'#555',lineHeight:1.6,marginBottom:'.75rem',fontFamily:"'DM Sans',sans-serif"}}>Arrange a conversation about running this for your group or team.</p>
             <button className="btn-p" onClick={()=>{
               const s=encodeURIComponent(`Group STAT session — ${thing||'Organisation'}`);
               const b=encodeURIComponent(`Hi,\n\nI've completed the STAT for ${thing||'my organisation'} and would like to discuss a group session.\n\nProfile: ${SLABELS[asIsStrat]} → ${SLABELS[tobeStrat]}\n\nBest regards`);
@@ -1389,7 +2689,7 @@ function App(){
           </div>
         </div>
         <div className="btn-row" style={{marginTop:'1.75rem'}}>
-          <button className="btn-s" onClick={()=>setRptTab(2)}>← Suggestions & Actions</button>
+          <button className="btn-s" onClick={()=>setRptTab(3)}>← Suggestions & Actions</button>
           <button className="btn-s" onClick={restart}>Start Again</button>
         </div>
       </div>
@@ -1397,10 +2697,12 @@ function App(){
   }
 
 
+
+
   // ── MAIN RENDER ──────────────────────────────────────────────────────────
   return(
     <div className="shell" ref={topRef}>
-      <Progress step={step}/>
+      <Progress step={step} principlesStep={principlesStep}/>
       <div className="main">
         <div className="content fade" key={step}>
           {step===0&&renderLanding()}
@@ -1408,7 +2710,8 @@ function App(){
           {step===2&&renderS1()}
           {step===3&&renderS2()}
           {step===4&&renderProfile()}
-          {step===5&&renderTobe()}
+          {step===5&&!principlesStep&&renderTobe()}
+          {step===5&&principlesStep&&renderPrinciples()}
           {step===6&&renderReport()}
         </div>
       </div>
