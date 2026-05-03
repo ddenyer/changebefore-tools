@@ -1630,9 +1630,7 @@ function App(){
   const [sector,setSector]=useState('');
   const [groupRespondents,setGroupRespondents]=useState([]);
   const [lastRefreshed,setLastRefreshed]=useState(null);
-  const [codeFixOpen,setCodeFixOpen]=useState(false);
-  const [codeFixVal,setCodeFixVal]=useState('');
-  const [anonymousMode,setAnonymousMode]=useState(false);
+
   const [groupReportMode,setGroupReportMode]=useState(false);
   // ── Facilitator instructions copy — shown via ⓘ button on each overlay ─────
   const FAC_INFO={
@@ -1693,7 +1691,7 @@ function App(){
   const [orgNameEditing,setOrgNameEditing]=useState(false);
   const [orgNameDraft,setOrgNameDraft]=useState('');
   const [presentationMode,setPresentationMode]=useState(false);
-  const [revealedCount,setRevealedCount]=useState(0);
+
   const [selectedForPresent,setSelectedForPresent]=useState(null); // null = all visible
   const [selectedRespondent,setSelectedRespondent]=useState(null);
   const [removeTarget,setRemoveTarget]=useState(null);
@@ -1946,6 +1944,21 @@ function App(){
     const t=setTimeout(()=>{saveToGroup();},600);
     return()=>clearTimeout(t);
   },[selectedPrinciples,step,codeNorm,respondentName]);
+
+  // Restore selectedPrinciples from Supabase when a returning participant resumes.
+  // If a row already exists for this respondent with selected_principles, and
+  // local state is still empty, hydrate it. One-shot — won't override later edits.
+  const principlesHydrated=useRef(false);
+  useEffect(()=>{
+    if(principlesHydrated.current)return;
+    if(!respondentName.trim()||!groupRespondents||groupRespondents.length===0)return;
+    if(selectedPrinciples.length>0)return;
+    const myRow=groupRespondents.find(r=>r.respondent_name===respondentName.trim());
+    if(myRow&&Array.isArray(myRow.selected_principles)&&myRow.selected_principles.length>0){
+      setSelectedPrinciples(myRow.selected_principles);
+      principlesHydrated.current=true;
+    }
+  },[groupRespondents,respondentName]);
 
   // Close facilitator dashboard overlay on Esc; lock body scroll while open;
   // intercept browser back button on mobile so it closes the overlay instead of leaving the page
@@ -3050,7 +3063,9 @@ function App(){
     // Group mean
     const gMean={prog:0,def:0,con:0,flex:0};
     realRespondents.forEach(r=>{gMean.prog+=(r.prog||0);gMean.def+=(r.def||0);gMean.con+=(r.con||0);gMean.flex+=(r.flex||0);});
-    ['prog','def','con','flex'].forEach(k=>{gMean[k]=Math.round(gMean[k]/realRespondents.length);});
+    if(realRespondents.length>0){
+      ['prog','def','con','flex'].forEach(k=>{gMean[k]=Math.round(gMean[k]/realRespondents.length);});
+    }
     const groupStrat=getStrategy(gMean.def,gMean.prog,gMean.con,gMean.flex);
 
     // Group to-be mean
@@ -4120,25 +4135,6 @@ function App(){
     const splitTag=groupIsSplit?' [group is split]':'';
 
 
-    // Diamond paths
-    function groupDiamond(){
-      const W=300,H=300,CX=150,CY=150,RD=100;
-      function ap(ax,sc){const r=(sc/120)*RD;if(ax==='prog')return[CX,CY-r];if(ax==='flex')return[CX+r,CY];if(ax==='def')return[CX,CY+r];return[CX-r,CY];}
-      function sp(p,d,co,f){const pts=[[CX,CY-(p/120)*RD],[CX+(f/120)*RD,CY],[CX,CY+(d/120)*RD],[CX-(co/120)*RD,CY]];return pts.map((pt,i)=>`${i===0?'M':'L'}${pt[0]},${pt[1]}`).join(' ')+' Z';}
-      function gridPath(pct){const r=RD*pct;return `M${CX},${CY-r} L${CX+r},${CY} L${CX},${CY+r} L${CX-r},${CY} Z`;}
-      return(
-        <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{overflow:'visible',maxWidth:'300px'}}>
-          {[.25,.5,.75,1].map(pct=><path key={pct} d={gridPath(pct)} fill="none" stroke="#d8d3cb" strokeWidth={pct===1?1.5:0.8}/>)}
-          <line x1={CX} y1={CY-RD} x2={CX} y2={CY+RD} stroke="#d8d3cb"/>
-          <line x1={CX-RD} y1={CY} x2={CX+RD} y2={CY} stroke="#d8d3cb"/>
-          {realRespondents.length>0&&<path d={sp(gMean.prog,gMean.def,gMean.con,gMean.flex)} fill="#1a1a1a" fillOpacity={.04} stroke="#1a1a1a" strokeWidth={2.5} strokeLinejoin="round"/>}
-          <text x={CX} y={CY-RD-10} textAnchor="middle" fill="#555" fontSize={10} fontWeight={700} fontFamily="DM Sans,sans-serif">Progressive</text>
-          <text x={CX+RD+8} y={CY+4} textAnchor="start" fill="#555" fontSize={10} fontWeight={700} fontFamily="DM Sans,sans-serif">Flexible</text>
-          <text x={CX} y={CY+RD+18} textAnchor="middle" fill="#555" fontSize={10} fontWeight={700} fontFamily="DM Sans,sans-serif">Defensive</text>
-          <text x={CX-RD-8} y={CY+4} textAnchor="end" fill="#555" fontSize={10} fontWeight={700} fontFamily="DM Sans,sans-serif">Consistent</text>
-        </svg>
-      );
-    }
 
     return(
       <div>
