@@ -98,17 +98,26 @@ export default async function handler(req, res) {
     // Uses the `started` column as an atomic "email already sent" flag — once set to
     // 'emailed:<timestamp>', no further emails fire regardless of how many saves happen.
     // This makes the email idempotent across concurrent saves and re-saves.
+    // Email fires ONLY when the client explicitly flags this save as the "Generate My Report"
+    // moment. Auto-saves of partial answers, principles toggles, and qualitative input edits
+    // hit the DB silently. The flag is set by saveToGroup(true) which is only called from
+    // generate() — i.e. when the user clicks the "Generate My Report →" button.
+    const isGenerateReport = body.generate_report === true;
+
+    // Even when the flag is set, scores must be complete (defence in depth — generate()
+    // shouldn't fire without scores, but if it ever does we'd skip the email).
     const newProg = body.prog || 0, newDef = body.def || 0, newCon = body.con || 0, newFlex = body.flex || 0;
     const writeIsComplete = newProg > 0 && newDef > 0 && newCon > 0 && newFlex > 0;
 
-    // Has email already been sent for this row?
+    // Has email already been sent for this row? (idempotency: protects against double-clicks
+    // on Generate My Report, retries, and concurrent saves.)
     let alreadyEmailed = false;
     if (existing && existing.length > 0) {
       const startedVal = existing[0].started;
       alreadyEmailed = typeof startedVal === 'string' && startedVal.startsWith('emailed:');
     }
 
-    const shouldEmail = RESEND_KEY && !isMarker && !sessionIsClosed && writeIsComplete && !alreadyEmailed;
+    const shouldEmail = RESEND_KEY && !isMarker && !sessionIsClosed && isGenerateReport && writeIsComplete && !alreadyEmailed;
 
     if (shouldEmail) {
       // Mark as emailed FIRST — atomic claim. If this succeeds, we own the email.
