@@ -32,9 +32,9 @@ export default async function handler(req, res) {
   const toolLabel = (typeof body.tool_label === 'string' && body.tool_label.trim()) ? body.tool_label.trim() : 'STAT Group';
 
   try {
-    // GET existing row
+    // GET existing row — also pull scores so we can detect completion transitions for email
     const getResp = await fetch(
-      `${SUPABASE_URL}/rest/v1/stat_responses?session_code=eq.${encodeURIComponent(session_code)}&respondent_name=eq.${encodeURIComponent(respondent_name)}&select=id`,
+      `${SUPABASE_URL}/rest/v1/stat_responses?session_code=eq.${encodeURIComponent(session_code)}&respondent_name=eq.${encodeURIComponent(respondent_name)}&select=id,prog,def,con,flex`,
       { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
     );
 
@@ -93,17 +93,101 @@ export default async function handler(req, res) {
       return res.status(500).json({error:`Write failed: ${errText}`});
     }
 
-    // Fire group email if 2+ respondents and not facilitator notes
-    if (RESEND_KEY && respondent_name !== '__facilitator__') {
+    // Fire rich submission email ONCE per respondent, at the moment they complete the survey.
+    // "Complete" = all four scores are non-zero in this write.
+    // To avoid duplicate emails on re-saves, we only send if the existing row was incomplete
+    // before this write (or didn't exist). This means one email per real submission, not per save.
+    const newProg = body.prog || 0, newDef = body.def || 0, newCon = body.con || 0, newFlex = body.flex || 0;
+    const writeIsComplete = newProg > 0 && newDef > 0 && newCon > 0 && newFlex > 0;
+
+    let existingWasComplete = false;
+    if (existing && existing.length > 0) {
+      const e = existing[0];
+      const eProg = e.prog || 0, eDef = e.def || 0, eCon = e.con || 0, eFlex = e.flex || 0;
+      existingWasComplete = eProg > 0 && eDef > 0 && eCon > 0 && eFlex > 0;
+    }
+
+    const shouldEmail = RESEND_KEY && !isMarker && !sessionIsClosed && writeIsComplete && !existingWasComplete;
+
+    if (shouldEmail) {
       try {
+        // Count current respondents in the session for the subject line
         const countResp = await fetch(
-          `${SUPABASE_URL}/rest/v1/stat_responses?session_code=eq.${encodeURIComponent(session_code)}&respondent_name=neq.__facilitator__&select=respondent_name`,
+          `${SUPABASE_URL}/rest/v1/stat_responses?session_code=eq.${encodeURIComponent(session_code)}&respondent_name=neq.__facilitator__&respondent_name=neq.__session_closed__&pending_review=is.null&select=respondent_name`,
           { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
         );
-        const all = await countResp.json();
-        const n = all.length;
-        const subject = `${toolLabel} — ${session_code} — ${n} respondent${n!==1?'s':''} — ${new Date().toLocaleDateString('en-GB')}`;
-        const html = `<h2>${toolLabel} Submission</h2><p><strong>Session:</strong> ${session_code}</p><p><strong>Respondents:</strong> ${n}</p><p><strong>Latest:</strong> ${respondent_name} (${body.role||''})</p><p><strong>Strategy:</strong> ${body.strategy_type||''}</p><p><em>${body.date||''}</em></p>`;
+        const all = countResp.ok ? await countResp.json() : [];
+        const n = Array.isArray(all) ? all.length : 0;
+
+        // Helper to escape HTML
+        const esc = (s) => String(s == null ? '' : s)
+          .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+        // Score row helper
+        const scores = body;
+        const prog = scores.prog || 0, def = scores.def || 0, con = scores.con || 0, flex = scores.flex || 0;
+        const tobeProg = scores.tobe_prog || 0, tobeDef = scores.tobe_def || 0;
+        const tobeCon = scores.tobe_con || 0, tobeFlex = scores.tobe_flex || 0;
+        const hasTobe = tobeProg || tobeDef || tobeCon || tobeFlex;
+
+        // Question answers — render as a compact table if present
+        let questionsHTML = '';
+        const s1 = Array.isArray(scores.s1_answers) ? scores.s1_answers : [];
+        const s2 = Array.isArray(scores.s2_answers) ? scores.s2_answers : [];
+        if (s1.length > 0 || s2.length > 0) {
+          const rows = [];
+          for (let i = 0; i < 12; i++) {
+            const a = s1[i] || {l:'',r:''};
+            rows.push(`<tr><td style="padding:3px 8px;color:#888;font-size:11px;">§1 Q${i+1}</td><td style="padding:3px 8px;font-family:monospace;">${esc(a.l)} / ${esc(a.r)}</td></tr>`);
+          }
+          for (let i = 0; i < 12; i++) {
+            const a = s2[i] || {l:'',r:''};
+            rows.push(`<tr><td style="padding:3px 8px;color:#888;font-size:11px;">§2 Q${i+1}</td><td style="padding:3px 8px;font-family:monospace;">${esc(a.l)} / ${esc(a.r)}</td></tr>`);
+          }
+          questionsHTML = `<h3 style="margin:18px 0 6px 0;font-size:13px;color:#1a1a1a;">Question answers (Left / Right)</h3>
+            <table style="border-collapse:collapse;font-size:12px;border:1px solid #d8d3cb;">${rows.join('')}</table>`;
+        }
+
+        // Selected principles
+        let principlesHTML = '';
+        const sp = Array.isArray(scores.selected_principles) ? scores.selected_principles : [];
+        if (sp.length > 0) {
+          principlesHTML = `<h3 style="margin:18px 0 6px 0;font-size:13px;color:#1a1a1a;">Selected principles (${sp.length})</h3>
+            <ul style="margin:0;padding-left:20px;font-size:12px;line-height:1.6;">${sp.map(p => `<li>${esc(p)}</li>`).join('')}</ul>`;
+        }
+
+        // Build subject + body
+        const subject = `${toolLabel} — ${session_code} — ${esc(respondent_name)} — ${new Date().toLocaleDateString('en-GB')}`;
+
+        const html = `<div style="font-family:Helvetica,Arial,sans-serif;color:#1a1a1a;max-width:640px;">
+          <h2 style="margin:0 0 4px 0;font-size:18px;">${toolLabel} Submission</h2>
+          <p style="margin:0 0 16px 0;color:#888;font-size:12px;">Session ${esc(session_code)} · ${esc(respondent_name)} · ${n} respondent${n!==1?'s':''} total</p>
+
+          <table style="border-collapse:collapse;font-size:13px;width:100%;max-width:520px;">
+            <tr><td style="padding:4px 12px 4px 0;color:#888;width:140px;">Organisation</td><td style="padding:4px 0;">${esc(scores.thing||'—')}</td></tr>
+            <tr><td style="padding:4px 12px 4px 0;color:#888;">Name</td><td style="padding:4px 0;">${esc(respondent_name)}</td></tr>
+            <tr><td style="padding:4px 12px 4px 0;color:#888;">Role</td><td style="padding:4px 0;">${esc(scores.role||'—')}</td></tr>
+            <tr><td style="padding:4px 12px 4px 0;color:#888;">Sector</td><td style="padding:4px 0;">${esc(scores.sector||'—')}</td></tr>
+            <tr><td style="padding:4px 12px 4px 0;color:#888;">Org size</td><td style="padding:4px 0;">${esc(scores.org_size||'—')}</td></tr>
+            <tr><td colspan="2" style="border-top:1px solid #d8d3cb;padding:8px 0 0 0;"></td></tr>
+            <tr><td style="padding:4px 12px 4px 0;color:#888;">Current strategy</td><td style="padding:4px 0;font-weight:600;">${esc(scores.strategy_type||'—')}</td></tr>
+            <tr><td style="padding:4px 12px 4px 0;color:#888;">Progressive / Defensive</td><td style="padding:4px 0;font-family:monospace;">${prog} / ${def}</td></tr>
+            <tr><td style="padding:4px 12px 4px 0;color:#888;">Consistent / Flexible</td><td style="padding:4px 0;font-family:monospace;">${con} / ${flex}</td></tr>
+            ${hasTobe ? `
+            <tr><td colspan="2" style="border-top:1px solid #d8d3cb;padding:8px 0 0 0;"></td></tr>
+            <tr><td style="padding:4px 12px 4px 0;color:#888;">Desired</td><td style="padding:4px 0;"></td></tr>
+            <tr><td style="padding:4px 12px 4px 0;color:#888;">Progressive / Defensive</td><td style="padding:4px 0;font-family:monospace;">${tobeProg} / ${tobeDef}</td></tr>
+            <tr><td style="padding:4px 12px 4px 0;color:#888;">Consistent / Flexible</td><td style="padding:4px 0;font-family:monospace;">${tobeCon} / ${tobeFlex}</td></tr>
+            ` : ''}
+            <tr><td colspan="2" style="border-top:1px solid #d8d3cb;padding:8px 0 0 0;"></td></tr>
+            <tr><td style="padding:4px 12px 4px 0;color:#888;">Date</td><td style="padding:4px 0;">${esc(scores.date||new Date().toISOString())}</td></tr>
+          </table>
+
+          ${questionsHTML}
+          ${principlesHTML}
+        </div>`;
+
         await fetch('https://api.resend.com/emails', {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${RESEND_KEY}`, 'Content-Type': 'application/json' },
