@@ -3555,6 +3555,37 @@ function App(){
           <p className="rpt-body" style={{marginBottom:0}}>To achieve organisational resilience, leaders have to manage the tensions between the need to be both <strong>defensive and progressive</strong>, and also <strong>consistent and flexible</strong>. These are not either/or choices — the goal is to understand which combination best fits {th}'s context, and to make that a deliberate strategic decision rather than an accidental default.</p>
         </div>
 
+        <div className="rpt-section" style={{borderTop:'1px solid #d8d3cb',paddingTop:'1.5rem',marginTop:'1.5rem'}}>
+          <div className="rpt-heading" style={{fontSize:'1rem',marginBottom:'.5rem'}}>About the Model</div>
+          <div style={{fontSize:'.85rem',fontWeight:700,color:'#1a1a1a',marginBottom:'.5rem',fontFamily:"'DM Sans',sans-serif"}}>The Strategic Tensions Assessment Tool</div>
+          <p className="rpt-body">STAT is built on the Four Strategies framework, which emerged from a multi-year research programme on organisational resilience led by Professor David Denyer at Cranfield School of Management. The framework was first published in 2017 in collaboration with BSI, drawing on a systematic review of academic evidence and extensive practitioner research with high-reliability organisations.</p>
+          <p className="rpt-body" style={{marginTop:'.6rem'}}>The model holds that organisational resilience is not a single capability but a strategic balance across four distinct orientations: Preventative Control (defensive consistency), Mindful Action (defensive flexibility), Performance Optimisation (progressive consistency), and Adaptive Innovation (progressive flexibility). Most organisations gravitate toward one or two of these and develop blind spots in the others. The strategic challenge is not to choose between them but to know which combination is right for the conditions you face — and to deliberately build the capability you are short of.</p>
+          <p className="rpt-body" style={{marginTop:'.6rem'}}>STAT measures where your organisation currently sits across these four orientations and where you want it to be. The gap between current and desired is the strategic conversation worth having.</p>
+
+          <div style={{marginTop:'1.25rem',paddingTop:'1rem'}}>
+            <div style={{width:'30px',height:'2px',background:'#e07030',marginBottom:'.6rem'}}/>
+            <div style={{fontSize:'.7rem',fontWeight:700,letterSpacing:'.08em',textTransform:'uppercase',color:'#888',marginBottom:'.4rem',fontFamily:"'DM Sans',sans-serif"}}>To cite this model</div>
+            <p className="rpt-body" style={{margin:0}}>Denyer, D. (2017). Organizational Resilience: A summary of academic evidence, business insights and new thinking. BSI and Cranfield School of Management.</p>
+          </div>
+
+          <div style={{marginTop:'1.5rem'}}>
+            <div className="rpt-heading" style={{fontSize:'.95rem',marginBottom:'.75rem'}}>Further reading</div>
+            {[
+              {label:'Executive summary',url:'https://changebefore.com/wp-content/uploads/2026/05/Organizational-Resilience-Executive-Summary-David-Denyer.pdf'},
+              {label:'Full report',url:'https://changebefore.com/wp-content/uploads/2026/05/Organizational-Resilience-Full-Report-David-Denyer.pdf'},
+              {label:'Resilience Reimagined: A practical guide for organisations',url:'https://changebefore.com/wp-content/uploads/2026/05/Resilience-Reimagined-A-practical-guide-for-organisations.pdf'},
+            ].map((L,i)=>(
+              <div key={i} style={{marginBottom:'.85rem'}}>
+                <a href={L.url} target="_blank" rel="noopener noreferrer"
+                  style={{fontSize:'.88rem',fontWeight:700,color:'#e07030',textDecoration:'none',fontFamily:"'DM Sans',sans-serif",display:'block',marginBottom:'.15rem'}}>
+                  {L.label} →
+                </a>
+                <div style={{fontSize:'.7rem',color:'#999',wordBreak:'break-all',fontFamily:"'DM Sans',sans-serif",lineHeight:1.4}}>{L.url}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
         <div className="btn-row">
           <button className="btn-p" onClick={()=>setRptTab(2)}>Read Detailed Analysis →</button>
           <button className="btn-s" onClick={()=>setRptTab(0)}>← Profile</button>
