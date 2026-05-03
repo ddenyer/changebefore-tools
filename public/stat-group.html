@@ -1622,8 +1622,9 @@ function App(){
   const [facilitatorUnlocked,setFacilitatorUnlocked]=useState(false);
   const [prevSubmission,setPrevSubmission]=useState(null);
   const [thirtyDay,setThirtyDay]=useState('');
-  const [feedbackRating,setFeedbackRating]=useState(null);
   const [feedbackComment,setFeedbackComment]=useState('');
+  const [feedbackSent,setFeedbackSent]=useState(false);
+  const [feedbackSending,setFeedbackSending]=useState(false);
   const [sessionCode,setSessionCode]=useState('');
 
   const [orgSize,setOrgSize]=useState('');
@@ -1777,6 +1778,11 @@ function App(){
           date:new Date().toISOString(),
           tool_label:'STAT',
           selected_principles:selectedPrinciples,
+          // Rich user-input fields persisted to DB so facilitator can see the full picture
+          thing_desc:thingDesc,
+          context_text:contextText,
+          thirty_day:thirtyDay,
+          feedback_comment:feedbackComment,
         }),
       });
       if(_r&&_r.status===403){
@@ -1934,16 +1940,16 @@ function App(){
     setPrinciplesClusterLoading(false);
   }
 
-  // Persist selectedPrinciples to Supabase whenever they change.
+  // Persist selectedPrinciples and qualitative inputs to Supabase whenever they change.
   // Only fires once user has reached the report step and a session exists.
-  // Debounced 600ms so rapid toggling doesn't spam the API.
+  // Debounced 600ms so rapid toggling/typing doesn't spam the API.
   useEffect(()=>{
     if(!codeNorm)return;
     if(!respondentName.trim())return;
     if(step<5)return;
     const t=setTimeout(()=>{saveToGroup();},600);
     return()=>clearTimeout(t);
-  },[selectedPrinciples,step,codeNorm,respondentName]);
+  },[selectedPrinciples,thirtyDay,feedbackComment,thingDesc,contextText,step,codeNorm,respondentName]);
 
   // Restore selectedPrinciples from Supabase when a returning participant resumes.
   // If a row already exists for this respondent with selected_principles, and
@@ -2117,6 +2123,26 @@ function App(){
     if((isAdmin||facilitatorUnlocked)&&codeNorm&&((step===5&&groupReportMode)||step===6))loadGroup();
   },[isAdmin,facilitatorUnlocked,codeNorm,step,groupReportMode]);
 
+  async function sendFeedback(){
+    if(!feedbackComment.trim()||feedbackSending||feedbackSent)return;
+    setFeedbackSending(true);
+    try{
+      const resp=await fetch('/api/send-feedback',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          tool_label:'STAT Group',
+          session_code:codeNorm||'',
+          respondent_name:respondentName||'',
+          comment:feedbackComment.trim(),
+        }),
+      });
+      if(resp.ok){setFeedbackSent(true);}
+      else{console.warn('send-feedback failed:',resp.status);}
+    }catch(e){console.warn('send-feedback error:',e);}
+    setFeedbackSending(false);
+  }
+
   async function fireNotification(){
     try{
       const resp=await fetch('/api/notify',{
@@ -2130,7 +2156,7 @@ function App(){
           strategyType:SLABELS[asIsStrat],tobeType:SLABELS[tobeStrat],
           date:new Date().toISOString(),respondentName,contextText:contextText.slice(0,200),
           thirtyDayCommitment:thirtyDay||'',
-          feedbackRating:feedbackRating||'',feedbackComment:feedbackComment||'',
+          feedbackComment:feedbackComment||'',
         }),
       });
       if(!resp.ok)console.warn('notify failed:',resp.status);
@@ -2166,7 +2192,7 @@ function App(){
     setS1Active(0);setS2Active(0);
     setTobe({p:60,d:60,c:60,f:60});setTobeInit(false);
     setShowReport(false);setRptTab(0);setPrevSubmission(null);
-    setThirtyDay('');setFeedbackRating(null);setFeedbackComment('');
+    setThirtyDay('');setFeedbackComment('');setFeedbackSent(false);setFeedbackSending(false);
     setLoading(false);
     setPrinciplesStep(false);setPrinciples(null);setSelectedPrinciples([]);setCustomPrinciple('');
   }
@@ -2976,20 +3002,23 @@ function App(){
     return(
       <div>
         <div style={{background:'#fff',border:'1px solid #d8d3cb',borderRadius:'5px',padding:'1.25rem',marginBottom:'1.5rem'}}>
-          <div style={{fontSize:'.7rem',fontWeight:700,letterSpacing:'.08em',textTransform:'uppercase',color:'#e07030',marginBottom:'.75rem',fontFamily:"'DM Sans',sans-serif"}}>Was this useful?</div>
-          <div style={{display:'flex',gap:'.75rem',marginBottom:'1rem',flexWrap:'wrap'}}>
-            {[{val:'very',label:'Very useful'},{val:'somewhat',label:'Somewhat useful'},{val:'not',label:'Not really'}].map(opt=>(
-              <button key={opt.val} onClick={()=>setFeedbackRating(opt.val)}
-                style={{padding:'.5rem 1rem',borderRadius:'20px',border:`1.5px solid ${feedbackRating===opt.val?'#e07030':'#d8d3cb'}`,background:feedbackRating===opt.val?'#fff8f5':'#fff',color:feedbackRating===opt.val?'#e07030':'#555',fontSize:'.82rem',fontWeight:feedbackRating===opt.val?700:400,cursor:'pointer',fontFamily:"'DM Sans',sans-serif",transition:'all .15s'}}>
-                {opt.label}
+          <div style={{fontSize:'.7rem',fontWeight:700,letterSpacing:'.08em',textTransform:'uppercase',color:'#e07030',marginBottom:'.5rem',fontFamily:"'DM Sans',sans-serif"}}>Got feedback?</div>
+          <p style={{fontSize:'.82rem',color:'#555',marginBottom:'.75rem',lineHeight:1.55,fontFamily:"'DM Sans',sans-serif"}}>We're always trying to improve our tools. If you have any thoughts on this one — what worked, what didn't, what's missing — drop us a note.</p>
+          {feedbackSent?(
+            <p style={{fontSize:'.85rem',color:'#16a34a',fontWeight:600,fontFamily:"'DM Sans',sans-serif",margin:0}}>✓ Thanks — feedback sent.</p>
+          ):(
+            <div>
+              <textarea value={feedbackComment} onChange={e=>setFeedbackComment(e.target.value)}
+                placeholder="Your feedback (optional)"
+                disabled={feedbackSending}
+                style={{width:'100%',border:'1px solid #d8d3cb',borderRadius:'3px',padding:'.65rem .9rem',fontFamily:"'DM Sans',sans-serif",fontSize:'.85rem',color:'#1a1a1a',outline:'none',minHeight:'80px',resize:'vertical',lineHeight:1.55,background:'#fff',marginBottom:'.75rem'}}
+              />
+              <button className="btn-s" onClick={sendFeedback} disabled={!feedbackComment.trim()||feedbackSending}
+                style={{fontSize:'.82rem'}}>
+                {feedbackSending?'Sending…':'Send feedback'}
               </button>
-            ))}
-          </div>
-          <textarea value={feedbackComment} onChange={e=>setFeedbackComment(e.target.value)}
-            placeholder="Any other comments? (optional)"
-            style={{width:'100%',border:'1px solid #d8d3cb',borderRadius:'3px',padding:'.65rem .9rem',fontFamily:"'DM Sans',sans-serif",fontSize:'.85rem',color:'#1a1a1a',outline:'none',minHeight:'70px',resize:'vertical',lineHeight:1.55,background:'#fff'}}
-          />
-          {feedbackRating&&<p style={{fontSize:'.75rem',color:'#888',marginTop:'.5rem',fontFamily:"'DM Sans',sans-serif"}}>Thank you — your feedback helps improve the tool.</p>}
+            </div>
+          )}
         </div>
         <div className="rpt-section">
           <div className="rpt-heading">Save Your Report</div>
