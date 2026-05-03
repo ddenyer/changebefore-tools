@@ -1005,7 +1005,11 @@ function generateStatParticipantPDF(opts){
     if(pageNum===0)return;
     setFont(8, 'normal', MUTED);
     doc.text('CHANGEBEFORE', margin, 10);
-    doc.text('STAT — Personal Report'+(orgLabel?(' · '+orgLabel):''), pageW-margin, 10, {align:'right'});
+    // Right-aligned label is bounded by available space after the wordmark.
+    // CHANGEBEFORE at 8pt is roughly 25mm; add 5mm gutter and truncate the rest.
+    const headerLabel = 'STAT — Personal Report'+(orgLabel?(' · '+orgLabel):'');
+    const maxLabelW = (pageW-margin) - (margin+30);
+    doc.text(truncToFit(headerLabel, maxLabelW), pageW-margin, 10, {align:'right'});
     doc.setDrawColor(...BORDER);
     doc.setLineWidth(0.15);
     doc.line(margin, 12, pageW-margin, 12);
@@ -1041,6 +1045,24 @@ function generateStatParticipantPDF(opts){
     checkPage(wrapped.length*lh+2);
     doc.text(wrapped, margin, y);
     y += wrapped.length*lh + 2;
+  }
+
+  // Truncate a single line of text to fit within maxWidth (mm), adding "..." if cut.
+  // Caller must have already set the font/size that will be used to render.
+  function truncToFit(text, maxWidth){
+    const s = String(text||'');
+    if(!s) return '';
+    if(doc.getTextWidth(s) <= maxWidth) return s;
+    const ellipsis = '...';
+    const eW = doc.getTextWidth(ellipsis);
+    if(eW > maxWidth) return '';
+    let lo = 0, hi = s.length;
+    while(lo < hi){
+      const mid = Math.ceil((lo+hi)/2);
+      if(doc.getTextWidth(s.slice(0, mid)) + eW <= maxWidth) lo = mid;
+      else hi = mid - 1;
+    }
+    return s.slice(0, lo).replace(/\s+$/,'') + ellipsis;
   }
 
   // Diamond renderer — draws a diamond chart at PDF coords using doc.lines
@@ -1146,26 +1168,47 @@ function generateStatParticipantPDF(opts){
   doc.text('Personal Profile', margin, 155);
 
   // Prepared for / name + organisation
+  // Cover page identity block — sized dynamically so multi-line names
+  // never collide with the "on behalf of" / org block below.
+  let cyId = 178; // start y for "Prepared for" label
   if(respondentName){
     doc.setFont('helvetica','normal');
     doc.setFontSize(11);
     doc.setTextColor(...MUTED);
-    doc.text('Prepared for', margin, 178);
+    doc.text('Prepared for', margin, cyId);
     doc.setFont('times','bold');
     doc.setFontSize(18);
     doc.setTextColor(...TEXT);
-    doc.text(respondentName, margin, 187);
+    // Wrap across up to 2 lines, truncate if longer
+    const nameLines = doc.splitTextToSize(respondentName, pageW-2*margin);
+    let renderLines;
+    if(nameLines.length>2){
+      const line2 = truncToFit(nameLines.slice(1).join(' '), pageW-2*margin);
+      renderLines = [nameLines[0], line2];
+    } else {
+      renderLines = nameLines;
+    }
+    doc.text(renderLines, margin, cyId+9);
+    // Advance below the rendered name (line height ~7mm at 18pt times-bold)
+    cyId = cyId + 9 + renderLines.length*7 + 1;
   }
   if(orgLabel && orgLabel!=='the organisation'){
     doc.setFont('helvetica','normal');
     doc.setFontSize(10);
     doc.setTextColor(...MUTED);
-    doc.text('on behalf of', margin, 196);
+    doc.text('on behalf of', margin, cyId);
     doc.setFont('times','bold');
     doc.setFontSize(13);
     doc.setTextColor(...TEXT);
     const orgWrapped = doc.splitTextToSize(orgLabel, pageW-2*margin);
-    doc.text(orgWrapped, margin, 203);
+    let orgLines;
+    if(orgWrapped.length>2){
+      const line2 = truncToFit(orgWrapped.slice(1).join(' '), pageW-2*margin);
+      orgLines = [orgWrapped[0], line2];
+    } else {
+      orgLines = orgWrapped;
+    }
+    doc.text(orgLines, margin, cyId+7);
   }
 
   // Contact line above the metadata block
@@ -1188,8 +1231,9 @@ function generateStatParticipantPDF(opts){
   doc.text('DATE', margin+115, coverFY-2);
 
   setFont(10, 'bold', TEXT);
-  doc.text(SLABELS[asIsStrat]||'—', margin, coverFY+4);
-  doc.text(role||'—', margin+70, coverFY+4);
+  // Each column is ~50mm wide; leave 3mm gutter so columns never collide
+  doc.text(truncToFit(SLABELS[asIsStrat]||'—', 65), margin, coverFY+4);
+  doc.text(truncToFit(role||'—', 42), margin+70, coverFY+4);
   doc.text(new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'}), margin+115, coverFY+4);
 
   setFont(7, 'normal', MUTED);
@@ -1210,10 +1254,10 @@ function generateStatParticipantPDF(opts){
   const gridX = diamondCX+diamondR+12;
   const gridW = pageW-margin-gridX;
   const dims = [
-    {label:'PROGRESSIVE', value:prog},
-    {label:'DEFENSIVE',   value:def},
-    {label:'CONSISTENT',  value:con},
-    {label:'FLEXIBLE',    value:flex},
+    {label:'PROGRESSIVE', value:Number.isFinite(prog)?prog:0},
+    {label:'DEFENSIVE',   value:Number.isFinite(def) ?def :0},
+    {label:'CONSISTENT',  value:Number.isFinite(con) ?con :0},
+    {label:'FLEXIBLE',    value:Number.isFinite(flex)?flex:0},
   ];
   const dimRowH = 13;
   dims.forEach((d,i)=>{
@@ -1803,7 +1847,7 @@ function generateStatGroupPDF(opts){
   }
   if(qVariances && qVariances.length>0){
     const sharpestQ = qVariances[0];
-    const sharpestSD = Math.sqrt(sharpestQ.variance).toFixed(1);
+    const sharpestSD = (Number.isFinite(sharpestQ.variance) ? Math.sqrt(sharpestQ.variance) : 0).toFixed(1);
     bits.push(`The sharpest individual disagreement is on Question ${sharpestQ.qi+1} (SD ${sharpestSD}) — surface this first in the debrief.`);
   }
   paragraph(bits.join(' '));
@@ -1899,10 +1943,10 @@ function generateStatGroupPDF(opts){
     y += 3;
 
     const top = qVariances.slice(0, Math.min(8, qVariances.length));
-    const sdMaxRef = Math.sqrt(qVariances[0].variance);
+    const sdMaxRef = Number.isFinite(qVariances[0].variance) ? Math.sqrt(qVariances[0].variance) : 0;
 
     top.forEach((qv,i)=>{
-      const sd = Math.sqrt(qv.variance);
+      const sd = Number.isFinite(qv.variance) ? Math.sqrt(qv.variance) : 0;
       checkPage(34);
       // Header row: index/section, then question
       setFont(9, 'bold', ACCENT);
@@ -2166,7 +2210,8 @@ function generateStatGroupPDF(opts){
 
     qVariances.forEach((qv,i)=>{
       checkPage(7);
-      const sd = Math.sqrt(qv.variance);
+      const sd = Number.isFinite(qv.variance) ? Math.sqrt(qv.variance) : 0;
+      const rMean = Number.isFinite(qv.rMean) ? qv.rMean : 0;
       if(i%2===0){
         doc.setFillColor(...BG);
         doc.rect(margin, y, pageW-2*margin, 6, 'F');
@@ -2177,7 +2222,7 @@ function generateStatGroupPDF(opts){
       const qt = doc.splitTextToSize(qv.q.q||'', pageW-2*margin-58);
       const display = qt[0]+(qt.length>1?'…':'');
       doc.text(display, margin+12, y+4);
-      doc.text(qv.rMean.toFixed(1), pageW-margin-30, y+4);
+      doc.text(rMean.toFixed(1), pageW-margin-30, y+4);
       const sdColor = sd>=2.5?RED:sd>=1.5?[180,90,30]:TEXT;
       setFont(8, 'bold', sdColor);
       doc.text(sd.toFixed(2), pageW-margin, y+4, {align:'right'});
@@ -2288,7 +2333,6 @@ function App(){
   const [tobe,setTobe]=useState({p:60,d:60,c:60,f:60});
   const [tobeInit,setTobeInit]=useState(false);
   const [loading,setLoading]=useState(false);
-  const [showReport,setShowReport]=useState(false);
   const [rptTab,setRptTab]=useState(0);
   const [facilitatorUnlocked,setFacilitatorUnlocked]=useState(false);
   const [prevSubmission,setPrevSubmission]=useState(null);
@@ -2362,7 +2406,6 @@ function App(){
   const [orgNameOverride,setOrgNameOverride]=useState('');
   const [orgNameEditing,setOrgNameEditing]=useState(false);
   const [orgNameDraft,setOrgNameDraft]=useState('');
-  const [presentationMode,setPresentationMode]=useState(false);
 
   const [selectedForPresent,setSelectedForPresent]=useState(null); // null = all visible
   const [selectedRespondent,setSelectedRespondent]=useState(null);
@@ -2513,7 +2556,8 @@ function App(){
   async function loadPrinciples(){
     setPrinciplesLoading(true);
     setPrinciples(null);
-    setSelectedPrinciples([]);
+    // Don't wipe selectedPrinciples here — the user may already have selections
+    // (from a prior visit, restored from Supabase, or kept across navigation).
     try{
       const resp=await fetch('/api/stat-principles-generate',{
         method:'POST',
@@ -2834,7 +2878,7 @@ function App(){
       }
     }catch(e){}
     setLoading(true);
-    setTimeout(()=>{setLoading(false);setShowReport(true);go(6);},1600);
+    setTimeout(()=>{setLoading(false);go(6);},1600);
   }
 
   function restart(){
@@ -2844,7 +2888,7 @@ function App(){
     setS2(Array(12).fill(null).map(()=>({l:'',r:''})));
     setS1Active(0);setS2Active(0);
     setTobe({p:60,d:60,c:60,f:60});setTobeInit(false);
-    setShowReport(false);setRptTab(0);setPrevSubmission(null);
+    setRptTab(0);setPrevSubmission(null);
     setThirtyDay('');setFeedbackComment('');setFeedbackSent(false);setFeedbackSending(false);
     setLoading(false);
     setPrinciplesStep(false);setPrinciples(null);setSelectedPrinciples([]);setCustomPrinciple('');
@@ -2922,12 +2966,11 @@ function App(){
           <strong>Privacy:</strong> Your responses are used only to generate your report. Your name is stored locally on this device to enable return-visit comparison. No data is shared with third parties. This tool supports structured thinking and does not constitute professional advice. For questions, contact <a href="mailto:contact@changebefore.com" style={{color:'inherit'}}>contact@changebefore.com</a>. <a href="https://changebefore.com/privacy/" target="_blank" rel="noopener noreferrer" style={{color:'inherit',textDecoration:'underline'}}>View our full privacy notice →</a>
         </div>
         <div className="btn-row">
-          <button className="btn-p" disabled={!respondentName.trim()||!sessionCode.trim()} onClick={()=>{if(isAdmin){setShowReport(true);go(6);}else{go(1);}}}>Begin →</button>
+          <button className="btn-p" disabled={!respondentName.trim()||!sessionCode.trim()} onClick={()=>{if(isAdmin){go(6);}else{go(1);}}}>Begin →</button>
           <button className="btn-s" disabled={!respondentName.trim()||!sessionCode.trim()} onClick={()=>{
             const pw=window.prompt('Enter facilitator password:');
             if(pw==='Admin1*'){
               setFacilitatorUnlocked(true);
-              setShowReport(true);
               setRptTab(5);
               go(6);
             }
@@ -4966,80 +5009,8 @@ function App(){
 
   // ── MAIN RENDER ──────────────────────────────────────────────────────────
   // Presentation mode overlay
-  function renderPresentationMode(){
-    const PAX_C=['#e07030','#1a4fa0','#2d7d46','#b87a20','#b83232','#6a3d9a','#0891b2','#78350f','#374151'];
-    const comp=groupRespondents.filter(r=>r.respondent_name&&r.respondent_name!=='__facilitator__'&&r.prog);
-    // Default: all selected
-    const visibleSet=selectedForPresent===null?new Set(comp.map(r=>r.respondent_name)):selectedForPresent;
-    const visible=comp.filter(r=>visibleSet.has(r.respondent_name));
-    const gM={prog:0,def:0,con:0,flex:0};
-    if(comp.length>0){comp.forEach(r=>{gM.prog+=(r.prog||0);gM.def+=(r.def||0);gM.con+=(r.con||0);gM.flex+=(r.flex||0);});['prog','def','con','flex'].forEach(k=>{gM[k]=Math.round(gM[k]/comp.length);});}
-    // Group to-be mean
-    const compTobe=comp.filter(r=>r.tobe_prog);
-    const gT={p:0,d:0,c:0,f:0};
-    if(compTobe.length>0){compTobe.forEach(r=>{gT.p+=(r.tobe_prog||60);gT.d+=(r.tobe_def||60);gT.c+=(r.tobe_con||60);gT.f+=(r.tobe_flex||60);});['p','d','c','f'].forEach(k=>{gT[k]=Math.round(gT[k]/compTobe.length);});}
-    const gStrat=comp.length>0?getStrategy(gM.def,gM.prog,gM.con,gM.flex):null;
-    const W=480,H=480,CX=240,CY=240,RD=170;
-    const vBox='0 0 '+W+' '+H;
-    function sp(p,d,co,f){
-      const pts=[[CX,CY-(p/120)*RD],[CX+(f/120)*RD,CY],[CX,CY+(d/120)*RD],[CX-(co/120)*RD,CY]];
-      return pts.map((pt,i)=>(i===0?'M':'L')+pt[0]+','+pt[1]).join(' ')+' Z';
-    }
-    function gp(pct){const r=RD*pct;return 'M'+CX+','+(CY-r)+' L'+(CX+r)+','+CY+' L'+CX+','+(CY+r)+' L'+(CX-r)+','+CY+' Z';}
-    function toggleOne(name){
-      const cur=new Set(visibleSet);
-      if(cur.has(name))cur.delete(name);else cur.add(name);
-      setSelectedForPresent(cur);
-    }
-    function selectAll(){setSelectedForPresent(new Set(comp.map(r=>r.respondent_name)));}
-    function selectNone(){setSelectedForPresent(new Set());}
-    return(
-      <div className="pres-overlay" style={{justifyContent:'flex-start',overflowY:'auto',paddingTop:'1.5rem'}}>
-        <button className="pres-exit" onClick={()=>setPresentationMode(false)}>✕ Exit</button>
-        <div className="pres-title">{codeNorm} — Group Profile</div>
-        <div className="pres-sub">{visible.length} of {comp.length} shown · {SLABELS[gStrat]||''}</div>
-        <div className="pres-diamond-wrap">
-          <svg width="100%" height="100%" viewBox={vBox} style={{overflow:'visible'}}>
-            {[.25,.5,.75,1].map(pct=><path key={pct} d={gp(pct)} fill="none" stroke="rgba(255,255,255,.15)" strokeWidth={pct===1?1.5:0.8}/>)}
-            <line x1={CX} y1={CY-RD} x2={CX} y2={CY+RD} stroke="rgba(255,255,255,.15)"/>
-            <line x1={CX-RD} y1={CY} x2={CX+RD} y2={CY} stroke="rgba(255,255,255,.15)"/>
-            {visible.map((r,i)=>{const ci=comp.findIndex(x=>x.respondent_name===r.respondent_name);const col=PAX_C[ci%PAX_C.length];return(<path key={i} d={sp(r.prog||0,r.def||0,r.con||0,r.flex||0)} fill={col} fillOpacity={.12} stroke={col} strokeWidth={2} strokeLinejoin="round"/>);})}
-            {comp.length>0&&<path d={sp(gM.prog,gM.def,gM.con,gM.flex)} fill="none" stroke="#fff" strokeWidth={3} strokeLinejoin="round"/>}
-            {compTobe.length>0&&<path d={sp(gT.p,gT.d,gT.c,gT.f)} fill="none" stroke="#e07030" strokeWidth={3} strokeLinejoin="round"/>}
-            <text x={CX} y={CY-RD-14} textAnchor="middle" fill="rgba(255,255,255,.6)" fontSize={13} fontWeight={700} fontFamily="DM Sans,sans-serif">Progressive</text>
-            <text x={CX+RD+12} y={CY+5} textAnchor="start" fill="rgba(255,255,255,.6)" fontSize={13} fontWeight={700} fontFamily="DM Sans,sans-serif">Flexible</text>
-            <text x={CX} y={CY+RD+22} textAnchor="middle" fill="rgba(255,255,255,.6)" fontSize={13} fontWeight={700} fontFamily="DM Sans,sans-serif">Defensive</text>
-            <text x={CX-RD-12} y={CY+5} textAnchor="end" fill="rgba(255,255,255,.6)" fontSize={13} fontWeight={700} fontFamily="DM Sans,sans-serif">Consistent</text>
-          </svg>
-        </div>
-        <div style={{marginTop:'1.5rem',display:'flex',gap:'.5rem'}}>
-          <button className="pres-btn" onClick={selectAll}>Show all</button>
-          <button className="pres-btn" onClick={selectNone}>Hide all</button>
-        </div>
-        <div style={{marginTop:'1rem',display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))',gap:'.4rem',width:'100%',maxWidth:'720px'}}>
-          {comp.map((r,i)=>{
-            const col=PAX_C[i%PAX_C.length];
-            const on=visibleSet.has(r.respondent_name);
-            return(
-              <label key={i} onClick={()=>toggleOne(r.respondent_name)} style={{display:'flex',alignItems:'center',gap:'.5rem',padding:'.45rem .65rem',borderRadius:'3px',cursor:'pointer',background:on?'rgba(255,255,255,.08)':'transparent',border:`1px solid ${on?col:'rgba(255,255,255,.15)'}`,fontSize:'.78rem',color:on?'#fff':'#888',fontFamily:"'DM Sans',sans-serif",userSelect:'none'}}>
-                <input type="checkbox" checked={on} readOnly style={{accentColor:col,width:14,height:14,pointerEvents:'none',flexShrink:0}}/>
-                <div style={{width:10,height:10,borderRadius:'50%',background:col,flexShrink:0}}/>
-                <span style={{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',fontWeight:on?700:400}}>{r.respondent_name}</span>
-              </label>
-            );
-          })}
-        </div>
-        <div style={{marginTop:'1rem',display:'flex',gap:'1rem',flexWrap:'wrap',justifyContent:'center',fontSize:'.7rem',color:'rgba(255,255,255,.6)',fontFamily:"'DM Sans',sans-serif"}}>
-          <div style={{display:'flex',alignItems:'center',gap:'.4rem'}}><svg width="22" height="6"><line x1="0" y1="3" x2="22" y2="3" stroke="#fff" strokeWidth="3"/></svg>Group mean (as-is)</div>
-          {compTobe.length>0&&<div style={{display:'flex',alignItems:'center',gap:'.4rem'}}><svg width="22" height="6"><line x1="0" y1="3" x2="22" y2="3" stroke="#e07030" strokeWidth="3"/></svg>Group mean (desired)</div>}
-        </div>
-      </div>
-    );
-  }
-
   return(
     <div className="shell" ref={topRef}>
-      {presentationMode&&renderPresentationMode()}
       <Progress step={step} principlesStep={principlesStep}/>
       {pendingReviewSelf&&!isAdmin&&!facilitatorUnlocked&&codeNorm&&(
         <div style={{maxWidth:'760px',margin:'1.25rem auto 0',padding:'0 1.5rem'}}>
