@@ -1707,6 +1707,11 @@ function App(){
   const [principlesLoading,setPrinciplesLoading]=useState(false);
   const [selectedPrinciples,setSelectedPrinciples]=useState([]);
   const [customPrinciple,setCustomPrinciple]=useState('');
+  // Synthetic per-run session code so Solo submissions are uniquely keyed in
+  // Supabase (matching group tool's session_code + respondent_name composite).
+  // Generated lazily on first save; persisted in localStorage with the rest of
+  // the resume payload so the same code survives across resume.
+  const [soloSessionCode,setSoloSessionCode]=useState('');
   const topRef=useRef(null);
 
   useEffect(()=>{topRef.current&&topRef.current.scrollIntoView({behavior:'smooth'});},[step]);
@@ -1714,8 +1719,8 @@ function App(){
   // Auto-save progress whenever key state changes (Solo: localStorage only)
   useEffect(()=>{
     if(!respondentName.trim()||step===0)return;
-    saveProgress(respondentName,{step,thing,thingDesc,contextText,s1ans,s2ans,tobe,tobeInit,selectedPrinciples});
-  },[step,thing,thingDesc,contextText,s1ans,s2ans,tobe,tobeInit,respondentName,selectedPrinciples]);
+    saveProgress(respondentName,{step,thing,thingDesc,contextText,s1ans,s2ans,tobe,tobeInit,selectedPrinciples,soloSessionCode});
+  },[step,thing,thingDesc,contextText,s1ans,s2ans,tobe,tobeInit,respondentName,selectedPrinciples,soloSessionCode]);
 
   const def=s1ans.reduce((s,a)=>s+(parseInt(a.l)||0),0);
   const prog=s1ans.reduce((s,a)=>s+(parseInt(a.r)||0),0);
@@ -1817,6 +1822,73 @@ function App(){
   // Solo has no group/session/facilitator. The polling and load-on-mount
   // useEffects from stat-group are removed.
 
+  // ── SUPABASE SUBMISSION (Solo: per-respondent, no group/session UI) ──────
+  // Solo submissions land in the same stat_responses Supabase table as group
+  // submissions, distinguished by a synthetic session_code prefixed "SOLO-".
+  // The /api/stat-save endpoint uses tool_label='STAT Solo' to set the email
+  // subject, and fires a single Resend notification to results@changebefore.com
+  // when the user clicks "Generate My Report" (saveSubmission(true)).
+
+  function ensureSoloSessionCode(){
+    // If we already have one (state or persisted resume), reuse it.
+    if(soloSessionCode) return soloSessionCode;
+    // Try to recover from localStorage (e.g. user refreshed mid-session)
+    try{
+      const saved=loadProgress(respondentName);
+      if(saved&&saved.soloSessionCode){
+        setSoloSessionCode(saved.soloSessionCode);
+        return saved.soloSessionCode;
+      }
+    }catch(e){}
+    // Mint a fresh one. SOLO-<sanitized-name>-<6char base36>
+    const slug=(respondentName||'anon').toLowerCase().trim().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,24)||'anon';
+    const rand=Math.random().toString(36).slice(2,8).toUpperCase();
+    const code='SOLO-'+slug+'-'+rand;
+    setSoloSessionCode(code);
+    return code;
+  }
+
+  async function saveSubmission(isGenerateReport=false){
+    if(!respondentName.trim())return;
+    const sessionCode=ensureSoloSessionCode();
+    try{
+      await fetch('/api/stat-save',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          session_code:sessionCode,
+          respondent_name:respondentName.trim(),
+          role:role==='None of the above'?roleCustom:role,
+          seniority:'',org_size:orgSize,sector,
+          thing,prog,def:def,con,flex,
+          tobe_prog:tobe.p,tobe_def:tobe.d,tobe_con:tobe.c,tobe_flex:tobe.f,
+          s1_answers:s1ans,s2_answers:s2ans,
+          strategy_type:SLABELS[asIsStrat],
+          date:new Date().toISOString(),
+          tool_label:'STAT Solo',
+          selected_principles:selectedPrinciples,
+          generate_report:isGenerateReport,
+          thing_desc:thingDesc,
+          context_text:contextText,
+          thirty_day:thirtyDay,
+          feedback_comment:feedbackComment,
+        }),
+      });
+    }catch(e){console.warn('stat-save error:',e);}
+  }
+
+  // Debounced auto-save once the user is past step 5 (Future profile / Principles).
+  // Mirrors stat-group's pattern so principles toggles and qualitative input edits
+  // persist to Supabase without a manual save click. Email does NOT fire here —
+  // only generate() with isGenerateReport=true triggers the email branch.
+  useEffect(()=>{
+    if(!respondentName.trim())return;
+    if(step<5)return;
+    const t=setTimeout(()=>{saveSubmission(false);},600);
+    return()=>clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[selectedPrinciples,thirtyDay,feedbackComment,thingDesc,contextText,step,respondentName]);
+
   async function sendFeedback(){
     if(!feedbackComment.trim()||feedbackSending||feedbackSent)return;
     setFeedbackSending(true);
@@ -1826,7 +1898,7 @@ function App(){
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({
           tool_label:'STAT Solo',
-          session_code:'',
+          session_code:soloSessionCode||'',
           respondent_name:respondentName||'',
           comment:feedbackComment.trim(),
         }),
@@ -1838,7 +1910,11 @@ function App(){
   }
 
   function generate(){
-    // Solo: no group save; just compute and proceed.
+    // Fire the rich submission email + final Supabase save.
+    // saveSubmission(true) sets generate_report:true so /api/stat-save sends
+    // the same Resend notification to results@changebefore.com that the group
+    // tool sends — just with tool_label:'STAT Solo' and session_code:'SOLO-<slug>-<rand>'.
+    saveSubmission(true);
     // Save previous scores for comparison
     try{
       const prev=loadProgress(respondentName);
@@ -1865,6 +1941,7 @@ function App(){
     setThirtyDay('');setFeedbackComment('');setFeedbackSent(false);setFeedbackSending(false);
     setLoading(false);
     setPrinciplesStep(false);setPrinciples(null);setSelectedPrinciples([]);setCustomPrinciple('');
+    setSoloSessionCode('');
   }
 
   function applyResume(data){
@@ -1876,6 +1953,7 @@ function App(){
     if(data.tobe)setTobe(data.tobe);
     if(data.tobeInit)setTobeInit(data.tobeInit);
     if(Array.isArray(data.selectedPrinciples))setSelectedPrinciples(data.selectedPrinciples);
+    if(typeof data.soloSessionCode==='string'&&data.soloSessionCode)setSoloSessionCode(data.soloSessionCode);
     setResumeData(null);
     go(data.step||1);
   }
