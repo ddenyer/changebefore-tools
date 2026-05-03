@@ -948,15 +948,38 @@ function generateStatParticipantPDF(opts){
   const {
     respondentName, thing, role, sector, orgSize,
     contextText, thingDesc,
-    prog, def, con, flex,
-    tobe, tobeInit,
-    asIsStrat, tobeStrat,
-    s1ans, s2ans,
     selectedPrinciples,
     SLABELS, SDESC, getStrategyText, gapLabel, gapBadgeText,
     S1, S2,
     industryContext,
   } = opts;
+
+  // ── Defensive numeric normalisation ────────────────────────────────────
+  // Clamp all scores into 0-120 and coerce non-numbers to 0. Guards against
+  // corrupt localStorage, malformed answer arrays, or any caller passing
+  // out-of-range values. UI logic already enforces these bounds — this is
+  // belt-and-braces.
+  const clamp = (n) => {
+    const v = Number(n);
+    if (!isFinite(v)) return 0;
+    if (v < 0) return 0;
+    if (v > 120) return 120;
+    return v;
+  };
+  const prog = clamp(opts.prog);
+  const def  = clamp(opts.def);
+  const con  = clamp(opts.con);
+  const flex = clamp(opts.flex);
+  const rawTobe = opts.tobe || {};
+  const tobe = {
+    p: clamp(rawTobe.p), d: clamp(rawTobe.d),
+    c: clamp(rawTobe.c), f: clamp(rawTobe.f),
+  };
+  const tobeInit = !!opts.tobeInit;
+  const asIsStrat = opts.asIsStrat;
+  const tobeStrat = opts.tobeStrat;
+  const s1ans = Array.isArray(opts.s1ans) ? opts.s1ans : [];
+  const s2ans = Array.isArray(opts.s2ans) ? opts.s2ans : [];
 
   if(!window.jspdf||!window.jspdf.jsPDF){
     alert('PDF library failed to load. Please refresh the page and try again.');
@@ -1489,13 +1512,16 @@ function generateStatParticipantPDF(opts){
   addFooter();
 
   // ───── SELECTED PRINCIPLES ─────
-  if(selectedPrinciples && selectedPrinciples.length>0){
+  // Defensively filter out empty/whitespace-only entries — guards against
+  // corrupt localStorage or any code path that injects blanks.
+  const cleanPrinciples = (selectedPrinciples || []).filter(p => p && String(p).trim().length > 0);
+  if(cleanPrinciples.length>0){
     doc.addPage(); pageNum++; y=margin+5; addHeader();
     sectionTitle('Your selected principles');
     paragraph('The principles you identified as the ones most likely to make the biggest difference for '+orgLabel+', in the priority order you ranked them.', {color:MUTED, size:9});
     y += 3;
 
-    selectedPrinciples.forEach((p,i)=>{
+    cleanPrinciples.forEach((p,i)=>{
       checkPage(18);
       // Numbered circle
       doc.setFillColor(...ACCENT);
@@ -1505,7 +1531,7 @@ function generateStatParticipantPDF(opts){
 
       // Principle text
       setFont(10, 'normal', TEXT);
-      const wrapped = doc.splitTextToSize(p, pageW-2*margin-12);
+      const wrapped = doc.splitTextToSize(String(p).trim(), pageW-2*margin-12);
       doc.text(wrapped, margin+11, y+4.5);
       y += Math.max(8, wrapped.length*4.2) + 4;
     });
