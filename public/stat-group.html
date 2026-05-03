@@ -1754,7 +1754,7 @@ function App(){
 
 
   // ── GROUP DATA ──────────────────────────────────────────────────────────
-  async function saveToGroup(){
+  async function saveToGroup(isGenerateReport=false){
     if(!codeNorm)return;
     // Don't write a respondent row when the user is in pure facilitator-direct
     // mode (unlocked via password without completing the survey). Otherwise
@@ -1778,6 +1778,7 @@ function App(){
           date:new Date().toISOString(),
           tool_label:'STAT',
           selected_principles:selectedPrinciples,
+          generate_report:isGenerateReport,
           // Rich user-input fields persisted to DB so facilitator can see the full picture
           thing_desc:thingDesc,
           context_text:contextText,
@@ -2164,9 +2165,11 @@ function App(){
   }
 
   function generate(){
-    // Save to group if session code present
+    // Save to group if session code present.
+    // Pass true to mark this as the explicit "Generate My Report" submission —
+    // stat-save.js uses this to decide whether to fire the rich notification email.
     if(codeNorm){
-      saveToGroup();
+      saveToGroup(true);
     }
     // Save previous scores for comparison
     try{
@@ -2553,12 +2556,19 @@ function App(){
         )}
 
         <div className="btn-row">
-          {loading?(
+          {principlesLoading?(
+            <div style={{display:'inline-flex',alignItems:'center',gap:'.5rem',padding:'.65rem 1rem',background:'#ebe7e0',border:'1px solid #d8d3cb',borderRadius:'3px',color:'#888',fontSize:'.82rem',fontFamily:"'DM Sans',sans-serif",fontStyle:'italic'}}>
+              <div className="dots" style={{display:'inline-flex',gap:'4px'}}><div className="dot"/><div className="dot"/><div className="dot"/></div>
+              Waiting for principles to load…
+            </div>
+          ):loading?(
             <div className="think"><div className="dots"><div className="dot"/><div className="dot"/><div className="dot"/></div><span className="think-txt">Generating your personalised report…</span></div>
           ):(
-            <button className="btn-p" onClick={generate}>Generate My Report →</button>
+            <>
+              <button className="btn-p" onClick={generate}>Generate My Report →</button>
+              <button className="btn-s" onClick={loadPrinciples}>↻ Regenerate</button>
+            </>
           )}
-          <button className="btn-s" onClick={loadPrinciples} disabled={principlesLoading}>↻ Regenerate</button>
           <button className="btn-s" onClick={()=>setPrinciplesStep(false)}>← Back to Future</button>
         </div>
       </div>
