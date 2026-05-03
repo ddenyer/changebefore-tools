@@ -50,7 +50,8 @@ export default async function handler(req, res) {
     const allowed = ['session_code','respondent_name','role','thing',
       'prog','def','con','flex','tobe_prog','tobe_def','tobe_con','tobe_flex',
       's1_answers','s2_answers','seniority','org_size','sector','strategy_type',
-      'notes','started','selected_principles','pending_review'];
+      'notes','started','selected_principles','pending_review',
+      'thing_desc','context_text','thirty_day','feedback_rating','feedback_comment'];
     const safeBody = Object.fromEntries(Object.entries(body).filter(([k]) => allowed.includes(k)));
     // If session is closed and this is a regular respondent, mark as pending review.
     if (sessionIsClosed && !isMarker) {
@@ -131,6 +132,22 @@ export default async function handler(req, res) {
         const tobeCon = scores.tobe_con || 0, tobeFlex = scores.tobe_flex || 0;
         const hasTobe = tobeProg || tobeDef || tobeCon || tobeFlex;
 
+        // Qualitative user input — only context fields included here.
+        // Personal reflection (30-day commitment) and feedback are handled separately:
+        // — 30-day stays in DB only (private to participant)
+        // — feedback goes via /api/send-feedback to feedback@changebefore.com
+        let qualHTML = '';
+        const thingDesc = scores.thing_desc || '';
+        const contextText = scores.context_text || '';
+        const hasQual = thingDesc || contextText;
+        if (hasQual) {
+          const qrows = [];
+          if (thingDesc) qrows.push(`<tr><td style="padding:6px 12px 6px 0;color:#888;width:160px;vertical-align:top;">Org description</td><td style="padding:6px 0;line-height:1.5;">${esc(thingDesc)}</td></tr>`);
+          if (contextText) qrows.push(`<tr><td style="padding:6px 12px 6px 0;color:#888;vertical-align:top;">Context</td><td style="padding:6px 0;line-height:1.5;">${esc(contextText)}</td></tr>`);
+          qualHTML = `<h3 style="margin:18px 0 6px 0;font-size:13px;color:#1a1a1a;">Context</h3>
+            <table style="border-collapse:collapse;font-size:13px;width:100%;max-width:520px;">${qrows.join('')}</table>`;
+        }
+
         // Question answers — render as a compact table if present
         let questionsHTML = '';
         const s1 = Array.isArray(scores.s1_answers) ? scores.s1_answers : [];
@@ -184,6 +201,7 @@ export default async function handler(req, res) {
             <tr><td style="padding:4px 12px 4px 0;color:#888;">Date</td><td style="padding:4px 0;">${esc(scores.date||new Date().toISOString())}</td></tr>
           </table>
 
+          ${qualHTML}
           ${questionsHTML}
           ${principlesHTML}
         </div>`;
