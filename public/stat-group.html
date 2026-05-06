@@ -915,8 +915,8 @@ function Slider({label,value,onChange,max=120,asIs=null}){
 }
 
 // ── PROGRESS BAR ─────────────────────────────────────────────────────────────
-const STEPS=['Start','About','Survey','Profile','Future','Principles','Report'];
-function stepToNav(s,principlesStep){if(s<=1)return s;if(s<=3)return 2;if(s===4)return 3;if(s===5)return principlesStep?5:4;return 6;}
+const STEPS=['Start','Survey','Profile','Future','Principles','Report'];
+function stepToNav(s,principlesStep){if(s<=0)return 0;if(s<=3)return 1;if(s===4)return 2;if(s===5)return principlesStep?4:3;return 5;}
 function Progress({step,principlesStep}){
   const nav=stepToNav(step,principlesStep);
   return(
@@ -2317,7 +2317,40 @@ function generateStatGroupPDF(opts){
 
 // ── MAIN APP ─────────────────────────────────────────────────────────────────
 function App(){
-  const [step,setStep]=useState(0);
+  const [step,setStep]=useState(-1);
+  // Code-gate state (Phase 1)
+  const [accessCode,setAccessCode]=useState('');
+  const [accessCodeInput,setAccessCodeInput]=useState('');
+  const [accessCodeError,setAccessCodeError]=useState('');
+  const [accessCodeChecking,setAccessCodeChecking]=useState(false);
+  const [sessionConfig,setSessionConfig]=useState(null); // {thing, thing_type, sector, ...} from session_configs row, or null
+  // Participant assignment state (Phase 3)
+  const [participantId,setParticipantId]=useState('');         // padded "001"
+  const [participantNumber,setParticipantNumber]=useState(0);  // numeric 1
+  const [participantUuid,setParticipantUuid]=useState('');     // FK to session_participants
+  const [beginError,setBeginError]=useState('');
+  const [beginning,setBeginning]=useState(false);
+  // Custom-text reveals (only role used at entry; thing_type & sector are facilitator-set in Group)
+  const [sectorCustom,setSectorCustom]=useState('');
+  // End-of-tool screen routing (Phase 5)
+  const [endScreen,setEndScreen]=useState('');
+  // Join form state (Phase 5)
+  const [joinFirstName,setJoinFirstName]=useState('');
+  const [joinLastName,setJoinLastName]=useState('');
+  const [joinEmail,setJoinEmail]=useState('');
+  const [joinPrivacyOk,setJoinPrivacyOk]=useState(false);
+  const [joinSubmitting,setJoinSubmitting]=useState(false);
+  const [joinError,setJoinError]=useState('');
+  const [anonymising,setAnonymising]=useState(false);
+  // Facilitator config-tile state (Phase 4)
+  const [configThing,setConfigThing]=useState('');
+  const [configThingType,setConfigThingType]=useState('');
+  const [configThingTypeCustom,setConfigThingTypeCustom]=useState('');
+  const [configSector,setConfigSector]=useState('');
+  const [configSectorCustom,setConfigSectorCustom]=useState('');
+  const [configSaving,setConfigSaving]=useState(false);
+  const [configError,setConfigError]=useState('');
+
   const [respondentName,setRespondentName]=useState('');
   const [resumeData,setResumeData]=useState(null);
   const [thing,setThing]=useState('');
@@ -2429,11 +2462,58 @@ function App(){
 
   useEffect(()=>{topRef.current&&topRef.current.scrollIntoView({behavior:'smooth'});},[step]);
 
-  // Auto-save progress whenever key state changes
+  // URL ?code= shortcut — auto-validate and skip the gate on landing.
   useEffect(()=>{
-    if(!respondentName.trim()||step===0)return;
-    saveProgress(respondentName,{step,thing,thingDesc,contextText,s1ans,s2ans,tobe,tobeInit});
-  },[step,thing,thingDesc,contextText,s1ans,s2ans,tobe,tobeInit,respondentName]);
+    try{
+      const params=new URLSearchParams(window.location.search);
+      const codeFromUrl=(params.get('code')||'').trim();
+      if(!codeFromUrl)return;
+      setAccessCodeInput(codeFromUrl);
+      setAccessCodeChecking(true);
+      (async()=>{
+        try{
+          const resp=await fetch('/api/validate-code',{
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({code:codeFromUrl,tool:'stat-group'}),
+          });
+          const data=await resp.json().catch(()=>({}));
+          if(resp.ok&&data&&data.valid){
+            setAccessCode(codeFromUrl.toUpperCase());
+            setSessionConfig(data.session_config||null);
+            setStep(0);
+          }else{
+            const reason=(data&&data.reason)||'';
+            const msg={
+              not_found:'That code wasn’t recognised. Check the code and try again.',
+              expired:'That code has expired.',
+              used_up:'That code has reached its usage limit.',
+              no_membership:'That code isn’t valid for this tool.',
+              upstream_error:'We couldn’t check the code right now. Please try again in a moment.',
+            }[reason]||'That code wasn’t recognised. Check the code and try again.';
+            setAccessCodeError(msg);
+          }
+        }catch(e){
+          setAccessCodeError('We couldn’t check the code right now. Please try again in a moment.');
+        }
+        setAccessCodeChecking(false);
+      })();
+    }catch(e){/* ignore */}
+  },[]);
+
+  // Auto-save progress whenever key state changes (Group: localStorage only here;
+  // Supabase save is via /api/stat-save in saveToGroup). Keyed off accessCode.
+  useEffect(()=>{
+    if(!accessCode||step<=0)return;
+    saveProgress(accessCode,{step,thing,thingDesc,contextText,s1ans,s2ans,tobe,tobeInit,participantUuid,participantNumber,participantId,accessCode,role,roleCustom});
+  },[step,thing,thingDesc,contextText,s1ans,s2ans,tobe,tobeInit,accessCode,role,roleCustom,participantUuid,participantNumber,participantId]);
+
+  // Resume detection: when accessCode is set and we're on entry, surface saved progress.
+  useEffect(()=>{
+    if(!accessCode||step!==0)return;
+    const saved=loadProgress(accessCode);
+    if(saved&&saved.step>0)setResumeData(saved);
+  },[accessCode,step]);
 
   const def=s1ans.reduce((s,a)=>s+(parseInt(a.l)||0),0);
   const prog=s1ans.reduce((s,a)=>s+(parseInt(a.r)||0),0);
@@ -2443,8 +2523,11 @@ function App(){
   const tobeStrat=getStrategy(tobe.d,tobe.p,tobe.c,tobe.f);
   const SD=getStrategyText(asIsStrat,thing||'the organisation');
   const th=thing||'the organisation';
-  const isAdmin=respondentName.trim().toLowerCase()==='admin';
-  const codeNorm=sessionCode.trim().toUpperCase();
+  // isAdmin reflects whether the user has unlocked the facilitator path via the
+  // Facilitator ★ button + Admin1* password. The old "type admin as your name"
+  // shortcut was retired with the new entry architecture.
+  const isAdmin=facilitatorUnlocked;
+  const codeNorm=(accessCode||sessionCode).trim().toUpperCase();
 
 
   const s1over=s1ans.some(a=>(parseInt(a.l)||0)+(parseInt(a.r)||0)>10);
@@ -2882,8 +2965,19 @@ function App(){
   }
 
   function restart(){
-    clearProgress(respondentName);
-    setStep(0);setRespondentName('');setResumeData(null);setThing('');setThingDesc('');setContextText('');
+    clearProgress(accessCode||respondentName);
+    setStep(-1);
+    setAccessCode('');setAccessCodeInput('');setAccessCodeError('');setAccessCodeChecking(false);
+    setSessionConfig(null);
+    setParticipantId('');setParticipantNumber(0);setParticipantUuid('');
+    setBeginError('');setBeginning(false);setSectorCustom('');
+    setEndScreen('');
+    setJoinFirstName('');setJoinLastName('');setJoinEmail('');setJoinPrivacyOk(false);
+    setJoinSubmitting(false);setJoinError('');setAnonymising(false);
+    setConfigThing('');setConfigThingType('');setConfigThingTypeCustom('');
+    setConfigSector('');setConfigSectorCustom('');setConfigSaving(false);setConfigError('');
+    setRespondentName('');setResumeData(null);setThing('');setThingDesc('');setContextText('');
+    setRole('');setRoleCustom('');setSector('');
     setS1(Array(12).fill(null).map(()=>({l:'',r:''})));
     setS2(Array(12).fill(null).map(()=>({l:'',r:''})));
     setS1Active(0);setS2Active(0);
@@ -2892,6 +2986,8 @@ function App(){
     setThirtyDay('');setFeedbackComment('');setFeedbackSent(false);setFeedbackSending(false);
     setLoading(false);
     setPrinciplesStep(false);setPrinciples(null);setSelectedPrinciples([]);setCustomPrinciple('');
+    setFacilitatorUnlocked(false);
+    setSessionCode('');
   }
 
   function applyResume(data){
@@ -2902,19 +2998,138 @@ function App(){
     if(data.s2ans)setS2(data.s2ans);
     if(data.tobe)setTobe(data.tobe);
     if(data.tobeInit)setTobeInit(data.tobeInit);
+    if(typeof data.participantUuid==='string'&&data.participantUuid)setParticipantUuid(data.participantUuid);
+    if(typeof data.participantNumber==='number'&&data.participantNumber>0)setParticipantNumber(data.participantNumber);
+    if(typeof data.participantId==='string'&&data.participantId)setParticipantId(data.participantId);
+    if(typeof data.accessCode==='string'&&data.accessCode)setAccessCode(data.accessCode);
+    if(typeof data.role==='string'&&data.role)setRole(data.role);
+    if(typeof data.roleCustom==='string'&&data.roleCustom)setRoleCustom(data.roleCustom);
     setResumeData(null);
     go(data.step||1);
   }
 
+  // ── ACCESS CODE GATE (Phase 1) ──────────────────────────────────────────
+  // The gate sits in front of everything. validate-code returns:
+  //   { valid: true, code, ..., session_config: <row|null> }
+  // session_config is what tells Group whether to admit participants
+  // (config exists ⇒ facilitator has set up; null ⇒ "not open yet").
+  async function checkAccessCode(){
+    const code=accessCodeInput.trim();
+    if(!code){setAccessCodeError('Please enter a code.');return;}
+    setAccessCodeChecking(true);
+    setAccessCodeError('');
+    try{
+      const resp=await fetch('/api/validate-code',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({code,tool:'stat-group'}),
+      });
+      const data=await resp.json().catch(()=>({}));
+      if(resp.ok&&data&&data.valid){
+        setAccessCode(code.toUpperCase());
+        setSessionConfig(data.session_config||null);
+        setAccessCodeError('');
+        setStep(0);
+      }else{
+        const reason=(data&&data.reason)||'';
+        const msg={
+          not_found:'That code wasn’t recognised. Check the code and try again.',
+          expired:'That code has expired.',
+          used_up:'That code has reached its usage limit.',
+          no_membership:'That code isn’t valid for this tool.',
+          upstream_error:'We couldn’t check the code right now. Please try again in a moment.',
+        }[reason]||'That code wasn’t recognised. Check the code and try again.';
+        setAccessCodeError(msg);
+      }
+    }catch(e){
+      setAccessCodeError('We couldn’t check the code right now. Please try again in a moment.');
+    }
+    setAccessCodeChecking(false);
+  }
+
+  function renderGate(){
+    return(
+      <div style={{maxWidth:'420px',margin:'4rem auto 0',padding:'0 1rem'}}>
+        <label className="field-lbl">Enter your access code</label>
+        <input
+          className="inp"
+          value={accessCodeInput}
+          onChange={e=>{setAccessCodeInput(e.target.value);if(accessCodeError)setAccessCodeError('');}}
+          onKeyDown={e=>{if(e.key==='Enter'&&!accessCodeChecking)checkAccessCode();}}
+          autoFocus
+          autoCapitalize="characters"
+          autoComplete="off"
+          spellCheck={false}
+          style={{textTransform:'uppercase',letterSpacing:'.05em'}}
+        />
+        {accessCodeError&&(
+          <div style={{marginTop:'.65rem',fontSize:'.82rem',color:'#c0392b',fontFamily:"'DM Sans',sans-serif",lineHeight:1.5}}>
+            {accessCodeError}
+          </div>
+        )}
+        <div className="btn-row" style={{marginTop:'1.25rem'}}>
+          <button
+            className="btn-p"
+            disabled={!accessCodeInput.trim()||accessCodeChecking}
+            onClick={checkAccessCode}>
+            {accessCodeChecking?'Checking…':'Continue →'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── BEGIN: ASSIGN PARTICIPANT (Phase 3) ────────────────────────────────
+  // Called when participant clicks Begin on entry screen.
+  async function beginNewParticipant(){
+    if(!entryFieldsComplete())return;
+    setBeginning(true);
+    setBeginError('');
+    try{
+      const resp=await fetch('/api/assign-participant',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({sessionCode:accessCode}),
+      });
+      const data=await resp.json().catch(()=>({}));
+      if(resp.ok&&data&&data.id){
+        setParticipantUuid(data.id);
+        setParticipantNumber(data.participantNumber||0);
+        setParticipantId(data.participantId||'');
+        // Pull thing/sector from session_config so the survey renders correctly.
+        if(sessionConfig){
+          if(sessionConfig.thing)setThing(sessionConfig.thing);
+          if(sessionConfig.sector)setSector(sessionConfig.sector);
+        }
+        setBeginning(false);
+        // Step 1 (Context) is dead in the new flow — go straight to survey.
+        go(2);
+      }else{
+        setBeginError('We couldn’t start your session. Please try again in a moment.');
+        setBeginning(false);
+      }
+    }catch(e){
+      setBeginError('We couldn’t start your session. Please try again in a moment.');
+      setBeginning(false);
+    }
+  }
+
+  // Validation for Group entry — only role is participant-set.
+  function entryFieldsComplete(){
+    if(!role||(role==='None of the above'&&!roleCustom.trim()))return false;
+    return true;
+  }
+
   // ── RENDER HELPERS ──────────────────────────────────────────────────────
 
+  // ── STEP 0: LANDING ─────────────────────────────────────────────────────
   function renderResumePrompt(){
     if(!resumeData)return null;
     const savedDate=resumeData.savedAt?new Date(resumeData.savedAt).toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'}):'recently';
     return(
       <div className="resume-box">
         <h3>Welcome back — continue where you left off?</h3>
-        <p>We found a saved session for <strong>{respondentName}</strong> from {savedDate}. You were on step {resumeData.step} of 5.</p>
+        <p>We found a saved session from {savedDate}. You were on step {resumeData.step}.</p>
         <div className="btn-row" style={{marginTop:'.75rem'}}>
           <button className="btn-p" onClick={()=>applyResume(resumeData)}>Resume →</button>
           <button className="btn-s" onClick={()=>setResumeData(null)}>Start fresh</button>
@@ -2923,63 +3138,98 @@ function App(){
     );
   }
 
-  // ── STEP 0: LANDING ─────────────────────────────────────────────────────
+  // Chip style for role buttons
+  const chipStyle=(active)=>({padding:'.45rem .85rem',borderRadius:'20px',border:`1.5px solid ${active?'#e07030':'#d8d3cb'}`,background:active?'#fff8f5':'#fff',color:active?'#e07030':'#555',fontSize:'.78rem',fontWeight:active?700:400,cursor:'pointer',transition:'all .15s',fontFamily:"'DM Sans',sans-serif"});
+
+  // Facilitator ★ button — opens password prompt and unlocks dashboard
+  function unlockFacilitator(){
+    const pw=window.prompt('Enter facilitator password:');
+    if(pw==='Admin1*'){
+      setFacilitatorUnlocked(true);
+      // If config not yet set, prefill the form so facilitator can fill it
+      if(sessionConfig){
+        setConfigThing(sessionConfig.thing||'');
+        setConfigThingType(sessionConfig.thing_type||'');
+        setConfigSector(sessionConfig.sector||'');
+      }
+      setRptTab(5);
+      go(6);
+    } else if(pw!==null){
+      window.alert('Incorrect password.');
+    }
+  }
+
+  // ── STEP 0: ENTRY ───────────────────────────────────────────────────────
+  // Group entry has two states depending on whether session_config exists:
+  //   (a) Config exists → "You are working on: [thing]" + role + Begin + Facilitator ★
+  //   (b) Config missing → "Survey not open yet" + Facilitator ★ only
   function renderLanding(){
+    const roles=['Frontline / Operational','Team Leader','Manager','Senior Leader','Executive / Board','None of the above'];
+    const configReady=!!(sessionConfig&&sessionConfig.thing);
     return(
       <div>
         <div className="land-hero">
           <div className="land-tag">changebefore.com</div>
           <h1 className="land-title">STAT — Strategic Tensions Assessment Tool</h1>
-          <p className="land-desc">Your individual report appears at the end. Your responses are also shared with your sponsor to produce an organisational view. You will not see the group results — those are reviewed separately with your sponsor.</p>
+          <p className="land-desc">Your individual report appears at the end. Your responses are also shared with your facilitator to produce an organisational view.</p>
           <div className="land-time">About 20 minutes</div>
         </div>
 
-        <div style={{background:'#fff8f5',border:'1px solid #f5c8b0',borderLeft:'4px solid #e07030',borderRadius:'4px',padding:'.85rem 1rem',marginBottom:'1.25rem',fontFamily:"'DM Sans',sans-serif"}}>
+        <div style={{background:'#fff8f5',border:'1px solid #f5c8b0',borderLeft:'4px solid #e07030',borderRadius:'4px',padding:'.85rem 1rem',marginBottom:'1.5rem',fontFamily:"'DM Sans',sans-serif"}}>
           <div style={{fontSize:'.7rem',fontWeight:700,color:'#e07030',marginBottom:'.3rem',letterSpacing:'.05em',textTransform:'uppercase'}}>Before you start</div>
           <div style={{fontSize:'.82rem',color:'#1a1a1a',lineHeight:1.55}}>
-            Use the <strong>Next</strong> and <strong>Back</strong> buttons inside the tool to move between steps — your phone or browser back button will leave the survey. Your answers are saved automatically as you go, so if you do leave by accident, just re-enter your name and session code to resume.
+            Use the <strong>Next</strong> and <strong>Back</strong> buttons inside the tool to move between steps — your phone or browser back button will leave the survey. Your answers are saved automatically as you go, so if you do leave by accident, just return to the same link to resume.
           </div>
         </div>
 
-        <div style={{marginBottom:'1rem'}}>
-          <label className="field-lbl">Your name</label>
-          <input className="inp" placeholder="e.g. Alex Johnson" value={respondentName} onChange={e=>{
-            const n=e.target.value;setRespondentName(n);
-            if(n.trim().length>2){const saved=loadProgress(n);if(saved&&saved.step>0)setResumeData(saved);else setResumeData(null);}
-            else setResumeData(null);
-          }}/>
-        </div>
-        <div style={{marginBottom:'1.5rem'}}>
-          <label className="field-lbl">Session code <span style={{color:'#e07030'}}>*</span></label>
-          <div className="field-sub">Enter the code provided by your sponsor.</div>
-          <input className="inp" placeholder="e.g. SELL-2025" value={sessionCode}
-            onChange={e=>setSessionCode(e.target.value.toUpperCase())}
-            style={{textTransform:'uppercase',letterSpacing:'.05em'}}/>
-        </div>
-        {renderResumePrompt()}
-        {resumeData&&(
-          <div style={{fontSize:'.8rem',color:'#888',margin:'-.5rem 0 1rem',fontFamily:"'DM Sans',sans-serif"}}>
-            Or <button style={{background:'none',border:'none',color:'#e07030',cursor:'pointer',fontWeight:600,fontFamily:"'DM Sans',sans-serif",fontSize:'.8rem',textDecoration:'underline',padding:0}} onClick={()=>{setResumeData(null);setThing('');setThingDesc('');setContextText('');}}>start a new assessment for a different organisation →</button>
+        {!configReady&&(
+          <div style={{background:'#fff',border:'1px solid #d8d3cb',borderRadius:'5px',padding:'1.25rem',marginBottom:'1.25rem'}}>
+            <div style={{fontSize:'1rem',fontWeight:700,color:'#1a1a1a',marginBottom:'.5rem'}}>The survey isn’t open yet</div>
+            <p style={{fontSize:'.85rem',color:'#555',lineHeight:1.6,margin:0}}>Your facilitator hasn’t finished setting up this session. Please contact them, or wait a moment and refresh this page.</p>
+            <div className="btn-row" style={{marginTop:'1rem'}}>
+              <button className="btn-s" onClick={unlockFacilitator} style={{color:'#e07030',borderColor:'#e07030'}}>Facilitator ★</button>
+            </div>
           </div>
         )}
-        <div className="disc">
-          <strong>Privacy:</strong> Your responses are used only to generate your report. Your name is stored locally on this device to enable return-visit comparison. No data is shared with third parties. This tool supports structured thinking and does not constitute professional advice. For questions, contact <a href="mailto:contact@changebefore.com" style={{color:'inherit'}}>contact@changebefore.com</a>. <a href="https://changebefore.com/privacy/" target="_blank" rel="noopener noreferrer" style={{color:'inherit',textDecoration:'underline'}}>View our full privacy notice →</a>
-        </div>
-        <div className="btn-row">
-          <button className="btn-p" disabled={!respondentName.trim()||!sessionCode.trim()} onClick={()=>{if(isAdmin){go(6);}else{go(1);}}}>Begin →</button>
-          <button className="btn-s" disabled={!respondentName.trim()||!sessionCode.trim()} onClick={()=>{
-            const pw=window.prompt('Enter facilitator password:');
-            if(pw==='Admin1*'){
-              setFacilitatorUnlocked(true);
-              setRptTab(5);
-              go(6);
-            }
-            else if(pw!==null){window.alert('Incorrect password.');}
-          }} style={{color:'#e07030',borderColor:'#e07030'}}>Facilitator ★</button>
-        </div>
-        <div style={{fontSize:'.72rem',color:'#888',marginTop:'.5rem',fontFamily:"'DM Sans',sans-serif",lineHeight:1.6}}>
-          Enter your name and session code first. <strong style={{color:'#e07030'}}>Facilitator ★</strong> skips the survey and goes straight to the group dashboard (requires password).
-        </div>
+
+        {configReady&&(
+          <div>
+            <div style={{background:'#fff',border:'1px solid #d8d3cb',borderRadius:'5px',padding:'1rem 1.25rem',marginBottom:'1.5rem'}}>
+              <div style={{fontSize:'.7rem',fontWeight:700,color:'#888',letterSpacing:'.05em',textTransform:'uppercase',marginBottom:'.3rem'}}>You are working on</div>
+              <div style={{fontSize:'1.05rem',fontWeight:700,color:'#1a1a1a'}}>{sessionConfig.thing}</div>
+            </div>
+
+            <div style={{marginBottom:'1.5rem'}}>
+              <label className="field-lbl">Your role <span style={{color:'#e07030'}}>*</span></label>
+              <div className="field-sub">Select the option that best describes your role.</div>
+              <div style={{display:'flex',flexWrap:'wrap',gap:'.5rem',marginBottom:'.5rem'}}>
+                {roles.map(r=>(
+                  <button key={r} onClick={()=>{setRole(r);if(r!=='None of the above')setRoleCustom('');}} style={chipStyle(role===r)}>{r}</button>
+                ))}
+              </div>
+              {role==='None of the above'&&(
+                <input className="inp" placeholder="Describe your role..." value={roleCustom} onChange={e=>setRoleCustom(e.target.value)} style={{maxWidth:'340px'}}/>
+              )}
+            </div>
+
+            {renderResumePrompt()}
+
+            <div className="disc">
+              <strong>Privacy:</strong> Your responses are used only to generate your report and contribute to the group view your facilitator sees. No data is shared with third parties. <a href="https://changebefore.com/privacy/" target="_blank" rel="noopener noreferrer" style={{color:'inherit',textDecoration:'underline'}}>View our full privacy notice →</a>
+            </div>
+            <div className="btn-row">
+              <button className="btn-p" disabled={!entryFieldsComplete()||beginning} onClick={beginNewParticipant}>
+                {beginning?'Starting…':'Begin →'}
+              </button>
+              <button className="btn-s" onClick={unlockFacilitator} style={{color:'#e07030',borderColor:'#e07030'}}>Facilitator ★</button>
+            </div>
+            {beginError&&(
+              <div style={{marginTop:'.65rem',fontSize:'.82rem',color:'#c0392b',fontFamily:"'DM Sans',sans-serif",lineHeight:1.5}}>
+                {beginError}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     );
   }
@@ -3050,7 +3300,7 @@ function App(){
   function renderS1(){
     return(
       <div>
-        <BackBtn onClick={()=>go(1)}/>
+        <BackBtn onClick={()=>go(0)}/>
         <div className="sec-tag">Survey — Part 1 of 2</div>
         <h2 className="pg-title">How does <em style={{fontStyle:'normal',color:'#e07030'}}>{th}</em> operate today?</h2>
         <p className="pg-sub">For each question, allocate up to 10 points between the two options to show how strongly each reflects the current reality in {th}. Answer based on how things <strong>actually are</strong> — not how you would like them to be.</p>
@@ -3091,7 +3341,7 @@ function App(){
         {!s1done&&!s1over&&<div style={{fontSize:'.8rem',color:'#b0a898',marginTop:'.75rem'}}>Complete all 12 questions to continue. Questions unlock in sequence as you answer each one.</div>}
         <div className="btn-row">
           <button className="btn-p" disabled={!s1done} onClick={()=>go(3)}>Continue to Part 2 →</button>
-          <button className="btn-s" onClick={()=>go(1)}>← Back</button>
+          <button className="btn-s" onClick={()=>go(0)}>← Back</button>
         </div>
       </div>
     );
@@ -5042,7 +5292,7 @@ function App(){
   // Presentation mode overlay
   return(
     <div className="shell" ref={topRef}>
-      <Progress step={step} principlesStep={principlesStep}/>
+      {step>=0&&<Progress step={step} principlesStep={principlesStep}/>}
       {pendingReviewSelf&&!isAdmin&&!facilitatorUnlocked&&codeNorm&&(
         <div style={{maxWidth:'760px',margin:'1.25rem auto 0',padding:'0 1.5rem'}}>
           <div style={{background:'#fff8f5',border:'1px solid #f5c8b0',borderLeft:'4px solid #e07030',borderRadius:'4px',padding:'.85rem 1.1rem',fontFamily:"'DM Sans',sans-serif"}}>
@@ -5065,8 +5315,8 @@ function App(){
       )}
       <div className="main">
         <div className="content fade" key={step}>
+          {step===-1&&renderGate()}
           {step===0&&renderLanding()}
-          {step===1&&renderContext()}
           {step===2&&renderS1()}
           {step===3&&renderS2()}
           {step===4&&renderProfile()}
