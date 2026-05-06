@@ -1677,7 +1677,11 @@ function generateStatParticipantPDF(opts){
 
 // ── MAIN APP ─────────────────────────────────────────────────────────────────
 function App(){
-  const [step,setStep]=useState(0);
+  const [step,setStep]=useState(-1);
+  const [accessCode,setAccessCode]=useState('');
+  const [accessCodeInput,setAccessCodeInput]=useState('');
+  const [accessCodeError,setAccessCodeError]=useState('');
+  const [accessCodeChecking,setAccessCodeChecking]=useState(false);
   const [respondentName,setRespondentName]=useState('');
   const [resumeData,setResumeData]=useState(null);
   const [thing,setThing]=useState('');
@@ -1718,7 +1722,7 @@ function App(){
 
   // Auto-save progress whenever key state changes (Solo: localStorage only)
   useEffect(()=>{
-    if(!respondentName.trim()||step===0)return;
+    if(!respondentName.trim()||step<=0)return;
     saveProgress(respondentName,{step,thing,thingDesc,contextText,s1ans,s2ans,tobe,tobeInit,selectedPrinciples,soloSessionCode});
   },[step,thing,thingDesc,contextText,s1ans,s2ans,tobe,tobeInit,respondentName,selectedPrinciples,soloSessionCode]);
 
@@ -1932,7 +1936,8 @@ function App(){
 
   function restart(){
     clearProgress(respondentName);
-    setStep(0);setRespondentName('');setResumeData(null);setThing('');setThingDesc('');setContextText('');
+    setStep(-1);setAccessCode('');setAccessCodeInput('');setAccessCodeError('');setAccessCodeChecking(false);
+    setRespondentName('');setResumeData(null);setThing('');setThingDesc('');setContextText('');
     setS1(Array(12).fill(null).map(()=>({l:'',r:''})));
     setS2(Array(12).fill(null).map(()=>({l:'',r:''})));
     setS1Active(0);setS2Active(0);
@@ -1956,6 +1961,76 @@ function App(){
     if(typeof data.soloSessionCode==='string'&&data.soloSessionCode)setSoloSessionCode(data.soloSessionCode);
     setResumeData(null);
     go(data.step||1);
+  }
+
+  // ── ACCESS CODE GATE ────────────────────────────────────────────────────
+  // Code-gate sits in front of the landing screen. Calls /api/validate-code.
+  // On success, advance to step 0 (landing). Participant ID assignment
+  // happens later, when the user clicks Begin on the landing.
+  async function checkAccessCode(){
+    const code=accessCodeInput.trim();
+    if(!code){setAccessCodeError('Please enter a code.');return;}
+    setAccessCodeChecking(true);
+    setAccessCodeError('');
+    try{
+      const resp=await fetch('/api/validate-code',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({code,tool:'stat-solo'}),
+      });
+      const data=await resp.json().catch(()=>({}));
+      if(resp.ok&&data&&data.valid){
+        setAccessCode(code.toUpperCase());
+        setAccessCodeError('');
+        setStep(0);
+      }else{
+        const reason=(data&&data.reason)||'';
+        const msg={
+          not_found:'That code wasn\u2019t recognised. Check the code and try again.',
+          expired:'That code has expired.',
+          used_up:'That code has reached its usage limit.',
+          no_membership:'That code isn\u2019t valid for this tool.',
+          upstream_error:'We couldn\u2019t check the code right now. Please try again in a moment.',
+        }[reason]||'That code wasn\u2019t recognised. Check the code and try again.';
+        setAccessCodeError(msg);
+      }
+    }catch(e){
+      setAccessCodeError('We couldn\u2019t check the code right now. Please try again in a moment.');
+    }
+    setAccessCodeChecking(false);
+  }
+
+  function renderGate(){
+    return(
+      <div style={{maxWidth:'420px',margin:'4rem auto 0',padding:'0 1rem'}}>
+        <label className="field-lbl">Enter your access code</label>
+        <input
+          className="inp"
+          placeholder=""
+          value={accessCodeInput}
+          onChange={e=>{setAccessCodeInput(e.target.value);if(accessCodeError)setAccessCodeError('');}}
+          onKeyDown={e=>{if(e.key==='Enter'&&!accessCodeChecking)checkAccessCode();}}
+          autoFocus
+          autoCapitalize="characters"
+          autoComplete="off"
+          spellCheck={false}
+          style={{textTransform:'uppercase',letterSpacing:'.05em'}}
+        />
+        {accessCodeError&&(
+          <div style={{marginTop:'.65rem',fontSize:'.82rem',color:'#c0392b',fontFamily:"'DM Sans',sans-serif",lineHeight:1.5}}>
+            {accessCodeError}
+          </div>
+        )}
+        <div className="btn-row" style={{marginTop:'1.25rem'}}>
+          <button
+            className="btn-p"
+            disabled={!accessCodeInput.trim()||accessCodeChecking}
+            onClick={checkAccessCode}>
+            {accessCodeChecking?'Checking\u2026':'Continue \u2192'}
+          </button>
+        </div>
+      </div>
+    );
   }
 
   // ── RENDER HELPERS ──────────────────────────────────────────────────────
@@ -2837,9 +2912,10 @@ function App(){
   // ── MAIN RENDER ──────────────────────────────────────────────────────────
   return(
     <div className="shell" ref={topRef}>
-      <Progress step={step} principlesStep={principlesStep}/>
+      {step>=0&&<Progress step={step} principlesStep={principlesStep}/>}
       <div className="main">
         <div className="content fade" key={step}>
+          {step===-1&&renderGate()}
           {step===0&&renderLanding()}
           {step===1&&renderContext()}
           {step===2&&renderS1()}
