@@ -77,6 +77,22 @@ export default async function handler(req, res) {
   };
 
   try {
+    // Generate a strong random password if the client didn't send one.
+    // 32 chars of base64 satisfies WordPress's password-strength policy.
+    // Users sign in via the password reset flow if they ever need to log in
+    // — they don't need to know this generated password.
+    let effectivePassword = (typeof password === 'string' && password.length >= 12) ? password : '';
+    if (!effectivePassword) {
+      const bytes = new Uint8Array(24);
+      (globalThis.crypto || require('crypto').webcrypto).getRandomValues(bytes);
+      effectivePassword = Buffer.from(bytes).toString('base64').replace(/[^A-Za-z0-9]/g, '').slice(0, 32);
+      // Belt-and-braces — ensure we have at least 16 chars
+      while (effectivePassword.length < 16) {
+        effectivePassword += Math.random().toString(36).slice(2, 10);
+      }
+      effectivePassword = effectivePassword.slice(0, 32);
+    }
+
     // === Step 1: Create or recognise member in WordPress ===
     const wpAuth = Buffer.from(`${wpUser}:${wpPass}`).toString('base64');
     const wpResponse = await fetch(
@@ -89,7 +105,7 @@ export default async function handler(req, res) {
         },
         body: JSON.stringify({
           email,
-          password: password || '',
+          password: effectivePassword,
           first_name: firstName,
           last_name: lastName,
           opted_in: optedIn === true,

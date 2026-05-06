@@ -51,7 +51,8 @@ export default async function handler(req, res) {
       'prog','def','con','flex','tobe_prog','tobe_def','tobe_con','tobe_flex',
       's1_answers','s2_answers','seniority','org_size','sector','strategy_type',
       'notes','started','selected_principles','pending_review',
-      'thing_desc','context_text','thirty_day','feedback_rating','feedback_comment'];
+      'thing_desc','context_text','thirty_day','feedback_rating','feedback_comment',
+      'participant_id','email'];
     const safeBody = Object.fromEntries(Object.entries(body).filter(([k]) => allowed.includes(k)));
     // If session is closed and this is a regular respondent, mark as pending review.
     if (sessionIsClosed && !isMarker) {
