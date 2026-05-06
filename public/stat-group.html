@@ -3631,7 +3631,7 @@ function App(){
             </div>
           </div>
           <div className="print-header-detail">
-            <div className="print-header-org">{(inFacMode&&orgNameOverride&&orgNameOverride.trim())?orgNameOverride:(th||(groupRespondents.find(r=>r.thing&&r.thing.trim())||{}).thing||'the organisation')}</div>
+            <div className="print-header-org">{(inFacMode&&orgNameOverride&&orgNameOverride.trim())?orgNameOverride:((sessionConfig&&sessionConfig.thing_for_everyone)||th||(groupRespondents.find(r=>r.thing&&r.thing.trim())||{}).thing||'the organisation')}</div>
             <div className="print-header-strat">Current: <strong>{SLABELS[asIsStrat]}</strong> &nbsp;→&nbsp; Desired: <strong>{SLABELS[tobeStrat]}</strong> &nbsp;·&nbsp; {new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'})}</div>
           </div>
         </div>
@@ -4557,13 +4557,14 @@ function App(){
                     <div className="dash-ovr-headline" style={{display:'flex',alignItems:'baseline',gap:'.55rem'}}>
                       <span>{(()=>{
                         if(orgNameOverride&&orgNameOverride.trim())return orgNameOverride;
+                        if(sessionConfig&&sessionConfig.thing_for_everyone)return sessionConfig.thing_for_everyone;
                         if(thing&&thing.trim())return thing;
                         const fromGroup=realRespondents.find(r=>r.thing&&r.thing.trim());
                         return fromGroup?fromGroup.thing:'the organisation';
                       })()}</span>
                       <button
                         onClick={()=>{
-                          const cur=(orgNameOverride||thing||(realRespondents.find(r=>r.thing&&r.thing.trim())||{}).thing||'').trim();
+                          const cur=(orgNameOverride||(sessionConfig&&sessionConfig.thing_for_everyone)||thing||(realRespondents.find(r=>r.thing&&r.thing.trim())||{}).thing||'').trim();
                           setOrgNameDraft(cur);
                           setOrgNameEditing(true);
                         }}
