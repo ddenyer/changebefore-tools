@@ -2514,10 +2514,15 @@ function App(){
   },[step,thing,thingDesc,contextText,s1ans,s2ans,tobe,tobeInit,accessCode,role,roleCustom,participantUuid,participantNumber,participantId]);
 
   // Resume detection: when accessCode is set and we're on entry, surface saved progress.
+  // Only show the resume prompt if the participant actually answered something —
+  // otherwise we'd greet someone who just clicked Begin and bailed.
   useEffect(()=>{
     if(!accessCode||step!==0)return;
     const saved=loadProgress(accessCode);
-    if(saved&&saved.step>0)setResumeData(saved);
+    if(!saved||saved.step<=0)return;
+    const hasAnswers=(saved.s1ans&&saved.s1ans.some(a=>a&&(a.l!==''||a.r!==''))) ||
+                     (saved.s2ans&&saved.s2ans.some(a=>a&&(a.l!==''||a.r!=='')));
+    if(hasAnswers)setResumeData(saved);
   },[accessCode,step]);
 
   const def=s1ans.reduce((s,a)=>s+(parseInt(a.l)||0),0);
@@ -4116,6 +4121,9 @@ function App(){
               }),
             });
           } catch(e){ console.warn('stat-save error:',e); }
+          // Clear localStorage now that the participant has finished and joined.
+          // Without this, returning to the URL shows the resume prompt with stale data.
+          try{ clearProgress(accessCode); } catch(e){}
           setJoinSubmitting(false);
           setEndScreen('join-confirm');
         } else {
