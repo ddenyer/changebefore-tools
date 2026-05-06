@@ -6,11 +6,19 @@ export default async function handler(req, res) {
   if (!SUPABASE_KEY) return res.status(500).json({error:'Supabase key not configured'});
 
   const body = req.body;
-  const { session_code, respondent_name } = body;
-  if (!session_code || !respondent_name) return res.status(400).json({error:'Missing session_code or respondent_name'});
+  const { session_code, respondent_name, participant_id } = body;
+  if (!session_code) return res.status(400).json({error:'Missing session_code'});
+  // New flow uses participant_id (anonymous UUID); legacy markers and old flow use respondent_name.
+  // At least one must be present.
+  if (!respondent_name && !participant_id) {
+    return res.status(400).json({error:'Missing participant_id or respondent_name'});
+  }
 
   // Detect closed session — late submissions go into a pending-review queue
   const isMarker = respondent_name === '__session_closed__' || respondent_name === '__facilitator__';
+  // Decide upsert key: prefer participant_id (new flow), fall back to respondent_name (legacy/markers).
+  // This is what makes mid-survey writes possible — a participant doesn't have a name yet.
+  const useParticipantKey = !isMarker && !!participant_id;
   let sessionIsClosed = false;
   if (!isMarker) {
     try {
@@ -33,8 +41,12 @@ export default async function handler(req, res) {
 
   try {
     // GET existing row — also pull scores so we can detect completion transitions for email
+    // Key on participant_id when available (new flow), fall back to respondent_name (legacy/markers).
+    const lookupQuery = useParticipantKey
+      ? `participant_id=eq.${encodeURIComponent(participant_id)}`
+      : `respondent_name=eq.${encodeURIComponent(respondent_name)}`;
     const getResp = await fetch(
-      `${SUPABASE_URL}/rest/v1/stat_responses?session_code=eq.${encodeURIComponent(session_code)}&respondent_name=eq.${encodeURIComponent(respondent_name)}&select=id,prog,def,con,flex,started`,
+      `${SUPABASE_URL}/rest/v1/stat_responses?session_code=eq.${encodeURIComponent(session_code)}&${lookupQuery}&select=id,prog,def,con,flex,started`,
       { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
     );
 
@@ -61,9 +73,9 @@ export default async function handler(req, res) {
 
     let writeResp;
     if (existing && existing.length > 0) {
-      // PATCH
+      // PATCH — use the same key we looked up by
       writeResp = await fetch(
-        `${SUPABASE_URL}/rest/v1/stat_responses?session_code=eq.${encodeURIComponent(session_code)}&respondent_name=eq.${encodeURIComponent(respondent_name)}`,
+        `${SUPABASE_URL}/rest/v1/stat_responses?session_code=eq.${encodeURIComponent(session_code)}&${lookupQuery}`,
         {
           method: 'PATCH',
           headers: {
@@ -127,7 +139,7 @@ export default async function handler(req, res) {
       // 'emailed:' marker on its next read and skip.
       try {
         const claimResp = await fetch(
-          `${SUPABASE_URL}/rest/v1/stat_responses?session_code=eq.${encodeURIComponent(session_code)}&respondent_name=eq.${encodeURIComponent(respondent_name)}&started=is.null`,
+          `${SUPABASE_URL}/rest/v1/stat_responses?session_code=eq.${encodeURIComponent(session_code)}&${lookupQuery}&started=is.null`,
           {
             method: 'PATCH',
             headers: {
