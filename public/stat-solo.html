@@ -915,8 +915,8 @@ function Slider({label,value,onChange,max=120,asIs=null}){
 }
 
 // ── PROGRESS BAR ─────────────────────────────────────────────────────────────
-const STEPS=['Start','About','Survey','Profile','Future','Principles','Report'];
-function stepToNav(s,principlesStep){if(s<=1)return s;if(s<=3)return 2;if(s===4)return 3;if(s===5)return principlesStep?5:4;return 6;}
+const STEPS=['Start','Survey','Profile','Future','Principles','Report'];
+function stepToNav(s,principlesStep){if(s<=0)return 0;if(s<=3)return 1;if(s===4)return 2;if(s===5)return principlesStep?4:3;return 5;}
 function Progress({step,principlesStep}){
   const nav=stepToNav(step,principlesStep);
   return(
@@ -1687,6 +1687,10 @@ function App(){
   const [participantUuid,setParticipantUuid]=useState('');     // foreign key to session_participants
   const [beginError,setBeginError]=useState('');
   const [beginning,setBeginning]=useState(false);
+  // Entry-page "Other" custom-text reveals
+  const [thingType,setThingType]=useState('');
+  const [thingTypeCustom,setThingTypeCustom]=useState('');
+  const [sectorCustom,setSectorCustom]=useState('');
   const [respondentName,setRespondentName]=useState('');
   const [resumeData,setResumeData]=useState(null);
   const [thing,setThing]=useState('');
@@ -1725,11 +1729,59 @@ function App(){
 
   useEffect(()=>{topRef.current&&topRef.current.scrollIntoView({behavior:'smooth'});},[step]);
 
-  // Auto-save progress whenever key state changes (Solo: localStorage only)
+  // URL ?code= shortcut — auto-validate and skip the gate on landing.
+  // Must run only once on mount; uses an inline async runner.
   useEffect(()=>{
-    if(!respondentName.trim()||step<=0)return;
-    saveProgress(respondentName,{step,thing,thingDesc,contextText,s1ans,s2ans,tobe,tobeInit,selectedPrinciples,soloSessionCode,participantUuid,participantNumber,participantId,accessCode});
-  },[step,thing,thingDesc,contextText,s1ans,s2ans,tobe,tobeInit,respondentName,selectedPrinciples,soloSessionCode]);
+    try{
+      const params=new URLSearchParams(window.location.search);
+      const codeFromUrl=(params.get('code')||'').trim();
+      if(!codeFromUrl)return;
+      setAccessCodeInput(codeFromUrl);
+      setAccessCodeChecking(true);
+      (async()=>{
+        try{
+          const resp=await fetch('/api/validate-code',{
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({code:codeFromUrl,tool:'stat-solo'}),
+          });
+          const data=await resp.json().catch(()=>({}));
+          if(resp.ok&&data&&data.valid){
+            setAccessCode(codeFromUrl.toUpperCase());
+            setStep(0);
+          }else{
+            const reason=(data&&data.reason)||'';
+            const msg={
+              not_found:'That code wasn\u2019t recognised. Check the code and try again.',
+              expired:'That code has expired.',
+              used_up:'That code has reached its usage limit.',
+              no_membership:'That code isn\u2019t valid for this tool.',
+              upstream_error:'We couldn\u2019t check the code right now. Please try again in a moment.',
+            }[reason]||'That code wasn\u2019t recognised. Check the code and try again.';
+            setAccessCodeError(msg);
+          }
+        }catch(e){
+          setAccessCodeError('We couldn\u2019t check the code right now. Please try again in a moment.');
+        }
+        setAccessCodeChecking(false);
+      })();
+    }catch(e){/* ignore */}
+  },[]);
+
+  // Auto-save progress whenever key state changes (Solo: localStorage only).
+  // Keyed off accessCode so resume works without a name field.
+  useEffect(()=>{
+    if(!accessCode||step<=0)return;
+    saveProgress(accessCode,{step,thing,thingDesc,contextText,s1ans,s2ans,tobe,tobeInit,selectedPrinciples,soloSessionCode,participantUuid,participantNumber,participantId,accessCode,thingType,thingTypeCustom,role,roleCustom,sector,sectorCustom});
+  },[step,thing,thingDesc,contextText,s1ans,s2ans,tobe,tobeInit,selectedPrinciples,soloSessionCode,accessCode,thingType,thingTypeCustom,role,roleCustom,sector,sectorCustom]);
+
+  // Resume detection: when accessCode becomes set, check localStorage.
+  // If there's saved progress beyond the entry page, surface a resume prompt.
+  useEffect(()=>{
+    if(!accessCode||step!==0)return;
+    const saved=loadProgress(accessCode);
+    if(saved&&saved.step>0)setResumeData(saved);
+  },[accessCode,step]);
 
   const def=s1ans.reduce((s,a)=>s+(parseInt(a.l)||0),0);
   const prog=s1ans.reduce((s,a)=>s+(parseInt(a.r)||0),0);
@@ -1943,6 +1995,7 @@ function App(){
     clearProgress(respondentName);
     setStep(-1);setAccessCode('');setAccessCodeInput('');setAccessCodeError('');setAccessCodeChecking(false);
     setParticipantId('');setParticipantNumber(0);setParticipantUuid('');setBeginError('');setBeginning(false);
+    setThingType('');setThingTypeCustom('');setSectorCustom('');
     setRespondentName('');setResumeData(null);setThing('');setThingDesc('');setContextText('');
     setS1(Array(12).fill(null).map(()=>({l:'',r:''})));
     setS2(Array(12).fill(null).map(()=>({l:'',r:''})));
@@ -1969,6 +2022,12 @@ function App(){
     if(typeof data.participantNumber==='number'&&data.participantNumber>0)setParticipantNumber(data.participantNumber);
     if(typeof data.participantId==='string'&&data.participantId)setParticipantId(data.participantId);
     if(typeof data.accessCode==='string'&&data.accessCode)setAccessCode(data.accessCode);
+    if(typeof data.thingType==='string'&&data.thingType)setThingType(data.thingType);
+    if(typeof data.thingTypeCustom==='string'&&data.thingTypeCustom)setThingTypeCustom(data.thingTypeCustom);
+    if(typeof data.role==='string'&&data.role)setRole(data.role);
+    if(typeof data.roleCustom==='string'&&data.roleCustom)setRoleCustom(data.roleCustom);
+    if(typeof data.sector==='string'&&data.sector)setSector(data.sector);
+    if(typeof data.sectorCustom==='string'&&data.sectorCustom)setSectorCustom(data.sectorCustom);
     setResumeData(null);
     go(data.step||1);
   }
@@ -2044,11 +2103,12 @@ function App(){
   }
 
   // ── BEGIN: ASSIGN PARTICIPANT ──────────────────────────────────────────
-  // Called when the user clicks Begin on the landing screen. Burns a
+  // Called when the user clicks Begin on the entry screen. Burns a
   // participant number from the session. Skipped on resume (existing
   // participant number is read from localStorage).
+  // The four entry fields (thing/type/sector/role) are validated before this fires.
   async function beginNewParticipant(){
-    if(!respondentName.trim())return;
+    if(!entryFieldsComplete())return;
     setBeginning(true);
     setBeginError('');
     try{
@@ -2063,7 +2123,8 @@ function App(){
         setParticipantNumber(data.participantNumber||0);
         setParticipantId(data.participantId||'');
         setBeginning(false);
-        go(1);
+        // Skip the now-empty step 1 (Context page) — entry data is already captured.
+        go(2);
       }else{
         setBeginError('We couldn\u2019t start your session. Please try again in a moment.');
         setBeginning(false);
@@ -2074,6 +2135,15 @@ function App(){
     }
   }
 
+  // Validation helper for the entry-page four-field block.
+  function entryFieldsComplete(){
+    if(!thing.trim())return false;
+    if(!thingType||(thingType==='Other'&&!thingTypeCustom.trim()))return false;
+    if(!sector||(sector==='Other'&&!sectorCustom.trim()))return false;
+    if(!role||(role==='None of the above'&&!roleCustom.trim()))return false;
+    return true;
+  }
+
   // ── RENDER HELPERS ──────────────────────────────────────────────────────
 
   function renderResumePrompt(){
@@ -2081,53 +2151,100 @@ function App(){
     const savedDate=resumeData.savedAt?new Date(resumeData.savedAt).toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'}):'recently';
     return(
       <div className="resume-box">
-        <h3>Welcome back — continue where you left off?</h3>
-        <p>We found a saved session for <strong>{respondentName}</strong> from {savedDate}. You were on step {resumeData.step} of 5.</p>
+        <h3>Welcome back \u2014 continue where you left off?</h3>
+        <p>We found a saved session from {savedDate}. You were on step {resumeData.step} of 5.</p>
         <div className="btn-row" style={{marginTop:'.75rem'}}>
-          <button className="btn-p" onClick={()=>applyResume(resumeData)}>Resume →</button>
+          <button className="btn-p" onClick={()=>applyResume(resumeData)}>Resume \u2192</button>
           <button className="btn-s" onClick={()=>setResumeData(null)}>Start fresh</button>
         </div>
       </div>
     );
   }
 
-  // ── STEP 0: LANDING ─────────────────────────────────────────────────────
+  // Chip-button style used for role and other selectable groups
+  const chipStyle=(active)=>({padding:'.45rem .85rem',borderRadius:'20px',border:`1.5px solid ${active?'#e07030':'#d8d3cb'}`,background:active?'#fff8f5':'#fff',color:active?'#e07030':'#555',fontSize:'.78rem',fontWeight:active?700:400,cursor:'pointer',transition:'all .15s',fontFamily:"'DM Sans',sans-serif"});
+
+  // ── STEP 0: ENTRY ───────────────────────────────────────────────────────
+  // Four-field block (all required): thing / type / sector / role.
+  // Replaces the previous "Your name" landing. Name is collected only at the
+  // end-of-tool join screen.
   function renderLanding(){
+    const thingTypes=['Individual','Team','Function or department','Service or process','Organisation','Supply chain or network','Sector or industry','Community or region','Nation','International or global','Other'];
+    const sectors=['Civil Aviation','Construction','Defence','Education','Energy & Utilities','Financial Services','Government / Public Sector','Healthcare / NHS','Housing','Legal & Professional Services','Manufacturing','Nuclear','Rail & Transport','Technology','Other'];
+    const roles=['Frontline / Operational','Team Leader','Manager','Senior Leader','Executive / Board','None of the above'];
     return(
       <div>
         <div className="land-hero">
           <div className="land-tag">changebefore.com</div>
-          <h1 className="land-title">STAT — Strategic Tensions Assessment Tool</h1>
-          <p className="land-desc">Your individual report appears at the end. It reflects your own perspective on the organisation or team you have in mind — what is, what could be, and what you would carry forward.</p>
+          <h1 className="land-title">STAT \u2014 Strategic Tensions Assessment Tool</h1>
+          <p className="land-desc">Your individual report appears at the end. It reflects your own perspective on the organisation or team you have in mind \u2014 what is, what could be, and what you would carry forward.</p>
           <div className="land-time">About 20 minutes</div>
         </div>
 
-        <div style={{background:'#fff8f5',border:'1px solid #f5c8b0',borderLeft:'4px solid #e07030',borderRadius:'4px',padding:'.85rem 1rem',marginBottom:'1.25rem',fontFamily:"'DM Sans',sans-serif"}}>
+        <div style={{background:'#fff8f5',border:'1px solid #f5c8b0',borderLeft:'4px solid #e07030',borderRadius:'4px',padding:'.85rem 1rem',marginBottom:'1.5rem',fontFamily:"'DM Sans',sans-serif"}}>
           <div style={{fontSize:'.7rem',fontWeight:700,color:'#e07030',marginBottom:'.3rem',letterSpacing:'.05em',textTransform:'uppercase'}}>Before you start</div>
           <div style={{fontSize:'.82rem',color:'#1a1a1a',lineHeight:1.55}}>
-            Use the <strong>Next</strong> and <strong>Back</strong> buttons inside the tool to move between steps — your phone or browser back button will leave the survey. Your answers are saved automatically as you go, so if you do leave by accident, just re-enter your name to resume.
+            Use the <strong>Next</strong> and <strong>Back</strong> buttons inside the tool to move between steps \u2014 your phone or browser back button will leave the survey. Your answers are saved automatically as you go, so if you do leave by accident, just return to the same link to resume.
           </div>
         </div>
 
-        <div style={{marginBottom:'1.5rem'}}>
-          <label className="field-lbl">Your name</label>
-          <input className="inp" placeholder="e.g. Alex Johnson" value={respondentName} onChange={e=>{
-            const n=e.target.value;setRespondentName(n);
-            if(n.trim().length>2){const saved=loadProgress(n);if(saved&&saved.step>0)setResumeData(saved);else setResumeData(null);}
-            else setResumeData(null);
-          }}/>
+        {/* Field 1: thing */}
+        <div style={{marginBottom:'1.25rem'}}>
+          <label className="field-lbl">Name the thing you want to work on <span style={{color:'#e07030'}}>*</span></label>
+          <div className="field-sub">e.g. "The Nuclear Operations Division", "Our finance team", "Sellafield Ltd"</div>
+          <input className="inp" placeholder="What are we looking at?" value={thing} onChange={e=>setThing(e.target.value)}/>
         </div>
+
+        {/* Field 2: thing type */}
+        <div style={{marginBottom:'1.25rem'}}>
+          <label className="field-lbl">What kind of thing is it? <span style={{color:'#e07030'}}>*</span></label>
+          <select className="inp" value={thingType} onChange={e=>{setThingType(e.target.value);if(e.target.value!=='Other')setThingTypeCustom('');}}>
+            <option value="">Select...</option>
+            {thingTypes.map(o=><option key={o}>{o}</option>)}
+          </select>
+          {thingType==='Other'&&(
+            <input className="inp" placeholder="Please specify..." value={thingTypeCustom} onChange={e=>setThingTypeCustom(e.target.value)} style={{maxWidth:'340px',marginTop:'.5rem'}}/>
+          )}
+        </div>
+
+        {/* Field 3: sector */}
+        <div style={{marginBottom:'1.25rem'}}>
+          <label className="field-lbl">What sector does it operate in? <span style={{color:'#e07030'}}>*</span></label>
+          <select className="inp" value={sector} onChange={e=>{setSector(e.target.value);if(e.target.value!=='Other')setSectorCustom('');}}>
+            <option value="">Select...</option>
+            {sectors.map(o=><option key={o}>{o}</option>)}
+          </select>
+          {sector==='Other'&&(
+            <input className="inp" placeholder="Please specify..." value={sectorCustom} onChange={e=>setSectorCustom(e.target.value)} style={{maxWidth:'340px',marginTop:'.5rem'}}/>
+          )}
+        </div>
+
+        {/* Field 4: role */}
+        <div style={{marginBottom:'1.5rem'}}>
+          <label className="field-lbl">Your role <span style={{color:'#e07030'}}>*</span></label>
+          <div className="field-sub">Select the option that best describes your role.</div>
+          <div style={{display:'flex',flexWrap:'wrap',gap:'.5rem',marginBottom:'.5rem'}}>
+            {roles.map(r=>(
+              <button key={r} onClick={()=>{setRole(r);if(r!=='None of the above')setRoleCustom('');}} style={chipStyle(role===r)}>{r}</button>
+            ))}
+          </div>
+          {role==='None of the above'&&(
+            <input className="inp" placeholder="Describe your role..." value={roleCustom} onChange={e=>setRoleCustom(e.target.value)} style={{maxWidth:'340px'}}/>
+          )}
+        </div>
+
         {renderResumePrompt()}
         {resumeData&&(
           <div style={{fontSize:'.8rem',color:'#888',margin:'-.5rem 0 1rem',fontFamily:"'DM Sans',sans-serif"}}>
-            Or <button style={{background:'none',border:'none',color:'#e07030',cursor:'pointer',fontWeight:600,fontFamily:"'DM Sans',sans-serif",fontSize:'.8rem',textDecoration:'underline',padding:0}} onClick={()=>{setResumeData(null);setThing('');setThingDesc('');setContextText('');}}>start a new assessment for a different organisation →</button>
+            Or <button style={{background:'none',border:'none',color:'#e07030',cursor:'pointer',fontWeight:600,fontFamily:"'DM Sans',sans-serif",fontSize:'.8rem',textDecoration:'underline',padding:0}} onClick={()=>{setResumeData(null);setThing('');setThingDesc('');setContextText('');setThingType('');setThingTypeCustom('');setSector('');setSectorCustom('');setRole('');setRoleCustom('');}}>start a new assessment for a different organisation \u2192</button>
           </div>
         )}
+
         <div className="disc">
-          <strong>Privacy:</strong> Your responses are used only to generate your report. Your name is stored locally on this device to enable return-visit comparison. No data is shared with third parties. This tool supports structured thinking and does not constitute professional advice. For questions, contact <a href="mailto:contact@changebefore.com" style={{color:'inherit'}}>contact@changebefore.com</a>. <a href="https://changebefore.com/privacy/" target="_blank" rel="noopener noreferrer" style={{color:'inherit',textDecoration:'underline'}}>View our full privacy notice →</a>
+          <strong>Privacy:</strong> Your responses are used only to generate your report. No data is shared with third parties. This tool supports structured thinking and does not constitute professional advice. For questions, contact <a href="mailto:contact@changebefore.com" style={{color:'inherit'}}>contact@changebefore.com</a>. <a href="https://changebefore.com/privacy/" target="_blank" rel="noopener noreferrer" style={{color:'inherit',textDecoration:'underline'}}>View our full privacy notice \u2192</a>
         </div>
         <div className="btn-row">
-          <button className="btn-p" disabled={!respondentName.trim()||beginning} onClick={beginNewParticipant}>
+          <button className="btn-p" disabled={!entryFieldsComplete()||beginning} onClick={beginNewParticipant}>
             {beginning?'Starting\u2026':'Begin \u2192'}
           </button>
         </div>
@@ -2206,7 +2323,7 @@ function App(){
   function renderS1(){
     return(
       <div>
-        <BackBtn onClick={()=>go(1)}/>
+        <BackBtn onClick={()=>go(0)}/>
         <div className="sec-tag">Survey — Part 1 of 2</div>
         <h2 className="pg-title">How does <em style={{fontStyle:'normal',color:'#e07030'}}>{th}</em> operate today?</h2>
         <p className="pg-sub">For each question, allocate up to 10 points between the two options to show how strongly each reflects the current reality in {th}. Answer based on how things <strong>actually are</strong> — not how you would like them to be.</p>
@@ -2247,7 +2364,7 @@ function App(){
         {!s1done&&!s1over&&<div style={{fontSize:'.8rem',color:'#b0a898',marginTop:'.75rem'}}>Complete all 12 questions to continue. Questions unlock in sequence as you answer each one.</div>}
         <div className="btn-row">
           <button className="btn-p" disabled={!s1done} onClick={()=>go(3)}>Continue to Part 2 →</button>
-          <button className="btn-s" onClick={()=>go(1)}>← Back</button>
+          <button className="btn-s" onClick={()=>go(0)}>← Back</button>
         </div>
       </div>
     );
@@ -2965,7 +3082,6 @@ function App(){
         <div className="content fade" key={step}>
           {step===-1&&renderGate()}
           {step===0&&renderLanding()}
-          {step===1&&renderContext()}
           {step===2&&renderS1()}
           {step===3&&renderS2()}
           {step===4&&renderProfile()}
