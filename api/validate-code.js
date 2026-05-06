@@ -38,6 +38,34 @@ export default async function handler(req, res) {
     }
 
     const data = await r.json();
+
+    // If WP says valid, also check Supabase for any session_config under this code.
+    // Returned to the front-end so Group can decide whether to admit participants.
+    // Solo doesn't use this — it has no facilitator step. Errors here are non-fatal.
+    if (data && data.valid) {
+      try {
+        const supabaseUrl = process.env.SUPABASE_URL;
+        const supabaseKey = process.env.SUPABASE_ANON_KEY;
+        if (supabaseUrl && supabaseKey) {
+          const cfgResp = await fetch(
+            `${supabaseUrl}/rest/v1/session_configs?session_code=eq.${encodeURIComponent(cleanCode)}&select=*&limit=1`,
+            { headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` } }
+          );
+          if (cfgResp.ok) {
+            const cfgRows = await cfgResp.json();
+            data.session_config = (Array.isArray(cfgRows) && cfgRows.length > 0) ? cfgRows[0] : null;
+          } else {
+            data.session_config = null;
+          }
+        } else {
+          data.session_config = null;
+        }
+      } catch (e) {
+        console.warn('session_config lookup failed (non-fatal):', e);
+        data.session_config = null;
+      }
+    }
+
     return res.status(200).json(data);
   } catch (err) {
     console.error('validate-code handler error:', err);
