@@ -3058,6 +3058,36 @@ function App(){
         });
         const data = await resp.json().catch(()=>({}));
         if(resp.ok && data && data.ok){
+          // Write the survey row to stat_responses and fire the results@ email.
+          // This is fire-and-forget — if it fails, the user still gets confirmed.
+          try{
+            await fetch('/api/stat-save',{
+              method:'POST',
+              headers:{'Content-Type':'application/json'},
+              body:JSON.stringify({
+                session_code: accessCode,
+                participant_id: participantUuid,
+                respondent_name: (joinFirstName+' '+joinLastName).trim(),
+                email: joinEmail.trim(),
+                role: role==='None of the above'?roleCustom:role,
+                seniority: '',
+                org_size: '',
+                sector: sector==='Other'?sectorCustom:sector,
+                thing,
+                thing_type: thingType==='Other'?thingTypeCustom:thingType,
+                prog, def: def, con, flex,
+                tobe_prog: tobe.p, tobe_def: tobe.d, tobe_con: tobe.c, tobe_flex: tobe.f,
+                s1_answers: s1ans, s2_answers: s2ans,
+                strategy_type: SLABELS[asIsStrat],
+                date: new Date().toISOString(),
+                tool_label: 'STAT Solo',
+                selected_principles: selectedPrinciples,
+                generate_report: true,
+                thirty_day: thirtyDay,
+                feedback_comment: feedbackComment,
+              }),
+            });
+          } catch(e){ console.warn('stat-save error:',e); }
           setJoinSubmitting(false);
           setEndScreen('join-confirm');
         } else {
