@@ -2562,6 +2562,8 @@ function App(){
     // mode (unlocked via password without completing the survey). Otherwise
     // the facilitator gets counted as a participant.
     if(facilitatorUnlocked && !s1done && !s2done) return;
+    // Need a key to write under — either participant UUID (new flow) or respondent name (legacy).
+    if(!participantUuid && !respondentName.trim()) return;
     // If we already know the session is closed, don't even attempt the write.
     if(sessionClosed && !isAdmin && !facilitatorUnlocked) return;
     try{
@@ -2570,7 +2572,8 @@ function App(){
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({
           session_code:codeNorm,
-          respondent_name:respondentName.trim(),
+          participant_id: participantUuid || undefined,
+          respondent_name: respondentName.trim() || (participantUuid ? '' : ''),
           role:role==='None of the above'?roleCustom:role,
           seniority:'',org_size:orgSize,sector,
           thing,prog,def:def,con,flex,
@@ -2747,13 +2750,16 @@ function App(){
   // Persist selectedPrinciples and qualitative inputs to Supabase whenever they change.
   // Only fires once user has reached the report step and a session exists.
   // Debounced 600ms so rapid toggling/typing doesn't spam the API.
+  // Autosave to Supabase whenever survey state changes — fires as soon as participantUuid
+  // exists (i.e. participant has clicked Begin and been assigned). This is what makes the
+  // facilitator dashboard see live progress.
   useEffect(()=>{
     if(!codeNorm)return;
-    if(!respondentName.trim())return;
-    if(step<5)return;
+    if(!participantUuid && !respondentName.trim())return;
+    if(step<2)return; // No data to save before step 2 (survey)
     const t=setTimeout(()=>{saveToGroup();},600);
     return()=>clearTimeout(t);
-  },[selectedPrinciples,thirtyDay,feedbackComment,thingDesc,contextText,step,codeNorm,respondentName]);
+  },[s1ans,s2ans,tobe,selectedPrinciples,thirtyDay,feedbackComment,thingDesc,contextText,step,codeNorm,respondentName,participantUuid]);;
 
   // Restore selectedPrinciples from Supabase when a returning participant resumes.
   // If a row already exists for this respondent with selected_principles, and
@@ -4302,8 +4308,27 @@ function App(){
   // ── FACILITATOR TAB ──────────────────────────────────────────────────────
   function renderFacilitatorTab(){
     const PAX_COLORS=['#e07030', '#1a4fa0', '#2d7d46', '#b87a20', '#b83232', '#6a3d9a', '#0891b2', '#78350f', '#374151'];
-    const realRespondents=groupRespondents.filter(r=>r.respondent_name&&r.respondent_name!=='__facilitator__'&&r.respondent_name!=='__session_closed__'&&!r.pending_review&&((r.s1_answers&&r.s1_answers.length>0)||(r.s2_answers&&r.s2_answers.length>0)||r.prog||r.tobe_prog));
-    const pendingReviewers=groupRespondents.filter(r=>r.respondent_name&&r.respondent_name!=='__facilitator__'&&r.respondent_name!=='__session_closed__'&&r.pending_review===true);
+    // Inject a displayName fallback on every row: if respondent_name is empty (anonymous
+    // new-flow participant), use a participant-N label derived from order of appearance.
+    // Phase 6 will replace this with proper participant_id_padded from session_participants.
+    function ensureDisplay(rows){
+      const sorted=[...rows].sort((a,b)=>{
+        const da=a.created_at||a.date||'';const db=b.created_at||b.date||'';
+        return da<db?-1:da>db?1:0;
+      });
+      const idToNum={};
+      sorted.forEach((r,i)=>{
+        if(r.participant_id&&!idToNum[r.participant_id])idToNum[r.participant_id]=i+1;
+      });
+      return rows.map(r=>{
+        if(r.respondent_name&&r.respondent_name.trim())return r;
+        const n=r.participant_id?idToNum[r.participant_id]:null;
+        return {...r, respondent_name: n?`Participant ${String(n).padStart(2,'0')}`:'Participant'};
+      });
+    }
+    const augmentedRespondents=ensureDisplay(groupRespondents);
+    const realRespondents=augmentedRespondents.filter(r=>(r.respondent_name||r.participant_id)&&r.respondent_name!=='__facilitator__'&&r.respondent_name!=='__session_closed__'&&!r.pending_review&&((r.s1_answers&&r.s1_answers.length>0)||(r.s2_answers&&r.s2_answers.length>0)||r.prog||r.tobe_prog));
+    const pendingReviewers=augmentedRespondents.filter(r=>(r.respondent_name||r.participant_id)&&r.respondent_name!=='__facilitator__'&&r.respondent_name!=='__session_closed__'&&r.pending_review===true);
     const completedRespondents=realRespondents.filter(r=>!!(r.prog));
 
     // Compute analytics
