@@ -1752,16 +1752,16 @@ function App(){
           }else{
             const reason=(data&&data.reason)||'';
             const msg={
-              not_found:'That code wasn\u2019t recognised. Check the code and try again.',
+              not_found:'That code wasn’t recognised. Check the code and try again.',
               expired:'That code has expired.',
               used_up:'That code has reached its usage limit.',
-              no_membership:'That code isn\u2019t valid for this tool.',
-              upstream_error:'We couldn\u2019t check the code right now. Please try again in a moment.',
-            }[reason]||'That code wasn\u2019t recognised. Check the code and try again.';
+              no_membership:'That code isn’t valid for this tool.',
+              upstream_error:'We couldn’t check the code right now. Please try again in a moment.',
+            }[reason]||'That code wasn’t recognised. Check the code and try again.';
             setAccessCodeError(msg);
           }
         }catch(e){
-          setAccessCodeError('We couldn\u2019t check the code right now. Please try again in a moment.');
+          setAccessCodeError('We couldn’t check the code right now. Please try again in a moment.');
         }
         setAccessCodeChecking(false);
       })();
@@ -2055,16 +2055,16 @@ function App(){
       }else{
         const reason=(data&&data.reason)||'';
         const msg={
-          not_found:'That code wasn\u2019t recognised. Check the code and try again.',
+          not_found:'That code wasn’t recognised. Check the code and try again.',
           expired:'That code has expired.',
           used_up:'That code has reached its usage limit.',
-          no_membership:'That code isn\u2019t valid for this tool.',
-          upstream_error:'We couldn\u2019t check the code right now. Please try again in a moment.',
-        }[reason]||'That code wasn\u2019t recognised. Check the code and try again.';
+          no_membership:'That code isn’t valid for this tool.',
+          upstream_error:'We couldn’t check the code right now. Please try again in a moment.',
+        }[reason]||'That code wasn’t recognised. Check the code and try again.';
         setAccessCodeError(msg);
       }
     }catch(e){
-      setAccessCodeError('We couldn\u2019t check the code right now. Please try again in a moment.');
+      setAccessCodeError('We couldn’t check the code right now. Please try again in a moment.');
     }
     setAccessCodeChecking(false);
   }
@@ -2095,7 +2095,7 @@ function App(){
             className="btn-p"
             disabled={!accessCodeInput.trim()||accessCodeChecking}
             onClick={checkAccessCode}>
-            {accessCodeChecking?'Checking\u2026':'Continue \u2192'}
+            {accessCodeChecking?'Checking…':'Continue →'}
           </button>
         </div>
       </div>
@@ -2126,11 +2126,11 @@ function App(){
         // Skip the now-empty step 1 (Context page) — entry data is already captured.
         go(2);
       }else{
-        setBeginError('We couldn\u2019t start your session. Please try again in a moment.');
+        setBeginError('We couldn’t start your session. Please try again in a moment.');
         setBeginning(false);
       }
     }catch(e){
-      setBeginError('We couldn\u2019t start your session. Please try again in a moment.');
+      setBeginError('We couldn’t start your session. Please try again in a moment.');
       setBeginning(false);
     }
   }
@@ -2151,10 +2151,10 @@ function App(){
     const savedDate=resumeData.savedAt?new Date(resumeData.savedAt).toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'}):'recently';
     return(
       <div className="resume-box">
-        <h3>Welcome back \u2014 continue where you left off?</h3>
+        <h3>Welcome back — continue where you left off?</h3>
         <p>We found a saved session from {savedDate}. You were on step {resumeData.step} of 5.</p>
         <div className="btn-row" style={{marginTop:'.75rem'}}>
-          <button className="btn-p" onClick={()=>applyResume(resumeData)}>Resume \u2192</button>
+          <button className="btn-p" onClick={()=>applyResume(resumeData)}>Resume →</button>
           <button className="btn-s" onClick={()=>setResumeData(null)}>Start fresh</button>
         </div>
       </div>
@@ -2176,15 +2176,15 @@ function App(){
       <div>
         <div className="land-hero">
           <div className="land-tag">changebefore.com</div>
-          <h1 className="land-title">STAT \u2014 Strategic Tensions Assessment Tool</h1>
-          <p className="land-desc">Your individual report appears at the end. It reflects your own perspective on the organisation or team you have in mind \u2014 what is, what could be, and what you would carry forward.</p>
+          <h1 className="land-title">STAT — Strategic Tensions Assessment Tool</h1>
+          <p className="land-desc">Your individual report appears at the end. It reflects your own perspective on the organisation or team you have in mind — what is, what could be, and what you would carry forward.</p>
           <div className="land-time">About 20 minutes</div>
         </div>
 
         <div style={{background:'#fff8f5',border:'1px solid #f5c8b0',borderLeft:'4px solid #e07030',borderRadius:'4px',padding:'.85rem 1rem',marginBottom:'1.5rem',fontFamily:"'DM Sans',sans-serif"}}>
           <div style={{fontSize:'.7rem',fontWeight:700,color:'#e07030',marginBottom:'.3rem',letterSpacing:'.05em',textTransform:'uppercase'}}>Before you start</div>
           <div style={{fontSize:'.82rem',color:'#1a1a1a',lineHeight:1.55}}>
-            Use the <strong>Next</strong> and <strong>Back</strong> buttons inside the tool to move between steps \u2014 your phone or browser back button will leave the survey. Your answers are saved automatically as you go, so if you do leave by accident, just return to the same link to resume.
+            Use the <strong>Next</strong> and <strong>Back</strong> buttons inside the tool to move between steps — your phone or browser back button will leave the survey. Your answers are saved automatically as you go, so if you do leave by accident, just return to the same link to resume.
           </div>
         </div>
 
@@ -2236,16 +2236,16 @@ function App(){
         {renderResumePrompt()}
         {resumeData&&(
           <div style={{fontSize:'.8rem',color:'#888',margin:'-.5rem 0 1rem',fontFamily:"'DM Sans',sans-serif"}}>
-            Or <button style={{background:'none',border:'none',color:'#e07030',cursor:'pointer',fontWeight:600,fontFamily:"'DM Sans',sans-serif",fontSize:'.8rem',textDecoration:'underline',padding:0}} onClick={()=>{setResumeData(null);setThing('');setThingDesc('');setContextText('');setThingType('');setThingTypeCustom('');setSector('');setSectorCustom('');setRole('');setRoleCustom('');}}>start a new assessment for a different organisation \u2192</button>
+            Or <button style={{background:'none',border:'none',color:'#e07030',cursor:'pointer',fontWeight:600,fontFamily:"'DM Sans',sans-serif",fontSize:'.8rem',textDecoration:'underline',padding:0}} onClick={()=>{setResumeData(null);setThing('');setThingDesc('');setContextText('');setThingType('');setThingTypeCustom('');setSector('');setSectorCustom('');setRole('');setRoleCustom('');}}>start a new assessment for a different organisation →</button>
           </div>
         )}
 
         <div className="disc">
-          <strong>Privacy:</strong> Your responses are used only to generate your report. No data is shared with third parties. This tool supports structured thinking and does not constitute professional advice. For questions, contact <a href="mailto:contact@changebefore.com" style={{color:'inherit'}}>contact@changebefore.com</a>. <a href="https://changebefore.com/privacy/" target="_blank" rel="noopener noreferrer" style={{color:'inherit',textDecoration:'underline'}}>View our full privacy notice \u2192</a>
+          <strong>Privacy:</strong> Your responses are used only to generate your report. No data is shared with third parties. This tool supports structured thinking and does not constitute professional advice. For questions, contact <a href="mailto:contact@changebefore.com" style={{color:'inherit'}}>contact@changebefore.com</a>. <a href="https://changebefore.com/privacy/" target="_blank" rel="noopener noreferrer" style={{color:'inherit',textDecoration:'underline'}}>View our full privacy notice →</a>
         </div>
         <div className="btn-row">
           <button className="btn-p" disabled={!entryFieldsComplete()||beginning} onClick={beginNewParticipant}>
-            {beginning?'Starting\u2026':'Begin \u2192'}
+            {beginning?'Starting…':'Begin →'}
           </button>
         </div>
         {beginError&&(
