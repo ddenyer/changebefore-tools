@@ -2383,6 +2383,11 @@ function App(){
   const [groupReportMode,setGroupReportMode]=useState(false);
   // ── Facilitator instructions copy — shown via ⓘ button on each overlay ─────
   const FAC_INFO={
+    config:{
+      look:`The session setup. What thing the group is working on, what kind of thing it is, and the sector. Once filled in, participants can join.`,
+      do:`Fill this in before participants join. The thing you enter shows on every participant's entry screen ("You are working on: [thing]"). You can edit any time — but be careful: if you change it mid-session, in-progress participants will see the new value on their next page transition.`,
+      watch:`Until you save the config, the participant entry page shows "The survey isn't open yet — please contact your facilitator." Save first, share the link second.`
+    },
     progress:{
       look:`A live count of who has submitted (green) versus still working (amber) versus not started (grey). Each pip is one respondent in the order they joined.`,
       do:`Wait for at least 5 of the group to be in before opening the dashboard live. If someone is stuck on the same step for a while, check Individuals to see exactly where they are. At the end of the workshop, click "Close session" to freeze the data — late submissions go into a review queue where you can accept (include them) or reject (discard) each one. Closing is reversible.`,
@@ -2425,7 +2430,7 @@ function App(){
     }
   };
 
-  const [facTab,setFacTab]=useState('progress');
+  const [facTab,setFacTab]=useState('config');
   const [facOverlayOpen,setFacOverlayOpen]=useState(false);
   const [facInfoOpen,setFacInfoOpen]=useState(false);
   const [sessionClosed,setSessionClosed]=useState(false);
@@ -3098,7 +3103,7 @@ function App(){
         setParticipantId(data.participantId||'');
         // Pull thing/sector from session_config so the survey renders correctly.
         if(sessionConfig){
-          if(sessionConfig.thing)setThing(sessionConfig.thing);
+          if(sessionConfig.thing_for_everyone)setThing(sessionConfig.thing_for_everyone);
           if(sessionConfig.sector)setSector(sessionConfig.sector);
         }
         setBeginning(false);
@@ -3118,6 +3123,42 @@ function App(){
   function entryFieldsComplete(){
     if(!role||(role==='None of the above'&&!roleCustom.trim()))return false;
     return true;
+  }
+
+  // ── FACILITATOR: SAVE SESSION CONFIG (Phase 4) ──────────────────────────
+  // Writes thing/thing_type/sector to session_configs via /api/save-session-config.
+  // On success, updates local sessionConfig state so the new values flow through
+  // to participant entry without a page reload.
+  async function handleSaveConfig(){
+    if(!configThing.trim()||!configThingType||!configSector)return;
+    if(configThingType==='Other'&&!configThingTypeCustom.trim())return;
+    if(configSector==='Other'&&!configSectorCustom.trim())return;
+    setConfigSaving(true);
+    setConfigError('');
+    try{
+      const resp=await fetch('/api/save-session-config',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          sessionCode:accessCode,
+          tool:'stat-group',
+          thingForEveryone:configThing.trim(),
+          thingType:configThingType==='Other'?configThingTypeCustom.trim():configThingType,
+          sector:configSector==='Other'?configSectorCustom.trim():configSector,
+        }),
+      });
+      const data=await resp.json().catch(()=>({}));
+      if(resp.ok&&data&&data.ok){
+        setSessionConfig(data.sessionConfig||null);
+        setConfigSaving(false);
+      }else{
+        setConfigError((data&&data.error)||'Could not save. Please try again.');
+        setConfigSaving(false);
+      }
+    }catch(e){
+      setConfigError('Could not save. Please try again.');
+      setConfigSaving(false);
+    }
   }
 
   // ── RENDER HELPERS ──────────────────────────────────────────────────────
@@ -3146,12 +3187,13 @@ function App(){
     const pw=window.prompt('Enter facilitator password:');
     if(pw==='Admin1*'){
       setFacilitatorUnlocked(true);
-      // If config not yet set, prefill the form so facilitator can fill it
+      // If config exists, prefill the form so facilitator can edit
       if(sessionConfig){
-        setConfigThing(sessionConfig.thing||'');
+        setConfigThing(sessionConfig.thing_for_everyone||'');
         setConfigThingType(sessionConfig.thing_type||'');
         setConfigSector(sessionConfig.sector||'');
       }
+      setFacTab('config');
       setRptTab(5);
       go(6);
     } else if(pw!==null){
@@ -3165,7 +3207,7 @@ function App(){
   //   (b) Config missing → "Survey not open yet" + Facilitator ★ only
   function renderLanding(){
     const roles=['Frontline / Operational','Team Leader','Manager','Senior Leader','Executive / Board','None of the above'];
-    const configReady=!!(sessionConfig&&sessionConfig.thing);
+    const configReady=!!(sessionConfig&&sessionConfig.thing_for_everyone);
     return(
       <div>
         <div className="land-hero">
@@ -3196,7 +3238,7 @@ function App(){
           <div>
             <div style={{background:'#fff',border:'1px solid #d8d3cb',borderRadius:'5px',padding:'1rem 1.25rem',marginBottom:'1.5rem'}}>
               <div style={{fontSize:'.7rem',fontWeight:700,color:'#888',letterSpacing:'.05em',textTransform:'uppercase',marginBottom:'.3rem'}}>You are working on</div>
-              <div style={{fontSize:'1.05rem',fontWeight:700,color:'#1a1a1a'}}>{sessionConfig.thing}</div>
+              <div style={{fontSize:'1.05rem',fontWeight:700,color:'#1a1a1a'}}>{sessionConfig.thing_for_everyone}</div>
             </div>
 
             <div style={{marginBottom:'1.5rem'}}>
@@ -4237,6 +4279,7 @@ function App(){
           const aiQReady=aiQuestions&&Array.isArray(aiQuestions.current)&&aiQuestions.current.length>0;
           const presentVisibleCount=selectedForPresent===null?realCount:selectedForPresent.size;
           const tiles=[
+            {key:'config',name:'Session Config',chip:sessionConfig&&sessionConfig.thing_for_everyone?null:'setup',headline:sessionConfig&&sessionConfig.thing_for_everyone?sessionConfig.thing_for_everyone:'Not set up yet',sub:sessionConfig&&sessionConfig.thing_for_everyone?'Tap to view or edit':'Set the thing the group is working on'},
             {key:'progress',name:'Progress',chip:pendingReviewers.length>0?'review':sessionClosed?'closed':null,headline:`${submittedCount} of ${realCount} in`,sub:pendingReviewers.length>0?`${pendingReviewers.length} late submission${pendingReviewers.length!==1?'s':''} awaiting review`:sessionClosed?'Session closed — no new responses':inProgressCount>0?`${inProgressCount} still completing`:'All respondents complete',extra:'pips'},
             {key:'group-report',name:'Group Report',headline:groupStrat?(SLABELS[groupStrat]+splitTag):'Awaiting data',sub:realCount>=2?'Group profile and means':'Need at least 2 respondents'},
             {key:'present',name:'Share / Present',chip:'live',headline:`${presentVisibleCount} visible`,sub:'Reveal one at a time on the projector'},
@@ -4257,6 +4300,7 @@ function App(){
                         {tile.chip==='live'&&<span className="dash-chip live">Live</span>}
                         {tile.chip==='closed'&&<span className="dash-chip closed">Closed</span>}
                         {tile.chip==='review'&&<span className="dash-chip review">Review</span>}
+                        {tile.chip==='setup'&&<span className="dash-chip review">Setup</span>}
                       </div>
                       <div className="dash-tile-headline">{tile.headline}</div>
                       <div className="dash-tile-sub">{tile.sub}</div>
@@ -4285,6 +4329,7 @@ function App(){
               <div className="dash-ovr-head">
                 <div className="dash-ovr-head-l">
                   <div className="dash-ovr-name">{
+                    facTab==='config'?'Session Config':
                     facTab==='progress'?'Progress':
                     facTab==='group-report'?'Group Report':
                     facTab==='present'?'Share / Present':
@@ -4373,6 +4418,65 @@ function App(){
             )}
             <div className="dash-ovr-body">
               <div className="dash-ovr-body-inner">
+              {/* Config tab */}
+              {(facTab==='config'||printAll)&&(
+                <div>
+                  {printAll&&<div className="print-section-title">Session Config</div>}
+                  {(()=>{
+                    const thingTypes=['Individual','Team','Function or department','Service or process','Organisation','Supply chain or network','Sector or industry','Community or region','Nation','International or global','Other'];
+                    const sectors=['Civil Aviation','Construction','Defence','Education','Energy & Utilities','Financial Services','Government / Public Sector','Healthcare / NHS','Housing','Legal & Professional Services','Manufacturing','Nuclear','Rail & Transport','Technology','Other'];
+                    const isConfigured=!!(sessionConfig&&sessionConfig.thing_for_everyone);
+                    return(
+                      <div style={{maxWidth:'620px'}}>
+                        {!isConfigured&&(
+                          <div style={{background:'#fff8f5',border:'1px solid #f5c8b0',borderLeft:'4px solid #e07030',borderRadius:'4px',padding:'.85rem 1rem',marginBottom:'1.25rem',fontSize:'.85rem',color:'#1a1a1a',lineHeight:1.55}}>
+                            Fill these in to open the session. Until you save, participants who enter this code will see "The survey isn't open yet."
+                          </div>
+                        )}
+                        <div style={{marginBottom:'1.25rem'}}>
+                          <label className="field-lbl">Name the thing the group is working on <span style={{color:'#e07030'}}>*</span></label>
+                          <div className="field-sub">e.g. "The Nuclear Operations Division", "Our finance team", "Sellafield Ltd"</div>
+                          <input className="inp" placeholder="What are we looking at?" value={configThing} onChange={e=>setConfigThing(e.target.value)} disabled={configSaving}/>
+                        </div>
+                        <div style={{marginBottom:'1.25rem'}}>
+                          <label className="field-lbl">What kind of thing is it? <span style={{color:'#e07030'}}>*</span></label>
+                          <select className="inp" value={configThingType} onChange={e=>{setConfigThingType(e.target.value);if(e.target.value!=='Other')setConfigThingTypeCustom('');}} disabled={configSaving}>
+                            <option value="">Select...</option>
+                            {thingTypes.map(o=><option key={o}>{o}</option>)}
+                          </select>
+                          {configThingType==='Other'&&(
+                            <input className="inp" placeholder="Please specify..." value={configThingTypeCustom} onChange={e=>setConfigThingTypeCustom(e.target.value)} disabled={configSaving} style={{maxWidth:'340px',marginTop:'.5rem'}}/>
+                          )}
+                        </div>
+                        <div style={{marginBottom:'1.25rem'}}>
+                          <label className="field-lbl">What sector does it operate in? <span style={{color:'#e07030'}}>*</span></label>
+                          <select className="inp" value={configSector} onChange={e=>{setConfigSector(e.target.value);if(e.target.value!=='Other')setConfigSectorCustom('');}} disabled={configSaving}>
+                            <option value="">Select...</option>
+                            {sectors.map(o=><option key={o}>{o}</option>)}
+                          </select>
+                          {configSector==='Other'&&(
+                            <input className="inp" placeholder="Please specify..." value={configSectorCustom} onChange={e=>setConfigSectorCustom(e.target.value)} disabled={configSaving} style={{maxWidth:'340px',marginTop:'.5rem'}}/>
+                          )}
+                        </div>
+                        {configError&&(
+                          <div style={{padding:'.6rem .85rem',background:'#fff5f3',border:'1px solid #f5c8b0',borderRadius:'4px',marginBottom:'.75rem',fontSize:'.82rem',color:'#c0392b',lineHeight:1.5}}>{configError}</div>
+                        )}
+                        <div className="btn-row">
+                          <button className="btn-p" disabled={!configThing.trim()||!configThingType||!configSector||configSaving||(configThingType==='Other'&&!configThingTypeCustom.trim())||(configSector==='Other'&&!configSectorCustom.trim())} onClick={handleSaveConfig}>
+                            {configSaving?'Saving…':isConfigured?'Update config':'Save and open session'}
+                          </button>
+                        </div>
+                        {isConfigured&&(
+                          <div style={{marginTop:'1.5rem',fontSize:'.8rem',color:'#888',lineHeight:1.55}}>
+                            Saved at {sessionConfig.configured_at?new Date(sessionConfig.configured_at).toLocaleString('en-GB'):'—'}. Participants entering this code will see "You are working on: <strong>{sessionConfig.thing_for_everyone}</strong>".
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+
               {/* Group Report tab */}
               {(facTab==='group-report'||printAll)&&(
                 <div>
