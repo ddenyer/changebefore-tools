@@ -3053,7 +3053,7 @@ function App(){
             tool: 'stat-solo',
             role: role==='None of the above'?roleCustom:role,
             researchOptOut: false,
-            pdfData: pdfResult.base64,
+            pdfBase64: pdfResult.base64,
           }),
         });
         const data = await resp.json().catch(()=>({}));
