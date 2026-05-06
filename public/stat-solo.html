@@ -1667,10 +1667,18 @@ function generateStatParticipantPDF(opts){
   setFont(7, 'normal', MUTED);
   doc.text('ChangeBefore · trading name of Woburn Management Group Ltd', pageW/2, pageH-10, {align:'center'});
 
-  // Filename
-  const slug = (respondentName||'report').toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');
+  // Filename: use thing slug (since name is no longer collected at entry)
+  // Falls back to bare date if thing is empty / produces no slug.
+  const thingSlug = (typeof opts.thing==='string'?opts.thing:'').toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');
+  const fallbackSlug = (respondentName||'').toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');
+  const slug = thingSlug || fallbackSlug;
   const dateStr = new Date().toISOString().slice(0,10);
-  const filename = 'STAT_Personal_'+slug+'_'+dateStr+'.pdf';
+  const filename = slug ? ('STAT_Personal_'+slug+'_'+dateStr+'.pdf') : ('STAT_Personal_'+dateStr+'.pdf');
+  // If caller asked for base64, return without saving. Otherwise save to disk.
+  if (opts.returnBase64) {
+    const datauri = doc.output('datauristring');
+    return { base64: datauri.split(',')[1], filename };
+  }
   doc.save(filename);
 }
 
@@ -1691,6 +1699,17 @@ function App(){
   const [thingType,setThingType]=useState('');
   const [thingTypeCustom,setThingTypeCustom]=useState('');
   const [sectorCustom,setSectorCustom]=useState('');
+  // End-of-tool screens: '' (default report tab 4), 'print-confirm', 'print-done', 'join-confirm'
+  const [endScreen,setEndScreen]=useState('');
+  // Join form state
+  const [joinFirstName,setJoinFirstName]=useState('');
+  const [joinLastName,setJoinLastName]=useState('');
+  const [joinEmail,setJoinEmail]=useState('');
+  const [joinPrivacyOk,setJoinPrivacyOk]=useState(false);
+  const [joinSubmitting,setJoinSubmitting]=useState(false);
+  const [joinError,setJoinError]=useState('');
+  // Anonymise (Path B) state
+  const [anonymising,setAnonymising]=useState(false);
   const [respondentName,setRespondentName]=useState('');
   const [resumeData,setResumeData]=useState(null);
   const [thing,setThing]=useState('');
@@ -2999,6 +3018,126 @@ function App(){
         alert('Sorry, the PDF could not be generated. Please refresh the page and try again. If the problem persists, contact contact@changebefore.com.');
       }
     }
+
+    // Path A: build PDF as base64, send to /api/join-and-send
+    async function handleJoinAndSend(){
+      if(!joinFirstName.trim()||!joinLastName.trim()||!joinEmail.trim()||!joinPrivacyOk)return;
+      setJoinSubmitting(true);
+      setJoinError('');
+      try{
+        const pdfResult = generateStatParticipantPDF({
+          respondentName:joinFirstName+' '+joinLastName,
+          thing,
+          role: role==='None of the above'?roleCustom:role,
+          sector, orgSize,
+          contextText, thingDesc,
+          prog, def, con, flex,
+          tobe, tobeInit,
+          asIsStrat, tobeStrat,
+          s1ans, s2ans,
+          selectedPrinciples,
+          SLABELS, SDESC, getStrategyText, gapLabel, gapBadgeText,
+          S1, S2,
+          industryContext,
+          returnBase64: true,
+        });
+        const resp = await fetch('/api/join-and-send',{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({
+            email: joinEmail.trim(),
+            firstName: joinFirstName.trim(),
+            lastName: joinLastName.trim(),
+            sessionCode: accessCode,
+            participantId: participantUuid,
+            tool: 'stat-solo',
+            role: role==='None of the above'?roleCustom:role,
+            researchOptOut: false,
+            pdfData: pdfResult.base64,
+          }),
+        });
+        const data = await resp.json().catch(()=>({}));
+        if(resp.ok && data && data.success){
+          setJoinSubmitting(false);
+          setEndScreen('join-confirm');
+        } else {
+          setJoinSubmitting(false);
+          setJoinError((data&&data.error)||'Something went wrong. Please try again.');
+        }
+      } catch(e){
+        setJoinSubmitting(false);
+        setJoinError('We couldn’t send your report right now. Please try again in a moment.');
+      }
+    }
+
+    // Path B: anonymise the participant record server-side and clear localStorage
+    async function handlePrintDone(){
+      setAnonymising(true);
+      try{
+        await fetch('/api/anonymise-session',{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({participantId: participantUuid}),
+        });
+      } catch(e){/* fail-silent — we still clear local state */}
+      try{ clearProgress(accessCode); } catch(e){}
+      setAnonymising(false);
+      // Hard reset to gate so the user can’t keep clicking around with stale state
+      window.location.href='/stat-solo';
+    }
+
+    // ── End-screen: post-join confirmation ─────────────────────────────────
+    if(endScreen==='join-confirm'){
+      return(
+        <div style={{maxWidth:'560px',margin:'2rem auto'}}>
+          <div style={{background:'#fff',border:'1px solid #d8d3cb',borderRadius:'5px',padding:'1.75rem'}}>
+            <div style={{fontSize:'1.4rem',fontWeight:600,color:'#1a1a1a',marginBottom:'.5rem'}}>✓ Welcome to ChangeBefore</div>
+            <p style={{fontSize:'.9rem',color:'#555',lineHeight:1.6}}>Your PDF report is on its way to <strong>{joinEmail}</strong>. Check your inbox (and spam folder if you don’t see it).</p>
+            <p style={{fontSize:'.9rem',color:'#555',lineHeight:1.6}}>You can also download a copy directly:</p>
+            <div className="btn-row" style={{marginTop:'1rem'}}>
+              <button className="btn-p" onClick={generatePDF}>⬇ Download PDF</button>
+              <button className="btn-s" onClick={restart}>I’m done</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ── End-screen: pre-print confirmation ─────────────────────────────────
+    if(endScreen==='print-confirm'){
+      return(
+        <div style={{maxWidth:'560px',margin:'2rem auto'}}>
+          <div style={{background:'#fff',border:'1px solid #d8d3cb',borderRadius:'5px',padding:'1.75rem'}}>
+            <div style={{fontSize:'1.1rem',fontWeight:700,color:'#1a1a1a',marginBottom:'.75rem'}}>Your results aren’t saved.</div>
+            <p style={{fontSize:'.9rem',color:'#555',lineHeight:1.6,marginBottom:'.5rem'}}>You’re about to use your browser’s print dialog to save or print every page of your report.</p>
+            <p style={{fontSize:'.9rem',color:'#555',lineHeight:1.6}}>When you finish and click <strong>I’m done</strong>, your responses will be removed from our system. You won’t be able to come back to them.</p>
+            <div className="btn-row" style={{marginTop:'1rem'}}>
+              <button className="btn-p" onClick={()=>{window.print();setEndScreen('print-done');}}>🖨 Open print dialog</button>
+              <button className="btn-s" onClick={()=>setEndScreen('')}>← Back</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ── End-screen: post-print "I'm done" ──────────────────────────────────
+    if(endScreen==='print-done'){
+      return(
+        <div style={{maxWidth:'560px',margin:'2rem auto'}}>
+          <div style={{background:'#fff',border:'1px solid #d8d3cb',borderRadius:'5px',padding:'1.75rem'}}>
+            <div style={{fontSize:'1.1rem',fontWeight:700,color:'#1a1a1a',marginBottom:'.75rem'}}>Did you save what you needed?</div>
+            <p style={{fontSize:'.9rem',color:'#555',lineHeight:1.6}}>Make sure you’ve printed your report or saved it as a PDF from the print dialog.</p>
+            <p style={{fontSize:'.9rem',color:'#555',lineHeight:1.6}}>When you click <strong>I’m done</strong>, your responses will be removed.</p>
+            <div className="btn-row" style={{marginTop:'1rem'}}>
+              <button className="btn-s" onClick={()=>window.print()}>Print again</button>
+              <button className="btn-p" onClick={handlePrintDone} disabled={anonymising}>{anonymising?'Closing…':'I’m done — close session'}</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ── Default: feedback + join-or-print + take-it-further + nav ──────────
     return(
       <div>
         <div style={{background:'#fff',border:'1px solid #d8d3cb',borderRadius:'5px',padding:'1.25rem',marginBottom:'1.5rem'}}>
@@ -3020,16 +3159,55 @@ function App(){
             </div>
           )}
         </div>
+
+        {/* JOIN-OR-PRINT PANEL */}
         <div className="rpt-section">
-          <div className="rpt-heading">Save Your Report</div>
-          <p className="rpt-body">Click the button below to download your report as a PDF. A copy of your results will also be emailed to ChangeBefore.</p>
-          <div className="btn-row" style={{marginTop:'1rem'}}>
-            <button className="btn-p" onClick={generatePDF}>⬇ Generate PDF</button>
+          <div className="rpt-heading">Get Your Report</div>
+          <div style={{background:'#fff',border:'1px solid #d8d3cb',borderRadius:'5px',padding:'1.5rem',marginTop:'1rem'}}>
+            <div style={{fontSize:'1.05rem',fontWeight:700,color:'#1a1a1a',marginBottom:'.5rem'}}>Join ChangeBefore</div>
+            <p style={{fontSize:'.85rem',color:'#555',lineHeight:1.6,marginBottom:'.75rem'}}>You’ll get:</p>
+            <ul style={{paddingLeft:'1.25rem',lineHeight:1.7,fontSize:'.85rem',color:'#555',marginBottom:'1rem'}}>
+              <li>Your PDF report on screen and emailed to you</li>
+              <li>Recognition across our other diagnostic tools</li>
+              <li>Occasional updates about new tools and research — nothing frequent, nothing pushy</li>
+            </ul>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'.75rem',marginBottom:'.75rem'}}>
+              <div>
+                <label className="field-lbl">First name <span style={{color:'#e07030'}}>*</span></label>
+                <input className="inp" value={joinFirstName} onChange={e=>setJoinFirstName(e.target.value)} disabled={joinSubmitting}/>
+              </div>
+              <div>
+                <label className="field-lbl">Last name <span style={{color:'#e07030'}}>*</span></label>
+                <input className="inp" value={joinLastName} onChange={e=>setJoinLastName(e.target.value)} disabled={joinSubmitting}/>
+              </div>
+            </div>
+            <div style={{marginBottom:'.75rem'}}>
+              <label className="field-lbl">Email <span style={{color:'#e07030'}}>*</span></label>
+              <input className="inp" type="email" value={joinEmail} onChange={e=>setJoinEmail(e.target.value)} disabled={joinSubmitting} autoComplete="email"/>
+            </div>
+            <div style={{padding:'.75rem .9rem',background:'#f7f5f1',borderRadius:'4px',marginBottom:'.85rem',fontSize:'.78rem',color:'#555',lineHeight:1.55}}>
+              When you join, your responses are linked to your email so you can be recognised when you use other ChangeBefore tools. Anonymised patterns are kept to help our research and improve the tools.
+            </div>
+            <label style={{display:'flex',alignItems:'flex-start',gap:'.5rem',fontSize:'.82rem',color:'#555',cursor:'pointer',marginBottom:'1rem',lineHeight:1.5}}>
+              <input type="checkbox" checked={joinPrivacyOk} onChange={e=>setJoinPrivacyOk(e.target.checked)} disabled={joinSubmitting} style={{marginTop:'.2rem',flexShrink:0}}/>
+              <span>By joining, I accept the <a href="https://changebefore.com/privacy/" target="_blank" rel="noopener noreferrer" style={{color:'#e07030'}}>Privacy Policy</a>.</span>
+            </label>
+            {joinError&&(
+              <div style={{padding:'.6rem .85rem',background:'#fff5f3',border:'1px solid #f5c8b0',borderRadius:'4px',marginBottom:'.75rem',fontSize:'.82rem',color:'#c0392b',lineHeight:1.5}}>{joinError}</div>
+            )}
+            <div className="btn-row">
+              <button className="btn-p" disabled={!joinFirstName.trim()||!joinLastName.trim()||!joinEmail.trim()||!joinPrivacyOk||joinSubmitting} onClick={handleJoinAndSend}>
+                {joinSubmitting?'Sending…':'Join and send my report →'}
+              </button>
+            </div>
           </div>
-          <p style={{fontSize:'.72rem',color:'#888',marginTop:'.85rem',marginBottom:0,fontFamily:"'DM Sans',sans-serif"}}>
-            Having trouble? <a onClick={()=>window.print()} style={{color:'#888',textDecoration:'underline',cursor:'pointer'}}>Use your browser's print function as a backup</a>.
-          </p>
+          <div style={{marginTop:'1rem',textAlign:'center'}}>
+            <button onClick={()=>setEndScreen('print-confirm')} style={{background:'none',border:'none',color:'#888',fontSize:'.85rem',cursor:'pointer',textDecoration:'underline',fontFamily:"'DM Sans',sans-serif"}}>
+              🖨 Just want to print? No account needed →
+            </button>
+          </div>
         </div>
+
         <div className="rpt-section" style={{borderTop:'1px solid #d8d3cb',paddingTop:'1.75rem',marginTop:'1.75rem'}}>
           <div style={{fontSize:'1rem',fontWeight:700,letterSpacing:'.05em',textTransform:'uppercase',color:'#e07030',marginBottom:'.5rem'}}>Take It Further: Run STAT with Your Team or Organisation</div>
           <p className="rpt-body">Your individual report is a starting point. It reflects a single perspective on how {th} operates — and what it could become. The real diagnostic power emerges when you compare results across your team or organisation.</p>
