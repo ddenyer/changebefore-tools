@@ -12,6 +12,7 @@ export default async function handler(req, res) {
     thingMode,
     thingForEveryone,
     thingPlaceholder,
+    thingType,
     orgSize,
     sector,
     facilitatorNotes,
@@ -42,6 +43,7 @@ export default async function handler(req, res) {
     thing_mode: thingMode || null,
     thing_for_everyone: thingForEveryone || null,
     thing_placeholder: thingPlaceholder || null,
+    thing_type: thingType || null,
     org_size: orgSize || null,
     sector: sector || null,
     facilitator_notes: facilitatorNotes || null,
@@ -49,21 +51,58 @@ export default async function handler(req, res) {
     scheduled_anonymisation_at: scheduledAnonymisationAt || null,
   };
 
+  // session_code is unique. We can't rely on Supabase REST's
+  // `Prefer: resolution=merge-duplicates` upsert — it's flaky and inserts
+  // sometimes hit the unique constraint. Instead: fetch the row, decide PATCH
+  // vs POST, do that.
   try {
-    const r = await fetch(`${supabaseUrl}/rest/v1/session_configs`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': supabaseKey,
-        'Authorization': `Bearer ${supabaseKey}`,
-        'Prefer': 'resolution=merge-duplicates,return=representation',
-      },
-      body: JSON.stringify(payload),
-    });
+    const checkResp = await fetch(
+      `${supabaseUrl}/rest/v1/session_configs?session_code=eq.${encodeURIComponent(sessionCode)}&select=id&limit=1`,
+      { headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` } }
+    );
+    if (!checkResp.ok) {
+      const errText = await checkResp.text();
+      console.error('session_configs check error:', checkResp.status, errText);
+      return res.status(checkResp.status).json({ error: errText });
+    }
+    const existing = await checkResp.json();
+    const exists = Array.isArray(existing) && existing.length > 0;
+
+    let r;
+    if (exists) {
+      // PATCH: update by session_code. Drop session_code from payload (unique key).
+      const patchBody = { ...payload };
+      delete patchBody.session_code;
+      r = await fetch(
+        `${supabaseUrl}/rest/v1/session_configs?session_code=eq.${encodeURIComponent(sessionCode)}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': supabaseKey,
+            'Authorization': `Bearer ${supabaseKey}`,
+            'Prefer': 'return=representation',
+          },
+          body: JSON.stringify(patchBody),
+        }
+      );
+    } else {
+      // INSERT
+      r = await fetch(`${supabaseUrl}/rest/v1/session_configs`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`,
+          'Prefer': 'return=representation',
+        },
+        body: JSON.stringify(payload),
+      });
+    }
 
     if (!r.ok) {
       const errText = await r.text();
-      console.error('session_configs upsert error:', r.status, errText);
+      console.error('session_configs write error:', r.status, errText);
       return res.status(r.status).json({ error: errText });
     }
 
