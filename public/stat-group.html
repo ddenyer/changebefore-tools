@@ -1488,25 +1488,50 @@ function generateStatParticipantPDF(opts){
 
   addFooter();
 
-  // ───── SELECTED PRINCIPLES ─────
-  if(selectedPrinciples && selectedPrinciples.length>0){
+  // ───── SELECTED BEHAVIOURS / PRINCIPLES ─────
+  // Prefer structured selectedBehaviours (with bucket); fall back to flat selectedPrinciples
+  const _useBehaviours = Array.isArray(opts.selectedBehaviours) && opts.selectedBehaviours.length>0;
+  const _displayList = _useBehaviours
+    ? opts.selectedBehaviours
+    : (selectedPrinciples||[]).map((t,i)=>({text:t,bucket:null,rank:i+1,is_custom:false}));
+  if(_displayList.length>0){
     doc.addPage(); pageNum++; y=margin+5; addHeader();
-    sectionTitle('Your selected principles');
-    paragraph('The principles you identified as the ones most likely to make the biggest difference for '+orgLabel+', in the priority order you ranked them.', {color:MUTED, size:9});
+    sectionTitle(_useBehaviours?'Your behavioural agenda':'Your selected principles');
+    paragraph(_useBehaviours
+      ? 'The behaviours you identified as the ones most likely to make the biggest difference for '+orgLabel+', ranked. Each is tagged Keep / Add / Replace.'
+      : 'The principles you identified as the ones most likely to make the biggest difference for '+orgLabel+', in priority order.',
+      {color:MUTED, size:9});
     y += 3;
 
-    selectedPrinciples.forEach((p,i)=>{
+    const BUCKET_COLOURS={keep:[45,125,70],add:[184,122,32],replace:[192,57,43]};
+
+    _displayList.forEach((b,i)=>{
       checkPage(18);
+      const bucketColour=b.bucket&&BUCKET_COLOURS[b.bucket]?BUCKET_COLOURS[b.bucket]:ACCENT;
       // Numbered circle
-      doc.setFillColor(...ACCENT);
+      doc.setFillColor(...bucketColour);
       doc.circle(margin+4, y+3.5, 3.5, 'F');
       setFont(8, 'bold', WHITE);
       doc.text(String(i+1), margin+4, y+4.6, {align:'center'});
 
-      // Principle text
+      // Bucket label, if available
+      let textXOffset=11;
+      if(b.bucket){
+        const bucketLabel=b.bucket.toUpperCase();
+        setFont(7,'bold',bucketColour);
+        doc.text(bucketLabel,margin+11,y+4);
+        textXOffset += doc.getTextWidth(bucketLabel)+3;
+      }
+      if(b.is_custom){
+        setFont(7,'italic',MUTED);
+        doc.text('· own',margin+textXOffset,y+4);
+        textXOffset += doc.getTextWidth('· own')+3;
+      }
+
+      // Behaviour text
       setFont(10, 'normal', TEXT);
-      const wrapped = doc.splitTextToSize(p, pageW-2*margin-12);
-      doc.text(wrapped, margin+11, y+4.5);
+      const wrapped = doc.splitTextToSize(b.text, pageW-2*margin-textXOffset-2);
+      doc.text(wrapped, margin+textXOffset, y+4.5);
       y += Math.max(8, wrapped.length*4.2) + 4;
     });
 
@@ -2036,59 +2061,144 @@ function generateStatGroupPDF(opts){
     });
   }
 
-  // ───── PRINCIPLES ─────
-  // principlesCluster shape: { clusters: [{theme, summary, items: [{text, author}]}] }
-  const hasPrinciples = principlesCluster && principlesCluster.clusters && principlesCluster.clusters.length>0;
-  // Check raw selected principles too — show those if no cluster
-  const respondentsWithPrinciples = realRespondents.filter(r=>Array.isArray(r.selected_principles)&&r.selected_principles.length>0);
+  // ───── BEHAVIOURAL AGENDA (was: PRINCIPLES) ─────
+  // New shape: principlesCluster has clusters_keep, clusters_add, clusters_replace, divergence
+  // Legacy shape: principlesCluster.clusters (flat)
+  const hasNewClusters = principlesCluster && (
+    (Array.isArray(principlesCluster.clusters_keep)&&principlesCluster.clusters_keep.length>0) ||
+    (Array.isArray(principlesCluster.clusters_add)&&principlesCluster.clusters_add.length>0) ||
+    (Array.isArray(principlesCluster.clusters_replace)&&principlesCluster.clusters_replace.length>0)
+  );
+  const hasLegacyClusters = principlesCluster && Array.isArray(principlesCluster.clusters) && principlesCluster.clusters.length>0;
+  const respondentsWithBehaviours = realRespondents.filter(r=>{
+    const sb=Array.isArray(r.selected_behaviours)?r.selected_behaviours:[];
+    const sp=Array.isArray(r.selected_principles)?r.selected_principles:[];
+    return sb.length>0||sp.length>0;
+  });
 
-  if(hasPrinciples || respondentsWithPrinciples.length>0){
+  if (hasNewClusters || hasLegacyClusters || respondentsWithBehaviours.length>0) {
     doc.addPage(); pageNum++; y=margin+5; addHeader();
-    sectionTitle('Selected principles');
+    sectionTitle('Behavioural agenda');
 
-    if(hasPrinciples){
-      paragraph('AI-clustered themes from individual selections. Names in brackets show which respondents chose principles in each theme.', {color:MUTED, size:9});
+    if (hasNewClusters) {
+      paragraph('Themes drawn from individual selections, grouped by Keep / Add / Replace. Names in brackets show which respondents chose items in each theme.', {color:MUTED, size:9});
+      y += 3;
+
+      const renderBucketSection=(title,clusters,bucketColour)=>{
+        if(!Array.isArray(clusters)||clusters.length===0)return;
+        checkPage(15);
+        setFont(11,'bold',bucketColour);
+        doc.text(title.toUpperCase(),margin,y+4);
+        y += 7;
+        clusters.forEach(cl=>{
+          checkPage(20);
+          setFont(10,'bold',TEXT);
+          doc.text(cl.theme||'Untitled theme',margin,y+4);
+          y += 6;
+          if(cl.summary){
+            setFont(9,'italic',MUTED);
+            const sw=doc.splitTextToSize(cl.summary,pageW-2*margin);
+            checkPage(sw.length*4+2);
+            doc.text(sw,margin,y+3);
+            y += sw.length*4+2;
+          }
+          if(cl.items&&cl.items.length){
+            setFont(9,'normal',TEXT);
+            cl.items.forEach(it=>{
+              const author=labelOf(it.author||'');
+              const line='• '+(it.text||'')+(author?' ('+author+', rank '+(it.rank||'?')+')':'');
+              const wrapped=doc.splitTextToSize(line,pageW-2*margin-4);
+              checkPage(wrapped.length*4+1);
+              doc.text(wrapped,margin+2,y+3);
+              y += wrapped.length*4+1;
+            });
+          }
+          y += 3;
+        });
+        y += 3;
+      };
+      renderBucketSection('Keep',principlesCluster.clusters_keep,[45,125,70]);
+      renderBucketSection('Add',principlesCluster.clusters_add,[184,122,32]);
+      renderBucketSection('Replace',principlesCluster.clusters_replace,[192,57,43]);
+
+      // Divergence panel
+      if(Array.isArray(principlesCluster.divergence)&&principlesCluster.divergence.length>0){
+        checkPage(15);
+        setFont(11,'bold',[224,112,48]);
+        doc.text('WHERE THE GROUP IS SPLIT',margin,y+4);
+        y += 6;
+        setFont(9,'italic',MUTED);
+        const intro='Themes ranked highly by some participants but not chosen by most.';
+        const iw=doc.splitTextToSize(intro,pageW-2*margin);
+        doc.text(iw,margin,y+3);
+        y += iw.length*4+3;
+        setFont(9,'normal',TEXT);
+        principlesCluster.divergence.forEach(d=>{
+          checkPage(8);
+          const bucketLabel=({keep:'KEEP',add:'ADD',replace:'REPLACE'}[d.bucket]||d.bucket||'').toUpperCase();
+          const line=`• [${bucketLabel}] ${d.theme} — ${d.author_count} of ${d.total_active}, top rank ${d.top_rank}`;
+          const wrapped=doc.splitTextToSize(line,pageW-2*margin-4);
+          doc.text(wrapped,margin+2,y+3);
+          y += wrapped.length*4+1;
+        });
+      }
+    } else if (hasLegacyClusters) {
+      // Old shape — fall back gracefully
+      paragraph('AI-clustered themes from individual selections.',{color:MUTED,size:9});
       y += 3;
       principlesCluster.clusters.forEach(cl=>{
         checkPage(20);
-        setFont(11, 'bold', TEXT);
-        doc.text(cl.theme||'Untitled theme', margin, y+4);
+        setFont(11,'bold',TEXT);
+        doc.text(cl.theme||'Untitled theme',margin,y+4);
         y += 7;
         if(cl.summary){
-          setFont(9, 'italic', MUTED);
-          const sw = doc.splitTextToSize(cl.summary, pageW-2*margin);
+          setFont(9,'italic',MUTED);
+          const sw=doc.splitTextToSize(cl.summary,pageW-2*margin);
           checkPage(sw.length*4+2);
-          doc.text(sw, margin, y+3);
-          y += sw.length*4 + 2;
+          doc.text(sw,margin,y+3);
+          y += sw.length*4+2;
         }
-        if(cl.items && cl.items.length){
-          setFont(9, 'normal', TEXT);
+        if(cl.items&&cl.items.length){
+          setFont(9,'normal',TEXT);
           cl.items.forEach(it=>{
-            const author = labelOf(it.author||'');
-            const line = '• '+(it.text||'')+(author?' ('+author+')':'');
-            const wrapped = doc.splitTextToSize(line, pageW-2*margin-4);
+            const author=labelOf(it.author||'');
+            const line='• '+(it.text||'')+(author?' ('+author+')':'');
+            const wrapped=doc.splitTextToSize(line,pageW-2*margin-4);
             checkPage(wrapped.length*4+1);
-            doc.text(wrapped, margin+2, y+3);
-            y += wrapped.length*4 + 1;
+            doc.text(wrapped,margin+2,y+3);
+            y += wrapped.length*4+1;
           });
         }
         y += 4;
       });
     } else {
-      paragraph('Individual respondents selected these as the principles most worth committing to. Cluster the themes manually.', {color:MUTED, size:9});
+      // No cluster — list raw selections per respondent
+      paragraph('Individual respondents selected these. Cluster the themes manually.',{color:MUTED,size:9});
       y += 3;
-      respondentsWithPrinciples.forEach(r=>{
+      respondentsWithBehaviours.forEach(r=>{
         checkPage(15);
-        setFont(10, 'bold', TEXT);
-        doc.text(labelOf(r.respondent_name), margin, y+4);
+        setFont(10,'bold',TEXT);
+        doc.text(labelOf(r.respondent_name||'Participant'),margin,y+4);
         y += 6;
-        setFont(9, 'normal', TEXT);
-        (r.selected_principles||[]).forEach(p=>{
-          const wrapped = doc.splitTextToSize('• '+p, pageW-2*margin-6);
-          checkPage(wrapped.length*4+1);
-          doc.text(wrapped, margin+4, y+3);
-          y += wrapped.length*4 + 1;
-        });
+        setFont(9,'normal',TEXT);
+        // Prefer structured selected_behaviours; fall back to flat selected_principles
+        const sb=Array.isArray(r.selected_behaviours)&&r.selected_behaviours.length>0?r.selected_behaviours:null;
+        if(sb){
+          sb.forEach(b=>{
+            const bucketLabel=({keep:'[KEEP]',add:'[ADD]',replace:'[REPLACE]'}[b.bucket]||'[?]');
+            const wrapped=doc.splitTextToSize(`${bucketLabel} ${b.text||''}`,pageW-2*margin-6);
+            checkPage(wrapped.length*4+1);
+            doc.text(wrapped,margin+4,y+3);
+            y += wrapped.length*4+1;
+          });
+        } else {
+          (r.selected_principles||[]).forEach(p=>{
+            const wrapped=doc.splitTextToSize('• '+p,pageW-2*margin-6);
+            checkPage(wrapped.length*4+1);
+            doc.text(wrapped,margin+4,y+3);
+            y += wrapped.length*4+1;
+          });
+        }
         y += 3;
       });
     }
@@ -2460,6 +2570,16 @@ function App(){
   const [principlesLoading,setPrinciplesLoading]=useState(false);
   const [selectedPrinciples,setSelectedPrinciples]=useState([]);
   const [customPrinciple,setCustomPrinciple]=useState('');
+  // New (May 2026): structured three-column behaviours.
+  // - `behaviours`: array of {text,bucket,category,axis,question_id} from the API
+  // - `behavioursMeta`: gap sizes, strategy labels, header copy
+  // - `selectedBehaviours`: array of {text,bucket,category,axis,rank,is_custom}
+  //                        kept in sync with selectedPrinciples (flat strings) for back-compat
+  // - `customBucketInputs`: text being typed per bucket {keep:'',add:'',replace:''}
+  const [behaviours,setBehaviours]=useState(null);
+  const [behavioursMeta,setBehavioursMeta]=useState(null);
+  const [selectedBehaviours,setSelectedBehaviours]=useState([]);
+  const [customBucketInputs,setCustomBucketInputs]=useState({keep:'',add:'',replace:''});
   const [principlesCluster,setPrinciplesCluster]=useState(null);
   const [principlesClusterLoading,setPrinciplesClusterLoading]=useState(false);
   const [principlesClusterError,setPrinciplesClusterError]=useState(null);
@@ -2588,6 +2708,7 @@ function App(){
           date:new Date().toISOString(),
           tool_label:'STAT',
           selected_principles:selectedPrinciples,
+          selected_behaviours:selectedBehaviours,
           generate_report:isGenerateReport,
           // Rich user-input fields persisted to DB so facilitator can see the full picture
           thing_desc:thingDesc,
@@ -2652,8 +2773,10 @@ function App(){
   async function loadPrinciples(){
     setPrinciplesLoading(true);
     setPrinciples(null);
-    // Don't wipe selectedPrinciples here — the user may already have selections
-    // (from a prior visit, restored from Supabase, or kept across navigation).
+    setBehaviours(null);
+    setBehavioursMeta(null);
+    // Don't wipe selectedPrinciples / selectedBehaviours here — the user may
+    // have prior selections (resumed from Supabase or kept across navigation).
     try{
       const resp=await fetch('/api/stat-principles-generate',{
         method:'POST',
@@ -2664,38 +2787,142 @@ function App(){
           prog,def,con,flex,
           tobe_prog:tobe.p,tobe_def:tobe.d,tobe_con:tobe.c,tobe_flex:tobe.f,
           thing,
+          sector:sector==='Other'?sectorCustom:sector,
         }),
       });
-      if(resp.ok){const d=await resp.json();setPrinciples(d.principles||[]);}
-      else{setPrinciples([]);}
-    }catch(e){console.warn('principles error:',e);setPrinciples([]);}
+      if(resp.ok){
+        const d=await resp.json();
+        // New endpoint returns {items, header, meta}; older signature was {behaviours}.
+        // Accept both for forward/backward compat during deploy transition.
+        const bx = Array.isArray(d.items) ? d.items : (Array.isArray(d.behaviours) ? d.behaviours : []);
+        setBehaviours(bx);
+        setBehavioursMeta(d.meta || null);
+        // Keep flat principles[] in sync for back-compat (PDF still reads it)
+        setPrinciples(bx.map(b => b.text));
+      }else{
+        setBehaviours([]);
+        setPrinciples([]);
+      }
+    }catch(e){
+      console.warn('principles error:',e);
+      setBehaviours([]);
+      setPrinciples([]);
+    }
     setPrinciplesLoading(false);
   }
 
+  // Toggle a behaviour (from the AI-generated set) into / out of the selection.
+  // Picks are limited to 5 total. Rank is assigned by order of clicking.
+  function toggleBehaviour(behaviour){
+    setSelectedBehaviours(prev=>{
+      const existingIdx=prev.findIndex(s=>s.text===behaviour.text&&s.bucket===behaviour.bucket);
+      let next;
+      if(existingIdx>=0){
+        // Already selected — deselect, then re-rank remaining
+        next=prev.filter((_,i)=>i!==existingIdx).map((s,i)=>({...s,rank:i+1}));
+      } else {
+        if(prev.length>=5)return prev; // hit limit
+        next=[...prev,{
+          text:behaviour.text,
+          bucket:behaviour.bucket,
+          category:behaviour.category||null,
+          axis:behaviour.axis||null,
+          rank:prev.length+1,
+          is_custom:false,
+        }];
+      }
+      // Mirror to flat principles[]
+      setSelectedPrinciples(next.map(s=>s.text));
+      return next;
+    });
+  }
+
+  // Add a custom behaviour to a specific bucket. Counts toward the 5-pick limit.
+  function addCustomToBucket(bucket){
+    const text=(customBucketInputs[bucket]||'').trim();
+    if(!text)return;
+    if(!['keep','add','replace'].includes(bucket))return;
+    setSelectedBehaviours(prev=>{
+      // Don't add if same text already in selection (regardless of bucket)
+      if(prev.some(s=>s.text.toLowerCase()===text.toLowerCase()))return prev;
+      if(prev.length>=5)return prev; // hit limit
+      const next=[...prev,{
+        text,bucket,category:null,axis:null,rank:prev.length+1,is_custom:true,
+      }];
+      setSelectedPrinciples(next.map(s=>s.text));
+      return next;
+    });
+    setCustomBucketInputs(prev=>({...prev,[bucket]:''}));
+  }
+
+  // Move a selected behaviour up or down in rank. direction = -1 (up) or +1 (down).
+  function moveBehaviour(idx,direction){
+    setSelectedBehaviours(prev=>{
+      const newIdx=idx+direction;
+      if(newIdx<0||newIdx>=prev.length)return prev;
+      const next=[...prev];
+      [next[idx],next[newIdx]]=[next[newIdx],next[idx]];
+      // Re-assign rank by position
+      const reranked=next.map((s,i)=>({...s,rank:i+1}));
+      setSelectedPrinciples(reranked.map(s=>s.text));
+      return reranked;
+    });
+  }
+
+  // Remove a selected behaviour (and re-rank the rest)
+  function removeSelectedBehaviour(idx){
+    setSelectedBehaviours(prev=>{
+      const next=prev.filter((_,i)=>i!==idx).map((s,i)=>({...s,rank:i+1}));
+      setSelectedPrinciples(next.map(s=>s.text));
+      return next;
+    });
+  }
+
+  // Legacy aliases — kept so existing call sites keep working until we fully migrate.
   function togglePrinciple(p){
-    setSelectedPrinciples(prev=>{
-      if(prev.includes(p))return prev.filter(x=>x!==p);
-      return [p,...prev];
+    // p is a flat string. Find the matching behaviour and toggle.
+    if(behaviours){
+      const b=behaviours.find(b=>b.text===p);
+      if(b){toggleBehaviour(b);return;}
+    }
+    // Fallback for unknown text — treat as Add custom
+    setSelectedBehaviours(prev=>{
+      const idx=prev.findIndex(s=>s.text===p);
+      let next;
+      if(idx>=0){
+        next=prev.filter((_,i)=>i!==idx).map((s,i)=>({...s,rank:i+1}));
+      } else {
+        if(prev.length>=5)return prev;
+        next=[...prev,{text:p,bucket:'add',category:null,axis:null,rank:prev.length+1,is_custom:false}];
+      }
+      setSelectedPrinciples(next.map(s=>s.text));
+      return next;
     });
   }
 
   function addCustomPrinciple(){
-    const p=customPrinciple.trim();
-    if(!p)return;
-    if(selectedPrinciples.includes(p))return;
-    setSelectedPrinciples([p,...selectedPrinciples]);
-    setCustomPrinciple('');
+    // Default custom adds go to the Add bucket
+    const text=customPrinciple.trim();
+    if(!text)return;
+    setCustomBucketInputs(prev=>({...prev,add:text}));
+    setTimeout(()=>{
+      addCustomToBucket('add');
+      setCustomPrinciple('');
+    },0);
   }
 
   function movePrinciple(p,direction){
-    setSelectedPrinciples(prev=>{
-      const idx=prev.indexOf(p);
+    // p is text. Find selectedBehaviours index and delegate.
+    setSelectedBehaviours(prev=>{
+      const idx=prev.findIndex(s=>s.text===p);
       if(idx<0)return prev;
       const newIdx=idx+direction;
       if(newIdx<0||newIdx>=prev.length)return prev;
       const next=[...prev];
       [next[idx],next[newIdx]]=[next[newIdx],next[idx]];
-      return next;
+      const reranked=next.map((s,i)=>({...s,rank:i+1}));
+      setSelectedPrinciples(reranked.map(s=>s.text));
+      return reranked;
     });
   }
 
@@ -2766,20 +2993,51 @@ function App(){
     return()=>clearTimeout(t);
   },[s1ans,s2ans,tobe,selectedPrinciples,thirtyDay,feedbackComment,thingDesc,contextText,step,codeNorm,respondentName,participantUuid]);;
 
-  // Restore selectedPrinciples from Supabase when a returning participant resumes.
-  // If a row already exists for this respondent with selected_principles, and
-  // local state is still empty, hydrate it. One-shot — won't override later edits.
+  // Restore selectedBehaviours / selectedPrinciples from Supabase when a returning
+  // participant resumes. Prefer the new structured selected_behaviours; fall back
+  // to flat selected_principles for legacy rows. One-shot — won't override later edits.
   const principlesHydrated=useRef(false);
   useEffect(()=>{
     if(principlesHydrated.current)return;
-    if(!respondentName.trim()||!groupRespondents||groupRespondents.length===0)return;
-    if(selectedPrinciples.length>0)return;
-    const myRow=groupRespondents.find(r=>r.respondent_name===respondentName.trim());
-    if(myRow&&Array.isArray(myRow.selected_principles)&&myRow.selected_principles.length>0){
-      setSelectedPrinciples(myRow.selected_principles);
+    if(!groupRespondents||groupRespondents.length===0)return;
+    if(selectedBehaviours.length>0||selectedPrinciples.length>0)return;
+    // Find my row — prefer participant_id match, fall back to respondent_name
+    let myRow=null;
+    if(participantUuid){
+      myRow=groupRespondents.find(r=>r.participant_id===participantUuid);
+    }
+    if(!myRow&&respondentName.trim()){
+      myRow=groupRespondents.find(r=>r.respondent_name===respondentName.trim());
+    }
+    if(!myRow)return;
+    if(Array.isArray(myRow.selected_behaviours)&&myRow.selected_behaviours.length>0){
+      // New structured form
+      const sb=myRow.selected_behaviours
+        .map((b,i)=>({
+          text:b.text||'',
+          bucket:['keep','add','replace'].includes(b.bucket)?b.bucket:'add',
+          category:b.category||null,
+          axis:b.axis||null,
+          rank:typeof b.rank==='number'?b.rank:(i+1),
+          is_custom:!!b.is_custom,
+        }))
+        .filter(b=>b.text)
+        .sort((a,b)=>a.rank-b.rank)
+        .map((b,i)=>({...b,rank:i+1}));
+      setSelectedBehaviours(sb);
+      setSelectedPrinciples(sb.map(s=>s.text));
+      principlesHydrated.current=true;
+    } else if(Array.isArray(myRow.selected_principles)&&myRow.selected_principles.length>0){
+      // Legacy flat array — hydrate as Add bucket items
+      const sb=myRow.selected_principles.map((t,i)=>({
+        text:typeof t==='string'?t:'',
+        bucket:'add',category:null,axis:null,rank:i+1,is_custom:false,
+      })).filter(s=>s.text);
+      setSelectedBehaviours(sb);
+      setSelectedPrinciples(sb.map(s=>s.text));
       principlesHydrated.current=true;
     }
-  },[groupRespondents,respondentName]);
+  },[groupRespondents,respondentName,participantUuid]);
 
   // Close facilitator dashboard overlay on Esc; lock body scroll while open;
   // intercept browser back button on mobile so it closes the overlay instead of leaving the page
@@ -3002,6 +3260,7 @@ function App(){
     setThirtyDay('');setFeedbackComment('');setFeedbackSent(false);setFeedbackSending(false);
     setLoading(false);
     setPrinciplesStep(false);setPrinciples(null);setSelectedPrinciples([]);setCustomPrinciple('');
+    setBehaviours(null);setBehavioursMeta(null);setSelectedBehaviours([]);setCustomBucketInputs({keep:'',add:'',replace:''});
     setFacilitatorUnlocked(false);
     setSessionCode('');
   }
@@ -3458,104 +3717,172 @@ function App(){
   // Simpler: use step 4 for to-be sliders. Profile is step 3 (was step 4 above — fixed below).
 
   function renderPrinciples(){
-    const count=selectedPrinciples.length;
+    // Three-column behaviours UX. Picks up to 5; ranking is implicit by click order.
+    // Custom add buttons live at the bottom of each column. Header copy keyed off
+    // the gap size from behavioursMeta.
+    const picksRemaining=5-selectedBehaviours.length;
+    const headerCopy=(()=>{
+      const total=behavioursMeta?behavioursMeta.total_gap:0;
+      if(total<20)return "You are largely operating where you want to be. The agenda below is mostly about protecting what works, with a few small additions.";
+      if(total<60)return "You have a moderate change ahead. Most of what you do is right; some of it needs to be augmented; a few defaults need to give.";
+      if(total<100)return "You have a substantial shift ahead. The agenda names what to protect, what to build alongside what you have, and what to substitute.";
+      return "The shift you have asked for is foundational. Some of what your organisation has built well will need to be given up to make room for what you now want.";
+    })();
+
+    const byBucket={keep:[],add:[],replace:[]};
+    if(behaviours)behaviours.forEach((b,i)=>{
+      if(byBucket[b.bucket])byBucket[b.bucket].push({...b,_idx:i});
+    });
+
+    const isPicked=(b)=>selectedBehaviours.some(s=>s.text===b.text&&!s.is_custom);
+    const rankOf=(b)=>{
+      const idx=selectedBehaviours.findIndex(s=>s.text===b.text&&!s.is_custom);
+      return idx>=0?idx+1:null;
+    };
+
+    const bucketHeader=(name,colour,subtitle)=>(
+      <div style={{borderTop:'3px solid '+colour,paddingTop:'.75rem',marginBottom:'.85rem'}}>
+        <div style={{fontSize:'.78rem',fontWeight:700,letterSpacing:'.06em',textTransform:'uppercase',color:colour,marginBottom:'.2rem',fontFamily:"'DM Sans',sans-serif"}}>{name}</div>
+        <div style={{fontSize:'.72rem',color:'#888',fontStyle:'italic',lineHeight:1.4,fontFamily:"'DM Sans',sans-serif"}}>{subtitle}</div>
+      </div>
+    );
+
+    const renderItem=(b)=>{
+      const picked=isPicked(b);
+      const rank=rankOf(b);
+      // For replace items, render the → with a styled arrow
+      let textHtml=b.text;
+      const arrowMatch=b.text.match(/^(.+?)\s*→\s*(.+)$/);
+      const isReplaceFormat=b.bucket==='replace'&&arrowMatch;
+      return(
+        <div key={b._idx}
+          onClick={()=>toggleBehaviour(b)}
+          style={{
+            border:picked?'2px solid #e07030':'1px solid #d8d3cb',
+            background:picked?'#fff8f5':'#fff',
+            borderRadius:'4px',padding:'.7rem .85rem',marginBottom:'.45rem',
+            cursor:'pointer',position:'relative',transition:'all .15s',
+          }}>
+          {picked&&(
+            <div style={{position:'absolute',top:'-9px',right:'-9px',width:'22px',height:'22px',background:'#e07030',color:'#fff',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'.7rem',fontWeight:700,fontFamily:'monospace'}}>{rank}</div>
+          )}
+          <div style={{fontSize:'.82rem',lineHeight:1.55,color:'#1a1a1a'}}>
+            {isReplaceFormat?(
+              <>{arrowMatch[1]} <span style={{color:'#c0392b',fontWeight:700}}>→</span> {arrowMatch[2]}</>
+            ):textHtml}
+          </div>
+        </div>
+      );
+    };
+
+    const renderCustomInput=(bucket,colour,placeholder)=>{
+      const value=customBucketInputs[bucket]||'';
+      const atLimit=selectedBehaviours.length>=5;
+      return(
+        <div style={{marginTop:'.75rem',paddingTop:'.75rem',borderTop:'1px dashed #d8d3cb'}}>
+          <textarea
+            className="inp inp-ta"
+            style={{minHeight:'52px',fontSize:'.78rem'}}
+            placeholder={placeholder}
+            value={value}
+            onChange={e=>setCustomBucketInputs(prev=>({...prev,[bucket]:e.target.value}))}/>
+          <button
+            onClick={()=>addCustomToBucket(bucket)}
+            disabled={!value.trim()||atLimit}
+            style={{
+              marginTop:'.4rem',padding:'.4rem .75rem',
+              background:atLimit?'#ebe7e0':colour,color:atLimit?'#888':'#fff',
+              border:'none',borderRadius:'3px',fontSize:'.72rem',fontWeight:600,
+              cursor:atLimit?'not-allowed':'pointer',fontFamily:"'DM Sans',sans-serif"
+            }}>
+            {atLimit?'5/5 selected — deselect to add':`+ Add to ${bucket}`}
+          </button>
+        </div>
+      );
+    };
+
     return(
       <div className="fade">
-        <div className="sec-tag">Step 6 of 7 · Principles</div>
-        <h2 className="pg-title">Choose your principles</h2>
-        <p className="pg-sub">Below are 8 principles drawn from your responses. <strong>Click the ones that resonate, in order of importance to you</strong> — your most important first. Each click adds the principle to the top of your list. Use the arrows to reorder, or × to remove. There is no minimum or maximum.</p>
+        <div className="sec-tag">Step 6 of 7 · Behaviours</div>
+        <h2 className="pg-title">Your behavioural agenda</h2>
 
-        {selectedPrinciples.length>0&&(
+        {behavioursMeta&&(
+          <p style={{fontSize:'.92rem',color:'#555',lineHeight:1.65,marginBottom:'1.25rem',fontStyle:'italic'}}>
+            {headerCopy}
+          </p>
+        )}
+        <p className="pg-sub" style={{marginBottom:'1.25rem'}}>
+          <strong>Pick up to 5 behaviours</strong> that would matter most to {th}, then rank them in priority order. Each click adds the behaviour to your list. {picksRemaining>0?`(${picksRemaining} more picks available.)`:'(At limit — deselect to pick others.)'}
+        </p>
+
+        {/* Selected list — only when something is picked */}
+        {selectedBehaviours.length>0&&(
           <div style={{margin:'0 0 1.5rem',padding:'1rem 1.25rem',background:'#1a1a1a',borderRadius:'4px'}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:'.6rem'}}>
-              <div style={{fontSize:'.6rem',fontWeight:700,letterSpacing:'.12em',textTransform:'uppercase',color:'#e07030',fontFamily:"'DM Sans',sans-serif"}}>Your selected principles — ranked by importance</div>
-              <div style={{fontSize:'.65rem',color:'#888',fontFamily:"'DM Sans',sans-serif"}}>{selectedPrinciples.length} selected</div>
+              <div style={{fontSize:'.6rem',fontWeight:700,letterSpacing:'.12em',textTransform:'uppercase',color:'#e07030',fontFamily:"'DM Sans',sans-serif"}}>Your selected behaviours — ranked</div>
+              <div style={{fontSize:'.65rem',color:'#888',fontFamily:"'DM Sans',sans-serif"}}>{selectedBehaviours.length} / 5</div>
             </div>
-            {selectedPrinciples.map((p,i)=>{
-              const isFirst=i===0;
-              const isLast=i===selectedPrinciples.length-1;
+            {selectedBehaviours.map((s,i)=>{
+              const isFirst=i===0,isLast=i===selectedBehaviours.length-1;
+              const bucketColour={keep:'#2d7d46',add:'#b87a20',replace:'#c0392b'}[s.bucket]||'#888';
+              const bucketLabel={keep:'Keep',add:'Add',replace:'Replace'}[s.bucket]||s.bucket;
               return(
-                <div key={i} style={{display:'flex',alignItems:'flex-start',gap:'.5rem',padding:'.55rem 0',borderBottom:i<selectedPrinciples.length-1?'1px solid #333':'none'}}>
+                <div key={i} style={{display:'flex',alignItems:'flex-start',gap:'.5rem',padding:'.55rem 0',borderBottom:i<selectedBehaviours.length-1?'1px solid #333':'none'}}>
                   <div style={{display:'flex',flexDirection:'column',gap:'2px',flexShrink:0,marginTop:'1px'}}>
-                    <button onClick={()=>movePrinciple(p,-1)} disabled={isFirst}
-                      style={{background:'none',border:'1px solid '+(isFirst?'#444':'#666'),color:isFirst?'#444':'#aaa',cursor:isFirst?'not-allowed':'pointer',width:'22px',height:'18px',padding:0,borderRadius:'3px',fontSize:'.7rem',lineHeight:1,fontFamily:'sans-serif'}}>↑</button>
-                    <button onClick={()=>movePrinciple(p,1)} disabled={isLast}
-                      style={{background:'none',border:'1px solid '+(isLast?'#444':'#666'),color:isLast?'#444':'#aaa',cursor:isLast?'not-allowed':'pointer',width:'22px',height:'18px',padding:0,borderRadius:'3px',fontSize:'.7rem',lineHeight:1,fontFamily:'sans-serif'}}>↓</button>
+                    <button onClick={()=>moveBehaviour(i,-1)} disabled={isFirst} style={{background:'none',border:'1px solid '+(isFirst?'#444':'#666'),color:isFirst?'#444':'#aaa',cursor:isFirst?'not-allowed':'pointer',width:'22px',height:'18px',padding:0,borderRadius:'3px',fontSize:'.7rem',lineHeight:1,fontFamily:'sans-serif'}}>↑</button>
+                    <button onClick={()=>moveBehaviour(i,1)} disabled={isLast} style={{background:'none',border:'1px solid '+(isLast?'#444':'#666'),color:isLast?'#444':'#aaa',cursor:isLast?'not-allowed':'pointer',width:'22px',height:'18px',padding:0,borderRadius:'3px',fontSize:'.7rem',lineHeight:1,fontFamily:'sans-serif'}}>↓</button>
                   </div>
                   <div style={{fontSize:'.78rem',color:'#e07030',fontWeight:700,flexShrink:0,minWidth:'18px',marginTop:'2px',fontFamily:"'DM Sans',sans-serif"}}>{i+1}.</div>
-                  <div style={{fontSize:'.88rem',color:'#f0ede8',flex:1,lineHeight:1.6}}>{p}</div>
-                  <button onClick={()=>setSelectedPrinciples(selectedPrinciples.filter(x=>x!==p))}
-                    style={{background:'none',border:'none',color:'#888',cursor:'pointer',fontSize:'1rem',padding:'0 .25rem',fontFamily:'sans-serif',marginTop:'1px'}} title="Remove">×</button>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:'.85rem',color:'#f0ede8',lineHeight:1.55}}>{s.text}</div>
+                    <div style={{fontSize:'.62rem',color:'#888',marginTop:'.2rem',letterSpacing:'.05em',textTransform:'uppercase',fontFamily:"'DM Sans',sans-serif"}}>
+                      <span style={{color:bucketColour,fontWeight:700}}>{bucketLabel}</span>
+                      {s.is_custom?<span style={{marginLeft:'.5rem',color:'#888'}}>· own</span>:''}
+                    </div>
+                  </div>
+                  <button onClick={()=>removeSelectedBehaviour(i)} style={{background:'none',border:'none',color:'#888',cursor:'pointer',fontSize:'1rem',padding:'0 .25rem',fontFamily:'sans-serif',marginTop:'1px'}} title="Remove">×</button>
                 </div>
               );
             })}
-          </div>
-        )}
-
-        {selectedPrinciples.length===0&&!principlesLoading&&principles&&principles.length>0&&(
-          <div style={{margin:'0 0 1.5rem',padding:'.85rem 1.1rem',background:'#ebe7e0',border:'1px dashed #b0a898',borderRadius:'4px',fontSize:'.82rem',color:'#666',fontStyle:'italic',textAlign:'center',fontFamily:"'DM Sans',sans-serif"}}>
-            Click a principle below to add it. Your most important first.
           </div>
         )}
 
         {principlesLoading&&(
-          <div className="think"><div className="dots"><div className="dot"/><div className="dot"/><div className="dot"/></div><span className="think-txt">Generating principles from your answers…</span></div>
+          <div className="think"><div className="dots"><div className="dot"/><div className="dot"/><div className="dot"/></div><span className="think-txt">Generating your behavioural agenda…</span></div>
         )}
 
-        {!principlesLoading&&principles&&principles.length===0&&(
-          <div className="warn-box">We weren't able to generate principles right now. You can write your own below, or skip this step and continue to your report.</div>
+        {!principlesLoading&&behaviours&&behaviours.length===0&&(
+          <div className="warn-box">We weren't able to generate your behaviours right now. You can write your own below, or skip this step and continue to your report.</div>
         )}
 
-        {!principlesLoading&&principles&&principles.length>0&&(
-          <div>
-            {principles.map((p,i)=>{
-              const isSelected=selectedPrinciples.includes(p);
-              const rank=isSelected?selectedPrinciples.indexOf(p)+1:null;
-              return(
-                <div key={i}
-                  onClick={()=>togglePrinciple(p)}
-                  style={{
-                    border:isSelected?'2px solid #e07030':'1px solid #d8d3cb',
-                    background:isSelected?'#fff8f5':'#fff',
-                    borderRadius:'4px',padding:'.85rem 1rem',marginBottom:'.5rem',
-                    cursor:'pointer',
-                    display:'flex',gap:'.65rem',alignItems:'flex-start',transition:'all .15s'
-                  }}>
-                  <div style={{
-                    width:'22px',height:'22px',borderRadius:isSelected?'50%':'3px',
-                    border:'2px solid '+(isSelected?'#e07030':'#b0a898'),
-                    background:isSelected?'#e07030':'#fff',flexShrink:0,marginTop:'1px',
-                    display:'flex',alignItems:'center',justifyContent:'center',
-                    fontSize:'.78rem',fontWeight:700,color:isSelected?'#fff':'#b0a898',lineHeight:1
-                  }}>{isSelected?rank:''}</div>
-                  <div style={{fontSize:'.88rem',lineHeight:1.6,color:'#1a1a1a',flex:1}}>{p}</div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {!principlesLoading&&(
-          <div style={{marginTop:'1.5rem',paddingTop:'1.25rem',borderTop:'1px solid #d8d3cb'}}>
-            <div className="field-lbl">Write your own principle</div>
-            <div className="field-sub">Use a verb stem like "Make space for…", "Be willing to…", "Stop treating…", "Recognise that…"</div>
-            <div style={{display:'flex',gap:'.5rem',alignItems:'flex-start'}}>
-              <textarea className="inp inp-ta" style={{flex:1,minHeight:'70px'}}
-                placeholder="e.g. Be willing to slow down decisions when consequences are big."
-                value={customPrinciple}
-                onChange={e=>setCustomPrinciple(e.target.value)}/>
-              <button className="btn-s" onClick={addCustomPrinciple}
-                disabled={!customPrinciple.trim()}
-                style={{whiteSpace:'nowrap'}}>+ Add</button>
+        {!principlesLoading&&behaviours&&behaviours.length>0&&(
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'.85rem',marginBottom:'1rem'}} className="behav-cols">
+            <div>
+              {bucketHeader('Keep — '+byBucket.keep.length,'#2d7d46','Things that work for us. The shift still needs them.')}
+              {byBucket.keep.length===0&&<div style={{fontSize:'.75rem',color:'#888',fontStyle:'italic',padding:'.5rem 0'}}>No Keep items at this gap level.</div>}
+              {byBucket.keep.map(renderItem)}
+              {renderCustomInput('keep','#2d7d46','Add your own thing to keep…')}
+            </div>
+            <div>
+              {bucketHeader('Add — '+byBucket.add.length,'#b87a20','Capacities to build alongside what we already do.')}
+              {byBucket.add.length===0&&<div style={{fontSize:'.75rem',color:'#888',fontStyle:'italic',padding:'.5rem 0'}}>No Add items at this gap level.</div>}
+              {byBucket.add.map(renderItem)}
+              {renderCustomInput('add','#b87a20','Add your own thing to build alongside…')}
+            </div>
+            <div>
+              {bucketHeader('Replace — '+byBucket.replace.length,'#c0392b','Defaults we lean on that need to give. Use X → Y format.')}
+              {byBucket.replace.length===0&&<div style={{fontSize:'.75rem',color:'#888',fontStyle:'italic',padding:'.5rem 0'}}>No Replace items at this gap level.</div>}
+              {byBucket.replace.map(renderItem)}
+              {renderCustomInput('replace','#c0392b','Old default → New substitute…')}
             </div>
           </div>
         )}
 
-        <div className="btn-row">
+        <div className="btn-row" style={{marginTop:'1.5rem'}}>
           {principlesLoading?(
             <div style={{display:'inline-flex',alignItems:'center',gap:'.5rem',padding:'.65rem 1rem',background:'#ebe7e0',border:'1px solid #d8d3cb',borderRadius:'3px',color:'#888',fontSize:'.82rem',fontFamily:"'DM Sans',sans-serif",fontStyle:'italic'}}>
               <div className="dots" style={{display:'inline-flex',gap:'4px'}}><div className="dot"/><div className="dot"/><div className="dot"/></div>
-              Waiting for principles to load…
+              Waiting for behaviours to load…
             </div>
           ):loading?(
             <div className="think"><div className="dots"><div className="dot"/><div className="dot"/><div className="dot"/></div><span className="think-txt">Generating your personalised report…</span></div>
@@ -3567,6 +3894,11 @@ function App(){
           )}
           <button className="btn-s" onClick={()=>setPrinciplesStep(false)}>← Back to Future</button>
         </div>
+        <style dangerouslySetInnerHTML={{__html:`
+          @media (max-width: 800px) {
+            .behav-cols { grid-template-columns: 1fr !important; }
+          }
+        `}}/>
       </div>
     );
   }
@@ -4045,6 +4377,7 @@ function App(){
           asIsStrat, tobeStrat,
           s1ans, s2ans,
           selectedPrinciples,
+          selectedBehaviours,
           SLABELS, SDESC, getStrategyText, gapLabel, gapBadgeText,
           S1, S2,
           industryContext,
@@ -4072,6 +4405,7 @@ function App(){
           asIsStrat, tobeStrat,
           s1ans, s2ans,
           selectedPrinciples,
+          selectedBehaviours,
           SLABELS, SDESC, getStrategyText, gapLabel, gapBadgeText,
           S1, S2,
           industryContext,
@@ -4115,6 +4449,7 @@ function App(){
                 date: new Date().toISOString(),
                 tool_label: 'STAT Group',
                 selected_principles: selectedPrinciples,
+                selected_behaviours: selectedBehaviours,
                 generate_report: true,
                 thirty_day: thirtyDay,
                 feedback_comment: feedbackComment,
@@ -5375,92 +5710,175 @@ function App(){
 
   function renderPrinciplesTab(){
     const PAX_C=['#e07030','#1a4fa0','#2d7d46','#b87a20','#b83232','#6a3d9a','#0891b2','#78350f','#374151'];
-    const real=groupRespondents.filter(r=>r.respondent_name&&r.respondent_name!=='__facilitator__'&&((r.s1_answers&&r.s1_answers.length>0)||(r.s2_answers&&r.s2_answers.length>0)||r.prog||r.tobe_prog));
-    const withPrinciples=real.filter(r=>Array.isArray(r.selected_principles)&&r.selected_principles.length>0);
-    const totalPrinciples=withPrinciples.reduce((n,r)=>n+r.selected_principles.length,0);
-    // Map respondent name to colour (consistent with present tab)
-    const colourFor=(name)=>{const i=real.findIndex(r=>r.respondent_name===name);return PAX_C[(i>=0?i:0)%PAX_C.length];};
+    const real=groupRespondents.filter(r=>(r.respondent_name||r.participant_id)&&r.respondent_name!=='__facilitator__'&&((r.s1_answers&&r.s1_answers.length>0)||(r.s2_answers&&r.s2_answers.length>0)||r.prog||r.tobe_prog));
+    // A row counts as having behaviours if either selected_behaviours OR selected_principles is populated
+    const withBehaviours=real.filter(r=>{
+      const sb=Array.isArray(r.selected_behaviours)?r.selected_behaviours:[];
+      const sp=Array.isArray(r.selected_principles)?r.selected_principles:[];
+      return sb.length>0||sp.length>0;
+    });
+    const totalBehaviours=withBehaviours.reduce((n,r)=>{
+      const sb=Array.isArray(r.selected_behaviours)?r.selected_behaviours.length:0;
+      const sp=Array.isArray(r.selected_principles)?r.selected_principles.length:0;
+      return n+Math.max(sb,sp);
+    },0);
+
+    // Author label fallback: respondent_name first, then participant N
+    const labelFor=(r,idx)=>{
+      if(r.respondent_name&&r.respondent_name.trim())return r.respondent_name;
+      return `Participant ${idx+1}`;
+    };
+    const colourFor=(name)=>{const i=real.findIndex(r=>(r.respondent_name===name)||(`Participant ${real.indexOf(r)+1}`===name));return PAX_C[(i>=0?i:0)%PAX_C.length];};
 
     function copyAsText(){
-      if(!principlesCluster||!principlesCluster.clusters)return;
+      if(!principlesCluster)return;
       const lines=[];
-      principlesCluster.clusters.forEach(c=>{
-        lines.push(c.theme.toUpperCase());
-        if(c.summary)lines.push(c.summary);
-        lines.push('');
-        c.items.forEach(it=>lines.push(`  • ${it.text} (${it.author})`));
+      const buckets=[
+        ['KEEP',principlesCluster.clusters_keep],
+        ['ADD',principlesCluster.clusters_add],
+        ['REPLACE',principlesCluster.clusters_replace],
+      ];
+      buckets.forEach(([name,cls])=>{
+        if(!Array.isArray(cls)||cls.length===0)return;
+        lines.push(`=== ${name} ===`);
+        cls.forEach(c=>{
+          lines.push(c.theme.toUpperCase());
+          if(c.summary)lines.push(c.summary);
+          c.items.forEach(it=>lines.push(`  • ${it.text} (${it.author}, rank ${it.rank})`));
+          lines.push('');
+        });
         lines.push('');
       });
       navigator.clipboard.writeText(lines.join('\n').trim()).catch(()=>{});
     }
 
+    const renderCluster=(c,colour)=>(
+      <div className="da-card" style={{marginBottom:'.85rem',borderTop:'3px solid '+colour}}>
+        <div style={{fontSize:'1.02rem',fontWeight:600,color:'#1a1a1a',fontFamily:"'Cormorant Garamond',serif",lineHeight:1.3,marginBottom:'.3rem'}}>{c.theme}</div>
+        <div style={{fontSize:'.72rem',color:'#888',marginBottom:'.55rem',fontFamily:"'DM Sans',sans-serif"}}>
+          {c.author_count} respondent{c.author_count!==1?'s':''} · weight {c.weight_total}
+        </div>
+        {c.summary&&<div style={{fontSize:'.8rem',color:'#555',lineHeight:1.55,marginBottom:'.65rem',fontFamily:"'DM Sans',sans-serif",fontStyle:'italic'}}>{c.summary}</div>}
+        <div style={{display:'flex',flexDirection:'column',gap:'.4rem'}}>
+          {c.items.map((it,ii)=>{
+            const col=colourFor(it.author);
+            return(
+              <div key={ii} style={{display:'flex',gap:'.55rem',alignItems:'flex-start',padding:'.5rem .65rem',background:'#faf8f5',borderLeft:`3px solid ${col}`,borderRadius:'0 3px 3px 0'}}>
+                <div style={{flex:1,fontSize:'.84rem',lineHeight:1.55,color:'#1a1a1a',fontFamily:"'DM Sans',sans-serif"}}>
+                  {it.text}
+                  {it.is_custom&&<span style={{marginLeft:'.5rem',fontSize:'.65rem',color:'#888',fontWeight:600,letterSpacing:'.04em',textTransform:'uppercase'}}>own</span>}
+                </div>
+                <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:'2px'}}>
+                  <span style={{display:'inline-block',padding:'.12rem .5rem',background:col,color:'#fff',borderRadius:'10px',fontSize:'.62rem',fontWeight:700,whiteSpace:'nowrap',fontFamily:"'DM Sans',sans-serif"}}>{it.author}</span>
+                  <span style={{fontSize:'.6rem',color:'#888',fontFamily:'monospace'}}>#{it.rank}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+
+    const hasClusters=principlesCluster&&(
+      (Array.isArray(principlesCluster.clusters_keep)&&principlesCluster.clusters_keep.length>0)||
+      (Array.isArray(principlesCluster.clusters_add)&&principlesCluster.clusters_add.length>0)||
+      (Array.isArray(principlesCluster.clusters_replace)&&principlesCluster.clusters_replace.length>0)
+    );
+
     return(
       <div>
         <div className="rpt-section">
-          <div className="rpt-heading">Group Principles</div>
+          <div className="rpt-heading">Group Behavioural Agenda</div>
           <div className="inf-box">
-            Each participant chose principles — commitments to a way of seeing — they want to take into how the organisation operates. This view groups those principles by underlying commitment so you can see the patterns at a glance.
+            Each participant chose up to 5 behaviours from their personalised three-column agenda — <strong>Keep</strong>, <strong>Add</strong>, and <strong>Replace</strong> — and ranked them. This view clusters those choices by theme within each bucket so you can see where the group is converging, and where it is split.
           </div>
 
-          {withPrinciples.length===0&&(
+          {withBehaviours.length===0&&(
             <div className="waiting-state">
               <div className="wait-icon">📝</div>
-              <h3>No principles selected yet</h3>
+              <h3>No behaviours selected yet</h3>
               <div style={{fontSize:'.82rem',color:'#888',marginTop:'.5rem',fontFamily:"'DM Sans',sans-serif"}}>
-                Principles appear here once participants reach Step 5 and confirm their selections.
+                Behaviours appear here once participants reach the Behaviours step and confirm their selections.
               </div>
             </div>
           )}
 
-          {withPrinciples.length>0&&(
+          {withBehaviours.length>0&&(
             <div style={{fontSize:'.78rem',color:'#555',marginBottom:'.85rem',fontFamily:"'DM Sans',sans-serif"}}>
-              <strong>{totalPrinciples}</strong> principle{totalPrinciples!==1?'s':''} chosen by <strong>{withPrinciples.length}</strong> participant{withPrinciples.length!==1?'s':''}
+              <strong>{totalBehaviours}</strong> behaviour{totalBehaviours!==1?'s':''} chosen by <strong>{withBehaviours.length}</strong> participant{withBehaviours.length!==1?'s':''}
             </div>
           )}
 
-          {withPrinciples.length>0&&!principlesCluster&&!principlesClusterLoading&&!principlesClusterError&&(
+          {withBehaviours.length>0&&!principlesCluster&&!principlesClusterLoading&&!principlesClusterError&&(
             <button className="btn-p" onClick={loadPrinciplesCluster}>
               Cluster by theme →
             </button>
           )}
 
           {principlesClusterLoading&&(
-            <div className="think"><div className="dots"><div className="dot"/><div className="dot"/><div className="dot"/></div><span className="think-txt">Clustering principles by theme…</span></div>
+            <div className="think"><div className="dots"><div className="dot"/><div className="dot"/><div className="dot"/></div><span className="think-txt">Clustering behaviours by theme across all three buckets…</span></div>
           )}
 
           {principlesClusterError&&!principlesClusterLoading&&(
             <div className="warn-box" style={{marginBottom:'.75rem'}}>
-              <strong>Could not cluster principles.</strong> {principlesClusterError}
+              <strong>Could not cluster behaviours.</strong> {principlesClusterError}
               <div style={{marginTop:'.65rem'}}>
                 <button className="btn-s" onClick={()=>{setPrinciplesClusterError(null);loadPrinciplesCluster();}}>Try again</button>
               </div>
             </div>
           )}
 
-          {principlesCluster&&Array.isArray(principlesCluster.clusters)&&principlesCluster.clusters.length>0&&(
+          {hasClusters&&(
             <div>
-              <div style={{fontSize:'.7rem',color:'#888',marginBottom:'.75rem',fontFamily:"'DM Sans',sans-serif"}}>
-                {principlesCluster.clusters.length} cluster{principlesCluster.clusters.length!==1?'s':''} · {principlesCluster.meta&&principlesCluster.meta.n_principles||totalPrinciples} principle{(principlesCluster.meta&&principlesCluster.meta.n_principles||totalPrinciples)!==1?'s':''}
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'.85rem',marginBottom:'1rem'}} className="behav-cols">
+                <div>
+                  <div style={{fontSize:'.78rem',fontWeight:700,letterSpacing:'.06em',textTransform:'uppercase',color:'#2d7d46',marginBottom:'.5rem',paddingBottom:'.4rem',borderBottom:'2px solid #2d7d46',fontFamily:"'DM Sans',sans-serif"}}>
+                    Keep — {(principlesCluster.clusters_keep||[]).length} theme{(principlesCluster.clusters_keep||[]).length!==1?'s':''}
+                  </div>
+                  {(principlesCluster.clusters_keep||[]).length===0&&<div style={{fontSize:'.75rem',color:'#888',fontStyle:'italic'}}>No Keep selections yet.</div>}
+                  {(principlesCluster.clusters_keep||[]).map((c,i)=>renderCluster(c,'#2d7d46'))}
+                </div>
+                <div>
+                  <div style={{fontSize:'.78rem',fontWeight:700,letterSpacing:'.06em',textTransform:'uppercase',color:'#b87a20',marginBottom:'.5rem',paddingBottom:'.4rem',borderBottom:'2px solid #b87a20',fontFamily:"'DM Sans',sans-serif"}}>
+                    Add — {(principlesCluster.clusters_add||[]).length} theme{(principlesCluster.clusters_add||[]).length!==1?'s':''}
+                  </div>
+                  {(principlesCluster.clusters_add||[]).length===0&&<div style={{fontSize:'.75rem',color:'#888',fontStyle:'italic'}}>No Add selections yet.</div>}
+                  {(principlesCluster.clusters_add||[]).map((c,i)=>renderCluster(c,'#b87a20'))}
+                </div>
+                <div>
+                  <div style={{fontSize:'.78rem',fontWeight:700,letterSpacing:'.06em',textTransform:'uppercase',color:'#c0392b',marginBottom:'.5rem',paddingBottom:'.4rem',borderBottom:'2px solid #c0392b',fontFamily:"'DM Sans',sans-serif"}}>
+                    Replace — {(principlesCluster.clusters_replace||[]).length} theme{(principlesCluster.clusters_replace||[]).length!==1?'s':''}
+                  </div>
+                  {(principlesCluster.clusters_replace||[]).length===0&&<div style={{fontSize:'.75rem',color:'#888',fontStyle:'italic'}}>No Replace selections yet.</div>}
+                  {(principlesCluster.clusters_replace||[]).map((c,i)=>renderCluster(c,'#c0392b'))}
+                </div>
               </div>
 
-              {principlesCluster.clusters.map((c,ci)=>(
-                <div key={ci} className="da-card" style={{marginBottom:'.85rem'}}>
-                  <div className="da-card-heading">Theme {ci+1}</div>
-                  <div style={{fontSize:'1.05rem',fontWeight:600,color:'#1a1a1a',fontFamily:"'Cormorant Garamond',serif",lineHeight:1.3,marginBottom:'.4rem'}}>{c.theme}</div>
-                  {c.summary&&<div style={{fontSize:'.82rem',color:'#555',lineHeight:1.55,marginBottom:'.75rem',fontFamily:"'DM Sans',sans-serif"}}>{c.summary}</div>}
-                  <div style={{display:'flex',flexDirection:'column',gap:'.5rem',marginTop:'.5rem'}}>
-                    {c.items.map((it,ii)=>{
-                      const col=colourFor(it.author);
-                      return(
-                        <div key={ii} style={{display:'flex',gap:'.65rem',alignItems:'flex-start',padding:'.55rem .7rem',background:'#faf8f5',borderLeft:`3px solid ${col}`,borderRadius:'0 3px 3px 0'}}>
-                          <div style={{flex:1,fontSize:'.86rem',lineHeight:1.55,color:'#1a1a1a',fontFamily:"'DM Sans',sans-serif"}}>{it.text}</div>
-                          <span style={{display:'inline-block',padding:'.15rem .55rem',background:col,color:'#fff',borderRadius:'10px',fontSize:'.65rem',fontWeight:700,whiteSpace:'nowrap',fontFamily:"'DM Sans',sans-serif",flexShrink:0,marginTop:'.1rem'}}>{it.author}</span>
-                        </div>
-                      );
-                    })}
+              {Array.isArray(principlesCluster.divergence)&&principlesCluster.divergence.length>0&&(
+                <div style={{marginTop:'1.25rem',padding:'1rem 1.25rem',background:'#fff8f5',border:'1px solid #f5c8b0',borderRadius:'4px'}}>
+                  <div style={{fontSize:'.78rem',fontWeight:700,letterSpacing:'.06em',textTransform:'uppercase',color:'#e07030',marginBottom:'.55rem',fontFamily:"'DM Sans',sans-serif"}}>
+                    Where the group is split
                   </div>
+                  <div style={{fontSize:'.78rem',color:'#555',marginBottom:'.85rem',lineHeight:1.55,fontFamily:"'DM Sans',sans-serif"}}>
+                    These themes were ranked highly by some participants but not chosen by most. Worth a conversation.
+                  </div>
+                  {principlesCluster.divergence.map((d,i)=>{
+                    const bucketLabel={keep:'KEEP',add:'ADD',replace:'REPLACE'}[d.bucket]||d.bucket.toUpperCase();
+                    const bucketColour={keep:'#2d7d46',add:'#b87a20',replace:'#c0392b'}[d.bucket]||'#888';
+                    return(
+                      <div key={i} style={{padding:'.65rem .85rem',background:'#fff',borderLeft:'3px solid '+bucketColour,borderRadius:'0 3px 3px 0',marginBottom:'.55rem'}}>
+                        <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:'.25rem'}}>
+                          <div style={{fontSize:'.85rem',fontWeight:600,color:'#1a1a1a',fontFamily:"'DM Sans',sans-serif"}}>{d.theme}</div>
+                          <div style={{fontSize:'.65rem',color:bucketColour,fontWeight:700,letterSpacing:'.05em',fontFamily:"'DM Sans',sans-serif"}}>{bucketLabel}</div>
+                        </div>
+                        <div style={{fontSize:'.75rem',color:'#666',fontFamily:"'DM Sans',sans-serif",lineHeight:1.5}}>
+                          {d.author_count} of {d.total_active} chose this · top rank {d.top_rank}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              ))}
+              )}
 
               <div className="btn-row" style={{marginTop:'1rem'}}>
                 <button className="btn-s" onClick={()=>{setPrinciplesCluster(null);setPrinciplesClusterError(null);}}>Re-cluster</button>
