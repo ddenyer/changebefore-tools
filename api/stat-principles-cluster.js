@@ -1,15 +1,18 @@
-// stat-principles-cluster.js — group all selected behaviours across a session into
-// bucket-aware themed clusters with rank-weighted aggregation.
+// stat-principles-cluster.js — cluster all selected behaviours across a session
+// into themed clusters within each of the three buckets:
+//   retain / less / more
 //
-// New shape (May 2026): each respondent's selected_behaviours is an array of
-// { text, bucket, category, axis, rank, is_custom } objects. Items are clustered
-// WITHIN their bucket — Keep items cluster with Keep items, Add with Add, etc.
-// Rank affects weight (Borda-style): rank-1 picks count more than rank-5 picks.
+// The new shape (May 2026): each respondent's selected_behaviours is an array of
+// { text, bucket: 'retain'|'less'|'more', category, axis, is_custom?, is_edited?, original_text? }.
+// No ranking — picks are equal-weighted by frequency.
 //
-// Backward compat: still accepts old-shape selected_principles (flat string array).
-// Those items are treated as Add-bucket, no rank, for graceful degradation.
+// Backward compat:
+//   - Old shapes with bucket 'keep'|'add'|'replace' are mapped: keep→retain, add→more, replace→less.
+//   - Legacy flat selected_principles (string[]) treated as retain bucket.
 
 export const config = { maxDuration: 30 };
+
+const BUCKET_MAP = { keep: 'retain', add: 'more', replace: 'less' };
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -23,7 +26,7 @@ export default async function handler(req, res) {
 
   const th = thing || 'the organisation';
 
-  // Normalise into a single flat list of {author, text, bucket, rank, ...}
+  // Flatten everyone's selections into a single tagged list
   const all = [];
   respondents.forEach(r => {
     if (!r) return;
@@ -36,32 +39,38 @@ export default async function handler(req, res) {
     if (Array.isArray(newShape) && newShape.length > 0) {
       newShape.forEach(item => {
         if (!item || typeof item.text !== 'string' || !item.text.trim()) return;
-        const bucket = ['keep','add','replace'].includes(item.bucket) ? item.bucket : 'add';
+        let bucket = item.bucket;
+        // Map legacy bucket names if present
+        if (BUCKET_MAP[bucket]) bucket = BUCKET_MAP[bucket];
+        if (!['retain','less','more'].includes(bucket)) bucket = 'retain';
         all.push({
           author: displayName,
           text: item.text.trim(),
           bucket,
           category: item.category || null,
           axis: item.axis || null,
-          rank: typeof item.rank === 'number' ? item.rank : 99,
           is_custom: !!item.is_custom,
+          is_edited: !!item.is_edited,
+          original_text: item.original_text || null,
         });
       });
       return;
     }
-    // Legacy: flat string array of principles → Add bucket, rank by order
+
+    // Legacy: flat array of principle strings → treat all as retain
     const legacy = r.selected_principles;
     if (Array.isArray(legacy) && legacy.length > 0) {
-      legacy.forEach((text, i) => {
+      legacy.forEach(text => {
         if (typeof text !== 'string' || !text.trim()) return;
         all.push({
           author: displayName,
           text: text.trim(),
-          bucket: 'add',
+          bucket: 'retain',
           category: null,
           axis: null,
-          rank: i + 1,
           is_custom: false,
+          is_edited: false,
+          original_text: null,
         });
       });
     }
@@ -69,19 +78,12 @@ export default async function handler(req, res) {
 
   if (all.length === 0) {
     return res.status(200).json({
-      bucket_clusters: { keep: [], add: [], replace: [] },
+      clusters_retain: [], clusters_less: [], clusters_more: [],
       meta: { n_items: 0, n_respondents_with_items: 0 },
     });
   }
 
   const respondentsWithItems = new Set(all.map(p => p.author));
-
-  // Borda-weight: rank 1 = 5pts, rank 5 = 1pt, beyond = 0.5pt
-  const rankWeight = (rank) => {
-    if (rank >= 1 && rank <= 5) return 6 - rank;
-    return 0.5;
-  };
-  all.forEach(item => { item.weight = rankWeight(item.rank); });
 
   async function clusterBucket(bucketName, bucketItems) {
     if (bucketItems.length === 0) return [];
@@ -90,29 +92,25 @@ export default async function handler(req, res) {
       return [{
         theme: it.text.length > 60 ? it.text.slice(0, 57) + '...' : it.text,
         summary: 'Single item.',
-        items: [{
-          author: it.author, text: it.text, rank: it.rank, weight: it.weight, is_custom: it.is_custom,
-          category: it.category, axis: it.axis,
-        }],
-        score: it.weight,
-        weight_total: it.weight,
+        items: [{ ...it }],
         author_count: 1,
+        n_items: 1,
       }];
     }
 
-    const numbered = bucketItems.map((it, i) => `[${i}] (${it.author}, rank ${it.rank}${it.is_custom?', custom':''}): ${it.text}`).join('\n');
+    const numbered = bucketItems.map((it, i) => `[${i}] (${it.author}${it.is_custom?', custom':''}${it.is_edited?', edited':''}): ${it.text}`).join('\n');
 
     const bucketGuidance = {
-      keep: `These are practices the leadership group wants to PROTECT. Cluster items that point at the same underlying practice — what the team sees as essential to keep doing.`,
-      add: `These are capacities the group wants to BUILD ALONGSIDE existing practice. Cluster items that point at the same underlying capacity to develop.`,
-      replace: `These are defaults the group wants to SUBSTITUTE OUT. Cluster items that point at the same underlying default — the same thing being given up, even if the substitute differs.`,
+      retain: `These are practices the leadership group wants to PROTECT. Cluster items that point at the same underlying practice — what the team sees as essential to keep doing.`,
+      less: `These are defaults the group wants to DIAL DOWN. Cluster items that point at the same underlying default — the same thing being given up, even if framed differently.`,
+      more: `These are disciplines the group wants to DIAL UP. Cluster items that point at the same underlying behaviour to develop.`,
     }[bucketName] || '';
 
     const prompt = `You are clustering ${bucketItems.length} ${bucketName.toUpperCase()} commitments selected by leaders from ${th}.
 
 ${bucketGuidance}
 
-Each item below has an index, the author, the rank they assigned (1 = highest priority), and the text:
+Each item below has an index, the author, and the text:
 
 ${numbered}
 
@@ -158,9 +156,7 @@ Use the index numbers from the bracketed [N] in the input. Each index must appea
       let cleaned = text.replace(/```json|```/g, '').trim();
       const firstBrace = cleaned.indexOf('{');
       const lastBrace = cleaned.lastIndexOf('}');
-      if (firstBrace >= 0 && lastBrace > firstBrace) {
-        cleaned = cleaned.slice(firstBrace, lastBrace + 1);
-      }
+      if (firstBrace >= 0 && lastBrace > firstBrace) cleaned = cleaned.slice(firstBrace, lastBrace + 1);
       aiData = JSON.parse(cleaned);
     } catch (e) {
       console.error(`cluster ${bucketName} AI error:`, e);
@@ -182,24 +178,15 @@ Use the index numbers from the bracketed [N] in the input. Each index must appea
       const items = indices
         .map(idx => Number(idx))
         .filter(idx => Number.isInteger(idx) && idx >= 0 && idx < bucketItems.length && !seen.has(idx))
-        .map(idx => {
-          seen.add(idx);
-          const it = bucketItems[idx];
-          return {
-            author: it.author, text: it.text, rank: it.rank, weight: it.weight,
-            is_custom: it.is_custom, category: it.category, axis: it.axis,
-          };
-        });
+        .map(idx => { seen.add(idx); return bucketItems[idx]; });
       if (items.length > 0) {
         const authorSet = new Set(items.map(i => i.author));
-        const totalWeight = items.reduce((s, i) => s + i.weight, 0);
         resolved.push({
           theme: typeof c.theme === 'string' && c.theme.trim() ? c.theme.trim() : 'Cluster',
           summary: typeof c.summary === 'string' ? c.summary.trim() : '',
           items,
-          score: totalWeight,
-          weight_total: Math.round(totalWeight * 10) / 10,
           author_count: authorSet.size,
+          n_items: items.length,
         });
       }
     });
@@ -208,44 +195,41 @@ Use the index numbers from the bracketed [N] in the input. Each index must appea
     const orphanItems = bucketItems
       .map((it, i) => ({ it, i }))
       .filter(({ i }) => !seen.has(i))
-      .map(({ it }) => ({
-        author: it.author, text: it.text, rank: it.rank, weight: it.weight,
-        is_custom: it.is_custom, category: it.category, axis: it.axis,
-      }));
+      .map(({ it }) => it);
     if (orphanItems.length > 0) {
       const authorSet = new Set(orphanItems.map(i => i.author));
-      const totalWeight = orphanItems.reduce((s, i) => s + i.weight, 0);
       resolved.push({
         theme: 'Other',
         summary: 'Items not clustered with the main themes.',
         items: orphanItems,
-        score: totalWeight,
-        weight_total: Math.round(totalWeight * 10) / 10,
         author_count: authorSet.size,
+        n_items: orphanItems.length,
       });
     }
 
-    resolved.sort((a, b) => b.score - a.score);
+    // Sort by author_count desc, then n_items desc — most converged first
+    resolved.sort((a, b) => (b.author_count - a.author_count) || (b.n_items - a.n_items));
     return resolved;
   }
 
-  const [keepClusters, addClusters, replaceClusters] = await Promise.all([
-    clusterBucket('keep', all.filter(i => i.bucket === 'keep')),
-    clusterBucket('add', all.filter(i => i.bucket === 'add')),
-    clusterBucket('replace', all.filter(i => i.bucket === 'replace')),
+  const [retainClusters, lessClusters, moreClusters] = await Promise.all([
+    clusterBucket('retain', all.filter(i => i.bucket === 'retain')),
+    clusterBucket('less', all.filter(i => i.bucket === 'less')),
+    clusterBucket('more', all.filter(i => i.bucket === 'more')),
   ]);
 
   return res.status(200).json({
-    clusters_keep: keepClusters,
-    clusters_add: addClusters,
-    clusters_replace: replaceClusters,
+    clusters_retain: retainClusters,
+    clusters_less: lessClusters,
+    clusters_more: moreClusters,
     meta: {
       n_items: all.length,
       n_respondents_with_items: respondentsWithItems.size,
-      n_keep: all.filter(i=>i.bucket==='keep').length,
-      n_add: all.filter(i=>i.bucket==='add').length,
-      n_replace: all.filter(i=>i.bucket==='replace').length,
+      n_retain: all.filter(i=>i.bucket==='retain').length,
+      n_less: all.filter(i=>i.bucket==='less').length,
+      n_more: all.filter(i=>i.bucket==='more').length,
       n_custom: all.filter(i=>i.is_custom).length,
+      n_edited: all.filter(i=>i.is_edited).length,
     },
   });
 }
