@@ -161,16 +161,18 @@ html,body{font-family:'DM Sans',sans-serif;background:#f0ede8;color:#1a1a1a;-web
 .fac-tab:hover:not(.active){color:#555}
 
 /* Facilitator dashboard tiles */
-.fac-dash{display:grid;grid-template-columns:repeat(4,1fr);gap:.85rem;margin-bottom:1.5rem}
+.fac-dash{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:1.5rem}
 @media(max-width:900px){.fac-dash{grid-template-columns:repeat(2,1fr)}}
-.dash-tile{background:#fff;border:1px solid #e2ddd3;border-radius:4px;overflow:hidden;min-height:180px;display:flex;flex-direction:column;cursor:pointer;transition:border-color .15s,box-shadow .15s;font-family:'DM Sans',sans-serif}
-.dash-tile:hover{border-color:#c8c2b4;box-shadow:0 1px 4px rgba(0,0,0,.04)}
-.dash-tile-inner{padding:1rem 1.1rem;display:flex;align-items:flex-start;justify-content:space-between;gap:.75rem;flex:1}
+.dash-tile{background:#fff;border:1px solid #e2ddd3;border-radius:6px;overflow:hidden;min-height:200px;display:flex;flex-direction:column;cursor:pointer;transition:border-color .15s,box-shadow .15s;font-family:'DM Sans',sans-serif}
+.dash-tile:hover{border-color:#e07030;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.dash-tile-inner{padding:1.4rem 1.5rem;display:flex;align-items:flex-start;justify-content:space-between;gap:.75rem;flex:1}
 .dash-tile-l{flex:1;min-width:0}
-.dash-tile-name{font-size:.62rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#888;margin-bottom:.55rem;display:flex;align-items:center;gap:.4rem}
-.dash-tile-headline{font-family:'Cormorant Garamond',serif;font-size:1.15rem;font-weight:500;color:#1a1a1a;line-height:1.25;margin-bottom:.35rem}
-.dash-tile-sub{font-size:.72rem;color:#555;line-height:1.5}
-.dash-tile-chev{flex-shrink:0;color:#aaa;font-size:.95rem;line-height:1}
+.dash-tile-icon{font-size:1.6rem;line-height:1;margin-bottom:.85rem;color:#e07030}
+.dash-tile-name{font-size:.68rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#888;margin-bottom:.6rem;display:flex;align-items:center;gap:.4rem}
+.dash-tile-headline{font-family:'Cormorant Garamond',serif;font-size:1.3rem;font-weight:500;color:#1a1a1a;line-height:1.25;margin-bottom:.45rem}
+.dash-tile-sub{font-size:.78rem;color:#555;line-height:1.55}
+.dash-tile-desc{font-size:.72rem;color:#888;line-height:1.5;margin-top:.6rem;font-style:italic}
+.dash-tile-chev{flex-shrink:0;color:#aaa;font-size:1.1rem;line-height:1;align-self:center}
 .dash-pips{display:flex;gap:4px;margin-top:.5rem;flex-wrap:wrap;align-items:center}
 .dash-pip{width:11px;height:11px;background:#dcd6c8;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:transparent;font-size:8px;line-height:1}
 .dash-pip.done{background:#16a34a;color:#fff}
@@ -214,11 +216,12 @@ body.dash-open{overflow:hidden}
 /* ── Mobile optimisation for the facilitator dashboard + overlays ─── */
 @media(max-width:640px){
   /* Dashboard tiles: single column on phones for legibility */
-  .fac-dash{grid-template-columns:1fr!important;gap:.6rem}
+  .fac-dash{grid-template-columns:1fr!important;gap:.7rem}
   .dash-tile{min-height:auto}
-  .dash-tile-inner{padding:.85rem 1rem}
-  .dash-tile-headline{font-size:1.05rem}
-  .dash-tile-sub{font-size:.7rem}
+  .dash-tile-inner{padding:1.1rem 1.25rem}
+  .dash-tile-headline{font-size:1.15rem}
+  .dash-tile-sub{font-size:.75rem}
+  .dash-tile-icon{font-size:1.4rem;margin-bottom:.55rem}
   /* Overlay header: stack header text above buttons; smaller type */
   .dash-ovr-head{flex-direction:column;align-items:stretch;padding:.85rem 1rem .65rem;gap:.7rem}
   .dash-ovr-headline{font-size:1.3rem!important;line-height:1.2}
@@ -915,7 +918,7 @@ function Slider({label,value,onChange,max=120,asIs=null}){
 }
 
 // ── PROGRESS BAR ─────────────────────────────────────────────────────────────
-const STEPS=['Start','Survey','Profile','Future','Principles','Report'];
+const STEPS=['Start','Survey','Profile','Future','Behaviours','Report'];
 function stepToNav(s,principlesStep){if(s<=0)return 0;if(s<=3)return 1;if(s===4)return 2;if(s===5)return principlesStep?4:3;return 5;}
 function Progress({step,principlesStep}){
   const nav=stepToNav(step,principlesStep);
@@ -1496,14 +1499,15 @@ function generateStatParticipantPDF(opts){
     : (selectedPrinciples||[]).map((t,i)=>({text:t,bucket:null,rank:i+1,is_custom:false}));
   if(_displayList.length>0){
     doc.addPage(); pageNum++; y=margin+5; addHeader();
-    sectionTitle(_useBehaviours?'Your behavioural agenda':'Your selected principles');
+    sectionTitle(_useBehaviours?'Your behavioural agenda':'Your selected behaviours');
     paragraph(_useBehaviours
-      ? 'The behaviours you identified as the ones most likely to make the biggest difference for '+orgLabel+', ranked. Each is tagged Keep / Add / Replace.'
-      : 'The principles you identified as the ones most likely to make the biggest difference for '+orgLabel+', in priority order.',
+      ? 'The behaviours you identified as mattering most for '+orgLabel+'. Each is tagged Retain / Less of / More of.'
+      : 'The behaviours you identified as the ones most likely to make the biggest difference for '+orgLabel+', in priority order.',
       {color:MUTED, size:9});
     y += 3;
 
-    const BUCKET_COLOURS={keep:[45,125,70],add:[184,122,32],replace:[192,57,43]};
+    const BUCKET_COLOURS={retain:[45,125,70],less:[192,57,43],more:[26,79,160],keep:[45,125,70],add:[26,79,160],replace:[192,57,43]};
+    const BUCKET_LABELS={retain:'RETAIN',less:'LESS OF',more:'MORE OF',keep:'RETAIN',add:'MORE OF',replace:'LESS OF'};
 
     _displayList.forEach((b,i)=>{
       checkPage(18);
@@ -1517,7 +1521,7 @@ function generateStatParticipantPDF(opts){
       // Bucket label, if available
       let textXOffset=11;
       if(b.bucket){
-        const bucketLabel=b.bucket.toUpperCase();
+        const bucketLabel=BUCKET_LABELS[b.bucket]||b.bucket.toUpperCase();
         setFont(7,'bold',bucketColour);
         doc.text(bucketLabel,margin+11,y+4);
         textXOffset += doc.getTextWidth(bucketLabel)+3;
@@ -1526,6 +1530,11 @@ function generateStatParticipantPDF(opts){
         setFont(7,'italic',MUTED);
         doc.text('· own',margin+textXOffset,y+4);
         textXOffset += doc.getTextWidth('· own')+3;
+      }
+      if(b.is_edited){
+        setFont(7,'italic',MUTED);
+        doc.text('· edited',margin+textXOffset,y+4);
+        textXOffset += doc.getTextWidth('· edited')+3;
       }
 
       // Behaviour text
@@ -2062,12 +2071,12 @@ function generateStatGroupPDF(opts){
   }
 
   // ───── BEHAVIOURAL AGENDA (was: PRINCIPLES) ─────
-  // New shape: principlesCluster has clusters_keep, clusters_add, clusters_replace, divergence
+  // New shape: principlesCluster has clusters_retain, clusters_more, clusters_less, divergence
   // Legacy shape: principlesCluster.clusters (flat)
   const hasNewClusters = principlesCluster && (
-    (Array.isArray(principlesCluster.clusters_keep)&&principlesCluster.clusters_keep.length>0) ||
-    (Array.isArray(principlesCluster.clusters_add)&&principlesCluster.clusters_add.length>0) ||
-    (Array.isArray(principlesCluster.clusters_replace)&&principlesCluster.clusters_replace.length>0)
+    (Array.isArray(principlesCluster.clusters_retain)&&principlesCluster.clusters_retain.length>0) ||
+    (Array.isArray(principlesCluster.clusters_more)&&principlesCluster.clusters_more.length>0) ||
+    (Array.isArray(principlesCluster.clusters_less)&&principlesCluster.clusters_less.length>0)
   );
   const hasLegacyClusters = principlesCluster && Array.isArray(principlesCluster.clusters) && principlesCluster.clusters.length>0;
   const respondentsWithBehaviours = realRespondents.filter(r=>{
@@ -2081,7 +2090,7 @@ function generateStatGroupPDF(opts){
     sectionTitle('Behavioural agenda');
 
     if (hasNewClusters) {
-      paragraph('Themes drawn from individual selections, grouped by Keep / Add / Replace. Names in brackets show which respondents chose items in each theme.', {color:MUTED, size:9});
+      paragraph('Themes drawn from individual selections, grouped by Retain / Less of / More of. Names in brackets show which respondents chose items in each theme.', {color:MUTED, size:9});
       y += 3;
 
       const renderBucketSection=(title,clusters,bucketColour)=>{
@@ -2117,9 +2126,9 @@ function generateStatGroupPDF(opts){
         });
         y += 3;
       };
-      renderBucketSection('Keep',principlesCluster.clusters_keep,[45,125,70]);
-      renderBucketSection('Add',principlesCluster.clusters_add,[184,122,32]);
-      renderBucketSection('Replace',principlesCluster.clusters_replace,[192,57,43]);
+      renderBucketSection('Retain',principlesCluster.clusters_retain,[45,125,70]);
+      renderBucketSection('Less of',principlesCluster.clusters_less,[192,57,43]);
+      renderBucketSection('More of',principlesCluster.clusters_more,[26,79,160]);
 
       // Divergence panel
       if(Array.isArray(principlesCluster.divergence)&&principlesCluster.divergence.length>0){
@@ -2135,7 +2144,7 @@ function generateStatGroupPDF(opts){
         setFont(9,'normal',TEXT);
         principlesCluster.divergence.forEach(d=>{
           checkPage(8);
-          const bucketLabel=({keep:'KEEP',add:'ADD',replace:'REPLACE'}[d.bucket]||d.bucket||'').toUpperCase();
+          const bucketLabel=({retain:'RETAIN',less:'LESS OF',more:'MORE OF',keep:'RETAIN',add:'MORE OF',replace:'LESS OF'}[d.bucket]||d.bucket||'').toUpperCase();
           const line=`• [${bucketLabel}] ${d.theme} — ${d.author_count} of ${d.total_active}, top rank ${d.top_rank}`;
           const wrapped=doc.splitTextToSize(line,pageW-2*margin-4);
           doc.text(wrapped,margin+2,y+3);
@@ -2529,12 +2538,12 @@ function App(){
       watch:`The AI generates questions from the data it sees. If you generate questions before the survey is complete, they will be based on partial signals.`
     },
     principles:{
-      look:`The principles each respondent chose for their own action plan, clustered by theme. Each cluster shows which respondents share that principle.`,
-      do:`Use the clusters to find collective commitments — themes 3+ people chose are candidates for group action. Highlight any principle only one person chose — those often surface deeper insights worth exploring one-to-one. Copy the cluster list to use in your post-workshop summary.`,
-      watch:`Principles only appear once respondents reach Step 5 of the survey. If counts seem low, check the Progress tab.`
+      look:`The behaviours each respondent chose for their own action plan, clustered by theme across three columns: Retain, Less of, More of. Each cluster shows which respondents share that behaviour.`,
+      do:`Use the clusters to find collective commitments — themes 3+ people chose are candidates for group action. Highlight any behaviour only one person chose — those often surface deeper insights worth exploring one-to-one. Copy the cluster list to use in your post-workshop summary.`,
+      watch:`Behaviours only appear once respondents reach the Behaviours step of the survey. If counts seem low, check the Progress tab.`
     },
     individuals:{
-      look:`Each respondent's full profile: their as-is and to-be diamonds, dominant strategy, and selected principles.`,
+      look:`Each respondent's full profile: their as-is and to-be diamonds, dominant strategy, and selected behaviours.`,
       do:`Use this for one-to-one debriefs after the group session. Click a respondent to drill in. To remove someone (test data, accidental entry), use the delete button — you will be asked to confirm.`,
       watch:`Deletion is permanent. The respondent's data is removed from the database; you cannot undo. If you are unsure, copy their data to your notes first.`
     }
@@ -2561,7 +2570,6 @@ function App(){
   const [removeLoading,setRemoveLoading]=useState(false);
   const [facilitatorNotes,setFacilitatorNotes]=useState('');
   const [printAll,setPrintAll]=useState(false);
-  const [useNamesInPDF,setUseNamesInPDF]=useState(false);
   const [aiQuestions,setAiQuestions]=useState(null);
   const [aiQLoading,setAiQLoading]=useState(false);
   const [aiQError,setAiQError]=useState(null);
@@ -2580,6 +2588,8 @@ function App(){
   const [behavioursMeta,setBehavioursMeta]=useState(null);
   const [selectedBehaviours,setSelectedBehaviours]=useState([]);
   const [customBucketInputs,setCustomBucketInputs]=useState({keep:'',add:'',replace:''});
+  // New (May 2026): index in `behaviours` of the item being inline-edited (or null)
+  const [editingBehaviourIdx,setEditingBehaviourIdx]=useState(null);
   const [principlesCluster,setPrinciplesCluster]=useState(null);
   const [principlesClusterLoading,setPrinciplesClusterLoading]=useState(false);
   const [principlesClusterError,setPrinciplesClusterError]=useState(null);
@@ -2775,6 +2785,7 @@ function App(){
     setPrinciples(null);
     setBehaviours(null);
     setBehavioursMeta(null);
+    setEditingBehaviourIdx(null);
     // Don't wipe selectedPrinciples / selectedBehaviours here — the user may
     // have prior selections (resumed from Supabase or kept across navigation).
     try{
@@ -2811,69 +2822,104 @@ function App(){
     setPrinciplesLoading(false);
   }
 
-  // Toggle a behaviour (from the AI-generated set) into / out of the selection.
-  // Picks are limited to 5 total. Rank is assigned by order of clicking.
-  function toggleBehaviour(behaviour){
+  // ── BEHAVIOUR SELECTION MODEL (May 2026) ─────────────────────────────
+  // Three columns: retain / less / more. Max 1 pick per column, optional.
+  // No ranking. Each generated item can be edited inline; revisions store
+  // both `original_text` and `text`. Custom-add inputs are gone (the edit
+  // action is the only way to introduce participant wording).
+  //
+  // selectedBehaviours is an array of 0-3 items, each with:
+  //   { text, original_text, bucket, category, axis, is_edited }
+  // (no `rank`, no `is_custom` — those are gone)
+
+  // Toggle a pick in/out. Picks are per-bucket: clicking a different item
+  // in the same bucket replaces the previous pick.
+  function pickBehaviour(behaviour, bucket){
     setSelectedBehaviours(prev=>{
-      const existingIdx=prev.findIndex(s=>s.text===behaviour.text&&s.bucket===behaviour.bucket);
-      let next;
-      if(existingIdx>=0){
-        // Already selected — deselect, then re-rank remaining
-        next=prev.filter((_,i)=>i!==existingIdx).map((s,i)=>({...s,rank:i+1}));
-      } else {
-        if(prev.length>=5)return prev; // hit limit
-        next=[...prev,{
-          text:behaviour.text,
-          bucket:behaviour.bucket,
-          category:behaviour.category||null,
-          axis:behaviour.axis||null,
-          rank:prev.length+1,
-          is_custom:false,
-        }];
+      const existingInBucket = prev.find(s => s.bucket === bucket);
+      if (existingInBucket && existingInBucket.text === behaviour.text) {
+        // Clicking the same item again deselects
+        const next = prev.filter(s => s.bucket !== bucket);
+        setSelectedPrinciples(next.map(s => s.text));
+        return next;
       }
-      // Mirror to flat principles[]
-      setSelectedPrinciples(next.map(s=>s.text));
-      return next;
-    });
-  }
-
-  // Add a custom behaviour to a specific bucket. Counts toward the 5-pick limit.
-  function addCustomToBucket(bucket){
-    const text=(customBucketInputs[bucket]||'').trim();
-    if(!text)return;
-    if(!['keep','add','replace'].includes(bucket))return;
-    setSelectedBehaviours(prev=>{
-      // Don't add if same text already in selection (regardless of bucket)
-      if(prev.some(s=>s.text.toLowerCase()===text.toLowerCase()))return prev;
-      if(prev.length>=5)return prev; // hit limit
-      const next=[...prev,{
-        text,bucket,category:null,axis:null,rank:prev.length+1,is_custom:true,
+      // Replace any existing pick in this bucket with the new one
+      const others = prev.filter(s => s.bucket !== bucket);
+      const next = [...others, {
+        text: behaviour.text,
+        original_text: behaviour.original_text || behaviour.text,
+        bucket,
+        category: behaviour.category || null,
+        axis: behaviour.axis || null,
+        is_edited: false,
       }];
-      setSelectedPrinciples(next.map(s=>s.text));
+      setSelectedPrinciples(next.map(s => s.text));
       return next;
     });
-    setCustomBucketInputs(prev=>({...prev,[bucket]:''}));
   }
 
-  // Move a selected behaviour up or down in rank. direction = -1 (up) or +1 (down).
-  function moveBehaviour(idx,direction){
-    setSelectedBehaviours(prev=>{
-      const newIdx=idx+direction;
-      if(newIdx<0||newIdx>=prev.length)return prev;
-      const next=[...prev];
-      [next[idx],next[newIdx]]=[next[newIdx],next[idx]];
-      // Re-assign rank by position
-      const reranked=next.map((s,i)=>({...s,rank:i+1}));
-      setSelectedPrinciples(reranked.map(s=>s.text));
-      return reranked;
+  // Inline edit machinery
+  function startEditBehaviour(behaviourIdx){
+    setEditingBehaviourIdx(behaviourIdx);
+    // Focus the textarea after render (cursor at end)
+    setTimeout(()=>{
+      const ta = document.getElementById('behav-edit-ta-'+behaviourIdx);
+      if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
+    }, 0);
+  }
+  function saveEditBehaviour(){
+    if (editingBehaviourIdx === null) return;
+    const ta = document.getElementById('behav-edit-ta-'+editingBehaviourIdx);
+    const value = ta ? ta.value : '';
+    const trimmed = (value || '').trim();
+    if (trimmed.length < 3) { setEditingBehaviourIdx(null); return; }
+    setBehaviours(prev => {
+      if (!Array.isArray(prev)) return prev;
+      return prev.map((b, i) => {
+        if (i !== editingBehaviourIdx) return b;
+        const original = b.original_text || b.text;
+        const isEdited = trimmed !== original;
+        return { ...b, text: trimmed, original_text: original, is_edited: isEdited };
+      });
     });
+    // Mirror edits into selectedBehaviours if this item happens to be picked
+    setSelectedBehaviours(prev => {
+      const updated = behaviours && behaviours[editingBehaviourIdx];
+      if (!updated) return prev;
+      return prev.map(s => {
+        if (s.text === updated.text || s.original_text === (updated.original_text || updated.text)) {
+          return { ...s, text: trimmed, original_text: updated.original_text || updated.text, is_edited: trimmed !== (updated.original_text || updated.text) };
+        }
+        return s;
+      });
+    });
+    setEditingBehaviourIdx(null);
+  }
+  function cancelEditBehaviour(){ setEditingBehaviourIdx(null); }
+  function revertEditBehaviour(idx){
+    setBehaviours(prev => {
+      if (!Array.isArray(prev)) return prev;
+      return prev.map((b, i) => {
+        if (i !== idx) return b;
+        return { ...b, text: b.original_text || b.text, is_edited: false };
+      });
+    });
+    setEditingBehaviourIdx(null);
   }
 
-  // Remove a selected behaviour (and re-rank the rest)
+  // ── LEGACY HELPERS — kept so existing call sites keep working ─────────
+  // These are no-ops or simple shims for the old ranking/custom UX. The new
+  // UX never calls them but they're safe to leave in place.
+  function toggleBehaviour(behaviour){
+    // Map to new picker — bucket-aware
+    pickBehaviour(behaviour, behaviour.bucket);
+  }
+  function addCustomToBucket(bucket){ /* no-op: custom-add removed */ }
+  function moveBehaviour(idx, direction){ /* no-op: ranking removed */ }
   function removeSelectedBehaviour(idx){
-    setSelectedBehaviours(prev=>{
-      const next=prev.filter((_,i)=>i!==idx).map((s,i)=>({...s,rank:i+1}));
-      setSelectedPrinciples(next.map(s=>s.text));
+    setSelectedBehaviours(prev => {
+      const next = prev.filter((_,i) => i !== idx);
+      setSelectedPrinciples(next.map(s => s.text));
       return next;
     });
   }
@@ -3260,7 +3306,7 @@ function App(){
     setThirtyDay('');setFeedbackComment('');setFeedbackSent(false);setFeedbackSending(false);
     setLoading(false);
     setPrinciplesStep(false);setPrinciples(null);setSelectedPrinciples([]);setCustomPrinciple('');
-    setBehaviours(null);setBehavioursMeta(null);setSelectedBehaviours([]);setCustomBucketInputs({keep:'',add:'',replace:''});
+    setBehaviours(null);setBehavioursMeta(null);setSelectedBehaviours([]);setCustomBucketInputs({keep:'',add:'',replace:''});setEditingBehaviourIdx(null);
     setFacilitatorUnlocked(false);
     setSessionCode('');
   }
@@ -3717,89 +3763,107 @@ function App(){
   // Simpler: use step 4 for to-be sliders. Profile is step 3 (was step 4 above — fixed below).
 
   function renderPrinciples(){
-    // Three-column behaviours UX. Picks up to 5; ranking is implicit by click order.
-    // Custom add buttons live at the bottom of each column. Header copy keyed off
-    // the gap size from behavioursMeta.
-    const picksRemaining=5-selectedBehaviours.length;
+    // Retain / Less of / More of — three columns, max 1 pick per column (optional),
+    // no ranking, per-item inline edit. (May 2026 rebuild)
     const headerCopy=(()=>{
       const total=behavioursMeta?behavioursMeta.total_gap:0;
-      if(total<20)return "You are largely operating where you want to be. The agenda below is mostly about protecting what works, with a few small additions.";
-      if(total<60)return "You have a moderate change ahead. Most of what you do is right; some of it needs to be augmented; a few defaults need to give.";
-      if(total<100)return "You have a substantial shift ahead. The agenda names what to protect, what to build alongside what you have, and what to substitute.";
-      return "The shift you have asked for is foundational. Some of what your organisation has built well will need to be given up to make room for what you now want.";
+      if(total<25)return "You are largely operating where you want to be. Most of the agenda below is about protecting what works.";
+      if(total<70)return "You have a moderate change ahead. A mix of things to keep, things to dial down, and things to do more of.";
+      if(total<120)return "You have a substantial shift ahead. The work is about giving up some defaults and building new disciplines.";
+      return "The shift you have asked for is foundational. Most of what you do today needs to change to make room for what you want.";
     })();
 
-    const byBucket={keep:[],add:[],replace:[]};
-    if(behaviours)behaviours.forEach((b,i)=>{
-      if(byBucket[b.bucket])byBucket[b.bucket].push({...b,_idx:i});
-    });
-
-    const isPicked=(b)=>selectedBehaviours.some(s=>s.text===b.text&&!s.is_custom);
-    const rankOf=(b)=>{
-      const idx=selectedBehaviours.findIndex(s=>s.text===b.text&&!s.is_custom);
-      return idx>=0?idx+1:null;
+    const CAT_ICONS={P:'🎯',E:'👥',R:'⚙️',D:'📦'};
+    const CAT_NAMES={P:'Purpose',E:'People',R:'Process',D:'Product'};
+    const AXIS_ICONS={mindset:'🧠',approach:'🛠️'};
+    const AXIS_NAMES={mindset:'Mindset',approach:'Approach'};
+    const BUCKET_COL={retain:'#2d7d46',less:'#c0392b',more:'#1a4fa0'};
+    const BUCKET_LBL={retain:'Retain',less:'Less of',more:'More of'};
+    const BUCKET_SUB={
+      retain:'Things working for us. The shift still needs them.',
+      less:'Defaults we lean on too hard.',
+      more:'Disciplines to do more of.',
     };
 
-    const bucketHeader=(name,colour,subtitle)=>(
-      <div style={{borderTop:'3px solid '+colour,paddingTop:'.75rem',marginBottom:'.85rem'}}>
-        <div style={{fontSize:'.78rem',fontWeight:700,letterSpacing:'.06em',textTransform:'uppercase',color:colour,marginBottom:'.2rem',fontFamily:"'DM Sans',sans-serif"}}>{name}</div>
-        <div style={{fontSize:'.72rem',color:'#888',fontStyle:'italic',lineHeight:1.4,fontFamily:"'DM Sans',sans-serif"}}>{subtitle}</div>
+    const byBucket={retain:[],less:[],more:[]};
+    if(behaviours)behaviours.forEach((b,i)=>{
+      // Map legacy bucket names if old data shows up
+      let bk=b.bucket;
+      if(bk==='keep')bk='retain';
+      else if(bk==='add')bk='more';
+      else if(bk==='replace')bk='less';
+      if(byBucket[bk])byBucket[bk].push({...b,bucket:bk,_idx:i});
+    });
+
+    const picksByBucket=(bucket)=>selectedBehaviours.find(s=>s.bucket===bucket);
+    const isPicked=(b)=>{
+      const p=picksByBucket(b.bucket);
+      return p&&p.text===b.text;
+    };
+
+    const renderEditArea=(b)=>(
+      <div style={{padding:'.5rem',background:'#fff',border:'1px solid #d8d3cb',borderRadius:'4px',marginTop:'.4rem'}}>
+        <textarea
+          id={'behav-edit-ta-'+b._idx}
+          defaultValue={b.text}
+          style={{width:'100%',border:'none',outline:'none',font:'inherit',fontSize:'.82rem',lineHeight:1.5,resize:'vertical',minHeight:'58px',background:'transparent',fontFamily:"'DM Sans',sans-serif"}}/>
+        <div style={{display:'flex',gap:'.4rem',marginTop:'.5rem',flexWrap:'wrap'}}>
+          <button onClick={saveEditBehaviour} style={{padding:'.3rem .7rem',fontSize:'.7rem',fontWeight:600,border:'1px solid #e07030',background:'#e07030',color:'#fff',borderRadius:'3px',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>Save</button>
+          <button onClick={cancelEditBehaviour} style={{padding:'.3rem .7rem',fontSize:'.7rem',fontWeight:600,border:'1px solid #d8d3cb',background:'#fff',color:'#1a1a1a',borderRadius:'3px',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>Cancel</button>
+          {(b.original_text&&b.text!==b.original_text)&&(
+            <button onClick={()=>revertEditBehaviour(b._idx)} style={{padding:'.3rem .7rem',fontSize:'.7rem',fontWeight:600,border:'1px solid #d8d3cb',background:'#fff',color:'#888',borderRadius:'3px',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>Revert</button>
+          )}
+        </div>
       </div>
     );
 
     const renderItem=(b)=>{
       const picked=isPicked(b);
-      const rank=rankOf(b);
-      // For replace items, render the → with a styled arrow
-      let textHtml=b.text;
-      const arrowMatch=b.text.match(/^(.+?)\s*→\s*(.+)$/);
-      const isReplaceFormat=b.bucket==='replace'&&arrowMatch;
+      const isEditing=editingBehaviourIdx===b._idx;
+      if(isEditing){
+        return(
+          <div key={b._idx} style={{padding:'.7rem .85rem',marginBottom:'.45rem',border:'2px solid #e07030',borderRadius:'4px',background:'#fff8f5'}}>
+            {renderEditArea(b)}
+          </div>
+        );
+      }
       return(
         <div key={b._idx}
-          onClick={()=>toggleBehaviour(b)}
           style={{
             border:picked?'2px solid #e07030':'1px solid #d8d3cb',
             background:picked?'#fff8f5':'#fff',
             borderRadius:'4px',padding:'.7rem .85rem',marginBottom:'.45rem',
-            cursor:'pointer',position:'relative',transition:'all .15s',
+            transition:'all .15s',position:'relative',
           }}>
           {picked&&(
-            <div style={{position:'absolute',top:'-9px',right:'-9px',width:'22px',height:'22px',background:'#e07030',color:'#fff',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'.7rem',fontWeight:700,fontFamily:'monospace'}}>{rank}</div>
+            <div style={{position:'absolute',top:'-9px',right:'-9px',width:'22px',height:'22px',background:'#e07030',color:'#fff',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'.8rem',fontWeight:700}}>✓</div>
           )}
-          <div style={{fontSize:'.82rem',lineHeight:1.55,color:'#1a1a1a'}}>
-            {isReplaceFormat?(
-              <>{arrowMatch[1]} <span style={{color:'#c0392b',fontWeight:700}}>→</span> {arrowMatch[2]}</>
-            ):textHtml}
+          <div onClick={()=>pickBehaviour(b,b.bucket)} style={{cursor:'pointer'}}>
+            <div style={{fontSize:'.85rem',lineHeight:1.55,color:'#1a1a1a'}}>
+              {b.text}
+              {b.is_edited&&<span style={{marginLeft:'.4rem',fontSize:'.62rem',fontWeight:700,letterSpacing:'.05em',textTransform:'uppercase',color:'#1a4fa0',background:'#e8eef7',padding:'1px 5px',borderRadius:'3px'}}>edited</span>}
+            </div>
+            <div style={{display:'flex',gap:'.45rem',marginTop:'.45rem',flexWrap:'wrap'}}>
+              {b.category&&(
+                <span title={CAT_NAMES[b.category]} style={{display:'inline-flex',alignItems:'center',gap:'3px',padding:'2px 7px 2px 4px',borderRadius:'10px',fontSize:'.62rem',fontWeight:600,background:'#f0ede8',color:'#555',fontFamily:"'DM Sans',sans-serif"}}>
+                  <span style={{fontSize:'.7rem'}}>{CAT_ICONS[b.category]||''}</span>{CAT_NAMES[b.category]||b.category}
+                </span>
+              )}
+              {b.axis&&(
+                <span title={AXIS_NAMES[b.axis]} style={{display:'inline-flex',alignItems:'center',gap:'3px',padding:'2px 7px 2px 4px',borderRadius:'10px',fontSize:'.62rem',fontWeight:600,background:'#f0ede8',color:'#555',fontFamily:"'DM Sans',sans-serif"}}>
+                  <span style={{fontSize:'.7rem'}}>{AXIS_ICONS[b.axis]||''}</span>{AXIS_NAMES[b.axis]||b.axis}
+                </span>
+              )}
+            </div>
+          </div>
+          <div style={{marginTop:'.5rem',paddingTop:'.5rem',borderTop:'1px dashed #e2ddd3'}}>
+            <span onClick={(e)=>{e.stopPropagation();startEditBehaviour(b._idx);}} style={{display:'inline-block',fontSize:'.68rem',color:'#888',cursor:'pointer',padding:'2px 6px',borderRadius:'3px',fontFamily:"'DM Sans',sans-serif"}}>✎ revise this</span>
           </div>
         </div>
       );
     };
 
-    const renderCustomInput=(bucket,colour,placeholder)=>{
-      const value=customBucketInputs[bucket]||'';
-      const atLimit=selectedBehaviours.length>=5;
-      return(
-        <div style={{marginTop:'.75rem',paddingTop:'.75rem',borderTop:'1px dashed #d8d3cb'}}>
-          <textarea
-            className="inp inp-ta"
-            style={{minHeight:'52px',fontSize:'.78rem'}}
-            placeholder={placeholder}
-            value={value}
-            onChange={e=>setCustomBucketInputs(prev=>({...prev,[bucket]:e.target.value}))}/>
-          <button
-            onClick={()=>addCustomToBucket(bucket)}
-            disabled={!value.trim()||atLimit}
-            style={{
-              marginTop:'.4rem',padding:'.4rem .75rem',
-              background:atLimit?'#ebe7e0':colour,color:atLimit?'#888':'#fff',
-              border:'none',borderRadius:'3px',fontSize:'.72rem',fontWeight:600,
-              cursor:atLimit?'not-allowed':'pointer',fontFamily:"'DM Sans',sans-serif"
-            }}>
-            {atLimit?'5/5 selected — deselect to add':`+ Add to ${bucket}`}
-          </button>
-        </div>
-      );
-    };
+    const totalPicks=selectedBehaviours.length;
 
     return(
       <div className="fade">
@@ -3811,70 +3875,31 @@ function App(){
             {headerCopy}
           </p>
         )}
-        <p className="pg-sub" style={{marginBottom:'1.25rem'}}>
-          <strong>Pick up to 5 behaviours</strong> that would matter most to {th}, then rank them in priority order. Each click adds the behaviour to your list. {picksRemaining>0?`(${picksRemaining} more picks available.)`:'(At limit — deselect to pick others.)'}
-        </p>
 
-        {/* Selected list — only when something is picked */}
-        {selectedBehaviours.length>0&&(
-          <div style={{margin:'0 0 1.5rem',padding:'1rem 1.25rem',background:'#1a1a1a',borderRadius:'4px'}}>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:'.6rem'}}>
-              <div style={{fontSize:'.6rem',fontWeight:700,letterSpacing:'.12em',textTransform:'uppercase',color:'#e07030',fontFamily:"'DM Sans',sans-serif"}}>Your selected behaviours — ranked</div>
-              <div style={{fontSize:'.65rem',color:'#888',fontFamily:"'DM Sans',sans-serif"}}>{selectedBehaviours.length} / 5</div>
-            </div>
-            {selectedBehaviours.map((s,i)=>{
-              const isFirst=i===0,isLast=i===selectedBehaviours.length-1;
-              const bucketColour={keep:'#2d7d46',add:'#b87a20',replace:'#c0392b'}[s.bucket]||'#888';
-              const bucketLabel={keep:'Keep',add:'Add',replace:'Replace'}[s.bucket]||s.bucket;
-              return(
-                <div key={i} style={{display:'flex',alignItems:'flex-start',gap:'.5rem',padding:'.55rem 0',borderBottom:i<selectedBehaviours.length-1?'1px solid #333':'none'}}>
-                  <div style={{display:'flex',flexDirection:'column',gap:'2px',flexShrink:0,marginTop:'1px'}}>
-                    <button onClick={()=>moveBehaviour(i,-1)} disabled={isFirst} style={{background:'none',border:'1px solid '+(isFirst?'#444':'#666'),color:isFirst?'#444':'#aaa',cursor:isFirst?'not-allowed':'pointer',width:'22px',height:'18px',padding:0,borderRadius:'3px',fontSize:'.7rem',lineHeight:1,fontFamily:'sans-serif'}}>↑</button>
-                    <button onClick={()=>moveBehaviour(i,1)} disabled={isLast} style={{background:'none',border:'1px solid '+(isLast?'#444':'#666'),color:isLast?'#444':'#aaa',cursor:isLast?'not-allowed':'pointer',width:'22px',height:'18px',padding:0,borderRadius:'3px',fontSize:'.7rem',lineHeight:1,fontFamily:'sans-serif'}}>↓</button>
-                  </div>
-                  <div style={{fontSize:'.78rem',color:'#e07030',fontWeight:700,flexShrink:0,minWidth:'18px',marginTop:'2px',fontFamily:"'DM Sans',sans-serif"}}>{i+1}.</div>
-                  <div style={{flex:1}}>
-                    <div style={{fontSize:'.85rem',color:'#f0ede8',lineHeight:1.55}}>{s.text}</div>
-                    <div style={{fontSize:'.62rem',color:'#888',marginTop:'.2rem',letterSpacing:'.05em',textTransform:'uppercase',fontFamily:"'DM Sans',sans-serif"}}>
-                      <span style={{color:bucketColour,fontWeight:700}}>{bucketLabel}</span>
-                      {s.is_custom?<span style={{marginLeft:'.5rem',color:'#888'}}>· own</span>:''}
-                    </div>
-                  </div>
-                  <button onClick={()=>removeSelectedBehaviour(i)} style={{background:'none',border:'none',color:'#888',cursor:'pointer',fontSize:'1rem',padding:'0 .25rem',fontFamily:'sans-serif',marginTop:'1px'}} title="Remove">×</button>
-                </div>
-              );
-            })}
-          </div>
-        )}
+        <p className="pg-sub" style={{marginBottom:'1.25rem'}}>
+          <strong>Optional: mark up to one item in each column</strong> — the items that matter most for {th}. {totalPicks} of 3 marked. Use <strong>✎ revise this</strong> on any item to reword it.
+        </p>
 
         {principlesLoading&&(
           <div className="think"><div className="dots"><div className="dot"/><div className="dot"/><div className="dot"/></div><span className="think-txt">Generating your behavioural agenda…</span></div>
         )}
 
         {!principlesLoading&&behaviours&&behaviours.length===0&&(
-          <div className="warn-box">We weren't able to generate your behaviours right now. You can write your own below, or skip this step and continue to your report.</div>
+          <div className="warn-box">We weren't able to generate your behaviours right now. You can skip this step and continue to your report.</div>
         )}
 
         {!principlesLoading&&behaviours&&behaviours.length>0&&(
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'.85rem',marginBottom:'1rem'}} className="behav-cols">
-            <div>
-              {bucketHeader('Keep — '+byBucket.keep.length,'#2d7d46','Things that work for us. The shift still needs them.')}
-              {byBucket.keep.length===0&&<div style={{fontSize:'.75rem',color:'#888',fontStyle:'italic',padding:'.5rem 0'}}>No Keep items at this gap level.</div>}
-              {byBucket.keep.map(renderItem)}
-              {renderCustomInput('keep','#2d7d46','Add your own thing to keep…')}
-            </div>
-            <div>
-              {bucketHeader('Add — '+byBucket.add.length,'#b87a20','Capacities to build alongside what we already do.')}
-              {byBucket.add.length===0&&<div style={{fontSize:'.75rem',color:'#888',fontStyle:'italic',padding:'.5rem 0'}}>No Add items at this gap level.</div>}
-              {byBucket.add.map(renderItem)}
-              {renderCustomInput('add','#b87a20','Add your own thing to build alongside…')}
-            </div>
-            <div>
-              {bucketHeader('Replace — '+byBucket.replace.length,'#c0392b','Defaults we lean on that need to give. Use X → Y format.')}
-              {byBucket.replace.length===0&&<div style={{fontSize:'.75rem',color:'#888',fontStyle:'italic',padding:'.5rem 0'}}>No Replace items at this gap level.</div>}
-              {byBucket.replace.map(renderItem)}
-              {renderCustomInput('replace','#c0392b','Old default → New substitute…')}
-            </div>
+            {['retain','less','more'].map(bucket=>(
+              <div key={bucket}>
+                <div style={{borderTop:'3px solid '+BUCKET_COL[bucket],paddingTop:'.75rem',marginBottom:'.85rem'}}>
+                  <div style={{fontSize:'.78rem',fontWeight:700,letterSpacing:'.06em',textTransform:'uppercase',color:BUCKET_COL[bucket],marginBottom:'.2rem',fontFamily:"'DM Sans',sans-serif"}}>{BUCKET_LBL[bucket]} — {byBucket[bucket].length}</div>
+                  <div style={{fontSize:'.72rem',color:'#888',fontStyle:'italic',lineHeight:1.4,fontFamily:"'DM Sans',sans-serif"}}>{BUCKET_SUB[bucket]}</div>
+                </div>
+                {byBucket[bucket].length===0&&<div style={{fontSize:'.75rem',color:'#888',fontStyle:'italic',padding:'.5rem 0'}}>No {BUCKET_LBL[bucket]} items at this gap level.</div>}
+                {byBucket[bucket].map(renderItem)}
+              </div>
+            ))}
           </div>
         )}
 
@@ -3902,6 +3927,7 @@ function App(){
       </div>
     );
   }
+
 
   function renderTobe(){
     return(
@@ -3948,7 +3974,7 @@ function App(){
           {loading?(
             <div className="think"><div className="dots"><div className="dot"/><div className="dot"/><div className="dot"/></div><span className="think-txt">Generating your personalised report…</span></div>
           ):(
-            <button className="btn-p" onClick={goToPrinciples}>Continue to Principles →</button>
+            <button className="btn-p" onClick={goToPrinciples}>Continue to Behaviours →</button>
           )}
           {codeNorm && isAdmin && (
             <button className="btn-s" onClick={()=>setGroupReportMode(true)} style={{background:'#e07030',color:'#fff',borderColor:'#e07030'}}>Group Report →</button>
@@ -4319,8 +4345,8 @@ function App(){
     return(
       <div>
 <div className="rpt-section">
-          <div className="rpt-heading">Your Gap and Your Principles</div>
-          <p className="rpt-body">The table below summarises the scale of the shift you are committing to across each dimension. Below it are the principles you selected as the ones most likely to make the biggest difference for {th}.</p>
+          <div className="rpt-heading">Your Gap and Your Behaviours</div>
+          <p className="rpt-body">The table below summarises the scale of the shift you are committing to across each dimension. Below it are the behaviours you selected as the ones most likely to make the biggest difference for {th}.</p>
         </div>
         <div className="gap-summary" style={{marginBottom:'1.5rem'}}>
           <div className="gap-row hdr"><div>Dimension</div><div className="gap-val">Now</div><div className="gap-val">Desired</div><div className="gap-val">Scale of change</div></div>
@@ -4330,7 +4356,7 @@ function App(){
           })}
         </div>
         <div className="rpt-section" style={{marginBottom:'2rem'}}>
-          <div className="rpt-heading" style={{fontSize:'1rem',marginBottom:'1rem'}}>Your selected principles</div>
+          <div className="rpt-heading" style={{fontSize:'1rem',marginBottom:'1rem'}}>Your selected behaviours</div>
           {selectedPrinciples&&selectedPrinciples.length>0?(
             <div>
               {selectedPrinciples.map((p,i)=>(
@@ -4342,7 +4368,7 @@ function App(){
               <p style={{fontSize:'.78rem',color:'#888',marginTop:'1rem',lineHeight:1.6,fontFamily:"'DM Sans',sans-serif"}}>These are the commitments to a way of seeing that you believe will most help {th} make the shift you described. They are not actions for next Tuesday — they are positions you are committing to hold and act from.</p>
             </div>
           ):(
-            <p className="rpt-body" style={{fontStyle:'italic',color:'#888'}}>You did not select any principles. You can go back to the Principles step from the progress bar to choose some, or you can simply use this report's profile and gap analysis as a basis for your own thinking.</p>
+            <p className="rpt-body" style={{fontStyle:'italic',color:'#888'}}>You did not select any behaviours. You can go back to the Behaviours step from the progress bar to choose some, or you can simply use this report's profile and gap analysis as a basis for your own thinking.</p>
           )}
         </div>
 
@@ -4771,7 +4797,7 @@ function App(){
                   principlesCluster, aiQuestions,
                   sessionCode:codeNorm,
                   orgName:(orgNameOverride||thing||'').trim(),
-                  useNames:useNamesInPDF,
+                  useNames:true,
                   SLABELS, getStrategy,
                 });
               }catch(e){
@@ -4779,10 +4805,6 @@ function App(){
                 alert('Could not generate PDF: '+(e&&e.message||'unknown error'));
               }
             }}>📄 Generate report (PDF)</button>
-            <label style={{display:'inline-flex',alignItems:'center',gap:'.35rem',padding:'.4rem .65rem',background:'#fff',border:'1px solid #d8d3cb',borderRadius:'4px',fontSize:'.7rem',color:'#1a1a1a',fontFamily:"'DM Sans',sans-serif",cursor:'pointer',userSelect:'none'}} title="If on, the PDF will use real participant names. Off (default) uses anonymous labels R1, R2, R3...">
-              <input type="checkbox" checked={useNamesInPDF} onChange={e=>setUseNamesInPDF(e.target.checked)} style={{margin:0}}/>
-              Use names in PDF
-            </label>
             <button onClick={()=>{setPrintAll(true);setTimeout(()=>{window.print();setTimeout(()=>setPrintAll(false),800);},800);}} title="Backup: print or Save as PDF via browser, in case the main PDF fails" style={{background:'transparent',color:'#888',border:'1px solid #d8d3cb',borderRadius:'3px',padding:'.4rem .75rem',fontSize:'.7rem',fontWeight:500,fontFamily:"'DM Sans',sans-serif",cursor:'pointer'}}>Browser print (backup)</button>
           </div>
         </div>
@@ -4835,15 +4857,15 @@ function App(){
           const aiQReady=aiQuestions&&Array.isArray(aiQuestions.current)&&aiQuestions.current.length>0;
           const presentVisibleCount=selectedForPresent===null?realCount:selectedForPresent.size;
           const tiles=[
-            {key:'config',name:'Session Config',chip:sessionConfig&&sessionConfig.thing_for_everyone?null:'setup',headline:sessionConfig&&sessionConfig.thing_for_everyone?sessionConfig.thing_for_everyone:'Not set up yet',sub:sessionConfig&&sessionConfig.thing_for_everyone?'Tap to view or edit':'Set the thing the group is working on'},
-            {key:'progress',name:'Progress',chip:pendingReviewers.length>0?'review':sessionClosed?'closed':null,headline:`${submittedCount} of ${realCount} in`,sub:pendingReviewers.length>0?`${pendingReviewers.length} late submission${pendingReviewers.length!==1?'s':''} awaiting review`:sessionClosed?'Session closed — no new responses':inProgressCount>0?`${inProgressCount} still completing`:'All respondents complete',extra:'pips'},
-            {key:'group-report',name:'Group Report',headline:groupStrat?(SLABELS[groupStrat]+splitTag):'Awaiting data',sub:realCount>=2?'Group profile and means':'Need at least 2 respondents'},
-            {key:'present',name:'Share / Present',chip:'live',headline:`${presentVisibleCount} visible`,sub:'Reveal one at a time on the projector'},
-            {key:'overview',name:'Overview',headline:realCount<2?'Awaiting data':topSpreadDim&&topSpreadSD>=10?`Biggest spread on ${topSpreadDim}`:outliers.length>0?`${outliers.length} outlier${outliers.length!==1?'s':''}`:'Group well-aligned',sub:realCount<2?'Group profile and headlines':topSpreadDim&&topSpreadSD>=10?`SD ${topSpreadSD.toFixed(1)} · ${outliers.length} outlier${outliers.length!==1?'s':''}`:outliers.length>0?outliers.slice(0,2).map(o=>`${o.name} on ${o.dim}`).join(' · '):'Group profile and headlines'},
-            {key:'variance',name:'Variance',headline:realCount>=2?(contestedCount>0?`${contestedCount} sharply split`:'Group aligned'):'Awaiting data',sub:realCount>=2?`All ${qVariances.length} questions ranked by spread`:'Where the group disagrees'},
-            {key:'ai-questions',name:'AI Questions',headline:aiQReady?`${(aiQuestions.current||[]).length+(aiQuestions.future||[]).length} questions ready`:'Generate facilitation questions',sub:aiQReady?'Tailored to this group':'Click to generate from data'},
-            {key:'principles',name:'Principles',headline:totalPrinciples>0?`${totalPrinciples} chosen`:'No principles yet',sub:respondentsWithPrinciples>0?`From ${respondentsWithPrinciples} respondent${respondentsWithPrinciples!==1?'s':''} · cluster by theme`:'Appear once respondents reach Step 5'},
-            {key:'individuals',name:'Individuals',headline:`${realCount} profile${realCount!==1?'s':''}`,sub:'Drill into one respondent at a time'},
+            {key:'config',icon:'⚙️',name:'Session Config',chip:sessionConfig&&sessionConfig.thing_for_everyone?null:'setup',headline:sessionConfig&&sessionConfig.thing_for_everyone?sessionConfig.thing_for_everyone:'Not set up yet',sub:sessionConfig&&sessionConfig.thing_for_everyone?'Tap to view or edit':'Set the thing the group is working on',desc:'Set up the session so participants can join.'},
+            {key:'progress',icon:'📊',name:'Progress',chip:pendingReviewers.length>0?'review':sessionClosed?'closed':null,headline:`${submittedCount} of ${realCount} in`,sub:pendingReviewers.length>0?`${pendingReviewers.length} late submission${pendingReviewers.length!==1?'s':''} awaiting review`:sessionClosed?'Session closed — no new responses':inProgressCount>0?`${inProgressCount} still completing`:'All respondents complete',extra:'pips',desc:'Track who has joined and where they are in the survey.'},
+            {key:'group-report',icon:'📈',name:'Group Report',headline:groupStrat?(SLABELS[groupStrat]+splitTag):'Awaiting data',sub:realCount>=2?'Group profile and means':'Need at least 2 respondents',desc:'See the group\'s combined profile and dominant strategy.'},
+            {key:'present',icon:'🎤',name:'Share / Present',chip:'live',headline:`${presentVisibleCount} visible`,sub:'Reveal one at a time on the projector',desc:'Reveal results to the room one slide at a time.'},
+            {key:'overview',icon:'🔍',name:'Overview',headline:realCount<2?'Awaiting data':topSpreadDim&&topSpreadSD>=10?`Biggest spread on ${topSpreadDim}`:outliers.length>0?`${outliers.length} outlier${outliers.length!==1?'s':''}`:'Group well-aligned',sub:realCount<2?'Group profile and headlines':topSpreadDim&&topSpreadSD>=10?`SD ${topSpreadSD.toFixed(1)} · ${outliers.length} outlier${outliers.length!==1?'s':''}`:outliers.length>0?outliers.slice(0,2).map(o=>`${o.name} on ${o.dim}`).join(' · '):'Group profile and headlines',desc:'Group means, spread, and outliers at a glance.'},
+            {key:'variance',icon:'⚖️',name:'Variance',headline:realCount>=2?(contestedCount>0?`${contestedCount} sharply split`:'Group aligned'):'Awaiting data',sub:realCount>=2?`All ${qVariances.length} questions ranked by spread`:'Where the group disagrees',desc:'Find the questions where the group most disagrees.'},
+            {key:'ai-questions',icon:'💬',name:'AI Questions',headline:aiQReady?`${(aiQuestions.current||[]).length+(aiQuestions.future||[]).length} questions ready`:'Generate facilitation questions',sub:aiQReady?'Tailored to this group':'Click to generate from data',desc:'Generate facilitator prompts tailored to this group.'},
+            {key:'principles',icon:'🎯',name:'Behaviours',headline:totalPrinciples>0?`${totalPrinciples} chosen`:'No behaviours yet',sub:respondentsWithPrinciples>0?`From ${respondentsWithPrinciples} respondent${respondentsWithPrinciples!==1?'s':''} · cluster by theme`:'Appear once respondents reach the Behaviours step',desc:'See what each respondent committed to, clustered by theme.'},
+            {key:'individuals',icon:'👤',name:'Individuals',headline:`${realCount} profile${realCount!==1?'s':''}`,sub:'Drill into one respondent at a time',desc:'Drill into one respondent\'s full profile.'},
           ];
           return(
             <div className="fac-dash">
@@ -4851,6 +4873,7 @@ function App(){
                 <div key={tile.key} className="dash-tile" onClick={()=>{setFacTab(tile.key);setFacInfoOpen(false);setFacOverlayOpen(true);}}>
                   <div className="dash-tile-inner">
                     <div className="dash-tile-l">
+                      {tile.icon&&<div className="dash-tile-icon">{tile.icon}</div>}
                       <div className="dash-tile-name">
                         <span>{tile.name}</span>
                         {tile.chip==='live'&&<span className="dash-chip live">Live</span>}
@@ -4860,6 +4883,7 @@ function App(){
                       </div>
                       <div className="dash-tile-headline">{tile.headline}</div>
                       <div className="dash-tile-sub">{tile.sub}</div>
+                      {tile.desc&&<div className="dash-tile-desc">{tile.desc}</div>}
                       {tile.extra==='pips'&&realCount>0&&(
                         <div className="dash-pips">
                           {realRespondents.map((r,i)=>{
@@ -4892,7 +4916,7 @@ function App(){
                     facTab==='overview'?'Overview':
                     facTab==='variance'?'Variance':
                     facTab==='ai-questions'?'AI Questions':
-                    facTab==='principles'?'Principles':
+                    facTab==='principles'?'Behaviours':
                     facTab==='individuals'?'Individuals':'Facilitator Notes'
                   }</div>
                   {orgNameEditing?(
@@ -5354,7 +5378,7 @@ function App(){
                           Permanently remove <strong>{r.respondent_name}</strong> from this session?
                         </div>
                         <div style={{fontSize:'.78rem',color:'#c0392b',fontFamily:"'DM Sans',sans-serif",marginBottom:'.75rem',lineHeight:1.5}}>
-                          ⚠ This cannot be undone. All survey responses, scores, principles, and to-be data for this respondent will be deleted from the database.
+                          ⚠ This cannot be undone. All survey responses, scores, behaviours, and to-be data for this respondent will be deleted from the database.
                         </div>
                         <div style={{display:'flex',gap:'.5rem',flexWrap:'wrap'}}>
                           <button className="btn-p" style={{background:'#c0392b',borderColor:'#c0392b',padding:'.45rem 1rem',fontSize:'.78rem'}}
@@ -5551,7 +5575,7 @@ function App(){
         {/* Principles tab */}
         {(facTab==='principles'||printAll)&&(
           <div>
-            {printAll&&<div className="print-section-title">Group Principles</div>}
+            {printAll&&<div className="print-section-title">Group Behaviours</div>}
             {renderPrinciplesTab()}
           </div>
         )}
@@ -5734,9 +5758,9 @@ function App(){
       if(!principlesCluster)return;
       const lines=[];
       const buckets=[
-        ['KEEP',principlesCluster.clusters_keep],
-        ['ADD',principlesCluster.clusters_add],
-        ['REPLACE',principlesCluster.clusters_replace],
+        ['RETAIN',principlesCluster.clusters_retain],
+        ['LESS OF',principlesCluster.clusters_less],
+        ['MORE OF',principlesCluster.clusters_more],
       ];
       buckets.forEach(([name,cls])=>{
         if(!Array.isArray(cls)||cls.length===0)return;
@@ -5744,7 +5768,7 @@ function App(){
         cls.forEach(c=>{
           lines.push(c.theme.toUpperCase());
           if(c.summary)lines.push(c.summary);
-          c.items.forEach(it=>lines.push(`  • ${it.text} (${it.author}, rank ${it.rank})`));
+          c.items.forEach(it=>lines.push(`  • ${it.text} (${it.author})`));
           lines.push('');
         });
         lines.push('');
@@ -5756,7 +5780,7 @@ function App(){
       <div className="da-card" style={{marginBottom:'.85rem',borderTop:'3px solid '+colour}}>
         <div style={{fontSize:'1.02rem',fontWeight:600,color:'#1a1a1a',fontFamily:"'Cormorant Garamond',serif",lineHeight:1.3,marginBottom:'.3rem'}}>{c.theme}</div>
         <div style={{fontSize:'.72rem',color:'#888',marginBottom:'.55rem',fontFamily:"'DM Sans',sans-serif"}}>
-          {c.author_count} respondent{c.author_count!==1?'s':''} · weight {c.weight_total}
+          {c.author_count} respondent{c.author_count!==1?'s':''} · {c.n_items} pick{c.n_items!==1?'s':''}
         </div>
         {c.summary&&<div style={{fontSize:'.8rem',color:'#555',lineHeight:1.55,marginBottom:'.65rem',fontFamily:"'DM Sans',sans-serif",fontStyle:'italic'}}>{c.summary}</div>}
         <div style={{display:'flex',flexDirection:'column',gap:'.4rem'}}>
@@ -5766,12 +5790,10 @@ function App(){
               <div key={ii} style={{display:'flex',gap:'.55rem',alignItems:'flex-start',padding:'.5rem .65rem',background:'#faf8f5',borderLeft:`3px solid ${col}`,borderRadius:'0 3px 3px 0'}}>
                 <div style={{flex:1,fontSize:'.84rem',lineHeight:1.55,color:'#1a1a1a',fontFamily:"'DM Sans',sans-serif"}}>
                   {it.text}
-                  {it.is_custom&&<span style={{marginLeft:'.5rem',fontSize:'.65rem',color:'#888',fontWeight:600,letterSpacing:'.04em',textTransform:'uppercase'}}>own</span>}
+                  {it.is_edited&&<span style={{marginLeft:'.5rem',fontSize:'.62rem',color:'#1a4fa0',fontWeight:700,letterSpacing:'.04em',textTransform:'uppercase',background:'#e8eef7',padding:'1px 5px',borderRadius:'3px'}}>edited</span>}
+                  {it.is_edited&&it.original_text&&<div style={{fontSize:'.7rem',color:'#888',marginTop:'.2rem',fontStyle:'italic'}}>was: {it.original_text}</div>}
                 </div>
-                <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:'2px'}}>
-                  <span style={{display:'inline-block',padding:'.12rem .5rem',background:col,color:'#fff',borderRadius:'10px',fontSize:'.62rem',fontWeight:700,whiteSpace:'nowrap',fontFamily:"'DM Sans',sans-serif"}}>{it.author}</span>
-                  <span style={{fontSize:'.6rem',color:'#888',fontFamily:'monospace'}}>#{it.rank}</span>
-                </div>
+                <span style={{display:'inline-block',padding:'.12rem .5rem',background:col,color:'#fff',borderRadius:'10px',fontSize:'.62rem',fontWeight:700,whiteSpace:'nowrap',fontFamily:"'DM Sans',sans-serif"}}>{it.author}</span>
               </div>
             );
           })}
@@ -5780,9 +5802,9 @@ function App(){
     );
 
     const hasClusters=principlesCluster&&(
-      (Array.isArray(principlesCluster.clusters_keep)&&principlesCluster.clusters_keep.length>0)||
-      (Array.isArray(principlesCluster.clusters_add)&&principlesCluster.clusters_add.length>0)||
-      (Array.isArray(principlesCluster.clusters_replace)&&principlesCluster.clusters_replace.length>0)
+      (Array.isArray(principlesCluster.clusters_retain)&&principlesCluster.clusters_retain.length>0)||
+      (Array.isArray(principlesCluster.clusters_more)&&principlesCluster.clusters_more.length>0)||
+      (Array.isArray(principlesCluster.clusters_less)&&principlesCluster.clusters_less.length>0)
     );
 
     return(
@@ -5790,7 +5812,7 @@ function App(){
         <div className="rpt-section">
           <div className="rpt-heading">Group Behavioural Agenda</div>
           <div className="inf-box">
-            Each participant chose up to 5 behaviours from their personalised three-column agenda — <strong>Keep</strong>, <strong>Add</strong>, and <strong>Replace</strong> — and ranked them. This view clusters those choices by theme within each bucket so you can see where the group is converging, and where it is split.
+            Each participant chose up to 3 behaviours from their personalised three-column agenda — <strong>Retain</strong>, <strong>Less of</strong>, and <strong>More of</strong>. This view clusters those choices by theme within each bucket so you can see where the group is converging, and where it is split.
           </div>
 
           {withBehaviours.length===0&&(
@@ -5833,24 +5855,24 @@ function App(){
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'.85rem',marginBottom:'1rem'}} className="behav-cols">
                 <div>
                   <div style={{fontSize:'.78rem',fontWeight:700,letterSpacing:'.06em',textTransform:'uppercase',color:'#2d7d46',marginBottom:'.5rem',paddingBottom:'.4rem',borderBottom:'2px solid #2d7d46',fontFamily:"'DM Sans',sans-serif"}}>
-                    Keep — {(principlesCluster.clusters_keep||[]).length} theme{(principlesCluster.clusters_keep||[]).length!==1?'s':''}
+                    Retain — {(principlesCluster.clusters_retain||[]).length} theme{(principlesCluster.clusters_retain||[]).length!==1?'s':''}
                   </div>
-                  {(principlesCluster.clusters_keep||[]).length===0&&<div style={{fontSize:'.75rem',color:'#888',fontStyle:'italic'}}>No Keep selections yet.</div>}
-                  {(principlesCluster.clusters_keep||[]).map((c,i)=>renderCluster(c,'#2d7d46'))}
-                </div>
-                <div>
-                  <div style={{fontSize:'.78rem',fontWeight:700,letterSpacing:'.06em',textTransform:'uppercase',color:'#b87a20',marginBottom:'.5rem',paddingBottom:'.4rem',borderBottom:'2px solid #b87a20',fontFamily:"'DM Sans',sans-serif"}}>
-                    Add — {(principlesCluster.clusters_add||[]).length} theme{(principlesCluster.clusters_add||[]).length!==1?'s':''}
-                  </div>
-                  {(principlesCluster.clusters_add||[]).length===0&&<div style={{fontSize:'.75rem',color:'#888',fontStyle:'italic'}}>No Add selections yet.</div>}
-                  {(principlesCluster.clusters_add||[]).map((c,i)=>renderCluster(c,'#b87a20'))}
+                  {(principlesCluster.clusters_retain||[]).length===0&&<div style={{fontSize:'.75rem',color:'#888',fontStyle:'italic'}}>No Retain selections yet.</div>}
+                  {(principlesCluster.clusters_retain||[]).map((c,i)=>renderCluster(c,'#2d7d46'))}
                 </div>
                 <div>
                   <div style={{fontSize:'.78rem',fontWeight:700,letterSpacing:'.06em',textTransform:'uppercase',color:'#c0392b',marginBottom:'.5rem',paddingBottom:'.4rem',borderBottom:'2px solid #c0392b',fontFamily:"'DM Sans',sans-serif"}}>
-                    Replace — {(principlesCluster.clusters_replace||[]).length} theme{(principlesCluster.clusters_replace||[]).length!==1?'s':''}
+                    Less of — {(principlesCluster.clusters_less||[]).length} theme{(principlesCluster.clusters_less||[]).length!==1?'s':''}
                   </div>
-                  {(principlesCluster.clusters_replace||[]).length===0&&<div style={{fontSize:'.75rem',color:'#888',fontStyle:'italic'}}>No Replace selections yet.</div>}
-                  {(principlesCluster.clusters_replace||[]).map((c,i)=>renderCluster(c,'#c0392b'))}
+                  {(principlesCluster.clusters_less||[]).length===0&&<div style={{fontSize:'.75rem',color:'#888',fontStyle:'italic'}}>No Less of selections yet.</div>}
+                  {(principlesCluster.clusters_less||[]).map((c,i)=>renderCluster(c,'#c0392b'))}
+                </div>
+                <div>
+                  <div style={{fontSize:'.78rem',fontWeight:700,letterSpacing:'.06em',textTransform:'uppercase',color:'#1a4fa0',marginBottom:'.5rem',paddingBottom:'.4rem',borderBottom:'2px solid #1a4fa0',fontFamily:"'DM Sans',sans-serif"}}>
+                    More of — {(principlesCluster.clusters_more||[]).length} theme{(principlesCluster.clusters_more||[]).length!==1?'s':''}
+                  </div>
+                  {(principlesCluster.clusters_more||[]).length===0&&<div style={{fontSize:'.75rem',color:'#888',fontStyle:'italic'}}>No More of selections yet.</div>}
+                  {(principlesCluster.clusters_more||[]).map((c,i)=>renderCluster(c,'#1a4fa0'))}
                 </div>
               </div>
 
