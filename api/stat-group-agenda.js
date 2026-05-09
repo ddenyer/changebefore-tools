@@ -16,7 +16,7 @@
 // The bottom-up cluster (existing /api/stat-principles-cluster) is unaffected
 // and remains available as a sub-toggle in the front-end.
 
-import OpenAI from 'openai';
+export const config = { maxDuration: 30 };
 
 // ── Config ───────────────────────────────────────────────────────────────
 // Thresholds for state classification. Tunable later once we have workshop
@@ -204,12 +204,14 @@ WRITING RULES:
 - Sector-aware where it helps but not jargon-heavy.
 - Each item must be DIFFERENT from the others — no near-duplicates.
 
-OUTPUT FORMAT — strict JSON, no markdown, no preamble:
+OUTPUT FORMAT — strict JSON, no markdown fences, no preamble, no commentary:
 {
   "retain": ["...", "..."],
   "less": ["...", "...", "...", "..."],
   "more": ["...", "...", "..."]
-}`;
+}
+
+Return ONLY the JSON object. Do not wrap it in code fences. Do not add explanatory text before or after.`;
 }
 
 // ── Pick-convergence analysis ────────────────────────────────────────────
@@ -310,29 +312,40 @@ export default async function handler(req, res) {
       return res.status(200).json({ state: groupAnalysis.state, analysis: groupAnalysis });
     }
 
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      return res.status(500).json({ error: 'OPENAI_API_KEY not configured' });
+    const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
+    if (!ANTHROPIC_KEY) {
+      return res.status(500).json({ error: 'ANTHROPIC_API_KEY not configured' });
     }
 
-    const openai = new OpenAI({ apiKey });
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o',
-      temperature: 0.7,
-      max_tokens: 1500,
-      messages: [
-        { role: 'system', content: 'You generate behavioural agendas for leadership groups based on STAT diagnostic data. Return strict JSON.' },
-        { role: 'user', content: prompt },
-      ],
-      response_format: { type: 'json_object' },
-    });
-
-    const raw = completion.choices?.[0]?.message?.content || '{}';
     let parsed;
     try {
-      parsed = JSON.parse(raw);
+      const aiResp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'x-api-key': ANTHROPIC_KEY,
+          'anthropic-version': '2023-06-01',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 1500,
+          messages: [{ role: 'user', content: prompt }],
+        }),
+      });
+      const data = await aiResp.json();
+      if (!aiResp.ok) {
+        console.error('Anthropic API non-200:', aiResp.status, data);
+        return res.status(500).json({ error: 'AI provider returned ' + aiResp.status, details: data?.error?.message });
+      }
+      const text = data.content?.[0]?.text || '{}';
+      let cleaned = text.replace(/```json|```/g, '').trim();
+      const firstBrace = cleaned.indexOf('{');
+      const lastBrace = cleaned.lastIndexOf('}');
+      if (firstBrace >= 0 && lastBrace > firstBrace) cleaned = cleaned.slice(firstBrace, lastBrace + 1);
+      parsed = JSON.parse(cleaned);
     } catch (e) {
-      return res.status(500).json({ error: 'AI returned invalid JSON', raw });
+      console.error('group-agenda AI error:', e);
+      return res.status(500).json({ error: 'AI call failed: ' + (e.message || 'unknown') });
     }
 
     // Validate shape
