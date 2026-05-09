@@ -2627,6 +2627,12 @@ function App(){
   const [principlesCluster,setPrinciplesCluster]=useState(null);
   const [principlesClusterLoading,setPrinciplesClusterLoading]=useState(false);
   const [principlesClusterError,setPrinciplesClusterError]=useState(null);
+  // New (May 2026): split-aware Group Behavioural Agenda. Default sub-view in the
+  // Behaviours tab; the existing cluster view is now a sub-toggle ('Convergence with picks').
+  const [groupAgenda,setGroupAgenda]=useState(null);
+  const [groupAgendaLoading,setGroupAgendaLoading]=useState(false);
+  const [groupAgendaError,setGroupAgendaError]=useState(null);
+  const [agendaSubView,setAgendaSubView]=useState('agenda'); // 'agenda' | 'picks'
   const topRef=useRef(null);
 
   useEffect(()=>{topRef.current&&topRef.current.scrollIntoView({behavior:'smooth'});},[step]);
@@ -3079,6 +3085,47 @@ function App(){
     setPrinciplesClusterLoading(false);
   }
 
+  // New (May 2026): split-aware Group Behavioural Agenda.
+  // Returns one of: aligned, leaning, split, too_few. For aligned/leaning, returns
+  // a top-down agenda (retain/less/more) generated from the dominant shift.
+  // For split, returns no agenda — the disagreement IS the finding.
+  async function loadGroupAgenda(){
+    if(!codeNorm||groupRespondents.length<1)return;
+    setGroupAgendaLoading(true);
+    setGroupAgendaError(null);
+    let success = false;
+    let attempt = 0;
+    let lastErr = null;
+    while (!success && attempt < 3) {
+      try{
+        const resp=await fetch('/api/stat-group-agenda',{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({
+            sessionCode:codeNorm,
+            respondents:ensureDisplay(groupRespondents),
+            thing,
+            sector:sector==='Other'?sectorCustom:sector,
+          }),
+        });
+        const data=await resp.json().catch(()=>null);
+        if(resp.ok && data){
+          setGroupAgenda(data);
+          success = true;
+          break;
+        }
+        lastErr = 'Server returned '+resp.status+(data&&data.error?': '+data.error:'');
+      }catch(e){
+        console.warn('group-agenda error attempt '+(attempt+1)+':',e);
+        lastErr = 'Network error: '+(e.message||'unknown');
+      }
+      attempt++;
+      if (attempt < 3) await new Promise(r => setTimeout(r, 800 + (attempt - 1) * 1200));
+    }
+    if (!success) setGroupAgendaError(lastErr || 'Could not generate agenda.');
+    setGroupAgendaLoading(false);
+  }
+
   // Persist selectedPrinciples and qualitative inputs to Supabase whenever they change.
   // Only fires once user has reached the report step and a session exists.
   // Debounced 600ms so rapid toggling/typing doesn't spam the API.
@@ -3416,6 +3463,7 @@ function App(){
     setGroupRespondents([]);setLastRefreshed('');
     setAiQuestions(null);setAiQError(null);setAiQLoading(false);
     setPrinciplesCluster(null);setPrinciplesClusterError(null);setPrinciplesClusterLoading(false);
+    setGroupAgenda(null);setGroupAgendaError(null);setGroupAgendaLoading(false);setAgendaSubView('agenda');
     setSessionClosed(false);setSessionClosedAt(null);setCloseConfirmOpen(false);setCloseBusy(false);
     setPendingReviewSelf(false);setFacilitatorNotes('');
   }
@@ -4975,7 +5023,7 @@ function App(){
             {key:'overview',icon:'🔍',name:'Overview',headline:realCount<2?'Awaiting data':topSpreadDim&&topSpreadSD>=10?`Biggest spread on ${topSpreadDim}`:outliers.length>0?`${outliers.length} outlier${outliers.length!==1?'s':''}`:'Group well-aligned',sub:realCount<2?'Group profile and headlines':topSpreadDim&&topSpreadSD>=10?`SD ${topSpreadSD.toFixed(1)} · ${outliers.length} outlier${outliers.length!==1?'s':''}`:outliers.length>0?outliers.slice(0,2).map(o=>`${o.name} on ${o.dim}`).join(' · '):'Group profile and headlines',desc:'Group means, spread, and outliers at a glance.'},
             {key:'variance',icon:'⚖️',name:'Variance',headline:realCount>=2?(contestedCount>0?`${contestedCount} sharply split`:'Group aligned'):'Awaiting data',sub:realCount>=2?`All ${qVariances.length} questions ranked by spread`:'Where the group disagrees',desc:'Find the questions where the group most disagrees.'},
             {key:'ai-questions',icon:'💬',name:'AI Questions',headline:aiQReady?`${(aiQuestions.current||[]).length+(aiQuestions.future||[]).length} questions ready`:'Generate facilitation questions',sub:aiQReady?'Tailored to this group':'Click to generate from data',desc:'Generate facilitator prompts tailored to this group.'},
-            {key:'principles',icon:'🎯',name:'Behaviours',headline:totalPrinciples>0?`${totalPrinciples} chosen`:'No behaviours yet',sub:respondentsWithPrinciples>0?`From ${respondentsWithPrinciples} respondent${respondentsWithPrinciples!==1?'s':''} · cluster by theme`:'Appear once respondents reach the Behaviours step',desc:'See what each respondent committed to, clustered by theme.'},
+            {key:'principles',icon:'🎯',name:'Group Agenda',headline:realCount>=3?'Generate from group shift':realCount>0?`${realCount} of 3+ needed`:'Awaiting respondents',sub:realCount>=3?'Aligned, leaning, or split':totalPrinciples>0?`${totalPrinciples} individual picks so far`:'Need at least 3 to compute',desc:'Generate the behavioural agenda based on the group\'s collective shift, with split detection.'},
             {key:'individuals',icon:'👤',name:'Individuals',headline:`${realCount} profile${realCount!==1?'s':''}`,sub:'Drill into one respondent at a time',desc:'Drill into one respondent\'s full profile.'},
           ];
           return(
@@ -5027,7 +5075,7 @@ function App(){
                     facTab==='overview'?'Overview':
                     facTab==='variance'?'Variance':
                     facTab==='ai-questions'?'AI Questions':
-                    facTab==='principles'?'Behaviours':
+                    facTab==='principles'?'Group Agenda':
                     facTab==='individuals'?'Individuals':'Facilitator Notes'
                   }</div>
                   {orgNameEditing?(
@@ -5903,6 +5951,192 @@ function App(){
     );
   }
 
+  // Render the body of the group agenda based on its state.
+  // Called from renderPrinciplesTab when groupAgenda is populated.
+  function renderGroupAgendaContent(g){
+    if(!g)return null;
+    const state=g.state;
+    const a=g.analysis||{};
+    const Q_LABELS={
+      preventative_control:'Preventative Control',
+      mindful_action:'Mindful Action',
+      performance_optimisation:'Performance Optimisation',
+      adaptive_innovation:'Adaptive Innovation',
+      neutral:'Neutral',
+    };
+    const Q_COLOURS={
+      preventative_control:'#5a8c4a',
+      mindful_action:'#4a7c8c',
+      performance_optimisation:'#a07a3a',
+      adaptive_innovation:'#8c5a4a',
+      neutral:'#888',
+    };
+
+    // Quadrant grid showing the to-be distribution
+    const renderQuadrantGrid=()=>{
+      const order=['preventative_control','performance_optimisation','mindful_action','adaptive_innovation','neutral'];
+      const total=a.n||1;
+      return(
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:'.6rem',marginBottom:'1.25rem'}}>
+          {order.filter(k=>(a.counts&&a.counts[k])||a.dominant&&a.dominant.quadrant===k||a.second&&a.second.quadrant===k).map(k=>{
+            const cnt=(a.counts&&a.counts[k])||0;
+            const pct=Math.round((cnt/total)*100);
+            const isLead=a.dominant&&a.dominant.quadrant===k;
+            const isSplit=state==='split'&&a.second&&a.second.quadrant===k;
+            return(
+              <div key={k} style={{
+                padding:'.85rem',
+                background:isLead?'#fff8f5':isSplit?'#faecec':'#fafaf6',
+                border:'1px solid '+(isLead?'#f5c8b0':isSplit?'#e0a8a0':'#e5e1d8'),
+                borderRadius:'3px',
+                opacity:cnt===0?.4:1,
+              }}>
+                <div style={{fontSize:'.65rem',fontWeight:700,letterSpacing:'.06em',textTransform:'uppercase',color:isLead?'#e07030':isSplit?'#a03020':Q_COLOURS[k],marginBottom:'.3rem',fontFamily:"'DM Sans',sans-serif"}}>
+                  {Q_LABELS[k]}
+                </div>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.6rem',lineHeight:1,color:'#1a1a1a'}}>{cnt}</div>
+                <div style={{fontSize:'.72rem',color:'#6a6a6a',marginTop:'.25rem',fontFamily:"'DM Sans',sans-serif"}}>{pct}%</div>
+              </div>
+            );
+          })}
+        </div>
+      );
+    };
+
+    if(state==='too_few'){
+      return(
+        <div className="waiting-state">
+          <div className="wait-icon">⏳</div>
+          <h3>Need at least 3 respondents</h3>
+          <div style={{fontSize:'.82rem',color:'#888',marginTop:'.5rem',fontFamily:"'DM Sans',sans-serif"}}>
+            {g.message||('Currently '+(a.n||0)+' respondents.')}
+          </div>
+        </div>
+      );
+    }
+
+    if(state==='split'){
+      // Group respondents by their to-be quadrant
+      const byQuadrant={};
+      (a.respondents||[]).forEach(r=>{
+        const q=r.tobe_quadrant;
+        if(!byQuadrant[q])byQuadrant[q]=[];
+        byQuadrant[q].push(r);
+      });
+      const groups=Object.entries(byQuadrant).sort((x,y)=>y[1].length-x[1].length);
+
+      return(
+        <div>
+          {renderQuadrantGrid()}
+          <div style={{background:'#faecec',border:'1px solid #e0a8a0',padding:'1rem 1.25rem',borderRadius:'3px',marginBottom:'1.25rem'}}>
+            <div style={{fontWeight:700,color:'#a03020',fontSize:'.88rem',marginBottom:'.35rem',fontFamily:"'DM Sans',sans-serif"}}>The room is not aligned on direction.</div>
+            <div style={{fontSize:'.85rem',color:'#4a4a4a',lineHeight:1.55,fontFamily:"'DM Sans',sans-serif"}}>
+              The group as-is is <strong>{Q_LABELS[a.groupAsIs]||'mixed'}</strong>. Respondents are pulling in {groups.length} different directions for to-be. Generating an averaged agenda would mask the disagreement and produce behaviours that contradict each other. <strong>The diagnostic is the work here, not the agenda.</strong>
+            </div>
+          </div>
+
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(240px,1fr))',gap:'.85rem',marginBottom:'1.25rem'}}>
+            {groups.map(([q,members],i)=>(
+              <div key={q} style={{background:'#fafaf6',borderRadius:'3px',padding:'.85rem 1rem',borderLeft:'3px solid '+Q_COLOURS[q]}}>
+                <div style={{fontSize:'.78rem',fontWeight:700,color:Q_COLOURS[q],marginBottom:'.35rem',fontFamily:"'DM Sans',sans-serif"}}>
+                  Group {String.fromCharCode(65+i)} ({members.length} {members.length===1?'person':'people'}) → {Q_LABELS[q]}
+                </div>
+                <div style={{fontSize:'.78rem',color:'#888',fontFamily:"'DM Sans',sans-serif"}}>
+                  {members.map(m=>m.is_anonymous?m.display_name:m.display_name).join(', ')}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{background:'#fff8f5',border:'1px solid #f5c8b0',padding:'1rem 1.25rem',borderRadius:'3px',fontSize:'.85rem',color:'#4a4a4a',lineHeight:1.6,fontFamily:"'DM Sans',sans-serif"}}>
+            <strong style={{color:'#1a1a1a'}}>Workshop instruction:</strong> Don't try to resolve this with a compromise agenda. Three productive moves:
+            <ol style={{margin:'.65rem 0 0',paddingLeft:'1.25rem'}}>
+              <li>Ask each group to articulate <em>what specifically</em> they fear about the other direction. The fear often points at a real risk worth carrying forward.</li>
+              <li>Ask whether the disagreement is about <em>where</em> to go or about <em>what's at stake</em>. The latter is sometimes resolvable; the former rarely is in 90 minutes.</li>
+              <li>If alignment isn't reachable now, name it as the leadership work to do <em>after</em> this session — and be specific about who needs to align with whom.</li>
+            </ol>
+          </div>
+        </div>
+      );
+    }
+
+    // aligned or leaning — there's an agenda
+    const agenda=g.agenda||{};
+    const conv=g.convergence||{};
+    const dom=a.dominant||{};
+    const second=a.second||null;
+    const dominantPctText=dom.pct?Math.round(dom.pct*100):0;
+
+    return(
+      <div>
+        {renderQuadrantGrid()}
+
+        {state==='leaning'&&(
+          <div style={{background:'#fff8f5',border:'1px solid #f5c8b0',padding:'1rem 1.25rem',borderRadius:'3px',marginBottom:'1.25rem'}}>
+            <div style={{fontWeight:700,color:'#e07030',fontSize:'.85rem',marginBottom:'.3rem',fontFamily:"'DM Sans',sans-serif"}}>
+              ⚠ The room is leaning, not unanimous
+            </div>
+            <div style={{fontSize:'.82rem',color:'#4a4a4a',lineHeight:1.55,fontFamily:"'DM Sans',sans-serif"}}>
+              {dominantPctText}% of {a.n} participants want to move toward {Q_LABELS[dom.quadrant]}, but {100-dominantPctText}% are pulling in other directions{second?` (notably ${Q_LABELS[second.quadrant]} at ${Math.round(second.pct*100)}%)`:''}. The agenda below assumes the dominant direction holds. Before accepting it, decide whether the dissent is informed concern that should reshape the agenda, or a minority view the group can move past.
+            </div>
+          </div>
+        )}
+
+        <div className="rpt-section" style={{marginBottom:'1.25rem'}}>
+          <div className="rpt-heading" style={{fontSize:'1.05rem',marginBottom:'.5rem'}}>
+            The shift this group {state==='leaning'?'is leaning toward':'is committing to'}
+          </div>
+          <div style={{fontSize:'.92rem',color:'#4a4a4a',lineHeight:1.55,fontFamily:"'DM Sans',sans-serif"}}>
+            From <strong>{Q_LABELS[a.groupAsIs]}</strong> (group as-is) toward <strong>{Q_LABELS[dom.quadrant]}</strong> ({dominantPctText}% of {a.n} participants).
+          </div>
+        </div>
+
+        {/* Retain */}
+        {Array.isArray(agenda.retain)&&agenda.retain.length>0&&(
+          <div style={{marginBottom:'1.25rem'}}>
+            <div style={{fontSize:'.72rem',fontWeight:700,letterSpacing:'.08em',textTransform:'uppercase',color:'#2d7d46',marginBottom:'.6rem',paddingBottom:'.35rem',borderBottom:'1px solid #e5e1d8',fontFamily:"'DM Sans',sans-serif"}}>
+              Retain — what protects this shift
+            </div>
+            {agenda.retain.map((t,i)=>(
+              <div key={i} style={{padding:'.65rem .9rem',background:'#fafaf6',borderLeft:'3px solid #2d7d46',marginBottom:'.4rem',borderRadius:'0 3px 3px 0',fontSize:'.9rem',lineHeight:1.55,fontFamily:"'DM Sans',sans-serif",color:'#1a1a1a'}}>{t}</div>
+            ))}
+          </div>
+        )}
+
+        {/* Less of */}
+        {Array.isArray(agenda.less)&&agenda.less.length>0&&(
+          <div style={{marginBottom:'1.25rem'}}>
+            <div style={{fontSize:'.72rem',fontWeight:700,letterSpacing:'.08em',textTransform:'uppercase',color:'#c0392b',marginBottom:'.6rem',paddingBottom:'.35rem',borderBottom:'1px solid #e5e1d8',fontFamily:"'DM Sans',sans-serif"}}>
+              Less of — what holds this shift back
+            </div>
+            {agenda.less.map((t,i)=>(
+              <div key={i} style={{padding:'.65rem .9rem',background:'#fafaf6',borderLeft:'3px solid #c0392b',marginBottom:'.4rem',borderRadius:'0 3px 3px 0',fontSize:'.9rem',lineHeight:1.55,fontFamily:"'DM Sans',sans-serif",color:'#1a1a1a'}}>{t}</div>
+            ))}
+          </div>
+        )}
+
+        {/* More of */}
+        {Array.isArray(agenda.more)&&agenda.more.length>0&&(
+          <div style={{marginBottom:'1.25rem'}}>
+            <div style={{fontSize:'.72rem',fontWeight:700,letterSpacing:'.08em',textTransform:'uppercase',color:'#1a4fa0',marginBottom:'.6rem',paddingBottom:'.35rem',borderBottom:'1px solid #e5e1d8',fontFamily:"'DM Sans',sans-serif"}}>
+              More of — what this shift requires
+            </div>
+            {agenda.more.map((t,i)=>(
+              <div key={i} style={{padding:'.65rem .9rem',background:'#fafaf6',borderLeft:'3px solid #1a4fa0',marginBottom:'.4rem',borderRadius:'0 3px 3px 0',fontSize:'.9rem',lineHeight:1.55,fontFamily:"'DM Sans',sans-serif",color:'#1a1a1a'}}>{t}</div>
+            ))}
+          </div>
+        )}
+
+        {/* Convergence with picks footer */}
+        {conv&&typeof conv.convergent==='number'&&typeof conv.total==='number'&&conv.total>0&&(
+          <div style={{background:'#f5f1ea',padding:'.85rem 1rem',borderRadius:'3px',fontSize:'.82rem',color:'#4a4a4a',lineHeight:1.55,fontFamily:"'DM Sans',sans-serif",marginTop:'1rem'}}>
+            <strong style={{color:'#1a1a1a'}}>Convergence with picks:</strong> {conv.convergent} of these {conv.total} items match what 2+ participants individually selected. <button onClick={()=>setAgendaSubView('picks')} style={{background:'none',border:'none',color:'#e07030',textDecoration:'underline',cursor:'pointer',padding:0,fontSize:'.82rem',fontFamily:"'DM Sans',sans-serif"}}>See the full picks cluster →</button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   function renderPrinciplesTab(){
     const PAX_C=['#e07030','#1a4fa0','#2d7d46','#b87a20','#b83232','#6a3d9a','#0891b2','#78350f','#374151'];
     const augmentedRespondents=ensureDisplay(groupRespondents);
@@ -5983,9 +6217,96 @@ function App(){
       <div>
         <div className="rpt-section">
           <div className="rpt-heading">Group Behavioural Agenda</div>
-          <div className="inf-box">
-            Each participant chose up to 3 behaviours from their personalised three-column agenda — <strong>Retain</strong>, <strong>Less of</strong>, and <strong>More of</strong>. This view clusters those choices by theme within each bucket so you can see where the group is converging, and where it is split.
+
+          {/* Sub-view toggle — Agenda (default) vs Convergence with picks (existing cluster) */}
+          <div style={{display:'flex',gap:'.4rem',marginBottom:'1.25rem',borderBottom:'1px solid #d8d3cb',paddingBottom:'.85rem'}}>
+            <button
+              onClick={()=>setAgendaSubView('agenda')}
+              style={{
+                padding:'.5rem 1rem',
+                fontSize:'.82rem',
+                fontWeight:agendaSubView==='agenda'?700:500,
+                background:agendaSubView==='agenda'?'#1a1a1a':'#fff',
+                color:agendaSubView==='agenda'?'#fff':'#4a4a4a',
+                border:'1px solid '+(agendaSubView==='agenda'?'#1a1a1a':'#d8d3cb'),
+                borderRadius:'3px',
+                cursor:'pointer',
+                fontFamily:"'DM Sans',sans-serif"
+              }}>
+              Group Agenda
+            </button>
+            <button
+              onClick={()=>setAgendaSubView('picks')}
+              style={{
+                padding:'.5rem 1rem',
+                fontSize:'.82rem',
+                fontWeight:agendaSubView==='picks'?700:500,
+                background:agendaSubView==='picks'?'#1a1a1a':'#fff',
+                color:agendaSubView==='picks'?'#fff':'#4a4a4a',
+                border:'1px solid '+(agendaSubView==='picks'?'#1a1a1a':'#d8d3cb'),
+                borderRadius:'3px',
+                cursor:'pointer',
+                fontFamily:"'DM Sans',sans-serif"
+              }}>
+              Convergence with picks
+            </button>
           </div>
+
+          {/* === SUB-VIEW: GROUP AGENDA === */}
+          {agendaSubView==='agenda'&&(
+            <div>
+              <div className="inf-box" style={{marginBottom:'1rem'}}>
+                Generated from the group's collective shift profile. If the room is aligned, this is the agenda. If the room is split on direction, this surfaces the disagreement instead — because the diagnosis is the finding.
+              </div>
+
+              {real.length<3&&(
+                <div className="waiting-state">
+                  <div className="wait-icon">⏳</div>
+                  <h3>Need at least 3 respondents</h3>
+                  <div style={{fontSize:'.82rem',color:'#888',marginTop:'.5rem',fontFamily:"'DM Sans',sans-serif"}}>
+                    Currently {real.length} {real.length===1?'respondent has':'respondents have'} completed the diagnostic. The group agenda needs at least 3 to compute reliably.
+                  </div>
+                </div>
+              )}
+
+              {real.length>=3&&!groupAgenda&&!groupAgendaLoading&&!groupAgendaError&&(
+                <button className="btn-p" onClick={loadGroupAgenda}>
+                  Generate group agenda →
+                </button>
+              )}
+
+              {groupAgendaLoading&&(
+                <div className="think">
+                  <div className="dots"><div className="dot"/><div className="dot"/><div className="dot"/></div>
+                  <span className="think-txt">Reading the room and generating the agenda…</span>
+                </div>
+              )}
+
+              {groupAgendaError&&!groupAgendaLoading&&(
+                <div className="warn-box" style={{marginBottom:'.75rem'}}>
+                  <strong>Could not generate agenda.</strong> {groupAgendaError}
+                  <div style={{marginTop:'.65rem'}}>
+                    <button className="btn-s" onClick={()=>{setGroupAgendaError(null);loadGroupAgenda();}}>Try again</button>
+                  </div>
+                </div>
+              )}
+
+              {groupAgenda&&renderGroupAgendaContent(groupAgenda)}
+
+              {groupAgenda&&!groupAgendaLoading&&(
+                <div className="btn-row" style={{marginTop:'1.25rem'}}>
+                  <button className="btn-s" onClick={()=>{setGroupAgenda(null);setGroupAgendaError(null);loadGroupAgenda();}}>Regenerate</button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* === SUB-VIEW: CONVERGENCE WITH PICKS (existing bottom-up cluster) === */}
+          {agendaSubView==='picks'&&(
+            <div>
+              <div className="inf-box" style={{marginBottom:'1rem'}}>
+                Each participant chose up to 3 behaviours from their personalised three-column agenda — <strong>Retain</strong>, <strong>Less of</strong>, and <strong>More of</strong>. This view clusters those choices by theme within each bucket so you can see where the group is converging on what they personally selected.
+              </div>
 
           {withBehaviours.length===0&&(
             <div className="waiting-state">
@@ -6078,6 +6399,8 @@ function App(){
                 <button className="btn-s" onClick={()=>{setPrinciplesCluster(null);setPrinciplesClusterError(null);}}>Re-cluster</button>
                 <button className="btn-s" onClick={copyAsText}>Copy to clipboard</button>
               </div>
+            </div>
+          )}
             </div>
           )}
         </div>
