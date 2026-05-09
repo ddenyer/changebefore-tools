@@ -5011,8 +5011,18 @@ function App(){
               if(sd>topSpreadSD){topSpreadSD=sd;topSpreadDim=d.lbl;}
             });
           }
-          const totalPrinciples=realRespondents.reduce((n,r)=>n+(Array.isArray(r.selected_principles)?r.selected_principles.length:0),0);
-          const respondentsWithPrinciples=realRespondents.filter(r=>Array.isArray(r.selected_principles)&&r.selected_principles.length>0).length;
+          // Count from BOTH selected_behaviours (current) and selected_principles (legacy)
+          // so the tile reflects actual data regardless of which column the row used.
+          const totalPrinciples=realRespondents.reduce((n,r)=>{
+            const sb=Array.isArray(r.selected_behaviours)?r.selected_behaviours.length:0;
+            const sp=Array.isArray(r.selected_principles)?r.selected_principles.length:0;
+            return n+Math.max(sb,sp); // Max because newer rows have both populated
+          },0);
+          const respondentsWithPrinciples=realRespondents.filter(r=>{
+            const sb=Array.isArray(r.selected_behaviours)&&r.selected_behaviours.length>0;
+            const sp=Array.isArray(r.selected_principles)&&r.selected_principles.length>0;
+            return sb||sp;
+          }).length;
           const aiQReady=aiQuestions&&Array.isArray(aiQuestions.current)&&aiQuestions.current.length>0;
           const presentVisibleCount=selectedForPresent===null?realCount:selectedForPresent.size;
           const tiles=[
@@ -5720,7 +5730,7 @@ function App(){
               {aiQuestions&&renderAiFacilitationPrompts(aiQuestions)}
               {aiQuestions&&(
                 <div className="btn-row" style={{marginTop:'1rem'}}>
-                  <button className="btn-s" onClick={()=>{setAiQuestions(null);setAiQError(null);}}>Regenerate</button>
+                  <button className="btn-s" onClick={()=>{setAiQuestions(null);setAiQError(null);loadAiQuestions();}}>Regenerate</button>
                   <button className="btn-s" onClick={()=>{
                     const text=aiPromptsToPlainText(aiQuestions);
                     navigator.clipboard.writeText(text).catch(()=>{});
@@ -6416,7 +6426,7 @@ function App(){
               )}
 
               <div className="btn-row" style={{marginTop:'1rem'}}>
-                <button className="btn-s" onClick={()=>{setPrinciplesCluster(null);setPrinciplesClusterError(null);}}>Re-cluster</button>
+                <button className="btn-s" onClick={()=>{setPrinciplesCluster(null);setPrinciplesClusterError(null);loadPrinciplesCluster();}}>Re-cluster</button>
                 <button className="btn-s" onClick={copyAsText}>Copy to clipboard</button>
               </div>
             </div>
