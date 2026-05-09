@@ -3015,7 +3015,7 @@ function App(){
       const resp=await fetch('/api/stat-ai-questions',{
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({sessionCode:codeNorm,respondents:groupRespondents,thing}),
+        body:JSON.stringify({sessionCode:codeNorm,respondents:ensureDisplay(groupRespondents),thing}),
       });
       const data=await resp.json().catch(()=>null);
       if(!resp.ok){
@@ -3038,7 +3038,7 @@ function App(){
       const resp=await fetch('/api/stat-principles-cluster',{
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({sessionCode:codeNorm,respondents:groupRespondents,thing}),
+        body:JSON.stringify({sessionCode:codeNorm,respondents:ensureDisplay(groupRespondents),thing}),
       });
       const data=await resp.json().catch(()=>null);
       if(!resp.ok){
@@ -5653,6 +5653,31 @@ function App(){
       if(cur.has(name))cur.delete(name);else cur.add(name);
       setSelectedForPresent(cur);
     }
+    // Strategy quick-select: count participants by their as-is strategy
+    const strategyCounts = { preventative_control:0, mindful_action:0, performance_optimisation:0, adaptive_innovation:0, neutral:0 };
+    const strategyMembers = { preventative_control:[], mindful_action:[], performance_optimisation:[], adaptive_innovation:[], neutral:[] };
+    comp.forEach(r => {
+      const s = getStrategy(r.def||0, r.prog||0, r.con||0, r.flex||0);
+      if (strategyCounts[s] !== undefined) {
+        strategyCounts[s]++;
+        strategyMembers[s].push(r.respondent_name);
+      }
+    });
+    function toggleStrategy(strat){
+      const members = strategyMembers[strat] || [];
+      if (members.length === 0) return;
+      const cur = new Set(visibleSet);
+      // If ALL members of this strategy are already visible, remove them all (toggle off).
+      // Otherwise add them all (toggle on).
+      const allVisible = members.every(name => cur.has(name));
+      if (allVisible) {
+        members.forEach(name => cur.delete(name));
+      } else {
+        members.forEach(name => cur.add(name));
+      }
+      setSelectedForPresent(cur);
+    }
+
     function selectAll(){setSelectedForPresent(new Set(comp.map(r=>r.respondent_name)));}
     function selectNone(){setSelectedForPresent(new Set());}
     function renderDiamond(asIs){
@@ -5716,6 +5741,40 @@ function App(){
             <svg width="22" height="6"><line x1="0" y1="3" x2="22" y2="3" stroke="#888" strokeWidth="1.25" strokeDasharray="3,3"/></svg>
             <span>Selected individuals</span>
           </div>
+        </div>
+
+        {/* Strategy quick-select: tap a strategy to toggle all participants currently in that quadrant */}
+        <div style={{display:'flex',gap:'.4rem',marginBottom:'.6rem',flexWrap:'wrap',alignItems:'center'}}>
+          <span style={{fontSize:'.7rem',fontWeight:700,letterSpacing:'.05em',textTransform:'uppercase',color:'#888',fontFamily:"'DM Sans',sans-serif",marginRight:'.2rem'}}>Quick-select by strategy:</span>
+          {[
+            {key:'preventative_control', col:'#1a4fa0'},
+            {key:'mindful_action',       col:'#2d7d46'},
+            {key:'performance_optimisation', col:'#b87a20'},
+            {key:'adaptive_innovation',  col:'#e07030'},
+            {key:'neutral',              col:'#888'},
+          ].map(s=>{
+            const count=strategyCounts[s.key];
+            const members=strategyMembers[s.key]||[];
+            const allOn=members.length>0&&members.every(n=>visibleSet.has(n));
+            const disabled=count===0;
+            return(
+              <button key={s.key} type="button" disabled={disabled} onClick={()=>toggleStrategy(s.key)}
+                style={{
+                  padding:'.4rem .65rem',
+                  borderRadius:'3px',
+                  cursor:disabled?'not-allowed':'pointer',
+                  background:allOn?s.col:'#fff',
+                  color:allOn?'#fff':disabled?'#b0a898':'#1a1a1a',
+                  border:`1.5px solid ${disabled?'#e2ddd3':allOn?s.col:s.col}`,
+                  fontSize:'.72rem',fontWeight:600,
+                  fontFamily:"'DM Sans',sans-serif",
+                  outline:'none',transition:'all .15s',
+                  opacity:disabled?0.5:1,
+                }}>
+                {SLABELS[s.key]} ({count})
+              </button>
+            );
+          })}
         </div>
 
         <div style={{display:'flex',gap:'.5rem',marginBottom:'.75rem',flexWrap:'wrap'}}>
