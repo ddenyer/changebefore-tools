@@ -36,20 +36,21 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Supabase not configured' });
   }
 
-  // Upsert based on session_code (which is UNIQUE)
-  const payload = {
-    session_code: sessionCode,
-    tool,
-    thing_mode: thingMode || null,
-    thing_for_everyone: thingForEveryone || null,
-    thing_placeholder: thingPlaceholder || null,
-    thing_type: thingType || null,
-    org_size: orgSize || null,
-    sector: sector || null,
-    facilitator_notes: facilitatorNotes || null,
-    closed_at: closedAt || null,
-    scheduled_anonymisation_at: scheduledAnonymisationAt || null,
-  };
+  // Build the payload from ONLY the fields actually present in req.body.
+  // CRITICAL: never include `closed_at: null` or `scheduled_anonymisation_at: null`
+  // unless the caller explicitly meant to clear them — otherwise updating a
+  // session config (e.g. fixing a typo) would un-close the session and
+  // erase the anonymisation schedule.
+  const payload = { session_code: sessionCode, tool };
+  if (typeof thingMode !== 'undefined') payload.thing_mode = thingMode || null;
+  if (typeof thingForEveryone !== 'undefined') payload.thing_for_everyone = thingForEveryone || null;
+  if (typeof thingPlaceholder !== 'undefined') payload.thing_placeholder = thingPlaceholder || null;
+  if (typeof thingType !== 'undefined') payload.thing_type = thingType || null;
+  if (typeof orgSize !== 'undefined') payload.org_size = orgSize || null;
+  if (typeof sector !== 'undefined') payload.sector = sector || null;
+  if (typeof facilitatorNotes !== 'undefined') payload.facilitator_notes = facilitatorNotes || null;
+  if (typeof closedAt !== 'undefined') payload.closed_at = closedAt || null;
+  if (typeof scheduledAnonymisationAt !== 'undefined') payload.scheduled_anonymisation_at = scheduledAnonymisationAt || null;
 
   // session_code is unique. We can't rely on Supabase REST's
   // `Prefer: resolution=merge-duplicates` upsert — it's flaky and inserts
