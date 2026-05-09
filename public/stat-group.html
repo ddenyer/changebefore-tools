@@ -6015,6 +6015,20 @@ function App(){
       );
     }
 
+    if(state==='no_direction'){
+      return(
+        <div>
+          {renderQuadrantGrid()}
+          <div style={{background:'#fff8f5',border:'1px solid #f5c8b0',padding:'1rem 1.25rem',borderRadius:'3px',marginBottom:'1.25rem'}}>
+            <div style={{fontWeight:700,color:'#e07030',fontSize:'.88rem',marginBottom:'.35rem',fontFamily:"'DM Sans',sans-serif"}}>The room hasn't formed a view on direction.</div>
+            <div style={{fontSize:'.85rem',color:'#4a4a4a',lineHeight:1.55,fontFamily:"'DM Sans',sans-serif"}}>
+              All {a.n} respondents have a Neutral to-be profile — none are pulling strongly toward any of the four strategic quadrants. There's no shift to plan an agenda around. The work here is to surface what people actually want — they may not have committed to a direction because the question feels too abstract, or because they haven't agreed what's at stake yet.
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     if(state==='split'){
       // Group respondents by their to-be quadrant
       const byQuadrant={};
@@ -6077,7 +6091,7 @@ function App(){
               ⚠ The room is leaning, not unanimous
             </div>
             <div style={{fontSize:'.82rem',color:'#4a4a4a',lineHeight:1.55,fontFamily:"'DM Sans',sans-serif"}}>
-              {dominantPctText}% of {a.n} participants want to move toward {Q_LABELS[dom.quadrant]}, but {100-dominantPctText}% are pulling in other directions{second?` (notably ${Q_LABELS[second.quadrant]} at ${Math.round(second.pct*100)}%)`:''}. The agenda below assumes the dominant direction holds. Before accepting it, decide whether the dissent is informed concern that should reshape the agenda, or a minority view the group can move past.
+              {dominantPctText}% of {a.directionalN||a.n} {a.neutralCount>0?'directional':''} respondents want to move toward {Q_LABELS[dom.quadrant]}, but {100-dominantPctText}% are pulling in other directions{second?` (notably ${Q_LABELS[second.quadrant]} at ${Math.round(second.pct*100)}%)`:''}. {a.neutralCount>0?`A further ${a.neutralCount} ${a.neutralCount===1?'respondent has':'respondents have'} a Neutral to-be — abstaining on direction. `:''}The agenda below assumes the dominant direction holds. Before accepting it, decide whether the dissent is informed concern that should reshape the agenda, or a minority view the group can move past.
             </div>
           </div>
         )}
@@ -6087,7 +6101,7 @@ function App(){
             The shift this group {state==='leaning'?'is leaning toward':'is committing to'}
           </div>
           <div style={{fontSize:'.92rem',color:'#4a4a4a',lineHeight:1.55,fontFamily:"'DM Sans',sans-serif"}}>
-            From <strong>{Q_LABELS[a.groupAsIs]}</strong> (group as-is) toward <strong>{Q_LABELS[dom.quadrant]}</strong> ({dominantPctText}% of {a.n} participants).
+            From <strong>{Q_LABELS[a.groupAsIs]}</strong> (group as-is) toward <strong>{Q_LABELS[dom.quadrant]}</strong> ({dominantPctText}% of {a.directionalN||a.n} {a.neutralCount>0?'directional respondents':'participants'}).
           </div>
         </div>
 
