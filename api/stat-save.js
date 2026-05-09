@@ -62,7 +62,7 @@ export default async function handler(req, res) {
     const allowed = ['session_code','respondent_name','role','thing',
       'prog','def','con','flex','tobe_prog','tobe_def','tobe_con','tobe_flex',
       's1_answers','s2_answers','seniority','org_size','sector','strategy_type',
-      'notes','started','selected_principles','pending_review',
+      'notes','started','selected_principles','selected_behaviours','pending_review',
       'thing_desc','context_text','thirty_day','feedback_rating','feedback_comment',
       'participant_id'];
     const safeBody = Object.fromEntries(Object.entries(body).filter(([k]) => allowed.includes(k)));
