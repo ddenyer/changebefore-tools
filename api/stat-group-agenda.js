@@ -69,6 +69,11 @@ function opposingQuadrant(strat) {
 }
 
 // ── Group state classification ───────────────────────────────────────────
+// Neutral handling: a Neutral to-be is treated as an abstention, not dissent.
+// Someone whose to-be lands in Neutral is saying "I don't have a strong view
+// on direction." That's different from someone who actively wants to move
+// the opposite way. So Neutral respondents are excluded from the dominant
+// percentage calculation but still counted as part of the room (n_total).
 function classifyGroupState(respondents) {
   const valid = respondents.filter(r =>
     Number.isFinite(r.tobe_prog) && Number.isFinite(r.tobe_def) &&
@@ -84,11 +89,22 @@ function classifyGroupState(respondents) {
     classifyStrategy(r.def, r.prog, r.con, r.flex)
   );
 
-  // Count to-be quadrants
+  // Count to-be quadrants. Track neutrals separately.
   const counts = {};
-  tobeQuadrants.forEach(q => { counts[q] = (counts[q] || 0) + 1; });
+  let neutralCount = 0;
+  tobeQuadrants.forEach(q => {
+    if (q === 'neutral') {
+      neutralCount++;
+    } else {
+      counts[q] = (counts[q] || 0) + 1;
+    }
+  });
 
-  // Sort quadrants by count desc
+  // Directional respondents — those with a non-Neutral to-be.
+  // Dominant percentage is computed against THIS, not the full n.
+  const directionalN = n - neutralCount;
+
+  // Sort directional quadrants by count desc
   const ranked = Object.entries(counts).sort((a, b) => b[1] - a[1]);
   const dominant = ranked[0] || null;
   const second = ranked[1] || null;
@@ -111,21 +127,19 @@ function classifyGroupState(respondents) {
   let state;
   if (n < MIN_PARTICIPANTS) {
     state = 'too_few';
+  } else if (directionalN === 0) {
+    // Everyone is Neutral on direction — the room hasn't formed a view.
+    // Treat as a special case: too_few in spirit, since there's no direction to plan around.
+    state = 'no_direction';
   } else {
-    const dominantPct = dominant ? dominant[1] / n : 0;
-    const secondPct = second ? second[1] / n : 0;
+    // Compute dominance against DIRECTIONAL respondents only.
+    const dominantPct = dominant ? dominant[1] / directionalN : 0;
+    const secondPct = second ? second[1] / directionalN : 0;
     if (dominantPct >= ALIGNED_THRESHOLD) {
       state = 'aligned';
     } else if (dominantPct >= LEANING_THRESHOLD) {
-      // Only call it Leaning if there's a real second pole (≥20%).
-      // Otherwise (e.g., 2/2 split with one quadrant having only 1 person counted twice) treat as leaning.
-      // In a 4-person 2/2 split, dominantPct=0.5, secondPct=0.5 — that's a Split between two
-      // quadrants.  But it could also be Leaning if the 50% lands on one direction and 50%
-      // is scattered.  Use a stricter test: Split when no quadrant >= 50% AND there are 3+ distinct quadrants
-      // OR when two opposing quadrants each have >=40%.  The simpler rule below matches the spec.
       state = 'leaning';
-      // Special case: 50/50 between two opposing quadrants is a Split, not a Leaning.
-      // Detect by checking if dominant and second are opposites and have equal counts.
+      // Special case: 50/50 between opposing quadrants is a Split, not a Leaning.
       if (dominant && second &&
           dominant[1] === second[1] &&
           opposingQuadrant(dominant[0]) === second[0]) {
@@ -148,9 +162,12 @@ function classifyGroupState(respondents) {
   return {
     state,
     n,
+    directionalN,
+    neutralCount,
     counts,
-    dominant: dominant ? { quadrant: dominant[0], n: dominant[1], pct: dominant[1] / n } : null,
-    second: second ? { quadrant: second[0], n: second[1], pct: second[1] / n } : null,
+    // Percentages now computed against directional respondents (excluding Neutrals)
+    dominant: dominant ? { quadrant: dominant[0], n: dominant[1], pct: directionalN > 0 ? dominant[1] / directionalN : 0 } : null,
+    second: second ? { quadrant: second[0], n: second[1], pct: directionalN > 0 ? second[1] / directionalN : 0 } : null,
     means,
     groupAsIs,
     groupToBe,
@@ -165,20 +182,21 @@ function avg(arr) {
 
 // ── Agenda generation prompt ─────────────────────────────────────────────
 function buildAgendaPrompt({ groupAnalysis, thing, sector }) {
-  const { state, dominant, second, means, groupAsIs, groupToBe, n } = groupAnalysis;
+  const { state, dominant, second, means, groupAsIs, groupToBe, n, directionalN, neutralCount } = groupAnalysis;
   const th = thing || 'this organisation';
   const sec = sector ? ` in ${sector}` : '';
 
   if (state !== 'aligned' && state !== 'leaning') {
-    return null; // Split state doesn't generate an agenda.
+    return null; // Split / no_direction states don't generate an agenda.
   }
 
   const dominantLabel = SLABELS[dominant.quadrant];
   const dominantAxis = SAXIS[dominant.quadrant] || {};
   const dominantPctText = Math.round(dominant.pct * 100);
+  const directionalLabel = neutralCount > 0 ? `${directionalN} directional respondents (out of ${n} total — ${neutralCount} abstained as Neutral)` : `${n} participants`;
 
   const leaningCaveat = state === 'leaning'
-    ? `\nNOTE: This is a LEANING group, not an aligned one. ${dominantPctText}% of ${n} participants want to move toward ${dominantLabel}, but ${100 - dominantPctText}% are pulling in other directions (notably ${second ? SLABELS[second.quadrant] + ' at ' + Math.round(second.pct * 100) + '%' : 'other quadrants'}). The agenda should be confident in direction but also acknowledge the dissent — it should not pretend the room is unanimous. Where appropriate, frame items as "for the room as a whole to align around" rather than as already-agreed commitments.`
+    ? `\nNOTE: This is a LEANING group, not an aligned one. ${dominantPctText}% of ${directionalLabel} want to move toward ${dominantLabel}, but ${100 - dominantPctText}% are pulling in other directions (notably ${second ? SLABELS[second.quadrant] + ' at ' + Math.round(second.pct * 100) + '%' : 'other quadrants'}). The agenda should be confident in direction but also acknowledge the dissent — it should not pretend the room is unanimous. Where appropriate, frame items as "for the room as a whole to align around" rather than as already-agreed commitments.`
     : '';
 
   return `You are generating a behavioural agenda for a leadership group${sec} working on ${th}.
@@ -186,7 +204,7 @@ function buildAgendaPrompt({ groupAnalysis, thing, sector }) {
 GROUP DIAGNOSTIC:
 - As-is profile (group means): Progressive ${means.prog}, Defensive ${means.def}, Consistent ${means.con}, Flexible ${means.flex} → ${SLABELS[groupAsIs]}
 - To-be profile (group means): Progressive ${means.tobe_prog}, Defensive ${means.tobe_def}, Consistent ${means.tobe_con}, Flexible ${means.tobe_flex} → ${SLABELS[groupToBe]}
-- ${dominantPctText}% of ${n} participants individually want to move toward ${dominantLabel} (${dominantAxis.mindset} mindset, ${dominantAxis.approach}-leaning approach).${leaningCaveat}
+- ${dominantPctText}% of ${directionalLabel} individually want to move toward ${dominantLabel} (${dominantAxis.mindset} mindset, ${dominantAxis.approach}-leaning approach).${leaningCaveat}
 
 YOUR TASK:
 Generate a behavioural agenda for the shift this group has chosen. Three buckets:
@@ -296,6 +314,13 @@ export default async function handler(req, res) {
         state: 'too_few',
         analysis: groupAnalysis,
         message: `Need at least ${MIN_PARTICIPANTS} respondents to compute group agenda. Currently ${groupAnalysis.n}.`,
+      });
+    }
+
+    if (groupAnalysis.state === 'no_direction') {
+      return res.status(200).json({
+        state: 'no_direction',
+        analysis: groupAnalysis,
       });
     }
 
