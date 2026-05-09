@@ -4435,7 +4435,41 @@ function App(){
         </div>
         <div className="rpt-section" style={{marginBottom:'2rem'}}>
           <div className="rpt-heading" style={{fontSize:'1rem',marginBottom:'1rem'}}>Your selected behaviours</div>
-          {selectedPrinciples&&selectedPrinciples.length>0?(
+          {selectedBehaviours&&selectedBehaviours.length>0?(
+            <div>
+              {(() => {
+                // Group by bucket so the report mirrors the picker structure.
+                const byBucket = {retain:[], less:[], more:[]};
+                selectedBehaviours.forEach(b => {
+                  let bk = b.bucket;
+                  if (bk==='keep') bk='retain';
+                  else if (bk==='add') bk='more';
+                  else if (bk==='replace') bk='less';
+                  if (byBucket[bk]) byBucket[bk].push(b);
+                });
+                const sections = [
+                  {key:'retain', label:'Retain', color:'#2d7d4a', bg:'#e8f4ed', desc:'Practices to protect — what we want to keep doing.'},
+                  {key:'less',   label:'Less of', color:'#c0392b', bg:'#fcebe9', desc:'Defaults we lean on too hard — what to dial down.'},
+                  {key:'more',   label:'More of', color:'#1f6fa3', bg:'#e6f0f7', desc:'Disciplines to develop — what to dial up.'},
+                ];
+                return sections.filter(s => byBucket[s.key].length > 0).map(s => (
+                  <div key={s.key} style={{marginBottom:'1.25rem'}}>
+                    <div style={{display:'inline-block',padding:'.25rem .65rem',background:s.bg,color:s.color,fontSize:'.7rem',fontWeight:700,letterSpacing:'.06em',textTransform:'uppercase',borderRadius:'3px',marginBottom:'.5rem',fontFamily:"'DM Sans',sans-serif"}}>{s.label}</div>
+                    {byBucket[s.key].map((b, j) => (
+                      <div key={j} className="sug-item">
+                        <div className="sug-txt" style={{fontWeight:500}}>
+                          {b.text}
+                          {b.is_edited && <span style={{display:'inline-block',marginLeft:'.5rem',padding:'.1rem .4rem',background:'#fff8f5',color:'#e07030',fontSize:'.62rem',fontWeight:700,letterSpacing:'.05em',textTransform:'uppercase',borderRadius:'2px',border:'1px solid #f5c8b0',verticalAlign:'middle',fontFamily:"'DM Sans',sans-serif"}}>edited</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ));
+              })()}
+              <p style={{fontSize:'.78rem',color:'#888',marginTop:'1rem',lineHeight:1.6,fontFamily:"'DM Sans',sans-serif"}}>These are the commitments you have selected as most likely to help {th} make the shift you described. They are not actions for next Tuesday — they are positions you are committing to hold and act from.</p>
+            </div>
+          ):selectedPrinciples&&selectedPrinciples.length>0?(
+            // Legacy fallback for participants whose selectedBehaviours never got populated
             <div>
               {selectedPrinciples.map((p,i)=>(
                 <div key={i} className="sug-item">
@@ -4443,7 +4477,6 @@ function App(){
                   <div className="sug-txt" style={{fontWeight:500}}>{p}</div>
                 </div>
               ))}
-              <p style={{fontSize:'.78rem',color:'#888',marginTop:'1rem',lineHeight:1.6,fontFamily:"'DM Sans',sans-serif"}}>These are the commitments to a way of seeing that you believe will most help {th} make the shift you described. They are not actions for next Tuesday — they are positions you are committing to hold and act from.</p>
             </div>
           ):(
             <p className="rpt-body" style={{fontStyle:'italic',color:'#888'}}>You did not select any behaviours. You can go back to the Behaviours step from the progress bar to choose some, or you can simply use this report's profile and gap analysis as a basis for your own thinking.</p>
