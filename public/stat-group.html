@@ -1865,7 +1865,7 @@ function generateStatGroupPDF(opts){
 
   const N = realRespondents.length;
   const tobeN = withTobe.length;
-  const dominantStrategy = SLABELS[groupStrat]+(groupIsSplit?' (group is split)':'');
+  const dominantStrategy = SLABELS[groupStrat]+(groupIsSplit?' (varied as-is)':'');
   const biggestShift = bigGap && Math.abs(bigGap.gap)>=8 ? bigGap : null;
 
   let bits = [];
@@ -1892,7 +1892,7 @@ function generateStatGroupPDF(opts){
   const boxW = (pageW-2*margin-8)/3;
   const boxes = [
     {label:'RESPONDENTS', value:String(N), sub:tobeN<N&&tobeN>0?(tobeN+' incl. desired'):''},
-    {label:'DOMINANT STRATEGY', value:SLABELS[groupStrat], sub:groupIsSplit?'Group is split':'Aligned'},
+    {label:'DOMINANT STRATEGY', value:SLABELS[groupStrat], sub:groupIsSplit?'Varied as-is':'Aligned'},
     {label:'BIGGEST SHIFT', value:biggestShift?(biggestShift.lbl):'—', sub:biggestShift?(((biggestShift.gap>0?'+':'')+biggestShift.gap)+' pts'):'No major shift'}
   ];
   boxes.forEach((b,i)=>{
@@ -1946,7 +1946,7 @@ function generateStatGroupPDF(opts){
   setFont(7, 'bold', ACCENT);
   doc.text('CURRENT STRATEGY', margin+5, y+6);
   setFont(13, 'bold', WHITE);
-  doc.text(SLABELS[groupStrat]+(groupIsSplit?' [group is split]':''), margin+5, y+12);
+  doc.text(SLABELS[groupStrat]+(groupIsSplit?' [varied as-is]':''), margin+5, y+12);
   y += 22;
 
   if(groupTobeStrat && groupTobeStrat!==groupStrat){
@@ -2551,8 +2551,8 @@ function App(){
     },
     'group-report':{
       look:`The group's average profile shown two ways: as a four-pointed diamond (current vs desired) and as group mean scores per dimension. The dominant strategy badge tells you which of the four quadrants the average lands in.`,
-      do:`Use this as the opening artefact in the debrief: "Here is what your group looks like, on average." Compare current (black) and desired (orange) shapes — where is the biggest gap? That is the group's intended shift. If the headline shows [group is split], the average hides genuine division — go to Variance before drawing conclusions.`,
-      watch:`A "Neutral" dominant strategy can mean either the group is equally balanced across four modes (rare), or the group is split and averages cancel out (common). The split tag tells you which.`
+      do:`Use this as the opening artefact in the debrief: "Here is what your group looks like, on average." Compare current (black) and desired (orange) shapes — where is the biggest gap? That is the group's intended shift. If the headline shows [varied as-is], the average hides genuine variance in how people see the current state — go to Variance before drawing conclusions.`,
+      watch:`A "Neutral" dominant strategy can mean either the group is equally balanced across four modes (rare), or the group's individual scores cancel out (common). The [varied as-is] tag tells you which. Note: this is about as-is variance — for direction-of-shift disagreement, see the Group Agenda tab.`
     },
     present:{
       look:`A projector-friendly view of all respondents' diamonds overlaid, with the group means shown bold (black = current, orange = desired). Use the checkboxes to show or hide individual profiles.`,
@@ -4875,7 +4875,7 @@ function App(){
       Math.sqrt(dimVariance.prog)>=10 || Math.sqrt(dimVariance.def)>=10 ||
       Math.sqrt(dimVariance.con)>=10 || Math.sqrt(dimVariance.flex)>=10
     );
-    const splitTag=groupIsSplit?' [group is split]':'';
+    const splitTag=groupIsSplit?' [varied as-is]':'';
 
     // Group mean
     const gMean={prog:0,def:0,con:0,flex:0};
@@ -6098,10 +6098,16 @@ function App(){
 
         <div className="rpt-section" style={{marginBottom:'1.25rem'}}>
           <div className="rpt-heading" style={{fontSize:'1.05rem',marginBottom:'.5rem'}}>
-            The shift this group {state==='leaning'?'is leaning toward':'is committing to'}
+            {a.groupAsIs===dom.quadrant?'The posture this group is doubling down on':(state==='leaning'?'The shift this group is leaning toward':'The shift this group is committing to')}
           </div>
           <div style={{fontSize:'.92rem',color:'#4a4a4a',lineHeight:1.55,fontFamily:"'DM Sans',sans-serif"}}>
-            From <strong>{Q_LABELS[a.groupAsIs]}</strong> (group as-is) toward <strong>{Q_LABELS[dom.quadrant]}</strong> ({dominantPctText}% of {a.directionalN||a.n} {a.neutralCount>0?'directional respondents':'participants'}).
+            {a.groupAsIs===dom.quadrant?(
+              <span>The group is already in <strong>{Q_LABELS[dom.quadrant]}</strong> (as-is) and wants to stay there. The agenda below is about strengthening that posture, not changing direction.</span>
+            ):(
+              <span>From <strong>{Q_LABELS[a.groupAsIs]}</strong> (group as-is) toward <strong>{Q_LABELS[dom.quadrant]}</strong>.</span>
+            )}
+            {' '}{dominantPctText}% of {a.directionalN||a.n} {a.neutralCount>0?(a.directionalN===1?'directional respondent':'directional respondents'):(a.n===1?'participant':'participants')} chose this direction
+            {a.neutralCount>0?(<span> · {a.neutralCount} {a.neutralCount===1?'respondent':'respondents'} abstained as Neutral (out of {a.n} total)</span>):null}.
           </div>
         </div>
 
@@ -6442,7 +6448,7 @@ function App(){
     const _splitVarC=_v(realRespondents.map(r=>r.con||0));
     const _splitVarF=_v(realRespondents.map(r=>r.flex||0));
     const groupIsSplit=realRespondents.length>=3&&(Math.sqrt(_splitVarP)>=10||Math.sqrt(_splitVarD)>=10||Math.sqrt(_splitVarC)>=10||Math.sqrt(_splitVarF)>=10);
-    const splitTag=groupIsSplit?' [group is split]':'';
+    const splitTag=groupIsSplit?' [varied as-is]':'';
 
 
 
