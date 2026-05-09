@@ -2437,6 +2437,34 @@ function generateStatGroupPDF(opts){
 // ── MAIN APP ─────────────────────────────────────────────────────────────────
 function App(){
   const [step,setStep]=useState(-1);
+  // Helper: anonymous-aware display name. Used across facilitator/group/present tabs.
+  // If respondent_name is set, use it. Otherwise generate "Participant NN" from
+  // participant_id_padded or sequential index.
+  function makeDisplayMap(rows){
+    const sorted=[...rows].sort((a,b)=>{
+      const da=a.created_at||a.date||''; const db=b.created_at||b.date||'';
+      return da<db?-1:da>db?1:0;
+    });
+    const idToNum={};
+    sorted.forEach((r,i)=>{
+      if(r.participant_id&&!idToNum[r.participant_id]) idToNum[r.participant_id]=i+1;
+    });
+    return idToNum;
+  }
+  function displayName(r, idToNum){
+    if (r && r.respondent_name && r.respondent_name.trim()) return r.respondent_name.trim();
+    if (r && r.participant_id_padded) return `Participant ${r.participant_id_padded}`;
+    if (r && r.participant_id && idToNum && idToNum[r.participant_id]) return `Participant ${String(idToNum[r.participant_id]).padStart(2,'0')}`;
+    return 'Participant';
+  }
+  function ensureDisplay(rows){
+    const idToNum=makeDisplayMap(rows);
+    return rows.map(r => {
+      if (r.respondent_name && r.respondent_name.trim()) return r;
+      return { ...r, respondent_name: displayName(r, idToNum) };
+    });
+  }
+
   // Code-gate state (Phase 1)
   const [accessCode,setAccessCode]=useState('');
   const [accessCodeInput,setAccessCodeInput]=useState('');
@@ -3123,12 +3151,12 @@ function App(){
   },[codeNorm]);
 
   function exportCSV(){
-    const rows=groupRespondents.filter(r=>r.respondent_name&&r.respondent_name!=='__facilitator__'&&((r.s1_answers&&r.s1_answers.length>0)||(r.s2_answers&&r.s2_answers.length>0)||r.prog||r.tobe_prog));
+    const rows=groupRespondents.filter(r=>(r.respondent_name||r.participant_id)&&r.respondent_name!=='__facilitator__'&&r.respondent_name!=='__session_closed__'&&((r.s1_answers&&r.s1_answers.length>0)||(r.s2_answers&&r.s2_answers.length>0)||r.prog||r.tobe_prog));
     const headers=['Name','Role','Sector','Progressive','Defensive','Consistent','Flexible','Strategy','Tobe_P','Tobe_D','Tobe_C','Tobe_F','Date'];
     const lines=[headers.join(','),...rows.map(r=>[
-      `"${r.respondent_name||''}"`,`"${r.role||''}"`,`"${r.sector||''}"`,
+      `"${r.respondent_name||(r.participant_id_padded?'Participant '+r.participant_id_padded:r.participant_id||'')}"`,`"${r.role||''}"`,`"${r.sector||''}"`,
       r.prog||0,r.def||0,r.con||0,r.flex||0,`"${r.strategy_type||''}"`,
-      r.tobe_p||0,r.tobe_d||0,r.tobe_c||0,r.tobe_f||0,`"${(r.date||'').slice(0,10)}"`
+      r.tobe_prog||0,r.tobe_def||0,r.tobe_con||0,r.tobe_flex||0,`"${(r.date||'').slice(0,10)}"`
     ].join(','))];
     const blob=new Blob([lines.join('\n')],{type:'text/csv'});
     const a=document.createElement('a');
@@ -4677,24 +4705,6 @@ function App(){
   // ── FACILITATOR TAB ──────────────────────────────────────────────────────
   function renderFacilitatorTab(){
     const PAX_COLORS=['#e07030', '#1a4fa0', '#2d7d46', '#b87a20', '#b83232', '#6a3d9a', '#0891b2', '#78350f', '#374151'];
-    // Inject a displayName fallback on every row: if respondent_name is empty (anonymous
-    // new-flow participant), use a participant-N label derived from order of appearance.
-    // Phase 6 will replace this with proper participant_id_padded from session_participants.
-    function ensureDisplay(rows){
-      const sorted=[...rows].sort((a,b)=>{
-        const da=a.created_at||a.date||'';const db=b.created_at||b.date||'';
-        return da<db?-1:da>db?1:0;
-      });
-      const idToNum={};
-      sorted.forEach((r,i)=>{
-        if(r.participant_id&&!idToNum[r.participant_id])idToNum[r.participant_id]=i+1;
-      });
-      return rows.map(r=>{
-        if(r.respondent_name&&r.respondent_name.trim())return r;
-        const n=r.participant_id?idToNum[r.participant_id]:null;
-        return {...r, respondent_name: n?`Participant ${String(n).padStart(2,'0')}`:'Participant'};
-      });
-    }
     const augmentedRespondents=ensureDisplay(groupRespondents);
     const realRespondents=augmentedRespondents.filter(r=>(r.respondent_name||r.participant_id)&&r.respondent_name!=='__facilitator__'&&r.respondent_name!=='__session_closed__'&&!r.pending_review&&((r.s1_answers&&r.s1_answers.length>0)||(r.s2_answers&&r.s2_answers.length>0)||r.prog||r.tobe_prog));
     const pendingReviewers=augmentedRespondents.filter(r=>(r.respondent_name||r.participant_id)&&r.respondent_name!=='__facilitator__'&&r.respondent_name!=='__session_closed__'&&r.pending_review===true);
@@ -4728,9 +4738,9 @@ function App(){
 
     // Group to-be mean
     const gTobeMean={p:0,d:0,c:0,f:0};
-    const withTobe=realRespondents.filter(r=>r.tobe_p);
+    const withTobe=realRespondents.filter(r=>r.tobe_prog);
     if(withTobe.length>0){
-      withTobe.forEach(r=>{gTobeMean.p+=(r.tobe_p||60);gTobeMean.d+=(r.tobe_d||60);gTobeMean.c+=(r.tobe_c||60);gTobeMean.f+=(r.tobe_f||60);});
+      withTobe.forEach(r=>{gTobeMean.p+=(r.tobe_prog||60);gTobeMean.d+=(r.tobe_def||60);gTobeMean.c+=(r.tobe_con||60);gTobeMean.f+=(r.tobe_flex||60);});
       ['p','d','c','f'].forEach(k=>{gTobeMean[k]=Math.round(gTobeMean[k]/withTobe.length);});
     }
     const groupTobeStrat=withTobe.length>0?getStrategy(gTobeMean.d,gTobeMean.p,gTobeMean.c,gTobeMean.f):null;
@@ -5514,7 +5524,7 @@ function App(){
                     !!(r.s1_answers&&r.s1_answers.length>0),
                     !!(r.s2_answers&&r.s2_answers.length>0),
                     !!(r.prog),
-                    !!(r.tobe_p),
+                    !!(r.tobe_prog),
                     true,
                   ];
                   const done=steps.filter(Boolean).length;
@@ -5619,7 +5629,8 @@ function App(){
 
   function renderPresentTab(){
     const PAX_C=['#e07030','#1a4fa0','#2d7d46','#b87a20','#b83232','#6a3d9a','#0891b2','#78350f','#374151'];
-    const comp=groupRespondents.filter(r=>r.respondent_name&&r.respondent_name!=='__facilitator__'&&r.prog);
+    const augmentedRespondents=ensureDisplay(groupRespondents);
+    const comp=augmentedRespondents.filter(r=>(r.respondent_name||r.participant_id)&&r.respondent_name!=='__facilitator__'&&r.respondent_name!=='__session_closed__'&&r.prog);
     const visibleSet=selectedForPresent===null?new Set(comp.map(r=>r.respondent_name)):selectedForPresent;
     const visible=comp.filter(r=>visibleSet.has(r.respondent_name));
     // As-is mean
@@ -5734,7 +5745,8 @@ function App(){
 
   function renderPrinciplesTab(){
     const PAX_C=['#e07030','#1a4fa0','#2d7d46','#b87a20','#b83232','#6a3d9a','#0891b2','#78350f','#374151'];
-    const real=groupRespondents.filter(r=>(r.respondent_name||r.participant_id)&&r.respondent_name!=='__facilitator__'&&((r.s1_answers&&r.s1_answers.length>0)||(r.s2_answers&&r.s2_answers.length>0)||r.prog||r.tobe_prog));
+    const augmentedRespondents=ensureDisplay(groupRespondents);
+    const real=augmentedRespondents.filter(r=>(r.respondent_name||r.participant_id)&&r.respondent_name!=='__facilitator__'&&((r.s1_answers&&r.s1_answers.length>0)||(r.s2_answers&&r.s2_answers.length>0)||r.prog||r.tobe_prog));
     // A row counts as having behaviours if either selected_behaviours OR selected_principles is populated
     const withBehaviours=real.filter(r=>{
       const sb=Array.isArray(r.selected_behaviours)?r.selected_behaviours:[];
@@ -5914,7 +5926,8 @@ function App(){
   }
 
   function renderGroupReportTab(){
-    const realRespondents=groupRespondents.filter(r=>r.respondent_name&&r.respondent_name!=='__facilitator__'&&r.respondent_name!=='__session_closed__'&&!r.pending_review&&((r.s1_answers&&r.s1_answers.length>0)||(r.s2_answers&&r.s2_answers.length>0)||r.prog||r.tobe_prog));
+    const augmentedRespondents=ensureDisplay(groupRespondents);
+    const realRespondents=augmentedRespondents.filter(r=>(r.respondent_name||r.participant_id)&&r.respondent_name!=='__facilitator__'&&r.respondent_name!=='__session_closed__'&&!r.pending_review&&((r.s1_answers&&r.s1_answers.length>0)||(r.s2_answers&&r.s2_answers.length>0)||r.prog||r.tobe_prog));
     const myEntry=realRespondents.find(r=>r.respondent_name===respondentName.trim());
     const PAX_COLORS=['#e07030', '#1a4fa0', '#2d7d46', '#b87a20', '#b83232', '#6a3d9a', '#0891b2', '#78350f', '#374151'];
 
