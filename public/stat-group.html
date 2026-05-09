@@ -2441,13 +2441,21 @@ function App(){
   // If respondent_name is set, use it. Otherwise generate "Participant NN" from
   // participant_id_padded or sequential index.
   function makeDisplayMap(rows){
+    // Sort all rows by created_at so numbering is stable across renders.
     const sorted=[...rows].sort((a,b)=>{
       const da=a.created_at||a.date||''; const db=b.created_at||b.date||'';
       return da<db?-1:da>db?1:0;
     });
+    // Number ONLY anonymous rows (no respondent_name). Named rows keep their names
+    // and don't consume a number slot — so anonymous numbering stays contiguous.
     const idToNum={};
-    sorted.forEach((r,i)=>{
-      if(r.participant_id&&!idToNum[r.participant_id]) idToNum[r.participant_id]=i+1;
+    let counter = 0;
+    sorted.forEach(r=>{
+      const isAnonymous = !r.respondent_name || !r.respondent_name.trim();
+      if (isAnonymous && r.participant_id && !idToNum[r.participant_id]) {
+        counter++;
+        idToNum[r.participant_id] = counter;
+      }
     });
     return idToNum;
   }
@@ -2520,7 +2528,8 @@ function App(){
   const [feedbackComment,setFeedbackComment]=useState('');
   const [feedbackSent,setFeedbackSent]=useState(false);
   const [feedbackSending,setFeedbackSending]=useState(false);
-  const [sessionCode,setSessionCode]=useState('');
+  // sessionCode state was a legacy alias of accessCode; it never gets set anywhere
+  // outside restart() so it's effectively dead. Removed May 2026.
 
   const [orgSize,setOrgSize]=useState('');
   const [sector,setSector]=useState('');
@@ -2605,17 +2614,14 @@ function App(){
   const [principles,setPrinciples]=useState(null);
   const [principlesLoading,setPrinciplesLoading]=useState(false);
   const [selectedPrinciples,setSelectedPrinciples]=useState([]);
-  const [customPrinciple,setCustomPrinciple]=useState('');
   // New (May 2026): structured three-column behaviours.
   // - `behaviours`: array of {text,bucket,category,axis,question_id} from the API
   // - `behavioursMeta`: gap sizes, strategy labels, header copy
-  // - `selectedBehaviours`: array of {text,bucket,category,axis,rank,is_custom}
+  // - `selectedBehaviours`: array of {text,bucket,category,axis,is_edited,is_custom}
   //                        kept in sync with selectedPrinciples (flat strings) for back-compat
-  // - `customBucketInputs`: text being typed per bucket {keep:'',add:'',replace:''}
   const [behaviours,setBehaviours]=useState(null);
   const [behavioursMeta,setBehavioursMeta]=useState(null);
   const [selectedBehaviours,setSelectedBehaviours]=useState([]);
-  const [customBucketInputs,setCustomBucketInputs]=useState({keep:'',add:'',replace:''});
   // New (May 2026): index in `behaviours` of the item being inline-edited (or null)
   const [editingBehaviourIdx,setEditingBehaviourIdx]=useState(null);
   const [principlesCluster,setPrinciplesCluster]=useState(null);
@@ -2668,8 +2674,15 @@ function App(){
   // Supabase save is via /api/stat-save in saveToGroup). Keyed off accessCode.
   useEffect(()=>{
     if(!accessCode||step<=0)return;
-    saveProgress(accessCode,{step,thing,thingDesc,contextText,s1ans,s2ans,tobe,tobeInit,participantUuid,participantNumber,participantId,accessCode,role,roleCustom});
-  },[step,thing,thingDesc,contextText,s1ans,s2ans,tobe,tobeInit,accessCode,role,roleCustom,participantUuid,participantNumber,participantId]);
+    saveProgress(accessCode,{
+      step,thing,thingDesc,contextText,s1ans,s2ans,tobe,tobeInit,
+      participantUuid,participantNumber,participantId,accessCode,role,roleCustom,
+      // Behaviour state — added so a refresh after Supabase save fail still restores picks/edits
+      selectedBehaviours,selectedPrinciples,
+      behaviours, // generated agenda items (so re-rendering doesn't require regeneration)
+      behavioursMeta,
+    });
+  },[step,thing,thingDesc,contextText,s1ans,s2ans,tobe,tobeInit,accessCode,role,roleCustom,participantUuid,participantNumber,participantId,selectedBehaviours,selectedPrinciples,behaviours,behavioursMeta]);
 
   // Resume detection: when accessCode is set and we're on entry, surface saved progress.
   // Only show the resume prompt if the participant actually answered something —
@@ -2695,7 +2708,7 @@ function App(){
   // Facilitator ★ button + Admin1* password. The old "type admin as your name"
   // shortcut was retired with the new entry architecture.
   const isAdmin=facilitatorUnlocked;
-  const codeNorm=(accessCode||sessionCode).trim().toUpperCase();
+  const codeNorm=(accessCode||'').trim().toUpperCase();
 
 
   const s1over=s1ans.some(a=>(parseInt(a.l)||0)+(parseInt(a.r)||0)>10);
@@ -2719,16 +2732,18 @@ function App(){
 
 
   // ── GROUP DATA ──────────────────────────────────────────────────────────
+  // Returns true if the save succeeded, false otherwise. Callers that need
+  // confirmation (e.g. the Generate-Report submit) should await and check.
   async function saveToGroup(isGenerateReport=false){
-    if(!codeNorm)return;
+    if(!codeNorm)return false;
     // Don't write a respondent row when the user is in pure facilitator-direct
     // mode (unlocked via password without completing the survey). Otherwise
     // the facilitator gets counted as a participant.
-    if(facilitatorUnlocked && !s1done && !s2done) return;
+    if(facilitatorUnlocked && !s1done && !s2done) return false;
     // Need a key to write under — either participant UUID (new flow) or respondent name (legacy).
-    if(!participantUuid && !respondentName.trim()) return;
+    if(!participantUuid && !respondentName.trim()) return false;
     // If we already know the session is closed, don't even attempt the write.
-    if(sessionClosed && !isAdmin && !facilitatorUnlocked) return;
+    if(sessionClosed && !isAdmin && !facilitatorUnlocked) return false;
     try{
       const _r=await fetch('/api/stat-save',{
         method:'POST',
@@ -2760,14 +2775,17 @@ function App(){
           const j=await _r.json();
           if(j&&j.session_closed){setSessionClosed(true);}
         }catch(_e){}
+        return false;
       }
       if(_r&&_r.ok){
         try{
           const j=await _r.json();
           if(j&&j.pending_review){setPendingReviewSelf(true);}
         }catch(_e){}
+        return true;
       }
-    }catch(e){console.warn('stat-save error:',e);}
+      return false;
+    }catch(e){console.warn('stat-save error:',e); return false;}
   }
 
   async function loadGroup(){
@@ -2816,34 +2834,43 @@ function App(){
     setEditingBehaviourIdx(null);
     // Don't wipe selectedPrinciples / selectedBehaviours here — the user may
     // have prior selections (resumed from Supabase or kept across navigation).
-    try{
-      const resp=await fetch('/api/stat-principles-generate',{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({
-          s1_answers:s1ans,
-          s2_answers:s2ans,
-          prog,def,con,flex,
-          tobe_prog:tobe.p,tobe_def:tobe.d,tobe_con:tobe.c,tobe_flex:tobe.f,
-          thing,
-          sector:sector==='Other'?sectorCustom:sector,
-        }),
-      });
-      if(resp.ok){
-        const d=await resp.json();
-        // New endpoint returns {items, header, meta}; older signature was {behaviours}.
-        // Accept both for forward/backward compat during deploy transition.
-        const bx = Array.isArray(d.items) ? d.items : (Array.isArray(d.behaviours) ? d.behaviours : []);
-        setBehaviours(bx);
-        setBehavioursMeta(d.meta || null);
-        // Keep flat principles[] in sync for back-compat (PDF still reads it)
-        setPrinciples(bx.map(b => b.text));
-      }else{
-        setBehaviours([]);
-        setPrinciples([]);
+    let success = false;
+    let attempt = 0;
+    while (!success && attempt < 3) {
+      try{
+        const resp=await fetch('/api/stat-principles-generate',{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({
+            s1_answers:s1ans,
+            s2_answers:s2ans,
+            prog,def,con,flex,
+            tobe_prog:tobe.p,tobe_def:tobe.d,tobe_con:tobe.c,tobe_flex:tobe.f,
+            thing,
+            sector:sector==='Other'?sectorCustom:sector,
+          }),
+        });
+        if(resp.ok){
+          const d=await resp.json();
+          // New endpoint returns {items, header, meta}; older signature was {behaviours}.
+          const bx = Array.isArray(d.items) ? d.items : (Array.isArray(d.behaviours) ? d.behaviours : []);
+          if (bx.length > 0) {
+            setBehaviours(bx);
+            setBehavioursMeta(d.meta || null);
+            setPrinciples(bx.map(b => b.text));
+            success = true;
+            break;
+          }
+          // Empty response — count as failure, retry
+        }
+      }catch(e){
+        console.warn('principles error attempt '+(attempt+1)+':',e);
       }
-    }catch(e){
-      console.warn('principles error:',e);
+      attempt++;
+      if (attempt < 3) await new Promise(r => setTimeout(r, 800 + (attempt - 1) * 1200));
+    }
+    if (!success) {
+      // Final failure — show empty state. User can click Regenerate to try again.
       setBehaviours([]);
       setPrinciples([]);
     }
@@ -2901,132 +2928,122 @@ function App(){
     const value = ta ? ta.value : '';
     const trimmed = (value || '').trim();
     if (trimmed.length < 3) { setEditingBehaviourIdx(null); return; }
+    // Capture pre-edit state from current behaviours[] (the source of truth before
+    // setBehaviours() commits). Use it to find the matching item in selectedBehaviours.
+    const targetIdx = editingBehaviourIdx;
+    const beforeBehaviour = behaviours && behaviours[targetIdx];
+    if (!beforeBehaviour) { setEditingBehaviourIdx(null); return; }
+    const oldText = beforeBehaviour.text;
+    const original = beforeBehaviour.original_text || beforeBehaviour.text;
+    const isEdited = trimmed !== original;
     setBehaviours(prev => {
       if (!Array.isArray(prev)) return prev;
       return prev.map((b, i) => {
-        if (i !== editingBehaviourIdx) return b;
-        const original = b.original_text || b.text;
-        const isEdited = trimmed !== original;
+        if (i !== targetIdx) return b;
         return { ...b, text: trimmed, original_text: original, is_edited: isEdited };
       });
     });
-    // Mirror edits into selectedBehaviours if this item happens to be picked
+    // Mirror into selectedBehaviours by matching old text. Same in selectedPrinciples.
     setSelectedBehaviours(prev => {
-      const updated = behaviours && behaviours[editingBehaviourIdx];
-      if (!updated) return prev;
-      return prev.map(s => {
-        if (s.text === updated.text || s.original_text === (updated.original_text || updated.text)) {
-          return { ...s, text: trimmed, original_text: updated.original_text || updated.text, is_edited: trimmed !== (updated.original_text || updated.text) };
+      const next = prev.map(s => {
+        if (s.text === oldText) {
+          return { ...s, text: trimmed, original_text: original, is_edited: isEdited };
         }
         return s;
       });
+      // Sync selectedPrinciples in lockstep so the autosave fires.
+      setSelectedPrinciples(next.map(s => s.text));
+      return next;
     });
     setEditingBehaviourIdx(null);
   }
   function cancelEditBehaviour(){ setEditingBehaviourIdx(null); }
   function revertEditBehaviour(idx){
+    const beforeBehaviour = behaviours && behaviours[idx];
+    if (!beforeBehaviour) { setEditingBehaviourIdx(null); return; }
+    const oldText = beforeBehaviour.text;
+    const original = beforeBehaviour.original_text || beforeBehaviour.text;
     setBehaviours(prev => {
       if (!Array.isArray(prev)) return prev;
       return prev.map((b, i) => {
         if (i !== idx) return b;
-        return { ...b, text: b.original_text || b.text, is_edited: false };
+        return { ...b, text: original, is_edited: false };
       });
+    });
+    // If the reverted item is picked, mirror the revert into selectedBehaviours/Principles
+    setSelectedBehaviours(prev => {
+      const next = prev.map(s => {
+        if (s.text === oldText) {
+          return { ...s, text: original, original_text: original, is_edited: false };
+        }
+        return s;
+      });
+      setSelectedPrinciples(next.map(s => s.text));
+      return next;
     });
     setEditingBehaviourIdx(null);
   }
 
-  // ── LEGACY HELPERS — kept so existing call sites keep working ─────────
-  // These are no-ops or simple shims for the old ranking/custom UX. The new
-  // UX never calls them but they're safe to leave in place.
-  function toggleBehaviour(behaviour){
-    // Map to new picker — bucket-aware
-    pickBehaviour(behaviour, behaviour.bucket);
-  }
-  function addCustomToBucket(bucket){ /* no-op: custom-add removed */ }
-  function moveBehaviour(idx, direction){ /* no-op: ranking removed */ }
-  function removeSelectedBehaviour(idx){
-    setSelectedBehaviours(prev => {
-      const next = prev.filter((_,i) => i !== idx);
-      setSelectedPrinciples(next.map(s => s.text));
-      return next;
-    });
-  }
-
-  // Legacy aliases — kept so existing call sites keep working until we fully migrate.
-  function togglePrinciple(p){
-    // p is a flat string. Find the matching behaviour and toggle.
-    if(behaviours){
-      const b=behaviours.find(b=>b.text===p);
-      if(b){toggleBehaviour(b);return;}
-    }
-    // Fallback for unknown text — treat as Add custom
-    setSelectedBehaviours(prev=>{
-      const idx=prev.findIndex(s=>s.text===p);
-      let next;
-      if(idx>=0){
-        next=prev.filter((_,i)=>i!==idx).map((s,i)=>({...s,rank:i+1}));
-      } else {
-        if(prev.length>=5)return prev;
-        next=[...prev,{text:p,bucket:'add',category:null,axis:null,rank:prev.length+1,is_custom:false}];
-      }
-      setSelectedPrinciples(next.map(s=>s.text));
-      return next;
-    });
-  }
-
-  function addCustomPrinciple(){
-    // Default custom adds go to the Add bucket
-    const text=customPrinciple.trim();
-    if(!text)return;
-    setCustomBucketInputs(prev=>({...prev,add:text}));
-    setTimeout(()=>{
-      addCustomToBucket('add');
-      setCustomPrinciple('');
-    },0);
-  }
-
-  function movePrinciple(p,direction){
-    // p is text. Find selectedBehaviours index and delegate.
-    setSelectedBehaviours(prev=>{
-      const idx=prev.findIndex(s=>s.text===p);
-      if(idx<0)return prev;
-      const newIdx=idx+direction;
-      if(newIdx<0||newIdx>=prev.length)return prev;
-      const next=[...prev];
-      [next[idx],next[newIdx]]=[next[newIdx],next[idx]];
-      const reranked=next.map((s,i)=>({...s,rank:i+1}));
-      setSelectedPrinciples(reranked.map(s=>s.text));
-      return reranked;
-    });
-  }
+  // ── LEGACY HELPERS REMOVED (May 2026) ────────────────────────────────────
+  // The old ranking + custom UX is gone. Dead helpers (toggleBehaviour,
+  // moveBehaviour, removeSelectedBehaviour, addCustomToBucket, togglePrinciple,
+  // addCustomPrinciple, movePrinciple) were removed during cleanup. Any caller
+  // still referring to them was already a stub from the previous UI.
 
   function goToPrinciples(){
     setPrinciplesStep(true);
-    loadPrinciples();
+    // Only generate if we don't already have behaviours (e.g. first visit, or
+    // returning participant whose Supabase row didn't include behaviours).
+    // Going back to Future and forward again should NOT regenerate — that would
+    // produce different items and orphan any picks the participant already made.
+    if (!Array.isArray(behaviours) || behaviours.length === 0) {
+      loadPrinciples();
+    }
     setStep(5); // stay on step 5, sub-screen flag handles the rest
     if(topRef.current)topRef.current.scrollIntoView({behavior:'smooth'});
+  }
+
+  // Explicit regenerate — wipes existing behaviours AND clears picks (since the
+  // new agenda will have different items). Confirms first.
+  function regenerateBehaviours(){
+    if (selectedBehaviours.length > 0) {
+      const ok = window.confirm('Regenerating will clear your current picks because the new behaviours will have different wording. Continue?');
+      if (!ok) return;
+    }
+    setSelectedBehaviours([]);
+    setSelectedPrinciples([]);
+    loadPrinciples();
   }
 
   async function loadAiQuestions(){
     if(!codeNorm||groupRespondents.length<2)return;
     setAiQLoading(true);
     setAiQError(null);
-    try{
-      const resp=await fetch('/api/stat-ai-questions',{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({sessionCode:codeNorm,respondents:ensureDisplay(groupRespondents),thing}),
-      });
-      const data=await resp.json().catch(()=>null);
-      if(!resp.ok){
-        setAiQError(`Server returned ${resp.status}${data&&data.error?': '+data.error:''}`);
-      }else if(data){
-        setAiQuestions(data);
+    let success = false;
+    let attempt = 0;
+    let lastErr = null;
+    while (!success && attempt < 3) {
+      try{
+        const resp=await fetch('/api/stat-ai-questions',{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({sessionCode:codeNorm,respondents:ensureDisplay(groupRespondents),thing}),
+        });
+        const data=await resp.json().catch(()=>null);
+        if(resp.ok && data){
+          setAiQuestions(data);
+          success = true;
+          break;
+        }
+        lastErr = 'Server returned '+resp.status+(data&&data.error?': '+data.error:'');
+      }catch(e){
+        console.warn('ai-q error attempt '+(attempt+1)+':',e);
+        lastErr = 'Network error: '+(e.message||'unknown');
       }
-    }catch(e){
-      console.warn('ai-q error:',e);
-      setAiQError('Network error: '+(e.message||'unknown'));
+      attempt++;
+      if (attempt < 3) await new Promise(r => setTimeout(r, 800 + (attempt - 1) * 1200));
     }
+    if (!success) setAiQError(lastErr || 'Could not generate questions.');
     setAiQLoading(false);
   }
 
@@ -3034,22 +3051,31 @@ function App(){
     if(!codeNorm||groupRespondents.length<1)return;
     setPrinciplesClusterLoading(true);
     setPrinciplesClusterError(null);
-    try{
-      const resp=await fetch('/api/stat-principles-cluster',{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({sessionCode:codeNorm,respondents:ensureDisplay(groupRespondents),thing}),
-      });
-      const data=await resp.json().catch(()=>null);
-      if(!resp.ok){
-        setPrinciplesClusterError(`Server returned ${resp.status}${data&&data.error?': '+data.error:''}`);
-      }else if(data){
-        setPrinciplesCluster(data);
+    let success = false;
+    let attempt = 0;
+    let lastErr = null;
+    while (!success && attempt < 3) {
+      try{
+        const resp=await fetch('/api/stat-principles-cluster',{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({sessionCode:codeNorm,respondents:ensureDisplay(groupRespondents),thing}),
+        });
+        const data=await resp.json().catch(()=>null);
+        if(resp.ok && data){
+          setPrinciplesCluster(data);
+          success = true;
+          break;
+        }
+        lastErr = 'Server returned '+resp.status+(data&&data.error?': '+data.error:'');
+      }catch(e){
+        console.warn('principles-cluster error attempt '+(attempt+1)+':',e);
+        lastErr = 'Network error: '+(e.message||'unknown');
       }
-    }catch(e){
-      console.warn('principles-cluster error:',e);
-      setPrinciplesClusterError('Network error: '+(e.message||'unknown'));
+      attempt++;
+      if (attempt < 3) await new Promise(r => setTimeout(r, 800 + (attempt - 1) * 1200));
     }
+    if (!success) setPrinciplesClusterError(lastErr || 'Could not cluster behaviours.');
     setPrinciplesClusterLoading(false);
   }
 
@@ -3065,7 +3091,7 @@ function App(){
     if(step<2)return; // No data to save before step 2 (survey)
     const t=setTimeout(()=>{saveToGroup();},600);
     return()=>clearTimeout(t);
-  },[s1ans,s2ans,tobe,selectedPrinciples,thirtyDay,feedbackComment,thingDesc,contextText,step,codeNorm,respondentName,participantUuid]);;
+  },[s1ans,s2ans,tobe,selectedPrinciples,selectedBehaviours,thirtyDay,feedbackComment,thingDesc,contextText,step,codeNorm,respondentName,participantUuid]);;
 
   // Restore selectedBehaviours / selectedPrinciples from Supabase when a returning
   // participant resumes. Prefer the new structured selected_behaviours; fall back
@@ -3085,27 +3111,34 @@ function App(){
     }
     if(!myRow)return;
     if(Array.isArray(myRow.selected_behaviours)&&myRow.selected_behaviours.length>0){
-      // New structured form
+      // New structured form. Map legacy bucket names; default to 'retain' for unknowns
+      // (safer than 'add'/'more' which would mark as a change item).
+      const BUCKET_MAP = { keep: 'retain', add: 'more', replace: 'less' };
       const sb=myRow.selected_behaviours
-        .map((b,i)=>({
-          text:b.text||'',
-          bucket:['keep','add','replace'].includes(b.bucket)?b.bucket:'add',
-          category:b.category||null,
-          axis:b.axis||null,
-          rank:typeof b.rank==='number'?b.rank:(i+1),
-          is_custom:!!b.is_custom,
-        }))
-        .filter(b=>b.text)
-        .sort((a,b)=>a.rank-b.rank)
-        .map((b,i)=>({...b,rank:i+1}));
+        .map((b,i)=>{
+          let bucket = b.bucket;
+          if (BUCKET_MAP[bucket]) bucket = BUCKET_MAP[bucket];
+          if (!['retain','less','more'].includes(bucket)) bucket = 'retain';
+          return ({
+            text:b.text||'',
+            original_text:b.original_text||b.text||'',
+            bucket,
+            category:b.category||null,
+            axis:b.axis||null,
+            is_edited:!!b.is_edited,
+            is_custom:!!b.is_custom,
+          });
+        })
+        .filter(b=>b.text);
       setSelectedBehaviours(sb);
       setSelectedPrinciples(sb.map(s=>s.text));
       principlesHydrated.current=true;
     } else if(Array.isArray(myRow.selected_principles)&&myRow.selected_principles.length>0){
-      // Legacy flat array — hydrate as Add bucket items
+      // Legacy flat array — hydrate as Retain bucket items (safer default than More).
       const sb=myRow.selected_principles.map((t,i)=>({
         text:typeof t==='string'?t:'',
-        bucket:'add',category:null,axis:null,rank:i+1,is_custom:false,
+        original_text:typeof t==='string'?t:'',
+        bucket:'retain',category:null,axis:null,is_edited:false,is_custom:false,
       })).filter(s=>s.text);
       setSelectedBehaviours(sb);
       setSelectedPrinciples(sb.map(s=>s.text));
@@ -3170,16 +3203,24 @@ function App(){
     setCloseBusy(true);
     try{
       const ts=new Date().toISOString();
-      await fetch('/api/stat-save',{
+      const r=await fetch('/api/stat-save',{
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({session_code:codeNorm,respondent_name:'__session_closed__',notes:ts}),
       });
+      if(!r||!r.ok){
+        alert('We couldn\'t close the session right now. Please try again.');
+        setCloseBusy(false);
+        return;
+      }
       setSessionClosed(true);
       setSessionClosedAt(ts);
       setCloseConfirmOpen(false);
       await loadGroup();
-    }catch(e){console.warn('close session error:',e);}
+    }catch(e){
+      console.warn('close session error:',e);
+      alert('Network error closing session. Please try again.');
+    }
     setCloseBusy(false);
   }
 
@@ -3190,7 +3231,7 @@ function App(){
       // Clear the pending flag by saving the row with pending_review=false, preserving everything else
       const existing=groupRespondents.find(r=>r.respondent_name===name);
       if(!existing){setPendingActionName(null);return;}
-      await fetch('/api/stat-save',{
+      const r=await fetch('/api/stat-save',{
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({
@@ -3199,6 +3240,11 @@ function App(){
           pending_review:false,
         }),
       });
+      if(!r||!r.ok){
+        alert('Could not accept this respondent. Please try again.');
+        setPendingActionName(null);
+        return;
+      }
       await loadGroup();
     }catch(e){console.warn('accept pending error:',e);}
     setPendingActionName(null);
@@ -3234,14 +3280,30 @@ function App(){
     setCloseBusy(false);
   }
 
-  async function doRemove(name){
-    if(!codeNorm||!name)return;
+  // Remove a respondent. For anonymous flow rows, respondent_name is empty —
+  // we identify by participant_id instead. The display name ("Participant 02")
+  // is patched in by ensureDisplay and isn't useful for delete; we always look
+  // up the underlying row in groupRespondents to find the real key.
+  async function doRemove(target){
+    if(!codeNorm||!target)return;
     setRemoveLoading(true);
     try{
+      // Find the actual respondent row to discover participant_id (anonymous)
+      // or real respondent_name (legacy).
+      const augmented = ensureDisplay(groupRespondents);
+      const row = augmented.find(r => r.respondent_name === target || r.participant_id === target);
+      const body = { session_code: codeNorm };
+      if (row && row.participant_id && (!row.respondent_name || !row.respondent_name.trim() || row.respondent_name === target)) {
+        // Anonymous row — delete by participant_id
+        body.participant_id = row.participant_id;
+      } else {
+        // Named row — delete by respondent_name
+        body.respondent_name = (row && row.respondent_name) ? row.respondent_name : target;
+      }
       await fetch('/api/stat-delete',{
         method:'DELETE',
         headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({session_code:codeNorm,respondent_name:name}),
+        body:JSON.stringify(body),
       });
       setRemoveTarget(null);
       setSelectedRespondent(null);
@@ -3250,25 +3312,25 @@ function App(){
     setRemoveLoading(false);
   }
 
-  // Poll group data for admin or facilitator-unlocked participants
+  // Poll group data for admin or facilitator-unlocked participants. Fires
+  // when entering the facilitator dashboard (step 5 group-report mode or step 6).
+  // First load happens after 1.2s so saveToGroup() writes settle; thereafter
+  // every 15 seconds while in dashboard.
   useEffect(()=>{
     if((isAdmin||facilitatorUnlocked)&&((step===5&&groupReportMode)||step===6)&&codeNorm){
-      // Small delay so saveToGroup() write completes before first load
-      const t=setTimeout(()=>loadGroup(),1200);
+      // Initial load
+      loadGroup();
+      // Polling
       const id=setInterval(loadGroup,15000);
-      return()=>{clearTimeout(t);clearInterval(id);};
+      return()=>{clearInterval(id);};
     }
   },[step,groupReportMode,codeNorm,isAdmin,facilitatorUnlocked]);
 
-  // Reload when admin or facilitator-unlocked user switches to facilitator tab
+  // Reload when admin/facilitator switches sub-tabs within the report
+  // (catches the case where they're on the report and tab to facilitator).
   useEffect(()=>{
     if((isAdmin||facilitatorUnlocked)&&((step===5&&groupReportMode)||(rptTab===5&&step===6))&&codeNorm)loadGroup();
   },[rptTab,groupReportMode,facilitatorUnlocked]);
-
-  // Admin or facilitator-unlocked: load group on mount if session code set
-  useEffect(()=>{
-    if((isAdmin||facilitatorUnlocked)&&codeNorm&&((step===5&&groupReportMode)||step===6))loadGroup();
-  },[isAdmin,facilitatorUnlocked,codeNorm,step,groupReportMode]);
 
   async function sendFeedback(){
     if(!feedbackComment.trim()||feedbackSending||feedbackSent)return;
@@ -3290,12 +3352,25 @@ function App(){
     setFeedbackSending(false);
   }
 
-  function generate(){
-    // Save to group if session code present.
-    // Pass true to mark this as the explicit "Generate My Report" submission —
-    // stat-save.js uses this to decide whether to fire the rich notification email.
+  async function generate(){
+    setLoading(true);
+    // AWAIT the save — must complete before user moves on. If save fails, surface
+    // the error and don't advance. Losing data here is unacceptable.
     if(codeNorm){
-      saveToGroup(true);
+      let saveOk = false;
+      let attempt = 0;
+      while (!saveOk && attempt < 3) {
+        saveOk = await saveToGroup(true);
+        if (!saveOk) {
+          attempt++;
+          if (attempt < 3) await new Promise(r => setTimeout(r, 500 + (attempt - 1) * 1000));
+        }
+      }
+      if (!saveOk) {
+        setLoading(false);
+        alert('We couldn\'t save your responses to the server after 3 attempts. Your data is still on this page — please check your connection and click Generate again.');
+        return;
+      }
     }
     // Save previous scores for comparison
     try{
@@ -3308,8 +3383,7 @@ function App(){
         if(pp||pd)setPrevSubmission({prog:pp,def:pd,con:pc,flex:pf,date:prev.savedAt?new Date(prev.savedAt).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}):'previously'});
       }
     }catch(e){}
-    setLoading(true);
-    setTimeout(()=>{setLoading(false);go(6);},1600);
+    setTimeout(()=>{setLoading(false);go(6);},800);
   }
 
   function restart(){
@@ -3333,13 +3407,21 @@ function App(){
     setRptTab(0);setPrevSubmission(null);
     setThirtyDay('');setFeedbackComment('');setFeedbackSent(false);setFeedbackSending(false);
     setLoading(false);
-    setPrinciplesStep(false);setPrinciples(null);setSelectedPrinciples([]);setCustomPrinciple('');
-    setBehaviours(null);setBehavioursMeta(null);setSelectedBehaviours([]);setCustomBucketInputs({keep:'',add:'',replace:''});setEditingBehaviourIdx(null);
+    setPrinciplesStep(false);setPrinciples(null);setSelectedPrinciples([]);
+    setBehaviours(null);setBehavioursMeta(null);setSelectedBehaviours([]);setEditingBehaviourIdx(null);
     setFacilitatorUnlocked(false);
-    setSessionCode('');
+    // Reset facilitator-specific UI state so a restart from inside the dashboard truly resets
+    setFacOverlayOpen(false);setFacTab('config');setOrgNameOverride('');setSelectedForPresent(null);
+    setSelectedRespondent(null);setRemoveTarget(null);setRemoveLoading(false);setPendingActionName(null);
+    setGroupRespondents([]);setLastRefreshed('');
+    setAiQuestions(null);setAiQError(null);setAiQLoading(false);
+    setPrinciplesCluster(null);setPrinciplesClusterError(null);setPrinciplesClusterLoading(false);
+    setSessionClosed(false);setSessionClosedAt(null);setCloseConfirmOpen(false);setCloseBusy(false);
+    setPendingReviewSelf(false);setFacilitatorNotes('');
   }
 
-  function applyResume(data){
+  async function applyResume(data){
+    // Restore basic fields
     if(data.thing)setThing(data.thing);
     if(data.thingDesc)setThingDesc(data.thingDesc);
     if(data.contextText)setContextText(data.contextText);
@@ -3347,14 +3429,43 @@ function App(){
     if(data.s2ans)setS2(data.s2ans);
     if(data.tobe)setTobe(data.tobe);
     if(data.tobeInit)setTobeInit(data.tobeInit);
-    if(typeof data.participantUuid==='string'&&data.participantUuid)setParticipantUuid(data.participantUuid);
-    if(typeof data.participantNumber==='number'&&data.participantNumber>0)setParticipantNumber(data.participantNumber);
-    if(typeof data.participantId==='string'&&data.participantId)setParticipantId(data.participantId);
     if(typeof data.accessCode==='string'&&data.accessCode)setAccessCode(data.accessCode);
     if(typeof data.role==='string'&&data.role)setRole(data.role);
     if(typeof data.roleCustom==='string'&&data.roleCustom)setRoleCustom(data.roleCustom);
+    // Behaviour state — restore picks, edits, and the generated agenda
+    if(Array.isArray(data.selectedBehaviours))setSelectedBehaviours(data.selectedBehaviours);
+    if(Array.isArray(data.selectedPrinciples))setSelectedPrinciples(data.selectedPrinciples);
+    if(Array.isArray(data.behaviours))setBehaviours(data.behaviours);
+    if(data.behavioursMeta)setBehavioursMeta(data.behavioursMeta);
     setResumeData(null);
-    go(data.step||1);
+    // Verify participantUuid still maps to a valid Supabase row before trusting it.
+    // If the row was deleted (facilitator pruned, or session reset), the UUID is stale
+    // and any save against it will silently fail. Better to just re-assign on Begin.
+    let uuidValid = false;
+    if (typeof data.participantUuid === 'string' && data.participantUuid && data.accessCode) {
+      try {
+        const r = await fetch(`/api/stat-load?code=${encodeURIComponent(data.accessCode)}&_=${Date.now()}`,{cache:'no-store'});
+        if (r.ok) {
+          const rows = await r.json();
+          if (Array.isArray(rows)) {
+            uuidValid = rows.some(row => row && row.participant_id === data.participantUuid);
+          }
+        }
+      } catch(e) { uuidValid = false; }
+    }
+    if (uuidValid) {
+      setParticipantUuid(data.participantUuid);
+      if(typeof data.participantNumber==='number'&&data.participantNumber>0)setParticipantNumber(data.participantNumber);
+      if(typeof data.participantId==='string'&&data.participantId)setParticipantId(data.participantId);
+      go(data.step||1);
+    } else {
+      // UUID stale — clear participant identity, take user to Begin so they get a fresh assignment.
+      // Keep their answers in state so they don't have to redo the survey.
+      setParticipantUuid('');
+      setParticipantNumber(0);
+      setParticipantId('');
+      go(0);
+    }
   }
 
   // ── ACCESS CODE GATE (Phase 1) ──────────────────────────────────────────
@@ -3620,67 +3731,6 @@ function App(){
     );
   }
 
-  // ── STEP 1: CONTEXT (merged) ─────────────────────────────────────────────
-  function renderContext(){
-    return(
-      <div>
-        <BackBtn onClick={()=>go(0)}/>
-        <div className="sec-tag">Section 1 — What Are We Looking At?</div>
-        <h2 className="pg-title">Tell us about it</h2>
-        <p className="pg-sub">A few questions about the organisation or team you want to explore. The more you tell us, the more personalised your report will be.</p>
-
-        <label className="field-lbl">Name the thing you want to work on <span style={{color:'#e07030'}}>*</span></label>
-        <div className="field-sub">e.g. "The Nuclear Operations Division", "Our finance team", "Sellafield Ltd"</div>
-        <input className="inp" placeholder="What are we looking at?" value={thing} onChange={e=>setThing(e.target.value)} style={{marginBottom:'1.25rem'}}/>
-
-        <label className="field-lbl">Brief description <span style={{color:'#c0b8ae',fontWeight:400}}>(optional)</span></label>
-        <div className="field-sub">What does it do? What is its purpose? Who does it serve?</div>
-        <textarea className="inp inp-ta" placeholder="A short description of what this thing is and does..." value={thingDesc} onChange={e=>setThingDesc(e.target.value)} style={{marginBottom:'1.25rem'}}/>
-
-        <label className="field-lbl">Context <span style={{color:'#c0b8ae',fontWeight:400}}>(optional)</span></label>
-        <div className="field-sub">Any background that will help personalise your report — sector, recent challenges, what prompted this.</div>
-        <textarea className="inp inp-ta" placeholder="Describe the context in your own words..." value={contextText} onChange={e=>setContextText(e.target.value)} style={{marginBottom:'1.5rem'}}/>
-
-        <div style={{borderTop:'1px solid #d8d3cb',paddingTop:'1.25rem',marginBottom:'1.25rem'}}>
-          <label className="field-lbl">Your role</label>
-          <div className="field-sub">Select the option that best describes your role.</div>
-          <div style={{display:'flex',flexWrap:'wrap',gap:'.5rem',marginBottom:'.75rem'}}>
-            {['Frontline / Operational','Team Leader','Manager','Senior Leader','Executive / Board','None of the above'].map(r=>(
-              <button key={r} onClick={()=>setRole(r)}
-                style={{padding:'.45rem .85rem',borderRadius:'20px',border:`1.5px solid ${role===r?'#e07030':'#d8d3cb'}`,background:role===r?'#fff8f5':'#fff',color:role===r?'#e07030':'#555',fontSize:'.78rem',fontWeight:role===r?700:400,cursor:'pointer',transition:'all .15s',fontFamily:"'DM Sans',sans-serif"}}>
-                {r}
-              </button>
-            ))}
-          </div>
-          {role==='None of the above'&&(
-            <input className="inp" placeholder="Describe your role..." value={roleCustom} onChange={e=>setRoleCustom(e.target.value)} style={{maxWidth:'340px'}}/>
-          )}
-        </div>
-
-                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'1rem',marginBottom:'1.25rem'}}>
-          <div>
-            <label className="field-lbl">Organisation size <span style={{color:'#c0b8ae',fontWeight:400}}>(optional)</span></label>
-            <select className="inp" value={orgSize} onChange={e=>setOrgSize(e.target.value)}>
-              <option value="">Select...</option>
-              {['1–50','51–250','251–1,000','1,001–5,000','5,001–20,000','20,000+'].map(o=><option key={o}>{o}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="field-lbl">Sector <span style={{color:'#c0b8ae',fontWeight:400}}>(optional)</span></label>
-            <select className="inp" value={sector} onChange={e=>setSector(e.target.value)}>
-              <option value="">Select...</option>
-              {['Civil Aviation','Construction','Defence','Education','Energy & Utilities','Financial Services','Government / Public Sector','Healthcare / NHS','Housing','Legal & Professional Services','Manufacturing','Nuclear','Rail & Transport','Technology','Other'].map(o=><option key={o}>{o}</option>)}
-            </select>
-          </div>
-        </div>
-
-        <div className="btn-row">
-          <button className="btn-p" disabled={!thing.trim()} onClick={()=>go(2)}>Continue to Survey →</button>
-          <button className="btn-s" onClick={()=>go(0)}>← Back</button>
-        </div>
-      </div>
-    );
-  }
 
   // ── STEP 2: SURVEY 1 ─────────────────────────────────────────────────────
   function renderS1(){
@@ -3942,7 +3992,7 @@ function App(){
           ):(
             <>
               <button className="btn-p" onClick={generate}>Generate My Report →</button>
-              <button className="btn-s" onClick={loadPrinciples}>↻ Regenerate</button>
+              <button className="btn-s" onClick={regenerateBehaviours}>↻ Regenerate</button>
             </>
           )}
           <button className="btn-s" onClick={()=>setPrinciplesStep(false)}>← Back to Future</button>
@@ -4448,6 +4498,51 @@ function App(){
       setJoinSubmitting(true);
       setJoinError('');
       try{
+        // STEP 1: Save the row to Supabase WITH the participant's name. This must
+        // succeed before we email — otherwise the email goes out but the dashboard
+        // still shows the participant as anonymous. Retry up to 3 times.
+        let saveOk = false;
+        let saveAttempt = 0;
+        while (!saveOk && saveAttempt < 3) {
+          try {
+            const saveResp = await fetch('/api/stat-save',{
+              method:'POST',
+              headers:{'Content-Type':'application/json'},
+              body:JSON.stringify({
+                session_code: accessCode,
+                participant_id: participantUuid,
+                respondent_name: (joinFirstName+' '+joinLastName).trim(),
+                role: role==='None of the above'?roleCustom:role,
+                seniority: '',
+                org_size: '',
+                sector: sector==='Other'?sectorCustom:sector,
+                thing,
+                prog, def: def, con, flex,
+                tobe_prog: tobe.p, tobe_def: tobe.d, tobe_con: tobe.c, tobe_flex: tobe.f,
+                s1_answers: s1ans, s2_answers: s2ans,
+                strategy_type: SLABELS[asIsStrat],
+                date: new Date().toISOString(),
+                tool_label: 'STAT Group',
+                selected_principles: selectedPrinciples,
+                selected_behaviours: selectedBehaviours,
+                generate_report: true,
+                thirty_day: thirtyDay,
+                feedback_comment: feedbackComment,
+              }),
+            });
+            saveOk = !!(saveResp && saveResp.ok);
+          } catch(e) { saveOk = false; }
+          if (!saveOk) {
+            saveAttempt++;
+            if (saveAttempt < 3) await new Promise(r => setTimeout(r, 500 + (saveAttempt - 1) * 1000));
+          }
+        }
+        if (!saveOk) {
+          setJoinSubmitting(false);
+          setJoinError('We couldn\'t save your details right now. Please check your connection and try again.');
+          return;
+        }
+        // STEP 2: Generate PDF + send email via join-and-send
         const pdfResult=generateStatParticipantPDF({
           respondentName:joinFirstName+' '+joinLastName,
           thing,
@@ -4482,46 +4577,19 @@ function App(){
         });
         const data=await resp.json().catch(()=>({}));
         if(resp.ok && data && data.ok){
-          // Fire-and-forget: write survey row + results@ email
-          try{
-            await fetch('/api/stat-save',{
-              method:'POST',
-              headers:{'Content-Type':'application/json'},
-              body:JSON.stringify({
-                session_code: accessCode,
-                participant_id: participantUuid,
-                respondent_name: (joinFirstName+' '+joinLastName).trim(),
-                role: role==='None of the above'?roleCustom:role,
-                seniority: '',
-                org_size: '',
-                sector: sector==='Other'?sectorCustom:sector,
-                thing,
-                prog, def: def, con, flex,
-                tobe_prog: tobe.p, tobe_def: tobe.d, tobe_con: tobe.c, tobe_flex: tobe.f,
-                s1_answers: s1ans, s2_answers: s2ans,
-                strategy_type: SLABELS[asIsStrat],
-                date: new Date().toISOString(),
-                tool_label: 'STAT Group',
-                selected_principles: selectedPrinciples,
-                selected_behaviours: selectedBehaviours,
-                generate_report: true,
-                thirty_day: thirtyDay,
-                feedback_comment: feedbackComment,
-              }),
-            });
-          } catch(e){ console.warn('stat-save error:',e); }
-          // Clear localStorage now that the participant has finished and joined.
-          // Without this, returning to the URL shows the resume prompt with stale data.
+          // Save already succeeded above. Clear localStorage and confirm.
           try{ clearProgress(accessCode); } catch(e){}
           setJoinSubmitting(false);
           setEndScreen('join-confirm');
         } else {
           setJoinSubmitting(false);
-          setJoinError((data&&data.error)||'Something went wrong. Please try again.');
+          // Save succeeded but email didn't — note this distinction so the user knows
+          // their data is captured even if they didn't receive the email yet.
+          setJoinError((data&&data.error)||'Your details were saved, but we couldn\'t send the email. Please contact contact@changebefore.com.');
         }
       } catch(e){
         setJoinSubmitting(false);
-        setJoinError('We couldn’t send your report right now. Please try again in a moment.');
+        setJoinError('We couldn\'t send your report right now. Please try again in a moment.');
       }
     }
 
@@ -4869,7 +4937,7 @@ function App(){
           const tiles=[
             {key:'config',icon:'⚙️',name:'Session Config',chip:sessionConfig&&sessionConfig.thing_for_everyone?null:'setup',headline:sessionConfig&&sessionConfig.thing_for_everyone?sessionConfig.thing_for_everyone:'Not set up yet',sub:sessionConfig&&sessionConfig.thing_for_everyone?'Tap to view or edit':'Set the thing the group is working on',desc:'Set up the session so participants can join.'},
             {key:'progress',icon:'📊',name:'Progress',chip:pendingReviewers.length>0?'review':sessionClosed?'closed':null,headline:`${submittedCount} of ${realCount} in`,sub:pendingReviewers.length>0?`${pendingReviewers.length} late submission${pendingReviewers.length!==1?'s':''} awaiting review`:sessionClosed?'Session closed — no new responses':inProgressCount>0?`${inProgressCount} still completing`:'All respondents complete',extra:'pips',desc:'Track who has joined and where they are in the survey.'},
-            {key:'group-report',icon:'📈',name:'Group Report',headline:groupStrat?(SLABELS[groupStrat]+splitTag):'Awaiting data',sub:realCount>=2?'Group profile and means':'Need at least 2 respondents',desc:'See the group\'s combined profile and dominant strategy.'},
+            {key:'group-report',icon:'📈',name:'Group Report',headline:realCount<2?'Awaiting data':groupStrat?(SLABELS[groupStrat]+splitTag):'Awaiting data',sub:realCount>=2?'Group profile and means':'Need at least 2 respondents',desc:'See the group\'s combined profile and dominant strategy.'},
             {key:'present',icon:'🎤',name:'Share / Present',chip:'live',headline:`${presentVisibleCount} visible`,sub:'Reveal one at a time on the projector',desc:'Reveal results to the room one slide at a time.'},
             {key:'overview',icon:'🔍',name:'Overview',headline:realCount<2?'Awaiting data':topSpreadDim&&topSpreadSD>=10?`Biggest spread on ${topSpreadDim}`:outliers.length>0?`${outliers.length} outlier${outliers.length!==1?'s':''}`:'Group well-aligned',sub:realCount<2?'Group profile and headlines':topSpreadDim&&topSpreadSD>=10?`SD ${topSpreadSD.toFixed(1)} · ${outliers.length} outlier${outliers.length!==1?'s':''}`:outliers.length>0?outliers.slice(0,2).map(o=>`${o.name} on ${o.dim}`).join(' · '):'Group profile and headlines',desc:'Group means, spread, and outliers at a glance.'},
             {key:'variance',icon:'⚖️',name:'Variance',headline:realCount>=2?(contestedCount>0?`${contestedCount} sharply split`:'Group aligned'):'Awaiting data',sub:realCount>=2?`All ${qVariances.length} questions ranked by spread`:'Where the group disagrees',desc:'Find the questions where the group most disagrees.'},
