@@ -915,7 +915,7 @@ function Slider({label,value,onChange,max=120,asIs=null}){
 }
 
 // ── PROGRESS BAR ─────────────────────────────────────────────────────────────
-const STEPS=['Start','Survey','Profile','Future','Behaviours','Report'];
+const STEPS=['Start','Survey','Profile','Future','Practices','Report'];
 function stepToNav(s,principlesStep){if(s<=0)return 0;if(s<=3)return 1;if(s===4)return 2;if(s===5)return principlesStep?4:3;return 5;}
 function Progress({step,principlesStep}){
   const nav=stepToNav(step,principlesStep);
@@ -1535,8 +1535,8 @@ function generateStatParticipantPDF(opts){
 
   if (cleanBehaviours.length > 0) {
     doc.addPage(); pageNum++; y=margin+5; addHeader();
-    sectionTitle('Your behavioural agenda');
-    paragraph('The behaviours most likely to make the biggest difference for '+orgLabel+', grouped by what to retain, do less of, and do more of. The three you flagged as most important are starred.', {color:MUTED, size:9});
+    sectionTitle('Your organisational practices');
+    paragraph('The practices most likely to make the biggest difference for '+orgLabel+', grouped by what to retain, do less of, and do more of. The three you flagged as most important are highlighted.', {color:MUTED, size:9});
     y += 3;
 
     const buckets = [
@@ -2153,7 +2153,7 @@ function App(){
   // Regenerate with confirmation if user has picks that would be lost.
   function regenerateBehaviours(){
     if (selectedBehaviours.length > 0 || removedBehaviours.length > 0) {
-      const ok = window.confirm('Regenerating will create a fresh set of behaviours. Your current stars, edits, custom additions, and removed items will be cleared. Continue?');
+      const ok = window.confirm('Regenerating will create a fresh set of practices. Your current stars, edits, custom additions, and removed items will be cleared. Continue?');
       if (!ok) return;
     }
     setSelectedBehaviours([]);
@@ -2255,7 +2255,7 @@ function App(){
     }
   }
 
-  // Debounced auto-save once the user is past step 5 (Future profile / Behaviours).
+  // Debounced auto-save once the user is past step 5 (Future profile / Practices).
   // Mirrors stat-group's pattern so behaviour picks and qualitative input edits
   // persist to Supabase without a manual save click. Email does NOT fire here —
   // only generate() with isGenerateReport=true triggers the email branch.
@@ -2803,9 +2803,9 @@ function App(){
 
     return(
       <div className="fade">
-        <div className="sec-tag">Step 6 of 7 · Behaviours</div>
-        <h2 className="pg-title">Your behavioural agenda</h2>
-        <p className="pg-sub">Below are nine behaviours drawn from your responses, grouped into three columns. Edit them, remove any that don't apply, and add your own using the button at the bottom of each column. <strong>Then star the three you think matter most</strong> — from any column, in any combination.</p>
+        <div className="sec-tag">Step 6 of 7 · Practices</div>
+        <h2 className="pg-title">Your organisational practices</h2>
+        <p className="pg-sub">Below are nine practices drawn from your responses, grouped into three columns. Edit them, remove any that don't apply, and add your own using the button at the bottom of each column. <strong>Then star the three you think matter most</strong> — from any column, in any combination.</p>
 
         {behavioursMeta && behavioursMeta.header && (
           <div className="inf-box" style={{marginBottom:'1.25rem',fontSize:'.85rem'}}>{behavioursMeta.header}</div>
@@ -2834,12 +2834,12 @@ function App(){
         )}
 
         {principlesLoading && (
-          <div className="think"><div className="dots"><div className="dot"/><div className="dot"/><div className="dot"/></div><span className="think-txt">Generating your behavioural agenda…</span></div>
+          <div className="think"><div className="dots"><div className="dot"/><div className="dot"/><div className="dot"/></div><span className="think-txt">Generating your practices…</span></div>
         )}
 
         {!principlesLoading && Array.isArray(behaviours) && behaviours.length === 0 && removedBehaviours.length === 0 && (
           <div className="warn-box">
-            We couldn't generate behaviours right now. Click Regenerate to try again, or skip this step and continue to your report.
+            We couldn't generate practices right now. Click Regenerate to try again, or skip this step and continue to your report.
           </div>
         )}
 
@@ -2935,7 +2935,7 @@ function App(){
                         <textarea
                           value={addingText}
                           onChange={e=>setAddingText(e.target.value)}
-                          placeholder={'Write your own '+bucket.label.toLowerCase()+' behaviour…'}
+                          placeholder={'Write your own '+bucket.label.toLowerCase()+' practice…'}
                           autoFocus
                           style={{width:'100%',minHeight:'60px',marginBottom:'.4rem',fontSize:'.82rem',padding:'.5rem',border:'1px solid #d8d3cb',borderRadius:'3px',fontFamily:"'DM Sans',sans-serif",resize:'vertical'}}
                         />
@@ -2983,7 +2983,7 @@ function App(){
           {principlesLoading?(
             <div style={{display:'inline-flex',alignItems:'center',gap:'.5rem',padding:'.65rem 1rem',background:'#ebe7e0',border:'1px solid #d8d3cb',borderRadius:'3px',color:'#888',fontSize:'.82rem',fontFamily:"'DM Sans',sans-serif",fontStyle:'italic'}}>
               <div className="dots" style={{display:'inline-flex',gap:'4px'}}><div className="dot"/><div className="dot"/><div className="dot"/></div>
-              Waiting for behaviours to load…
+              Waiting for practices to load…
             </div>
           ):loading?(
             <div className="think"><div className="dots"><div className="dot"/><div className="dot"/><div className="dot"/></div><span className="think-txt">Generating your personalised report…</span></div>
@@ -3044,7 +3044,7 @@ function App(){
           {loading?(
             <div className="think"><div className="dots"><div className="dot"/><div className="dot"/><div className="dot"/></div><span className="think-txt">Generating your personalised report…</span></div>
           ):(
-            <button className="btn-p" onClick={goToPrinciples}>Continue to Behaviours →</button>
+            <button className="btn-p" onClick={goToPrinciples}>Continue to Practices →</button>
           )}
           <button className="btn-s" onClick={()=>go(3)}>← Back</button>
         </div>
@@ -3390,7 +3390,7 @@ function App(){
     return(
       <div>
 <div className="rpt-section">
-          <div className="rpt-heading">Your Gap and Your Behaviours</div>
+          <div className="rpt-heading">Your Gap and Your Practices</div>
           <p className="rpt-body">The table below summarises the scale of the shift you are committing to across each dimension. Below it are the principles you selected as the ones most likely to make the biggest difference for {th}.</p>
         </div>
         <div className="gap-summary" style={{marginBottom:'1.5rem'}}>
@@ -3401,7 +3401,7 @@ function App(){
           })}
         </div>
         <div className="rpt-section" style={{marginBottom:'2rem'}}>
-          <div className="rpt-heading" style={{fontSize:'1rem',marginBottom:'1rem'}}>Your behavioural agenda</div>
+          <div className="rpt-heading" style={{fontSize:'1rem',marginBottom:'1rem'}}>Your organisational practices</div>
           {(()=>{
             // Prefer the full behaviours list (post-edit, with custom additions, with removals filtered).
             // Fall back to starred-only or legacy flat list.
@@ -3409,7 +3409,7 @@ function App(){
             const haveStarred = Array.isArray(selectedBehaviours) && selectedBehaviours.length > 0;
             const haveLegacy = Array.isArray(selectedPrinciples) && selectedPrinciples.length > 0;
             if (!haveFull && !haveStarred && !haveLegacy) {
-              return <p className="rpt-body" style={{fontStyle:'italic',color:'#888'}}>You did not work on any behaviours. You can go back to the Behaviours step from the progress bar.</p>;
+              return <p className="rpt-body" style={{fontStyle:'italic',color:'#888'}}>You did not work on any practices. You can go back to the Practices step from the progress bar.</p>;
             }
             if (!haveFull && haveLegacy) {
               return (
@@ -3460,7 +3460,7 @@ function App(){
                     })}
                   </div>
                 ))}
-                <p style={{fontSize:'.78rem',color:'#888',marginTop:'1rem',lineHeight:1.6,fontFamily:"'DM Sans',sans-serif"}}>These are the behaviours you've identified as most likely to help {th} make the shift you described. The highlighted ones are the three you flagged as most important.</p>
+                <p style={{fontSize:'.78rem',color:'#888',marginTop:'1rem',lineHeight:1.6,fontFamily:"'DM Sans',sans-serif"}}>These are the practices you've identified as most likely to help {th} make the shift you described. The highlighted ones are the three you flagged as most important.</p>
               </div>
             );
           })()}
