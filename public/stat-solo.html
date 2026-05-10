@@ -1521,6 +1521,7 @@ function generateStatParticipantPDF(opts){
   const cleanPrinciples = (selectedPrinciples || []).filter(p => p && String(p).trim().length > 0);
 
   if (cleanBehaviours.length > 0) {
+    console.log('[PDF DEBUG] cleanBehaviours:', JSON.stringify(cleanBehaviours, null, 2));
     doc.addPage(); pageNum++; y=margin+5; addHeader();
     sectionTitle('Your selected behaviours');
     paragraph('The behaviours you selected as most likely to make the biggest difference for '+orgLabel+', grouped by what to retain, what to do less of, and what to do more of.', {color:MUTED, size:9});
