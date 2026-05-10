@@ -950,6 +950,7 @@ function generateStatParticipantPDF(opts){
     contextText, thingDesc,
     selectedPrinciples,
     selectedBehaviours,
+    behaviours,
     SLABELS, SDESC, getStrategyText, gapLabel, gapBadgeText,
     S1, S2,
     industryContext,
@@ -1513,18 +1514,29 @@ function generateStatParticipantPDF(opts){
   addFooter();
 
   // ───── SELECTED PRINCIPLES ─────
-  // Defensively filter and normalise: prefer structured selectedBehaviours;
-  // fall back to flat selectedPrinciples for legacy sessions saved before the bucket rebuild.
-  const cleanBehaviours = Array.isArray(selectedBehaviours)
+  // PDF render strategy (May 2026 reframe):
+  // - Prefer the FULL `behaviours` list (user-edited, with custom additions, removed items already filtered).
+  //   Print all of them, grouped by bucket, with starred items visually highlighted.
+  // - If full list not available but selectedBehaviours is, print just those (older transient state).
+  // - If neither is available but selectedPrinciples is, fall back to the legacy flat list.
+  const cleanFullBehaviours = Array.isArray(behaviours)
+    ? behaviours.filter(b => b && typeof b === 'object' && b.text && String(b.text).trim().length > 0)
+    : [];
+  const cleanStarred = Array.isArray(selectedBehaviours)
     ? selectedBehaviours.filter(b => b && typeof b === 'object' && b.text && String(b.text).trim().length > 0)
     : [];
   const cleanPrinciples = (selectedPrinciples || []).filter(p => p && String(p).trim().length > 0);
 
+  // The list to actually render: prefer the full list, fall back to starred-only
+  const cleanBehaviours = cleanFullBehaviours.length > 0 ? cleanFullBehaviours : cleanStarred;
+
+  // Set of starred texts for highlighting lookup
+  const starredTexts = new Set(cleanStarred.map(b => String(b.text).trim()));
+
   if (cleanBehaviours.length > 0) {
-    console.log('[PDF DEBUG] cleanBehaviours:', JSON.stringify(cleanBehaviours, null, 2));
     doc.addPage(); pageNum++; y=margin+5; addHeader();
-    sectionTitle('Your selected behaviours');
-    paragraph('The behaviours you selected as most likely to make the biggest difference for '+orgLabel+', grouped by what to retain, what to do less of, and what to do more of.', {color:MUTED, size:9});
+    sectionTitle('Your behavioural agenda');
+    paragraph('The behaviours most likely to make the biggest difference for '+orgLabel+', grouped by what to retain, do less of, and do more of. The three you flagged as most important are starred.', {color:MUTED, size:9});
     y += 3;
 
     const buckets = [
@@ -1558,16 +1570,41 @@ function generateStatParticipantPDF(opts){
       items.forEach(b => {
         checkPage(14);
         const text = String(b.text).trim();
-        setFont(10, 'normal', TEXT);
-        const wrapped = doc.splitTextToSize(text, pageW-2*margin-8);
-        doc.text(wrapped, margin+4, y+4);
-        let bottom = y + Math.max(6, wrapped.length*4.2);
+        const isStarred = starredTexts.has(text);
+
+        const indent = isStarred ? 9 : 4;
+        const textWidth = pageW - 2*margin - indent - 4;
+
+        // Highlight bar for starred items
+        if (isStarred) {
+          // Compute height so we can draw the highlight first
+          setFont(10, 'bold', TEXT);
+          const probe = doc.splitTextToSize(text, textWidth);
+          const h = Math.max(7, probe.length*4.6) + (b.is_edited ? 4 : 0) + 2;
+          doc.setFillColor(255, 244, 232); // soft accent tint
+          doc.rect(margin, y, pageW - 2*margin, h, 'F');
+          // Star marker
+          setFont(11, 'bold', bucket.rgb);
+          doc.text('★', margin+2.5, y+5.2);
+        }
+
+        // The text itself — bold + slightly larger when starred
+        setFont(isStarred ? 10 : 9.5, isStarred ? 'bold' : 'normal', TEXT);
+        const wrapped = doc.splitTextToSize(text, textWidth);
+        doc.text(wrapped, margin+indent, y+4.5);
+        let bottom = y + Math.max(6, wrapped.length * (isStarred ? 4.6 : 4.2));
         if (b.is_edited) {
           setFont(7, 'normal', ACCENT);
-          doc.text('· edited', margin+4, bottom+2.5);
+          doc.text('· edited', margin+indent, bottom+2.5);
           bottom += 4;
         }
-        y = bottom + 4;
+        if (b.is_custom) {
+          setFont(7, 'normal', MUTED);
+          const offset = b.is_edited ? doc.getTextWidth('· edited') + 4 : 0;
+          doc.text('· your own', margin+indent+offset, bottom + (b.is_edited ? -1.5 : 2.5));
+          if (!b.is_edited) bottom += 4;
+        }
+        y = bottom + (isStarred ? 5 : 4);
       });
       y += 2;
     });
@@ -1807,6 +1844,16 @@ function App(){
   const [selectedBehaviours,setSelectedBehaviours]=useState([]);
   // Index in `behaviours` of the item being inline-edited (or null)
   const [editingBehaviourIdx,setEditingBehaviourIdx]=useState(null);
+  // New (May 2026): items the user has removed from the list. Stored as full
+  // behaviour objects so they can be un-removed and put back in their original
+  // bucket. Tray rendered at the bottom of the picker.
+  const [removedBehaviours,setRemovedBehaviours]=useState([]);
+  // Counter used to mint stable keys for user-added custom behaviours so React
+  // re-renders don't clash when the user adds-then-removes-then-adds.
+  const [customBehaviourCounter,setCustomBehaviourCounter]=useState(0);
+  // Per-bucket "add your own" form state. null = closed; bucket key = open for that bucket.
+  const [addingToBucket,setAddingToBucket]=useState(null);
+  const [addingText,setAddingText]=useState('');
   // Synthetic per-run session code so Solo submissions are uniquely keyed in
   // Supabase (matching group tool's session_code + respondent_name composite).
   // Generated lazily on first save; persisted in localStorage with the rest of
@@ -1862,10 +1909,11 @@ function App(){
     saveProgress(accessCode,{
       step,thing,thingDesc,contextText,s1ans,s2ans,tobe,tobeInit,
       selectedPrinciples,selectedBehaviours,behaviours,behavioursMeta,
+      removedBehaviours,customBehaviourCounter,
       soloSessionCode,participantUuid,participantNumber,participantId,
       accessCode,thingType,thingTypeCustom,role,roleCustom,sector,sectorCustom,
     });
-  },[step,thing,thingDesc,contextText,s1ans,s2ans,tobe,tobeInit,selectedPrinciples,selectedBehaviours,behaviours,behavioursMeta,soloSessionCode,accessCode,thingType,thingTypeCustom,role,roleCustom,sector,sectorCustom]);
+  },[step,thing,thingDesc,contextText,s1ans,s2ans,tobe,tobeInit,selectedPrinciples,selectedBehaviours,behaviours,behavioursMeta,removedBehaviours,customBehaviourCounter,soloSessionCode,accessCode,thingType,thingTypeCustom,role,roleCustom,sector,sectorCustom]);
 
   // Resume detection: when accessCode becomes set, check localStorage.
   // If there's saved progress beyond the entry page, surface a resume prompt.
@@ -1958,29 +2006,93 @@ function App(){
     setPrinciplesLoading(false);
   }
 
-  // Pick or unpick a behaviour for a specific bucket. Max 1 per bucket.
-  function pickBehaviour(behaviour, bucket){
+  // Star or unstar a behaviour. Hard cap: 3 stars total across all buckets.
+  // If user tries to star a 4th, the call is a no-op (button should be disabled).
+  // Caller passes the bucket so a starred item without one can be tracked
+  // (matters for custom items that haven't been bucketed yet — but in practice
+  // the picker UI always knows the bucket of the tile being starred).
+  function starBehaviour(behaviour, bucket){
     setSelectedBehaviours(prev=>{
       const existingIdx = prev.findIndex(s => s.text === behaviour.text);
       let next;
       if (existingIdx >= 0) {
-        // Already picked — unpick it
+        // Already starred — unstar
         next = prev.filter((_,i) => i !== existingIdx);
       } else {
-        // Replace any existing pick in this bucket (max 1 per bucket)
-        const filtered = prev.filter(s => s.bucket !== bucket);
-        next = [...filtered, {
+        // Hard cap at 3
+        if (prev.length >= 3) return prev;
+        next = [...prev, {
           text: behaviour.text,
-          bucket: bucket,
+          bucket: bucket || behaviour.bucket || 'retain',
           category: behaviour.category || null,
           axis: behaviour.axis || null,
-          is_edited: false,
-          is_custom: false,
+          is_edited: !!behaviour.is_edited,
+          is_custom: !!behaviour.is_custom,
         }];
       }
       setSelectedPrinciples(next.map(s => s.text));
       return next;
     });
+  }
+
+  // Remove a behaviour from the active list. The item moves to `removedBehaviours`
+  // so the user can recover it from the tray. If it was starred, it's also unstarred.
+  function removeBehaviour(idx){
+    setBehaviours(prev=>{
+      if (!Array.isArray(prev) || idx < 0 || idx >= prev.length) return prev;
+      const removed = prev[idx];
+      const next = prev.filter((_,i) => i !== idx);
+      setRemovedBehaviours(rprev => [...rprev, removed]);
+      // Unstar if it was starred
+      setSelectedBehaviours(sb => {
+        const sIdx = sb.findIndex(s => s.text === removed.text);
+        if (sIdx < 0) return sb;
+        const sNext = sb.filter((_,i) => i !== sIdx);
+        setSelectedPrinciples(sNext.map(s => s.text));
+        return sNext;
+      });
+      // Adjust editingBehaviourIdx if needed (since indices shift)
+      setEditingBehaviourIdx(cur => {
+        if (cur === null) return null;
+        if (cur === idx) return null; // was editing the removed one
+        if (cur > idx) return cur - 1;
+        return cur;
+      });
+      return next;
+    });
+  }
+
+  // Restore a removed behaviour back to the active list. Restored items go to
+  // the END of the list (rather than reconstructing original ordering), which
+  // keeps things predictable.
+  function unremoveBehaviour(removedIdx){
+    setRemovedBehaviours(prev=>{
+      if (removedIdx < 0 || removedIdx >= prev.length) return prev;
+      const restored = prev[removedIdx];
+      const nextRemoved = prev.filter((_,i) => i !== removedIdx);
+      setBehaviours(b => [...(b||[]), restored]);
+      return nextRemoved;
+    });
+  }
+
+  // Add a user-authored behaviour to a specific bucket. Increments the custom
+  // counter so the new item has a stable key and is_custom flag.
+  function addCustomBehaviour(bucket, text){
+    const trimmed = (text || '').trim();
+    if (!trimmed) return;
+    const newItem = {
+      text: trimmed,
+      bucket: bucket,
+      category: null,
+      axis: null,
+      is_custom: true,
+      is_edited: false,
+      custom_id: 'custom-'+(customBehaviourCounter+1),
+    };
+    setCustomBehaviourCounter(n => n + 1);
+    setBehaviours(prev => [...(prev || []), newItem]);
+    setAddingToBucket(null);
+    setAddingText('');
   }
 
   // Inline edit: replace behaviour text. Tracks original_text and is_edited.
@@ -2038,13 +2150,16 @@ function App(){
 
   // Regenerate with confirmation if user has picks that would be lost.
   function regenerateBehaviours(){
-    if (selectedBehaviours.length > 0) {
-      const ok = window.confirm('Regenerating will create a fresh set of behaviours. Your current picks will be cleared. Continue?');
+    if (selectedBehaviours.length > 0 || removedBehaviours.length > 0) {
+      const ok = window.confirm('Regenerating will create a fresh set of behaviours. Your current stars, edits, custom additions, and removed items will be cleared. Continue?');
       if (!ok) return;
     }
     setSelectedBehaviours([]);
     setSelectedPrinciples([]);
     setEditingBehaviourIdx(null);
+    setRemovedBehaviours([]);
+    setAddingToBucket(null);
+    setAddingText('');
     loadPrinciples();
   }
 
@@ -2231,6 +2346,7 @@ function App(){
     setLoading(false);
     setPrinciplesStep(false);setPrinciples(null);setSelectedPrinciples([]);
     setBehaviours(null);setBehavioursMeta(null);setSelectedBehaviours([]);setEditingBehaviourIdx(null);
+    setRemovedBehaviours([]);setCustomBehaviourCounter(0);setAddingToBucket(null);setAddingText('');
     setSoloSessionCode('');
   }
 
@@ -2254,10 +2370,12 @@ function App(){
     if(typeof data.roleCustom==='string'&&data.roleCustom)setRoleCustom(data.roleCustom);
     if(typeof data.sector==='string'&&data.sector)setSector(data.sector);
     if(typeof data.sectorCustom==='string'&&data.sectorCustom)setSectorCustom(data.sectorCustom);
-    // Behaviour state — restore picks, edits, and the generated agenda
+    // Behaviour state — restore picks, edits, generated agenda, removed tray, custom counter
     if(Array.isArray(data.selectedBehaviours))setSelectedBehaviours(data.selectedBehaviours);
     if(Array.isArray(data.behaviours))setBehaviours(data.behaviours);
     if(data.behavioursMeta)setBehavioursMeta(data.behavioursMeta);
+    if(Array.isArray(data.removedBehaviours))setRemovedBehaviours(data.removedBehaviours);
+    if(typeof data.customBehaviourCounter==='number')setCustomBehaviourCounter(data.customBehaviourCounter);
     setResumeData(null);
     go(data.step||1);
   }
@@ -2677,23 +2795,25 @@ function App(){
       });
     }
 
-    const totalPicked = selectedBehaviours.length;
-    const isPickedInBucket = (bucket) => selectedBehaviours.some(s => s.bucket === bucket);
+    const totalStarred = selectedBehaviours.length;
+    const STAR_CAP = 3;
+    const isAtCap = totalStarred >= STAR_CAP;
 
     return(
       <div className="fade">
         <div className="sec-tag">Step 6 of 7 · Behaviours</div>
         <h2 className="pg-title">Your behavioural agenda</h2>
-        <p className="pg-sub">Below are nine behaviours drawn from your responses, grouped into three columns. <strong>Pick up to one from each column</strong> — the practices you want to <em>retain</em>, the defaults you want <em>less of</em>, and the disciplines you want <em>more of</em>. Picking is optional. You can revise any item by clicking <em>✎ revise this</em>.</p>
+        <p className="pg-sub">Below are nine behaviours drawn from your responses, grouped into three columns. Edit them, remove any that don't apply, and add your own using the button at the bottom of each column. <strong>Then star the three you think matter most</strong> — from any column, in any combination.</p>
 
         {behavioursMeta && behavioursMeta.header && (
           <div className="inf-box" style={{marginBottom:'1.25rem',fontSize:'.85rem'}}>{behavioursMeta.header}</div>
         )}
 
+        {/* Starred summary panel */}
         {selectedBehaviours.length>0 && (
           <div style={{margin:'0 0 1.5rem',padding:'.85rem 1.1rem',background:'#1a1a1a',borderRadius:'4px'}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:'.5rem'}}>
-              <div style={{fontSize:'.6rem',fontWeight:700,letterSpacing:'.12em',textTransform:'uppercase',color:'#e07030',fontFamily:"'DM Sans',sans-serif"}}>Your picks · {totalPicked} of 3</div>
+              <div style={{fontSize:'.6rem',fontWeight:700,letterSpacing:'.12em',textTransform:'uppercase',color:'#e07030',fontFamily:"'DM Sans',sans-serif"}}>★ Your three most important · {totalStarred} of {STAR_CAP}</div>
             </div>
             {selectedBehaviours.map((s,i) => {
               const bucketDef = BUCKETS.find(b => b.key === s.bucket) || BUCKETS[0];
@@ -2703,6 +2823,7 @@ function App(){
                   <div style={{fontSize:'.88rem',color:'#f0ede8',flex:1,lineHeight:1.55}}>
                     {s.text}
                     {s.is_edited && <span style={{display:'inline-block',marginLeft:'.45rem',padding:'.08rem .35rem',background:'#3a2820',color:'#e07030',fontSize:'.6rem',fontWeight:700,letterSpacing:'.05em',textTransform:'uppercase',borderRadius:'2px',verticalAlign:'middle',fontFamily:"'DM Sans',sans-serif"}}>edited</span>}
+                    {s.is_custom && <span style={{display:'inline-block',marginLeft:'.45rem',padding:'.08rem .35rem',background:'#3a2820',color:'#aaa',fontSize:'.6rem',fontWeight:700,letterSpacing:'.05em',textTransform:'uppercase',borderRadius:'2px',verticalAlign:'middle',fontFamily:"'DM Sans',sans-serif"}}>your own</span>}
                   </div>
                 </div>
               );
@@ -2714,29 +2835,31 @@ function App(){
           <div className="think"><div className="dots"><div className="dot"/><div className="dot"/><div className="dot"/></div><span className="think-txt">Generating your behavioural agenda…</span></div>
         )}
 
-        {!principlesLoading && Array.isArray(behaviours) && behaviours.length === 0 && (
+        {!principlesLoading && Array.isArray(behaviours) && behaviours.length === 0 && removedBehaviours.length === 0 && (
           <div className="warn-box">
             We couldn't generate behaviours right now. Click Regenerate to try again, or skip this step and continue to your report.
           </div>
         )}
 
-        {!principlesLoading && Array.isArray(behaviours) && behaviours.length > 0 && (
+        {!principlesLoading && (Array.isArray(behaviours) && behaviours.length > 0 || removedBehaviours.length > 0) && (
           <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))',gap:'.85rem'}}>
             {BUCKETS.map(bucket => {
               const items = itemsByBucket[bucket.key] || [];
-              const pickedHere = isPickedInBucket(bucket.key);
               return (
-                <div key={bucket.key} style={{padding:'.85rem',background:'#fff',borderRadius:'4px',border:'1px solid #d8d3cb'}}>
+                <div key={bucket.key} style={{padding:'.85rem',background:'#fff',borderRadius:'4px',border:'1px solid #d8d3cb',display:'flex',flexDirection:'column'}}>
                   <div style={{marginBottom:'.65rem',paddingBottom:'.45rem',borderBottom:'2px solid '+bucket.colour}}>
                     <div style={{fontSize:'.7rem',fontWeight:700,letterSpacing:'.08em',textTransform:'uppercase',color:bucket.colour,fontFamily:"'DM Sans',sans-serif"}}>{bucket.label}</div>
                     <div style={{fontSize:'.72rem',color:'#888',marginTop:'.2rem',fontFamily:"'DM Sans',sans-serif"}}>{bucket.desc}</div>
                   </div>
+                  <div style={{flex:1}}>
                   {items.map(item => {
-                    const isSelected = selectedBehaviours.some(s => s.text === item.text);
+                    const isStarred = selectedBehaviours.some(s => s.text === item.text);
                     const isEditing = editingBehaviourIdx === item.idx;
+                    const starDisabled = !isStarred && isAtCap;
+
                     if (isEditing) {
                       return (
-                        <div key={item.idx} style={{padding:'.65rem',marginBottom:'.55rem',background:'#fff8f5',border:'2px solid #e07030',borderRadius:'4px'}}>
+                        <div key={item.custom_id || item.idx} style={{padding:'.65rem',marginBottom:'.55rem',background:'#fff8f5',border:'2px solid #e07030',borderRadius:'4px'}}>
                           <textarea
                             className="inp inp-ta"
                             defaultValue={item.text}
@@ -2749,53 +2872,105 @@ function App(){
                               if (ta) saveBehaviourEdit(item.idx, ta.value);
                             }}>Save</button>
                             <button className="btn-s" onClick={()=>setEditingBehaviourIdx(null)}>Cancel</button>
-                            {item.is_edited && (
+                            {item.is_edited && !item.is_custom && (
                               <button className="btn-s" onClick={()=>revertBehaviourEdit(item.idx)} style={{borderColor:'#999',color:'#999'}}>Revert to original</button>
                             )}
                           </div>
                         </div>
                       );
                     }
+
                     return (
-                      <div key={item.idx}
-                        onClick={()=>pickBehaviour(item, bucket.key)}
+                      <div key={item.custom_id || item.idx}
                         style={{
                           padding:'.65rem .8rem',marginBottom:'.5rem',
-                          border:isSelected?'2px solid '+bucket.colour:'1px solid #d8d3cb',
-                          background:isSelected?bucket.bg:'#fafaf6',
-                          borderRadius:'4px',cursor:'pointer',
-                          display:'flex',gap:'.5rem',alignItems:'flex-start',
+                          border:isStarred?'2px solid '+bucket.colour:'1px solid #d8d3cb',
+                          background:isStarred?bucket.bg:'#fafaf6',
+                          borderRadius:'4px',
                           transition:'all .15s',
                         }}>
-                        <div style={{
-                          width:'18px',height:'18px',borderRadius:'50%',
-                          border:'2px solid '+(isSelected?bucket.colour:'#b0a898'),
-                          background:isSelected?bucket.colour:'transparent',
-                          flexShrink:0,marginTop:'2px',
-                          display:'flex',alignItems:'center',justifyContent:'center',
-                        }}>
-                          {isSelected && <span style={{color:'#fff',fontSize:'.6rem',lineHeight:1}}>✓</span>}
+                        <div style={{fontSize:'.84rem',lineHeight:1.5,color:'#1a1a1a',marginBottom:'.45rem'}}>
+                          {item.text}
+                          {item.is_edited && <span style={{display:'inline-block',marginLeft:'.4rem',padding:'.08rem .35rem',background:'#fff8f5',color:'#e07030',fontSize:'.58rem',fontWeight:700,letterSpacing:'.05em',textTransform:'uppercase',borderRadius:'2px',border:'1px solid #f5c8b0',verticalAlign:'middle',fontFamily:"'DM Sans',sans-serif"}}>edited</span>}
+                          {item.is_custom && <span style={{display:'inline-block',marginLeft:'.4rem',padding:'.08rem .35rem',background:'#f5f1ea',color:'#666',fontSize:'.58rem',fontWeight:700,letterSpacing:'.05em',textTransform:'uppercase',borderRadius:'2px',border:'1px solid #d8d3cb',verticalAlign:'middle',fontFamily:"'DM Sans',sans-serif"}}>your own</span>}
                         </div>
-                        <div style={{flex:1}}>
-                          <div style={{fontSize:'.84rem',lineHeight:1.5,color:'#1a1a1a'}}>
-                            {item.text}
-                            {item.is_edited && <span style={{display:'inline-block',marginLeft:'.4rem',padding:'.08rem .35rem',background:'#fff8f5',color:'#e07030',fontSize:'.58rem',fontWeight:700,letterSpacing:'.05em',textTransform:'uppercase',borderRadius:'2px',border:'1px solid #f5c8b0',verticalAlign:'middle',fontFamily:"'DM Sans',sans-serif"}}>edited</span>}
-                          </div>
-                          <div style={{marginTop:'.35rem'}}>
-                            <button onClick={e=>{e.stopPropagation();setEditingBehaviourIdx(item.idx);}}
-                              style={{background:'none',border:'none',color:'#888',cursor:'pointer',fontSize:'.72rem',padding:0,fontFamily:"'DM Sans',sans-serif",textDecoration:'underline'}}>
-                              ✎ revise this
-                            </button>
-                          </div>
+                        <div style={{display:'flex',gap:'.85rem',flexWrap:'wrap'}}>
+                          <button onClick={()=>starBehaviour(item, bucket.key)}
+                            disabled={starDisabled}
+                            title={starDisabled?'Unstar another item first — max 3':(isStarred?'Unstar':'Star as one of your three most important')}
+                            style={{
+                              background:'none',border:'none',padding:0,
+                              color:isStarred?bucket.colour:(starDisabled?'#ccc':'#888'),
+                              cursor:starDisabled?'not-allowed':'pointer',
+                              fontSize:'.74rem',fontWeight:isStarred?700:400,
+                              fontFamily:"'DM Sans',sans-serif",textDecoration:'underline',
+                            }}>
+                            {isStarred?'★ starred':'☆ star'}
+                          </button>
+                          <button onClick={()=>setEditingBehaviourIdx(item.idx)}
+                            style={{background:'none',border:'none',color:'#888',cursor:'pointer',fontSize:'.74rem',padding:0,fontFamily:"'DM Sans',sans-serif",textDecoration:'underline'}}>
+                            ✎ revise
+                          </button>
+                          <button onClick={()=>removeBehaviour(item.idx)}
+                            style={{background:'none',border:'none',color:'#888',cursor:'pointer',fontSize:'.74rem',padding:0,fontFamily:"'DM Sans',sans-serif",textDecoration:'underline'}}>
+                            ✕ remove
+                          </button>
                         </div>
                       </div>
                     );
                   })}
                   {items.length === 0 && (
                     <div style={{fontSize:'.78rem',color:'#888',fontStyle:'italic',padding:'.5rem 0',fontFamily:"'DM Sans',sans-serif"}}>
-                      No items in this bucket — your gaps point elsewhere.
+                      No items in this bucket yet.
                     </div>
                   )}
+                  </div>
+
+                  {/* Per-bucket add form */}
+                  <div style={{marginTop:'.5rem',paddingTop:'.5rem',borderTop:'1px dashed #d8d3cb'}}>
+                    {addingToBucket === bucket.key ? (
+                      <div>
+                        <textarea
+                          value={addingText}
+                          onChange={e=>setAddingText(e.target.value)}
+                          placeholder={'Write your own '+bucket.label.toLowerCase()+' behaviour…'}
+                          autoFocus
+                          style={{width:'100%',minHeight:'60px',marginBottom:'.4rem',fontSize:'.82rem',padding:'.5rem',border:'1px solid #d8d3cb',borderRadius:'3px',fontFamily:"'DM Sans',sans-serif",resize:'vertical'}}
+                        />
+                        <div style={{display:'flex',gap:'.4rem'}}>
+                          <button className="btn-s" onClick={()=>addCustomBehaviour(bucket.key, addingText)} disabled={!addingText.trim()}>Add</button>
+                          <button className="btn-s" onClick={()=>{setAddingToBucket(null);setAddingText('');}}>Cancel</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button onClick={()=>{setAddingToBucket(bucket.key);setAddingText('');}}
+                        style={{background:'none',border:'1px dashed '+bucket.colour,color:bucket.colour,cursor:'pointer',fontSize:'.78rem',padding:'.4rem .8rem',borderRadius:'3px',fontFamily:"'DM Sans',sans-serif",width:'100%'}}>
+                        + Add to {bucket.label}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Removed tray */}
+        {removedBehaviours.length > 0 && (
+          <div style={{marginTop:'1.5rem',padding:'.85rem 1rem',background:'#f5f1ea',borderRadius:'4px',border:'1px solid #d8d3cb'}}>
+            <div style={{fontSize:'.7rem',fontWeight:700,letterSpacing:'.08em',textTransform:'uppercase',color:'#888',marginBottom:'.5rem',fontFamily:"'DM Sans',sans-serif"}}>
+              Removed · {removedBehaviours.length} {removedBehaviours.length===1?'item':'items'}
+            </div>
+            {removedBehaviours.map((item,i) => {
+              const bucketDef = BUCKETS.find(b => b.key === (item.bucket==='keep'?'retain':item.bucket==='add'?'more':item.bucket==='replace'?'less':item.bucket)) || BUCKETS[0];
+              return (
+                <div key={item.custom_id||i} style={{display:'flex',alignItems:'flex-start',gap:'.6rem',padding:'.4rem 0',borderBottom:i<removedBehaviours.length-1?'1px solid #d8d3cb':'none'}}>
+                  <div style={{display:'inline-block',padding:'.1rem .4rem',background:'#fff',color:bucketDef.colour,border:'1px solid '+bucketDef.colour,fontSize:'.58rem',fontWeight:700,letterSpacing:'.06em',textTransform:'uppercase',borderRadius:'2px',flexShrink:0,marginTop:'2px',fontFamily:"'DM Sans',sans-serif"}}>{bucketDef.label}</div>
+                  <div style={{flex:1,fontSize:'.82rem',lineHeight:1.5,color:'#666',textDecoration:'line-through'}}>{item.text}</div>
+                  <button onClick={()=>unremoveBehaviour(i)}
+                    style={{background:'none',border:'none',color:'#e07030',cursor:'pointer',fontSize:'.74rem',padding:0,fontFamily:"'DM Sans',sans-serif",textDecoration:'underline',flexShrink:0}}>
+                    ↺ put back
+                  </button>
                 </div>
               );
             })}
@@ -3224,53 +3399,70 @@ function App(){
           })}
         </div>
         <div className="rpt-section" style={{marginBottom:'2rem'}}>
-          <div className="rpt-heading" style={{fontSize:'1rem',marginBottom:'1rem'}}>Your selected behaviours</div>
-          {selectedBehaviours&&selectedBehaviours.length>0?(
-            <div>
-              {(()=>{
-                const byBucket = {retain:[], less:[], more:[]};
-                selectedBehaviours.forEach(b=>{
-                  let bk = b.bucket;
-                  if(bk==='keep')bk='retain';
-                  else if(bk==='add')bk='more';
-                  else if(bk==='replace')bk='less';
-                  if(byBucket[bk])byBucket[bk].push(b);
-                });
-                const sections = [
-                  {key:'retain', label:'Retain',  color:'#2d7d4a', bg:'#e8f4ed'},
-                  {key:'less',   label:'Less of', color:'#c0392b', bg:'#fcebe9'},
-                  {key:'more',   label:'More of', color:'#1f6fa3', bg:'#e6f0f7'},
-                ];
-                return sections.filter(s=>byBucket[s.key].length>0).map(s=>(
+          <div className="rpt-heading" style={{fontSize:'1rem',marginBottom:'1rem'}}>Your behavioural agenda</div>
+          {(()=>{
+            // Prefer the full behaviours list (post-edit, with custom additions, with removals filtered).
+            // Fall back to starred-only or legacy flat list.
+            const haveFull = Array.isArray(behaviours) && behaviours.length > 0;
+            const haveStarred = Array.isArray(selectedBehaviours) && selectedBehaviours.length > 0;
+            const haveLegacy = Array.isArray(selectedPrinciples) && selectedPrinciples.length > 0;
+            if (!haveFull && !haveStarred && !haveLegacy) {
+              return <p className="rpt-body" style={{fontStyle:'italic',color:'#888'}}>You did not work on any behaviours. You can go back to the Behaviours step from the progress bar.</p>;
+            }
+            if (!haveFull && haveLegacy) {
+              return (
+                <div>
+                  {selectedPrinciples.map((p,i)=>(
+                    <div key={i} className="sug-item">
+                      <div className="sug-num">{i+1}</div>
+                      <div className="sug-txt" style={{fontWeight:500}}>{p}</div>
+                    </div>
+                  ))}
+                  <p style={{fontSize:'.78rem',color:'#888',marginTop:'1rem',lineHeight:1.6,fontFamily:"'DM Sans',sans-serif"}}>These are the commitments you identified as most likely to help {th} make the shift you described.</p>
+                </div>
+              );
+            }
+            const list = haveFull ? behaviours : selectedBehaviours;
+            const starredTexts = new Set(selectedBehaviours.map(s => s.text));
+
+            const byBucket = {retain:[], less:[], more:[]};
+            list.forEach(b=>{
+              if (!b || typeof b !== 'object' || !b.text) return;
+              let bk = b.bucket;
+              if(bk==='keep')bk='retain';
+              else if(bk==='add')bk='more';
+              else if(bk==='replace')bk='less';
+              if(byBucket[bk])byBucket[bk].push(b);
+            });
+            const sections = [
+              {key:'retain', label:'Retain',  color:'#2d7d4a', bg:'#e8f4ed', tint:'#fff7e8'},
+              {key:'less',   label:'Less of', color:'#c0392b', bg:'#fcebe9', tint:'#fff7e8'},
+              {key:'more',   label:'More of', color:'#1f6fa3', bg:'#e6f0f7', tint:'#fff7e8'},
+            ];
+            return (
+              <div>
+                {sections.filter(s=>byBucket[s.key].length>0).map(s=>(
                   <div key={s.key} style={{marginBottom:'1.25rem'}}>
                     <div style={{display:'inline-block',padding:'.25rem .65rem',background:s.bg,color:s.color,fontSize:'.7rem',fontWeight:700,letterSpacing:'.06em',textTransform:'uppercase',borderRadius:'3px',marginBottom:'.5rem',fontFamily:"'DM Sans',sans-serif"}}>{s.label}</div>
-                    {byBucket[s.key].map((b,j)=>(
-                      <div key={j} className="sug-item">
-                        <div className="sug-txt" style={{fontWeight:500}}>
-                          {b.text}
-                          {b.is_edited && <span style={{display:'inline-block',marginLeft:'.5rem',padding:'.1rem .4rem',background:'#fff8f5',color:'#e07030',fontSize:'.62rem',fontWeight:700,letterSpacing:'.05em',textTransform:'uppercase',borderRadius:'2px',border:'1px solid #f5c8b0',verticalAlign:'middle',fontFamily:"'DM Sans',sans-serif"}}>edited</span>}
+                    {byBucket[s.key].map((b,j)=>{
+                      const isStarred = starredTexts.has(b.text);
+                      return (
+                        <div key={j} style={{display:'flex',alignItems:'flex-start',gap:'.5rem',padding:'.5rem .75rem',marginBottom:'.4rem',background:isStarred?'#fff7e8':'transparent',border:isStarred?'1px solid '+s.color:'1px solid #ebe7e0',borderRadius:'3px',borderLeft:isStarred?'4px solid '+s.color:'1px solid #ebe7e0'}}>
+                          <div style={{flexShrink:0,fontSize:'.95rem',color:isStarred?s.color:'#ddd',marginTop:'1px',width:'14px'}}>{isStarred?'★':'·'}</div>
+                          <div style={{flex:1,fontSize:'.85rem',lineHeight:1.55,color:'#1a1a1a',fontWeight:isStarred?600:400}}>
+                            {b.text}
+                            {b.is_edited && <span style={{display:'inline-block',marginLeft:'.45rem',padding:'.08rem .35rem',background:'#fff8f5',color:'#e07030',fontSize:'.6rem',fontWeight:700,letterSpacing:'.05em',textTransform:'uppercase',borderRadius:'2px',border:'1px solid #f5c8b0',verticalAlign:'middle',fontFamily:"'DM Sans',sans-serif"}}>edited</span>}
+                            {b.is_custom && <span style={{display:'inline-block',marginLeft:'.45rem',padding:'.08rem .35rem',background:'#f5f1ea',color:'#666',fontSize:'.6rem',fontWeight:700,letterSpacing:'.05em',textTransform:'uppercase',borderRadius:'2px',border:'1px solid #d8d3cb',verticalAlign:'middle',fontFamily:"'DM Sans',sans-serif"}}>your own</span>}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
-                ));
-              })()}
-              <p style={{fontSize:'.78rem',color:'#888',marginTop:'1rem',lineHeight:1.6,fontFamily:"'DM Sans',sans-serif"}}>These are the commitments you have selected as most likely to help {th} make the shift you described. They are not actions for next Tuesday — they are positions you are committing to hold and act from.</p>
-            </div>
-          ):selectedPrinciples&&selectedPrinciples.length>0?(
-            // Legacy fallback for older Solo sessions saved before the bucket rebuild
-            <div>
-              {selectedPrinciples.map((p,i)=>(
-                <div key={i} className="sug-item">
-                  <div className="sug-num">{i+1}</div>
-                  <div className="sug-txt" style={{fontWeight:500}}>{p}</div>
-                </div>
-              ))}
-              <p style={{fontSize:'.78rem',color:'#888',marginTop:'1rem',lineHeight:1.6,fontFamily:"'DM Sans',sans-serif"}}>These are the commitments to a way of seeing that you believe will most help {th} make the shift you described. They are not actions for next Tuesday — they are positions you are committing to hold and act from.</p>
-            </div>
-          ):(
-            <p className="rpt-body" style={{fontStyle:'italic',color:'#888'}}>You did not select any behaviours. You can go back to the Behaviours step from the progress bar to choose some, or you can simply use this report's profile and gap analysis as a basis for your own thinking.</p>
-          )}
+                ))}
+                <p style={{fontSize:'.78rem',color:'#888',marginTop:'1rem',lineHeight:1.6,fontFamily:"'DM Sans',sans-serif"}}>These are the behaviours you've identified as most likely to help {th} make the shift you described. The ones you flagged with a ★ are the three you said matter most.</p>
+              </div>
+            );
+          })()}
         </div>
 
         <div style={{background:'#fff8f5',border:'1px solid #f5c8b0',borderRadius:'5px',padding:'1.25rem',marginBottom:'1.5rem'}}>
@@ -3305,6 +3497,7 @@ function App(){
           s1ans, s2ans,
           selectedPrinciples,
           selectedBehaviours,
+          behaviours,
           SLABELS, SDESC, getStrategyText, gapLabel, gapBadgeText,
           S1, S2,
           industryContext,
@@ -3333,6 +3526,7 @@ function App(){
           s1ans, s2ans,
           selectedPrinciples,
           selectedBehaviours,
+          behaviours,
           SLABELS, SDESC, getStrategyText, gapLabel, gapBadgeText,
           S1, S2,
           industryContext,
