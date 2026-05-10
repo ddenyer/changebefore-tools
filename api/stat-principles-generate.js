@@ -1,4 +1,4 @@
-// stat-principles-generate.js — generate a Retain / Less of / More of behavioural agenda
+// stat-principles-generate.js — generate a Retain / Less of / More of organisational practices agenda
 //
 // Architecture (May 2026):
 //   - Total: 9 items, every time
@@ -12,7 +12,10 @@
 //     * Each category P/E/R/D appears at least once (≥1 floor)
 //     * No category contributes more than 4 items (cap)
 //     * Mindset/approach axis split tracks gap proportion (4-5 / 5-4 when both active)
-//   - AI generates noun-phrase items (5-12 words), grounded in the STAT framework
+//   - AI generates organisational practices (6-14 words), grounded in the STAT framework.
+//     Practices are patterned, repeated ways of working — not strategy descriptions,
+//     value statements, or individual leader habits. Practice voice is plural-collective
+//     ("we / our / the organisation") and observable from outside.
 //
 // Item format returned to client:
 //   { text, original_text, bucket, category, category_name, axis, question_id }
@@ -355,7 +358,36 @@ function buildPrompt(state, items) {
    BUCKET: ${it.bucket.toUpperCase()}`;
   }).join('\n\n');
 
-  return `You are writing a behavioural change agenda for a leadership group working on ${th}${sector?` in ${sector}`:''}, using the Strategic Tensions Assessment Tool (STAT) framework developed by Professor David Denyer at Cranfield School of Management.
+  return `You are writing an organisational practice agenda for a leadership group working on ${th}${sector?` in ${sector}`:''}, using the Strategic Tensions Assessment Tool (STAT) framework developed by Professor David Denyer at Cranfield School of Management.
+
+WHAT YOU ARE GENERATING — read carefully:
+
+You are NOT generating:
+- Strategy descriptions ("Maximising return from existing capabilities")
+- Value statements ("Careful risk assessment and reliable delivery")
+- Postures or stances ("Competitive pursuit of ambitious targets")
+- Individual leader habits ("Pause before responding when challenged")
+- Abstract qualities ("Being agile", "Operational excellence")
+
+You ARE generating ORGANISATIONAL PRACTICES — patterned, repeated ways of working that are visible in how this organisation actually operates. A practice is something a new joiner could observe happening. It belongs to the team or organisation, not to one individual. It names a way the work gets done, decisions get made, or coordination happens.
+
+Good practices read like:
+- "Pre-mortems before major commitments are signed off"
+- "Two-key sign-off on irreversible decisions"
+- "Weekly retrospectives where assumptions get challenged"
+- "Standardising successful approaches across teams once proven"
+- "Centralising authority for cross-cutting trade-offs"
+- "Routing novel problems to cross-functional working groups"
+- "Treating procedural deviation as a learning event, not a failure"
+- "Recognising people for delivering against committed targets"
+- "Reviewing risk registers at every senior leadership meeting"
+
+Notice that good practices:
+- Name a specific pattern of organising, deciding, coordinating, or responding
+- Are observable from the outside
+- Can be identified as present or absent in our current way of working
+- Are organisational ("we / our team / the organisation") not individual ("the leader / you")
+- Describe a HOW, not a WHAT or a WHY
 
 THE STAT FRAMEWORK:
 The STAT identifies four organisational resilience strategies, formed by two dimensions:
@@ -388,43 +420,49 @@ DESTINATION STRATEGY (${toStrategy}):
 - Product: ${toDesc.product}
 
 VOICE — for every item:
-- Plural-collective. Use "we / us / our" throughout.
-- This is the leadership group's agenda, not a personal coaching plan.
-- Never address one person ("you"). Never mention "the leader". Always "we" or "the team".
+- Plural-collective. Use "we / us / our" where pronouns are needed.
+- This is the leadership group's organisational agenda, not a personal coaching plan.
+- Never address one person ("you"). Never mention "the leader". Always frame as a way the organisation works.
 
-THE FOUR CATEGORIES — each item is in one of:
-- PURPOSE — what we're trying to achieve, what success looks like, what we pay attention to
-- PEOPLE — what we value in our people, what we expect of leadership, how people become successful here
-- PROCESS — how we structure work, make decisions, coordinate activity, respond to events
-- PRODUCT — what we offer, how we develop products/services, how we measure outputs, what customers value
+THE FOUR CATEGORIES — each item belongs to one:
+- PURPOSE — practices around how we set strategy, define success, allocate attention
+- PEOPLE — practices around what we expect, develop, recognise, reward in our people
+- PROCESS — practices around how we structure work, make decisions, coordinate, respond
+- PRODUCT — practices around how we develop offerings, engage customers, measure outputs
 
-The category determines what the item is ABOUT. A Process item should sound like work structure or decision-making. A People item should sound like beliefs, expectations, or behaviours of staff. A Product item should sound like markets, customers, or outputs. A Purpose item should sound like strategy, attention, or success.
+The category determines what the practice is ABOUT. A Process practice describes how work gets coordinated or decisions get made. A People practice describes how we hire, develop, expect, reward. A Product practice describes how we offer, deliver, measure value to customers. A Purpose practice describes how we set direction, define success, allocate strategic attention.
 
 THE THREE BUCKETS:
 
-RETAIN — a current practice working well that should be protected. The shift toward ${toStrategy} still needs this.
-  Format: noun phrase describing the practice (5-12 words).
+RETAIN — a practice currently working well in this organisation that should be protected. The shift toward ${toStrategy} still needs this practice in place.
   Voice: assertive, declarative.
+  Example shape: "Maintaining clear escalation routes for safety-critical concerns"
+  Example shape: "Investing in deep technical expertise within core teams"
   Lean on the "At its best" language of ${fromStrategy}: ${fromDesc.at_best}
 
-LESS OF — a current default we lean on too hard. Name the cost of doing more of it.
-  Format: noun phrase describing the default (5-12 words).
-  Voice: confronting. Should make readers slightly uncomfortable because they recognise themselves.
+LESS OF — a current organisational default that the group leans on too hard. Name the cost of overdoing it. Should make readers slightly uncomfortable because they recognise themselves doing this.
+  Voice: confronting, specific.
+  Example shape: "Routing every decision through senior leadership for approval"
+  Example shape: "Treating procedural deviation as cause for blame rather than learning"
   Lean on the "Blind spots" language of ${fromStrategy}: ${fromDesc.blind_spots}
 
-MORE OF — a discipline or behaviour to dial up, pulling toward ${toStrategy}.
-  Format: noun phrase describing the behaviour (5-12 words).
-  Voice: building. Specific and behavioural — not abstract values.
+MORE OF — an organisational practice to dial up or build, pulling toward ${toStrategy}. Name a HOW, a way of working, not an aspiration.
+  Voice: building, specific, observable.
+  Example shape: "Running structured experiments with explicit kill criteria"
+  Example shape: "Holding fortnightly reviews where market signals get debated"
   Lean on the language of ${toStrategy}: ${toDesc.purpose} | ${toDesc.people} | ${toDesc.process}
 
 CONSTRAINTS — every item must:
-- Be 5 to 12 words
-- Be a noun phrase or descriptive clause (not a full sentence with verb stem like "Stop treating")
+- Be 6 to 14 words
+- Read as an organisational practice (a way the org works), not a strategy stance, value, or quality
+- Start with one of: a present participle ("Running…", "Holding…", "Treating…", "Maintaining…"), OR a noun-phrase that names the practice ("Pre-mortems before…", "Two-key sign-off on…", "Cross-functional working groups for…")
 - Use plain English. NEVER use the framework jargon ("Progressive", "Defensive", "Consistency", "Flexibility", "Mindful Action", "Preventative Control", "Performance Optimisation", "Adaptive Innovation", "axis", "score", "framework", "quadrant")
 - Not prescribe a Tuesday action — no specific meetings, percentages, timeframes, headcounts
-- Be specific enough to be recognised in our own behaviour
+- Be specific enough to recognise in our own work
 - Be generic enough to translate to different situations within ${th}
-- Match the CATEGORY assigned (Purpose / People / Process / Product) — the item must be ABOUT that lens
+- Match the CATEGORY assigned (Purpose / People / Process / Product) — the practice must be ABOUT that lens
+
+REJECT YOUR FIRST DRAFT IF: the item could be the title of a book on strategy ("Maximising return from existing capabilities", "Inspiring teams with stretch goals"). That's a strategy description, not a practice. Rewrite to name the actual organisational ROUTINE that produces or expresses that strategy.
 
 LESS OF items in particular must HAVE BITE — they should make the reader slightly uncomfortable because we already do the thing being named. Don't soften.
 
@@ -432,7 +470,7 @@ THE 9 ITEMS — keep this exact order in the output:
 
 ${itemList}
 
-OUTPUT FORMAT — respond with ONLY a JSON array of exactly 9 strings. Each string is a short noun phrase (5-12 words) for that item. No preamble, no markdown, no code fences.`;
+OUTPUT FORMAT — respond with ONLY a JSON array of exactly 9 strings. Each string is a 6-14 word organisational practice for that item. No preamble, no markdown, no code fences.`;
 }
 
 // ── HANDLER ────────────────────────────────────────────────────────────
