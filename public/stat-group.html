@@ -2181,7 +2181,7 @@ function generateStatGroupPDF(opts){
     } else if (state === 'split') {
       setFont(11, 'bold', RED);
       doc.text('THE ROOM IS NOT ALIGNED ON DIRECTION', margin, y+4);
-      y += 7;
+      y += 9;
       paragraph('The group as-is is '+(QL[a.groupAsIs]||'mixed')+'. Respondents are pulling in different directions for to-be. Generating an averaged agenda would mask the disagreement and produce contradictory practices. The diagnostic IS the work here, not the agenda.', {color:TEXT, size:10});
       y += 2;
 
@@ -2196,7 +2196,7 @@ function generateStatGroupPDF(opts){
 
       setFont(10, 'bold', TEXT);
       doc.text('How the room splits:', margin, y+4);
-      y += 6;
+      y += 8;
       groups.forEach(([q, members], i) => {
         checkPage(8);
         setFont(9, 'normal', TEXT);
@@ -2210,7 +2210,7 @@ function generateStatGroupPDF(opts){
 
       setFont(10, 'bold', TEXT);
       doc.text('Workshop instruction:', margin, y+4);
-      y += 6;
+      y += 8;
       paragraph('Don\'t resolve this with a compromise agenda. Three productive moves: (1) ask each group to articulate what specifically they fear about the other direction; (2) ask whether the disagreement is about where to go or about what\'s at stake; (3) if alignment isn\'t reachable, name it as the leadership work to do after this session.', {color:TEXT, size:9});
       addFooter();
     } else {
@@ -2226,7 +2226,7 @@ function generateStatGroupPDF(opts){
       }
       setFont(11, 'bold', TEXT);
       doc.text(header, margin, y+4);
-      y += 6;
+      y += 9;
 
       let summary;
       if (a.groupAsIs === dom.quadrant) {
