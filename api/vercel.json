@@ -1,0 +1,12 @@
+{
+  "rewrites": [
+    { "source": "/stat", "destination": "/stat.html" },
+    { "source": "/stat-solo", "destination": "/stat-solo.html" },
+    { "source": "/stat-group", "destination": "/stat-group.html" },
+    { "source": "/define", "destination": "/define.html" },
+    { "source": "/pace2", "destination": "/pace2.html" },
+    { "source": "/engagement", "destination": "/engagement.html" },
+    { "source": "/resilience-is", "destination": "/resilience-is.html" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
