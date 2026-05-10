@@ -3105,11 +3105,8 @@ function App(){
   // action is the only way to introduce participant wording).
   //
   // selectedBehaviours is an array of 0-3 items, each with:
-  //   { text, original_text, bucket, category, axis, is_edited }
-  // (no `rank`, no `is_custom` — those are gone)
+  //   { text, original_text, bucket, category, axis, is_edited, is_custom }
 
-  // Toggle a pick in/out. Picks are per-bucket: clicking a different item
-  // in the same bucket replaces the previous pick.
   // Star or unstar a behaviour. Hard cap: 3 stars total across all buckets.
   // If user tries to star a 4th, the call is a no-op (button should be disabled).
   function starBehaviour(behaviour, bucket){
