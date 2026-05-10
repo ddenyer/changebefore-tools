@@ -1914,8 +1914,11 @@ function App(){
       removedBehaviours,customBehaviourCounter,
       soloSessionCode,participantUuid,participantNumber,participantId,
       accessCode,thingType,thingTypeCustom,role,roleCustom,sector,sectorCustom,
+      // principlesStep is a sub-screen flag: true means "on the Practices picker
+      // within step 5". Without this, refresh-then-resume drops back to Future.
+      principlesStep,
     });
-  },[step,thing,thingDesc,contextText,s1ans,s2ans,tobe,tobeInit,selectedPrinciples,selectedBehaviours,behaviours,behavioursMeta,removedBehaviours,customBehaviourCounter,soloSessionCode,accessCode,thingType,thingTypeCustom,role,roleCustom,sector,sectorCustom]);
+  },[step,thing,thingDesc,contextText,s1ans,s2ans,tobe,tobeInit,selectedPrinciples,selectedBehaviours,behaviours,behavioursMeta,removedBehaviours,customBehaviourCounter,soloSessionCode,accessCode,thingType,thingTypeCustom,role,roleCustom,sector,sectorCustom,principlesStep]);
 
   // Resume detection: when accessCode becomes set, check localStorage.
   // If there's saved progress beyond the entry page, surface a resume prompt.
@@ -2378,6 +2381,10 @@ function App(){
     if(data.behavioursMeta)setBehavioursMeta(data.behavioursMeta);
     if(Array.isArray(data.removedBehaviours))setRemovedBehaviours(data.removedBehaviours);
     if(typeof data.customBehaviourCounter==='number')setCustomBehaviourCounter(data.customBehaviourCounter);
+    // Practices is a sub-screen of step 5 (Future) flagged via principlesStep.
+    // If the saved session was on Practices, restore that flag so Resume lands them
+    // on the Practices screen, not the Future step.
+    if(typeof data.principlesStep==='boolean')setPrinciplesStep(data.principlesStep);
     setResumeData(null);
     go(data.step||1);
   }
@@ -2499,10 +2506,15 @@ function App(){
   function renderResumePrompt(){
     if(!resumeData)return null;
     const savedDate=resumeData.savedAt?new Date(resumeData.savedAt).toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'}):'recently';
+    // Show a friendly step name. The internal step is 0-5 with principlesStep
+    // being a sub-screen on step 5.
+    const stepNamesMap={1:'Survey',2:'Survey',3:'Profile',4:'Future',5:'Future'};
+    let stepLabel = stepNamesMap[resumeData.step] || ('step '+resumeData.step);
+    if (resumeData.step === 5 && resumeData.principlesStep) stepLabel = 'Practices';
     return(
       <div className="resume-box">
         <h3>Welcome back — continue where you left off?</h3>
-        <p>We found a saved session from {savedDate}. You were on step {resumeData.step} of 5.</p>
+        <p>We found a saved session from {savedDate}. You were on the {stepLabel} step.</p>
         <div className="btn-row" style={{marginTop:'.75rem'}}>
           <button className="btn-p" onClick={()=>applyResume(resumeData)}>Resume →</button>
           <button className="btn-s" onClick={()=>setResumeData(null)}>Start fresh</button>
