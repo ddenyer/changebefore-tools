@@ -2098,7 +2098,13 @@ function App(){
   // Now includes selected_behaviours alongside legacy selected_principles
   // so the new bucket-aware data lands in Supabase.
   async function saveSubmission(isGenerateReport=false){
-    if(!respondentName.trim())return false;
+    // If we have no respondentName at all (rare path — gate-skipped or anonymous
+    // entry), use a synthetic name keyed off the access code so the row is at
+    // least identifiable in Supabase. Without this fallback, every save aborts
+    // and the new retry-on-Generate loop surfaces a misleading "couldn't save"
+    // alert when the real cause is "no identity".
+    const trimmedName = (respondentName || '').trim();
+    const effectiveName = trimmedName || `Anonymous (${accessCode || 'unknown'})`;
     const sessionCode=ensureSoloSessionCode();
     try{
       const resp = await fetch('/api/stat-save',{
@@ -2106,7 +2112,7 @@ function App(){
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({
           session_code:sessionCode,
-          respondent_name:respondentName.trim(),
+          respondent_name:effectiveName,
           role:role==='None of the above'?roleCustom:role,
           seniority:'',org_size:orgSize,sector:sector==='Other'?sectorCustom:sector,
           thing,prog,def:def,con,flex,
@@ -2136,12 +2142,16 @@ function App(){
   // persist to Supabase without a manual save click. Email does NOT fire here —
   // only generate() with isGenerateReport=true triggers the email branch.
   useEffect(()=>{
-    if(!respondentName.trim())return;
+    // Note: removed the respondentName-empty guard here. saveSubmission now uses
+    // a synthetic name (Anonymous (<accessCode>)) when respondentName is empty,
+    // so autosave should fire regardless. We still gate on accessCode existing
+    // (no point saving without any identity at all).
+    if(!accessCode)return;
     if(step<5)return;
     const t=setTimeout(()=>{saveSubmission(false);},600);
     return()=>clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[selectedPrinciples,selectedBehaviours,thirtyDay,feedbackComment,thingDesc,contextText,step,respondentName]);
+  },[selectedPrinciples,selectedBehaviours,thirtyDay,feedbackComment,thingDesc,contextText,step,respondentName,accessCode]);
 
   async function sendFeedback(){
     if(!feedbackComment.trim()||feedbackSending||feedbackSent)return;
@@ -3351,7 +3361,12 @@ function App(){
               method:'POST',
               headers:{'Content-Type':'application/json'},
               body:JSON.stringify({
-                session_code: accessCode,
+                // Use the per-session SOLO-<slug>-<rand> code, NOT the gate-level
+                // accessCode. accessCode is shared across all Solo participants
+                // entering with the same coupon (e.g. SOLO-OPEN), so using it as
+                // session_code would cluster every participant's row under one
+                // code in Supabase and risk PATCH-vs-INSERT collisions.
+                session_code: ensureSoloSessionCode(),
                 participant_id: participantUuid,
                 respondent_name: (joinFirstName+' '+joinLastName).trim(),
                 role: role==='None of the above'?roleCustom:role,
@@ -3367,6 +3382,7 @@ function App(){
                 date: new Date().toISOString(),
                 tool_label: 'STAT Solo',
                 selected_principles: selectedPrinciples,
+                selected_behaviours: selectedBehaviours,
                 generate_report: true,
                 thirty_day: thirtyDay,
                 feedback_comment: feedbackComment,
