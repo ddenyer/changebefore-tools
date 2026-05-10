@@ -1755,7 +1755,7 @@ function generateStatGroupPDF(opts){
     realRespondents, withTobe,
     gMean, gTobeMean, groupStrat, groupTobeStrat, groupIsSplit,
     bigGap, qVariances,
-    principlesCluster, aiQuestions,
+    principlesCluster, groupAgenda, aiQuestions,
     sessionCode, orgName, useNames,
     SLABELS, getStrategy,
   } = opts;
@@ -2149,9 +2149,149 @@ function generateStatGroupPDF(opts){
     return sb.length>0||sp.length>0;
   });
 
+  // ── GROUP AGENDA (top-down, split-aware) — May 2026 ──────────────────────
+  // The split-aware Group Agenda generated from the group's collective shift.
+  // States: aligned, leaning, split, no_direction, too_few. For aligned/leaning,
+  // an agenda is provided. For split/no_direction, the diagnosis IS the finding.
+  if (groupAgenda && groupAgenda.state) {
+    doc.addPage(); pageNum++; y=margin+5; addHeader();
+    sectionTitle('Group agenda');
+
+    const QL = {
+      preventative_control: 'Preventative Control',
+      mindful_action: 'Mindful Action',
+      performance_optimisation: 'Performance Optimisation',
+      adaptive_innovation: 'Adaptive Innovation',
+      neutral: 'Neutral',
+    };
+    const ga = groupAgenda;
+    const a = ga.analysis || {};
+    const state = ga.state;
+    const dom = a.dominant || {};
+    const second = a.second || null;
+    const dominantPct = dom.pct ? Math.round(dom.pct * 100) : 0;
+
+    if (state === 'too_few') {
+      paragraph('Need at least 3 respondents to compute a group agenda. ' + (ga.message || ('Currently '+(a.n||0)+' respondents.')), {color:MUTED, size:9});
+      addFooter();
+    } else if (state === 'no_direction') {
+      paragraph('The room hasn\'t formed a view on direction. All '+(a.n||0)+' respondents have a Neutral to-be profile — none are pulling toward any of the four strategic quadrants. There is no shift to plan an agenda around. The work here is to surface what people actually want.', {color:TEXT, size:10});
+      y += 2;
+      addFooter();
+    } else if (state === 'split') {
+      setFont(11, 'bold', RED);
+      doc.text('THE ROOM IS NOT ALIGNED ON DIRECTION', margin, y+4);
+      y += 7;
+      paragraph('The group as-is is '+(QL[a.groupAsIs]||'mixed')+'. Respondents are pulling in different directions for to-be. Generating an averaged agenda would mask the disagreement and produce contradictory practices. The diagnostic IS the work here, not the agenda.', {color:TEXT, size:10});
+      y += 2;
+
+      // Group breakdown
+      const byQuadrant = {};
+      (a.respondents || []).forEach(r => {
+        const q = r.tobe_quadrant;
+        if (!byQuadrant[q]) byQuadrant[q] = [];
+        byQuadrant[q].push(r);
+      });
+      const groups = Object.entries(byQuadrant).sort((x,y) => y[1].length - x[1].length);
+
+      setFont(10, 'bold', TEXT);
+      doc.text('How the room splits:', margin, y+4);
+      y += 6;
+      groups.forEach(([q, members], i) => {
+        checkPage(8);
+        setFont(9, 'normal', TEXT);
+        const names = members.map(m => m.display_name).join(', ');
+        const line = '• Group '+String.fromCharCode(65+i)+' ('+members.length+' '+(members.length===1?'person':'people')+') → '+(QL[q]||q)+': '+names;
+        const wrapped = doc.splitTextToSize(line, pageW-2*margin-2);
+        doc.text(wrapped, margin+2, y+3);
+        y += wrapped.length*4 + 1;
+      });
+      y += 4;
+
+      setFont(10, 'bold', TEXT);
+      doc.text('Workshop instruction:', margin, y+4);
+      y += 6;
+      paragraph('Don\'t resolve this with a compromise agenda. Three productive moves: (1) ask each group to articulate what specifically they fear about the other direction; (2) ask whether the disagreement is about where to go or about what\'s at stake; (3) if alignment isn\'t reachable, name it as the leadership work to do after this session.', {color:TEXT, size:9});
+      addFooter();
+    } else {
+      // aligned or leaning — there's an agenda
+      const dirText = a.directionalN || a.n;
+      let header;
+      if (a.groupAsIs === dom.quadrant) {
+        header = 'The posture this group is doubling down on';
+      } else if (state === 'leaning') {
+        header = 'The shift this group is leaning toward';
+      } else {
+        header = 'The shift this group is committing to';
+      }
+      setFont(11, 'bold', TEXT);
+      doc.text(header, margin, y+4);
+      y += 6;
+
+      let summary;
+      if (a.groupAsIs === dom.quadrant) {
+        summary = 'The group is already in '+(QL[dom.quadrant]||'mixed')+' (as-is) and wants to stay there. The agenda below is about strengthening that posture, not changing direction.';
+      } else {
+        summary = 'From '+(QL[a.groupAsIs]||'mixed')+' (as-is) toward '+(QL[dom.quadrant]||'mixed')+'.';
+      }
+      summary += ' '+dominantPct+'% of '+dirText+' '+(a.neutralCount>0?'directional ':'')+'respondents chose this direction';
+      if (a.neutralCount > 0) summary += ' · '+a.neutralCount+' abstained as Neutral (out of '+a.n+' total)';
+      summary += '.';
+      paragraph(summary, {color:TEXT, size:9});
+      y += 2;
+
+      if (state === 'leaning') {
+        setFont(9, 'bold', ACCENT);
+        doc.text('Note: leaning, not unanimous.', margin, y+4);
+        y += 5;
+        paragraph(dominantPct+'% want '+(QL[dom.quadrant]||'')+', '+(100-dominantPct)+'% are pulling in other directions'+(second?' (notably '+(QL[second.quadrant]||'')+' at '+Math.round(second.pct*100)+'%)':'')+'. Decide whether the dissent is informed concern that should reshape the agenda, or a minority view the group can move past.', {color:MUTED, size:9});
+        y += 2;
+      }
+
+      // Render agenda items by bucket
+      const agendaItems = ga.agenda || {};
+      const renderBucket = (title, items, rgb, desc) => {
+        if (!Array.isArray(items) || items.length === 0) return;
+        checkPage(20);
+        doc.setFillColor(rgb[0], rgb[1], rgb[2]);
+        doc.rect(margin, y, 4, 5, 'F');
+        setFont(10, 'bold', rgb);
+        doc.text(title.toUpperCase(), margin+7, y+3.6);
+        setFont(8, 'normal', MUTED);
+        doc.text('— '+desc, margin+7+(doc.getTextWidth(title.toUpperCase()))+2, y+3.6);
+        y += 8;
+        items.forEach(t => {
+          checkPage(12);
+          const text = String(t).trim();
+          setFont(10, 'normal', TEXT);
+          const wrapped = doc.splitTextToSize(text, pageW-2*margin-6);
+          doc.text(wrapped, margin+4, y+4);
+          y += Math.max(6, wrapped.length*4.4) + 3;
+        });
+        y += 3;
+      };
+      renderBucket('Retain',  agendaItems.retain, [45,125,70],   'what protects this shift');
+      renderBucket('Less of', agendaItems.less,   [192,57,43],   'what holds this shift back');
+      renderBucket('More of', agendaItems.more,   [26,79,160],   'what this shift requires');
+
+      // Convergence summary
+      const conv = ga.convergence || {};
+      if (conv.total > 0) {
+        checkPage(10);
+        setFont(9, 'italic', MUTED);
+        const cText = 'Convergence with individual picks: '+conv.convergent+' of these '+conv.total+' agenda items match what 2+ participants individually selected.';
+        const wrapped = doc.splitTextToSize(cText, pageW-2*margin);
+        doc.text(wrapped, margin, y+3);
+        y += wrapped.length*4 + 2;
+      }
+
+      addFooter();
+    }
+  }
+
   if (hasNewClusters || hasLegacyClusters || respondentsWithBehaviours.length>0) {
     doc.addPage(); pageNum++; y=margin+5; addHeader();
-    sectionTitle('Practice agenda');
+    sectionTitle('Convergence with picks');
 
     if (hasNewClusters) {
       paragraph('Themes drawn from individual selections, grouped by Retain / Less of / More of. Names in brackets show which respondents chose items in each theme.', {color:MUTED, size:9});
@@ -2179,7 +2319,7 @@ function generateStatGroupPDF(opts){
             setFont(9,'normal',TEXT);
             cl.items.forEach(it=>{
               const author=labelOf(it.author||'');
-              const line='• '+(it.text||'')+(author?' ('+author+', rank '+(it.rank||'?')+')':'');
+              const line='• '+(it.text||'')+(author?' ('+author+')':'');
               const wrapped=doc.splitTextToSize(line,pageW-2*margin-4);
               checkPage(wrapped.length*4+1);
               doc.text(wrapped,margin+2,y+3);
@@ -2209,7 +2349,7 @@ function generateStatGroupPDF(opts){
         principlesCluster.divergence.forEach(d=>{
           checkPage(8);
           const bucketLabel=({retain:'RETAIN',less:'LESS OF',more:'MORE OF',keep:'RETAIN',add:'MORE OF',replace:'LESS OF'}[d.bucket]||d.bucket||'').toUpperCase();
-          const line=`• [${bucketLabel}] ${d.theme} — ${d.author_count} of ${d.total_active}, top rank ${d.top_rank}`;
+          const line=`• [${bucketLabel}] ${d.theme} — chosen by ${d.author_count} of ${d.total_active}`;
           const wrapped=doc.splitTextToSize(line,pageW-2*margin-4);
           doc.text(wrapped,margin+2,y+3);
           y += wrapped.length*4+1;
@@ -3265,6 +3405,25 @@ function App(){
     if (!success) setGroupAgendaError(lastErr || 'Could not generate agenda.');
     setGroupAgendaLoading(false);
   }
+
+  // Auto-load Group Agenda + Convergence-with-picks cluster as soon as the
+  // facilitator opens the Practices tab. Both fire in parallel — the user can
+  // toggle between sub-views without waiting. Both are gated on having any
+  // data to work with; loaders themselves no-op if nothing's available.
+  // Regenerate buttons remain wired to clear-and-reload, so this does NOT
+  // suppress manual refresh.
+  useEffect(()=>{
+    if (facTab !== 'principles') return;
+    // Group Agenda — fire if we don't have it yet and not already loading
+    if (!groupAgenda && !groupAgendaLoading && !groupAgendaError) {
+      loadGroupAgenda();
+    }
+    // Convergence cluster — fire if we don't have it yet and not already loading
+    if (!principlesCluster && !principlesClusterLoading && !principlesClusterError) {
+      loadPrinciplesCluster();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [facTab]);
 
   // Persist selectedPrinciples and qualitative inputs to Supabase whenever they change.
   // Only fires once user has reached the report step and a session exists.
@@ -4916,9 +5075,7 @@ function App(){
       } catch(e){
         console.error('join-and-send threw:', e, e&&e.stack);
         setJoinSubmitting(false);
-        // Show the actual error in non-prod-like detail so we can diagnose
-        const detail = e && e.message ? ' ('+e.message+')' : '';
-        setJoinError('We couldn\'t send your report right now. Please try again in a moment.'+detail);
+        setJoinError('We couldn\'t send your report right now. Please try again in a moment.');
       }
     }
 
@@ -5201,7 +5358,7 @@ function App(){
                   realRespondents, withTobe,
                   gMean, gTobeMean, groupStrat, groupTobeStrat, groupIsSplit,
                   bigGap, qVariances,
-                  principlesCluster, aiQuestions,
+                  principlesCluster, groupAgenda, aiQuestions,
                   sessionCode:codeNorm,
                   orgName:(orgNameOverride||thing||'').trim(),
                   useNames:true,
@@ -6548,9 +6705,10 @@ function App(){
               )}
 
               {real.length>=3&&!groupAgenda&&!groupAgendaLoading&&!groupAgendaError&&(
-                <button className="btn-p" onClick={loadGroupAgenda}>
-                  Generate group agenda →
-                </button>
+                <div className="think">
+                  <div className="dots"><div className="dot"/><div className="dot"/><div className="dot"/></div>
+                  <span className="think-txt">Loading group agenda…</span>
+                </div>
               )}
 
               {groupAgendaLoading&&(
@@ -6603,9 +6761,7 @@ function App(){
           )}
 
           {withBehaviours.length>0&&!principlesCluster&&!principlesClusterLoading&&!principlesClusterError&&(
-            <button className="btn-p" onClick={loadPrinciplesCluster}>
-              Cluster by theme →
-            </button>
+            <div className="think"><div className="dots"><div className="dot"/><div className="dot"/><div className="dot"/></div><span className="think-txt">Clustering practices by theme…</span></div>
           )}
 
           {principlesClusterLoading&&(
@@ -6665,7 +6821,7 @@ function App(){
                           <div style={{fontSize:'.65rem',color:bucketColour,fontWeight:700,letterSpacing:'.05em',fontFamily:"'DM Sans',sans-serif"}}>{bucketLabel}</div>
                         </div>
                         <div style={{fontSize:'.75rem',color:'#666',fontFamily:"'DM Sans',sans-serif",lineHeight:1.5}}>
-                          {d.author_count} of {d.total_active} chose this · top rank {d.top_rank}
+                          chosen by {d.author_count} of {d.total_active}
                         </div>
                       </div>
                     );
