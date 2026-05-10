@@ -1733,6 +1733,16 @@ function generateStatParticipantPDF(opts){
   const slug = (respondentName||'report').toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');
   const dateStr = new Date().toISOString().slice(0,10);
   const filename = 'STAT_Personal_'+slug+'_'+dateStr+'.pdf';
+
+  // When called from the join-and-send flow, return base64 so the email can attach it.
+  // The default path triggers a browser download.
+  if (opts && opts.returnBase64) {
+    // doc.output('datauristring') returns "data:application/pdf;filename=...;base64,XXXX"
+    // Strip the prefix so we hand back just the raw base64.
+    const dataUri = doc.output('datauristring');
+    const base64 = dataUri.split('base64,')[1] || '';
+    return { base64, filename };
+  }
   doc.save(filename);
 }
 
