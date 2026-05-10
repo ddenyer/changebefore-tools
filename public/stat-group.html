@@ -4904,8 +4904,11 @@ function App(){
           setJoinError((data&&data.error)||'Your details were saved, but we couldn\'t send the email. Please contact contact@changebefore.com.');
         }
       } catch(e){
+        console.error('join-and-send threw:', e, e&&e.stack);
         setJoinSubmitting(false);
-        setJoinError('We couldn\'t send your report right now. Please try again in a moment.');
+        // Show the actual error in non-prod-like detail so we can diagnose
+        const detail = e && e.message ? ' ('+e.message+')' : '';
+        setJoinError('We couldn\'t send your report right now. Please try again in a moment.'+detail);
       }
     }
 
