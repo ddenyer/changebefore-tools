@@ -915,7 +915,7 @@ function Slider({label,value,onChange,max=120,asIs=null}){
 }
 
 // ── PROGRESS BAR ─────────────────────────────────────────────────────────────
-const STEPS=['Start','Survey','Profile','Future','Principles','Report'];
+const STEPS=['Start','Survey','Profile','Future','Behaviours','Report'];
 function stepToNav(s,principlesStep){if(s<=0)return 0;if(s<=3)return 1;if(s===4)return 2;if(s===5)return principlesStep?4:3;return 5;}
 function Progress({step,principlesStep}){
   const nav=stepToNav(step,principlesStep);
@@ -949,6 +949,7 @@ function generateStatParticipantPDF(opts){
     respondentName, thing, role, sector, orgSize,
     contextText, thingDesc,
     selectedPrinciples,
+    selectedBehaviours,
     SLABELS, SDESC, getStrategyText, gapLabel, gapBadgeText,
     S1, S2,
     industryContext,
@@ -1512,10 +1513,67 @@ function generateStatParticipantPDF(opts){
   addFooter();
 
   // ───── SELECTED PRINCIPLES ─────
-  // Defensively filter out empty/whitespace-only entries — guards against
-  // corrupt localStorage or any code path that injects blanks.
+  // Defensively filter and normalise: prefer structured selectedBehaviours;
+  // fall back to flat selectedPrinciples for legacy sessions saved before the bucket rebuild.
+  const cleanBehaviours = Array.isArray(selectedBehaviours)
+    ? selectedBehaviours.filter(b => b && typeof b === 'object' && b.text && String(b.text).trim().length > 0)
+    : [];
   const cleanPrinciples = (selectedPrinciples || []).filter(p => p && String(p).trim().length > 0);
-  if(cleanPrinciples.length>0){
+
+  if (cleanBehaviours.length > 0) {
+    doc.addPage(); pageNum++; y=margin+5; addHeader();
+    sectionTitle('Your selected behaviours');
+    paragraph('The behaviours you selected as most likely to make the biggest difference for '+orgLabel+', grouped by what to retain, what to do less of, and what to do more of.', {color:MUTED, size:9});
+    y += 3;
+
+    const buckets = [
+      { key: 'retain', label: 'Retain',  desc: 'Practices to protect',  rgb: [45, 125, 70] },
+      { key: 'less',   label: 'Less of', desc: 'Defaults to dial down', rgb: [192, 57, 43] },
+      { key: 'more',   label: 'More of', desc: 'Disciplines to dial up', rgb: [31, 111, 163] },
+    ];
+
+    // Normalise bucket aliases so legacy values still group correctly
+    const bucketOf = (b) => {
+      let bk = b.bucket;
+      if (bk === 'keep') return 'retain';
+      if (bk === 'add') return 'more';
+      if (bk === 'replace') return 'less';
+      return bk || 'retain';
+    };
+
+    buckets.forEach(bucket => {
+      const items = cleanBehaviours.filter(b => bucketOf(b) === bucket.key);
+      if (items.length === 0) return;
+      checkPage(20);
+      // Bucket header
+      doc.setFillColor(bucket.rgb[0], bucket.rgb[1], bucket.rgb[2]);
+      doc.rect(margin, y, 4, 5, 'F');
+      setFont(10, 'bold', bucket.rgb);
+      doc.text(bucket.label.toUpperCase(), margin+7, y+3.6);
+      setFont(8, 'normal', MUTED);
+      doc.text('— '+bucket.desc, margin+7+(doc.getTextWidth(bucket.label.toUpperCase()))+2, y+3.6);
+      y += 8;
+
+      items.forEach(b => {
+        checkPage(14);
+        const text = String(b.text).trim();
+        setFont(10, 'normal', TEXT);
+        const wrapped = doc.splitTextToSize(text, pageW-2*margin-8);
+        doc.text(wrapped, margin+4, y+4);
+        let bottom = y + Math.max(6, wrapped.length*4.2);
+        if (b.is_edited) {
+          setFont(7, 'normal', ACCENT);
+          doc.text('· edited', margin+4, bottom+2.5);
+          bottom += 4;
+        }
+        y = bottom + 4;
+      });
+      y += 2;
+    });
+
+    addFooter();
+  } else if (cleanPrinciples.length > 0) {
+    // Legacy flat-list fallback for older Solo sessions
     doc.addPage(); pageNum++; y=margin+5; addHeader();
     sectionTitle('Your selected principles');
     paragraph('The principles you identified as the ones most likely to make the biggest difference for '+orgLabel+', in the priority order you ranked them.', {color:MUTED, size:9});
@@ -1738,7 +1796,16 @@ function App(){
   const [principles,setPrinciples]=useState(null);
   const [principlesLoading,setPrinciplesLoading]=useState(false);
   const [selectedPrinciples,setSelectedPrinciples]=useState([]);
-  const [customPrinciple,setCustomPrinciple]=useState('');
+  // New (May 2026 — ported from STAT-Group): structured three-column behaviours.
+  // - `behaviours`: array of {text,bucket,category,axis,question_id} from the API
+  // - `behavioursMeta`: gap sizes, strategy labels, header copy
+  // - `selectedBehaviours`: array of {text,bucket,category,axis,is_edited,is_custom,original_text}
+  //                        kept in sync with selectedPrinciples (flat strings) for back-compat
+  const [behaviours,setBehaviours]=useState(null);
+  const [behavioursMeta,setBehavioursMeta]=useState(null);
+  const [selectedBehaviours,setSelectedBehaviours]=useState([]);
+  // Index in `behaviours` of the item being inline-edited (or null)
+  const [editingBehaviourIdx,setEditingBehaviourIdx]=useState(null);
   // Synthetic per-run session code so Solo submissions are uniquely keyed in
   // Supabase (matching group tool's session_code + respondent_name composite).
   // Generated lazily on first save; persisted in localStorage with the rest of
@@ -1791,8 +1858,13 @@ function App(){
   // Keyed off accessCode so resume works without a name field.
   useEffect(()=>{
     if(!accessCode||step<=0)return;
-    saveProgress(accessCode,{step,thing,thingDesc,contextText,s1ans,s2ans,tobe,tobeInit,selectedPrinciples,soloSessionCode,participantUuid,participantNumber,participantId,accessCode,thingType,thingTypeCustom,role,roleCustom,sector,sectorCustom});
-  },[step,thing,thingDesc,contextText,s1ans,s2ans,tobe,tobeInit,selectedPrinciples,soloSessionCode,accessCode,thingType,thingTypeCustom,role,roleCustom,sector,sectorCustom]);
+    saveProgress(accessCode,{
+      step,thing,thingDesc,contextText,s1ans,s2ans,tobe,tobeInit,
+      selectedPrinciples,selectedBehaviours,behaviours,behavioursMeta,
+      soloSessionCode,participantUuid,participantNumber,participantId,
+      accessCode,thingType,thingTypeCustom,role,roleCustom,sector,sectorCustom,
+    });
+  },[step,thing,thingDesc,contextText,s1ans,s2ans,tobe,tobeInit,selectedPrinciples,selectedBehaviours,behaviours,behavioursMeta,soloSessionCode,accessCode,thingType,thingTypeCustom,role,roleCustom,sector,sectorCustom]);
 
   // Resume detection: when accessCode becomes set, check localStorage.
   // If there's saved progress beyond the entry page, surface a resume prompt.
@@ -1832,60 +1904,154 @@ function App(){
   function setTobeF(v){setTobe(t=>({...t,f:v,c:120-v}));}
 
 
-  // ── PRINCIPLES (AI-generated) ───────────────────────────────────────────
+  // ── BEHAVIOURS (AI-generated, bucket-aware — May 2026 rebuild) ─────────
   async function loadPrinciples(){
     setPrinciplesLoading(true);
     setPrinciples(null);
-    // Don't wipe selectedPrinciples here — the user may already have selections
-    // (from a prior visit, restored from Supabase, or kept across navigation).
-    try{
-      const resp=await fetch('/api/stat-principles-generate',{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({
-          s1_answers:s1ans,
-          s2_answers:s2ans,
-          prog,def,con,flex,
-          tobe_prog:tobe.p,tobe_def:tobe.d,tobe_con:tobe.c,tobe_flex:tobe.f,
-          thing,
-        }),
-      });
-      if(resp.ok){const d=await resp.json();setPrinciples(d.principles||[]);}
-      else{setPrinciples([]);}
-    }catch(e){console.warn('principles error:',e);setPrinciples([]);}
+    setBehaviours(null);
+    setBehavioursMeta(null);
+    setEditingBehaviourIdx(null);
+    // Don't wipe selectedPrinciples / selectedBehaviours — the user may have prior
+    // selections (resumed from localStorage or kept across navigation).
+    let success = false;
+    let attempt = 0;
+    while (!success && attempt < 3) {
+      try{
+        const resp=await fetch('/api/stat-principles-generate',{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({
+            s1_answers:s1ans,
+            s2_answers:s2ans,
+            prog,def,con,flex,
+            tobe_prog:tobe.p,tobe_def:tobe.d,tobe_con:tobe.c,tobe_flex:tobe.f,
+            thing,
+            sector:sector==='Other'?sectorCustom:sector,
+          }),
+        });
+        if(resp.ok){
+          const d=await resp.json();
+          // Endpoint returns {items, header, meta}; older signature was {behaviours} or {principles}.
+          const bx = Array.isArray(d.items) ? d.items
+                   : Array.isArray(d.behaviours) ? d.behaviours
+                   : Array.isArray(d.principles) ? d.principles.map(t=>({text:t,bucket:'retain'}))
+                   : [];
+          if (bx.length > 0) {
+            setBehaviours(bx);
+            setBehavioursMeta(d.meta || null);
+            setPrinciples(bx.map(b=>typeof b==='string'?b:b.text));
+            success = true;
+            break;
+          }
+        }
+      }catch(e){
+        console.warn('principles error attempt '+(attempt+1)+':',e);
+      }
+      attempt++;
+      if (attempt < 3) await new Promise(r => setTimeout(r, 800 + (attempt - 1) * 1200));
+    }
+    if (!success) {
+      setBehaviours([]);
+      setPrinciples([]);
+    }
     setPrinciplesLoading(false);
   }
 
-  function togglePrinciple(p){
-    setSelectedPrinciples(prev=>{
-      if(prev.includes(p))return prev.filter(x=>x!==p);
-      return [p,...prev];
-    });
-  }
-
-  function addCustomPrinciple(){
-    const p=customPrinciple.trim();
-    if(!p)return;
-    if(selectedPrinciples.includes(p))return;
-    setSelectedPrinciples([p,...selectedPrinciples]);
-    setCustomPrinciple('');
-  }
-
-  function movePrinciple(p,direction){
-    setSelectedPrinciples(prev=>{
-      const idx=prev.indexOf(p);
-      if(idx<0)return prev;
-      const newIdx=idx+direction;
-      if(newIdx<0||newIdx>=prev.length)return prev;
-      const next=[...prev];
-      [next[idx],next[newIdx]]=[next[newIdx],next[idx]];
+  // Pick or unpick a behaviour for a specific bucket. Max 1 per bucket.
+  function pickBehaviour(behaviour, bucket){
+    setSelectedBehaviours(prev=>{
+      const existingIdx = prev.findIndex(s => s.text === behaviour.text);
+      let next;
+      if (existingIdx >= 0) {
+        // Already picked — unpick it
+        next = prev.filter((_,i) => i !== existingIdx);
+      } else {
+        // Replace any existing pick in this bucket (max 1 per bucket)
+        const filtered = prev.filter(s => s.bucket !== bucket);
+        next = [...filtered, {
+          text: behaviour.text,
+          bucket: bucket,
+          category: behaviour.category || null,
+          axis: behaviour.axis || null,
+          is_edited: false,
+          is_custom: false,
+        }];
+      }
+      setSelectedPrinciples(next.map(s => s.text));
       return next;
     });
   }
 
+  // Inline edit: replace behaviour text. Tracks original_text and is_edited.
+  function saveBehaviourEdit(idx, newText){
+    const trimmed = (newText||'').trim();
+    if (!trimmed) return;
+    setBehaviours(prev=>{
+      if (!Array.isArray(prev) || idx < 0 || idx >= prev.length) return prev;
+      const next = [...prev];
+      const orig = next[idx];
+      const originalText = orig.original_text || orig.text;
+      const wasEdited = trimmed !== originalText;
+      next[idx] = {
+        ...orig,
+        text: trimmed,
+        original_text: originalText,
+        is_edited: wasEdited,
+      };
+      // Sync selectedBehaviours and selectedPrinciples if this item is picked
+      setSelectedBehaviours(sb=>{
+        const sIdx = sb.findIndex(s => s.text === orig.text);
+        if (sIdx < 0) return sb;
+        const sNext = [...sb];
+        sNext[sIdx] = { ...sNext[sIdx], text: trimmed, is_edited: wasEdited };
+        if (!sNext[sIdx].original_text) sNext[sIdx].original_text = originalText;
+        setSelectedPrinciples(sNext.map(s => s.text));
+        return sNext;
+      });
+      return next;
+    });
+    setEditingBehaviourIdx(null);
+  }
+
+  // Revert an edited behaviour back to its original_text.
+  function revertBehaviourEdit(idx){
+    setBehaviours(prev=>{
+      if (!Array.isArray(prev) || idx < 0 || idx >= prev.length) return prev;
+      const orig = prev[idx];
+      const originalText = orig.original_text || orig.text;
+      const next = [...prev];
+      next[idx] = { ...orig, text: originalText, is_edited: false };
+      // Sync selectedBehaviours
+      setSelectedBehaviours(sb=>{
+        const sIdx = sb.findIndex(s => s.text === orig.text);
+        if (sIdx < 0) return sb;
+        const sNext = [...sb];
+        sNext[sIdx] = { ...sNext[sIdx], text: originalText, is_edited: false };
+        setSelectedPrinciples(sNext.map(s => s.text));
+        return sNext;
+      });
+      return next;
+    });
+    setEditingBehaviourIdx(null);
+  }
+
+  // Regenerate with confirmation if user has picks that would be lost.
+  function regenerateBehaviours(){
+    if (selectedBehaviours.length > 0) {
+      const ok = window.confirm('Regenerating will create a fresh set of behaviours. Your current picks will be cleared. Continue?');
+      if (!ok) return;
+    }
+    setSelectedBehaviours([]);
+    setSelectedPrinciples([]);
+    setEditingBehaviourIdx(null);
+    loadPrinciples();
+  }
+
   function goToPrinciples(){
     setPrinciplesStep(true);
-    loadPrinciples();
+    // Only generate if we don't already have behaviours (prevents wiping picks
+    // when the user navigates back and forward).
+    if (!behaviours || behaviours.length === 0) loadPrinciples();
     setStep(5); // stay on step 5, sub-screen flag handles the rest
     if(topRef.current)topRef.current.scrollIntoView({behavior:'smooth'});
   }
@@ -1928,18 +2094,21 @@ function App(){
     return code;
   }
 
+  // Save submission to /api/stat-save. Returns true on 2xx, false otherwise.
+  // Now includes selected_behaviours alongside legacy selected_principles
+  // so the new bucket-aware data lands in Supabase.
   async function saveSubmission(isGenerateReport=false){
-    if(!respondentName.trim())return;
+    if(!respondentName.trim())return false;
     const sessionCode=ensureSoloSessionCode();
     try{
-      await fetch('/api/stat-save',{
+      const resp = await fetch('/api/stat-save',{
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({
           session_code:sessionCode,
           respondent_name:respondentName.trim(),
           role:role==='None of the above'?roleCustom:role,
-          seniority:'',org_size:orgSize,sector,
+          seniority:'',org_size:orgSize,sector:sector==='Other'?sectorCustom:sector,
           thing,prog,def:def,con,flex,
           tobe_prog:tobe.p,tobe_def:tobe.d,tobe_con:tobe.c,tobe_flex:tobe.f,
           s1_answers:s1ans,s2_answers:s2ans,
@@ -1947,6 +2116,7 @@ function App(){
           date:new Date().toISOString(),
           tool_label:'STAT Solo',
           selected_principles:selectedPrinciples,
+          selected_behaviours:selectedBehaviours,
           generate_report:isGenerateReport,
           thing_desc:thingDesc,
           context_text:contextText,
@@ -1954,11 +2124,15 @@ function App(){
           feedback_comment:feedbackComment,
         }),
       });
-    }catch(e){console.warn('stat-save error:',e);}
+      return !!(resp && resp.ok);
+    }catch(e){
+      console.warn('stat-save error:',e);
+      return false;
+    }
   }
 
-  // Debounced auto-save once the user is past step 5 (Future profile / Principles).
-  // Mirrors stat-group's pattern so principles toggles and qualitative input edits
+  // Debounced auto-save once the user is past step 5 (Future profile / Behaviours).
+  // Mirrors stat-group's pattern so behaviour picks and qualitative input edits
   // persist to Supabase without a manual save click. Email does NOT fire here —
   // only generate() with isGenerateReport=true triggers the email branch.
   useEffect(()=>{
@@ -1967,7 +2141,7 @@ function App(){
     const t=setTimeout(()=>{saveSubmission(false);},600);
     return()=>clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[selectedPrinciples,thirtyDay,feedbackComment,thingDesc,contextText,step,respondentName]);
+  },[selectedPrinciples,selectedBehaviours,thirtyDay,feedbackComment,thingDesc,contextText,step,respondentName]);
 
   async function sendFeedback(){
     if(!feedbackComment.trim()||feedbackSending||feedbackSent)return;
@@ -1989,13 +2163,35 @@ function App(){
     setFeedbackSending(false);
   }
 
-  function generate(){
+  async function generate(){
     // Fire the rich submission email + final Supabase save.
     // saveSubmission(true) sets generate_report:true so /api/stat-save sends
-    // the same Resend notification to results@changebefore.com that the group
-    // tool sends — just with tool_label:'STAT Solo' and session_code:'SOLO-<slug>-<rand>'.
-    saveSubmission(true);
-    // Save previous scores for comparison
+    // the Resend notification to results@changebefore.com.
+    //
+    // CRITICAL (May 2026 audit fix): we now AWAIT the save and retry up to 3
+    // times. Previously this was fire-and-forget — if the save failed silently
+    // the user advanced to the report and their data was lost.
+    setLoading(true);
+    let saveOk = false;
+    let attempt = 0;
+    while (!saveOk && attempt < 3) {
+      try {
+        saveOk = await saveSubmission(true);
+      } catch (e) {
+        saveOk = false;
+        console.warn('saveSubmission generate attempt '+(attempt+1)+' threw:', e);
+      }
+      if (!saveOk) {
+        attempt++;
+        if (attempt < 3) await new Promise(r => setTimeout(r, 500 + (attempt - 1) * 1000));
+      }
+    }
+    if (!saveOk) {
+      setLoading(false);
+      window.alert("We couldn't save your responses to the server after 3 attempts. Your data is still on this page — please check your connection and click Generate again.");
+      return;
+    }
+    // Save previous scores for comparison (best-effort, doesn't block)
     try{
       const prev=loadProgress(respondentName);
       if(prev&&prev.step>=5){
@@ -2006,7 +2202,6 @@ function App(){
         if(pp||pd)setPrevSubmission({prog:pp,def:pd,con:pc,flex:pf,date:prev.savedAt?new Date(prev.savedAt).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}):'previously'});
       }
     }catch(e){}
-    setLoading(true);
     setTimeout(()=>{setLoading(false);go(6);},1600);
   }
 
@@ -2023,7 +2218,8 @@ function App(){
     setRptTab(0);setPrevSubmission(null);
     setThirtyDay('');setFeedbackComment('');setFeedbackSent(false);setFeedbackSending(false);
     setLoading(false);
-    setPrinciplesStep(false);setPrinciples(null);setSelectedPrinciples([]);setCustomPrinciple('');
+    setPrinciplesStep(false);setPrinciples(null);setSelectedPrinciples([]);
+    setBehaviours(null);setBehavioursMeta(null);setSelectedBehaviours([]);setEditingBehaviourIdx(null);
     setSoloSessionCode('');
   }
 
@@ -2047,6 +2243,10 @@ function App(){
     if(typeof data.roleCustom==='string'&&data.roleCustom)setRoleCustom(data.roleCustom);
     if(typeof data.sector==='string'&&data.sector)setSector(data.sector);
     if(typeof data.sectorCustom==='string'&&data.sectorCustom)setSectorCustom(data.sectorCustom);
+    // Behaviour state — restore picks, edits, and the generated agenda
+    if(Array.isArray(data.selectedBehaviours))setSelectedBehaviours(data.selectedBehaviours);
+    if(Array.isArray(data.behaviours))setBehaviours(data.behaviours);
+    if(data.behavioursMeta)setBehavioursMeta(data.behavioursMeta);
     setResumeData(null);
     go(data.step||1);
   }
@@ -2447,111 +2647,162 @@ function App(){
   // Simpler: use step 4 for to-be sliders. Profile is step 3 (was step 4 above — fixed below).
 
   function renderPrinciples(){
-    const count=selectedPrinciples.length;
+    const BUCKETS = [
+      { key: 'retain', label: 'Retain',  desc: 'Practices to protect — what you should keep doing.',                colour: '#2d7d46', bg: '#e8f4ed' },
+      { key: 'less',   label: 'Less of', desc: 'Defaults to dial down — what holds you back.',                       colour: '#c0392b', bg: '#fcebe9' },
+      { key: 'more',   label: 'More of', desc: 'Disciplines to dial up — what this shift requires.',                 colour: '#1f6fa3', bg: '#e6f0f7' },
+    ];
+
+    // Group items by bucket
+    const itemsByBucket = { retain: [], less: [], more: [] };
+    if (Array.isArray(behaviours)) {
+      behaviours.forEach((b, idx) => {
+        if (typeof b === 'string') return; // legacy flat shape — skip in bucket render
+        let bk = b.bucket;
+        if (bk === 'keep') bk = 'retain';
+        else if (bk === 'add') bk = 'more';
+        else if (bk === 'replace') bk = 'less';
+        if (itemsByBucket[bk]) itemsByBucket[bk].push({ ...b, idx });
+      });
+    }
+
+    const totalPicked = selectedBehaviours.length;
+    const isPickedInBucket = (bucket) => selectedBehaviours.some(s => s.bucket === bucket);
+
     return(
       <div className="fade">
-        <div className="sec-tag">Step 6 of 7 · Principles</div>
-        <h2 className="pg-title">Choose your principles</h2>
-        <p className="pg-sub">Below are 8 principles drawn from your responses. <strong>Click the ones that resonate, in order of importance to you</strong> — your most important first. Each click adds the principle to the top of your list. Use the arrows to reorder, or × to remove. There is no minimum or maximum.</p>
+        <div className="sec-tag">Step 6 of 7 · Behaviours</div>
+        <h2 className="pg-title">Your behavioural agenda</h2>
+        <p className="pg-sub">Below are nine behaviours drawn from your responses, grouped into three columns. <strong>Pick up to one from each column</strong> — the practices you want to <em>retain</em>, the defaults you want <em>less of</em>, and the disciplines you want <em>more of</em>. Picking is optional. You can revise any item by clicking <em>✎ revise this</em>.</p>
 
-        {selectedPrinciples.length>0&&(
-          <div style={{margin:'0 0 1.5rem',padding:'1rem 1.25rem',background:'#1a1a1a',borderRadius:'4px'}}>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:'.6rem'}}>
-              <div style={{fontSize:'.6rem',fontWeight:700,letterSpacing:'.12em',textTransform:'uppercase',color:'#e07030',fontFamily:"'DM Sans',sans-serif"}}>Your selected principles — ranked by importance</div>
-              <div style={{fontSize:'.65rem',color:'#888',fontFamily:"'DM Sans',sans-serif"}}>{selectedPrinciples.length} selected</div>
+        {behavioursMeta && behavioursMeta.header && (
+          <div className="inf-box" style={{marginBottom:'1.25rem',fontSize:'.85rem'}}>{behavioursMeta.header}</div>
+        )}
+
+        {selectedBehaviours.length>0 && (
+          <div style={{margin:'0 0 1.5rem',padding:'.85rem 1.1rem',background:'#1a1a1a',borderRadius:'4px'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:'.5rem'}}>
+              <div style={{fontSize:'.6rem',fontWeight:700,letterSpacing:'.12em',textTransform:'uppercase',color:'#e07030',fontFamily:"'DM Sans',sans-serif"}}>Your picks · {totalPicked} of 3</div>
             </div>
-            {selectedPrinciples.map((p,i)=>{
-              const isFirst=i===0;
-              const isLast=i===selectedPrinciples.length-1;
-              return(
-                <div key={i} style={{display:'flex',alignItems:'flex-start',gap:'.5rem',padding:'.55rem 0',borderBottom:i<selectedPrinciples.length-1?'1px solid #333':'none'}}>
-                  <div style={{display:'flex',flexDirection:'column',gap:'2px',flexShrink:0,marginTop:'1px'}}>
-                    <button onClick={()=>movePrinciple(p,-1)} disabled={isFirst}
-                      style={{background:'none',border:'1px solid '+(isFirst?'#444':'#666'),color:isFirst?'#444':'#aaa',cursor:isFirst?'not-allowed':'pointer',width:'22px',height:'18px',padding:0,borderRadius:'3px',fontSize:'.7rem',lineHeight:1,fontFamily:'sans-serif'}}>↑</button>
-                    <button onClick={()=>movePrinciple(p,1)} disabled={isLast}
-                      style={{background:'none',border:'1px solid '+(isLast?'#444':'#666'),color:isLast?'#444':'#aaa',cursor:isLast?'not-allowed':'pointer',width:'22px',height:'18px',padding:0,borderRadius:'3px',fontSize:'.7rem',lineHeight:1,fontFamily:'sans-serif'}}>↓</button>
+            {selectedBehaviours.map((s,i) => {
+              const bucketDef = BUCKETS.find(b => b.key === s.bucket) || BUCKETS[0];
+              return (
+                <div key={i} style={{display:'flex',alignItems:'flex-start',gap:'.65rem',padding:'.45rem 0',borderBottom:i<selectedBehaviours.length-1?'1px solid #333':'none'}}>
+                  <div style={{display:'inline-block',padding:'.15rem .45rem',background:bucketDef.colour,color:'#fff',fontSize:'.6rem',fontWeight:700,letterSpacing:'.06em',textTransform:'uppercase',borderRadius:'2px',flexShrink:0,marginTop:'2px',fontFamily:"'DM Sans',sans-serif"}}>{bucketDef.label}</div>
+                  <div style={{fontSize:'.88rem',color:'#f0ede8',flex:1,lineHeight:1.55}}>
+                    {s.text}
+                    {s.is_edited && <span style={{display:'inline-block',marginLeft:'.45rem',padding:'.08rem .35rem',background:'#3a2820',color:'#e07030',fontSize:'.6rem',fontWeight:700,letterSpacing:'.05em',textTransform:'uppercase',borderRadius:'2px',verticalAlign:'middle',fontFamily:"'DM Sans',sans-serif"}}>edited</span>}
                   </div>
-                  <div style={{fontSize:'.78rem',color:'#e07030',fontWeight:700,flexShrink:0,minWidth:'18px',marginTop:'2px',fontFamily:"'DM Sans',sans-serif"}}>{i+1}.</div>
-                  <div style={{fontSize:'.88rem',color:'#f0ede8',flex:1,lineHeight:1.6}}>{p}</div>
-                  <button onClick={()=>setSelectedPrinciples(selectedPrinciples.filter(x=>x!==p))}
-                    style={{background:'none',border:'none',color:'#888',cursor:'pointer',fontSize:'1rem',padding:'0 .25rem',fontFamily:'sans-serif',marginTop:'1px'}} title="Remove">×</button>
                 </div>
               );
             })}
           </div>
         )}
 
-        {selectedPrinciples.length===0&&!principlesLoading&&principles&&principles.length>0&&(
-          <div style={{margin:'0 0 1.5rem',padding:'.85rem 1.1rem',background:'#ebe7e0',border:'1px dashed #b0a898',borderRadius:'4px',fontSize:'.82rem',color:'#666',fontStyle:'italic',textAlign:'center',fontFamily:"'DM Sans',sans-serif"}}>
-            Click a principle below to add it. Your most important first.
+        {principlesLoading && (
+          <div className="think"><div className="dots"><div className="dot"/><div className="dot"/><div className="dot"/></div><span className="think-txt">Generating your behavioural agenda…</span></div>
+        )}
+
+        {!principlesLoading && Array.isArray(behaviours) && behaviours.length === 0 && (
+          <div className="warn-box">
+            We couldn't generate behaviours right now. Click Regenerate to try again, or skip this step and continue to your report.
           </div>
         )}
 
-        {principlesLoading&&(
-          <div className="think"><div className="dots"><div className="dot"/><div className="dot"/><div className="dot"/></div><span className="think-txt">Generating principles from your answers…</span></div>
-        )}
-
-        {!principlesLoading&&principles&&principles.length===0&&(
-          <div className="warn-box">We weren't able to generate principles right now. You can write your own below, or skip this step and continue to your report.</div>
-        )}
-
-        {!principlesLoading&&principles&&principles.length>0&&(
-          <div>
-            {principles.map((p,i)=>{
-              const isSelected=selectedPrinciples.includes(p);
-              const rank=isSelected?selectedPrinciples.indexOf(p)+1:null;
-              return(
-                <div key={i}
-                  onClick={()=>togglePrinciple(p)}
-                  style={{
-                    border:isSelected?'2px solid #e07030':'1px solid #d8d3cb',
-                    background:isSelected?'#fff8f5':'#fff',
-                    borderRadius:'4px',padding:'.85rem 1rem',marginBottom:'.5rem',
-                    cursor:'pointer',
-                    display:'flex',gap:'.65rem',alignItems:'flex-start',transition:'all .15s'
-                  }}>
-                  <div style={{
-                    width:'22px',height:'22px',borderRadius:isSelected?'50%':'3px',
-                    border:'2px solid '+(isSelected?'#e07030':'#b0a898'),
-                    background:isSelected?'#e07030':'#fff',flexShrink:0,marginTop:'1px',
-                    display:'flex',alignItems:'center',justifyContent:'center',
-                    fontSize:'.78rem',fontWeight:700,color:isSelected?'#fff':'#b0a898',lineHeight:1
-                  }}>{isSelected?rank:''}</div>
-                  <div style={{fontSize:'.88rem',lineHeight:1.6,color:'#1a1a1a',flex:1}}>{p}</div>
+        {!principlesLoading && Array.isArray(behaviours) && behaviours.length > 0 && (
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))',gap:'.85rem'}}>
+            {BUCKETS.map(bucket => {
+              const items = itemsByBucket[bucket.key] || [];
+              const pickedHere = isPickedInBucket(bucket.key);
+              return (
+                <div key={bucket.key} style={{padding:'.85rem',background:'#fff',borderRadius:'4px',border:'1px solid #d8d3cb'}}>
+                  <div style={{marginBottom:'.65rem',paddingBottom:'.45rem',borderBottom:'2px solid '+bucket.colour}}>
+                    <div style={{fontSize:'.7rem',fontWeight:700,letterSpacing:'.08em',textTransform:'uppercase',color:bucket.colour,fontFamily:"'DM Sans',sans-serif"}}>{bucket.label}</div>
+                    <div style={{fontSize:'.72rem',color:'#888',marginTop:'.2rem',fontFamily:"'DM Sans',sans-serif"}}>{bucket.desc}</div>
+                  </div>
+                  {items.map(item => {
+                    const isSelected = selectedBehaviours.some(s => s.text === item.text);
+                    const isEditing = editingBehaviourIdx === item.idx;
+                    if (isEditing) {
+                      return (
+                        <div key={item.idx} style={{padding:'.65rem',marginBottom:'.55rem',background:'#fff8f5',border:'2px solid #e07030',borderRadius:'4px'}}>
+                          <textarea
+                            className="inp inp-ta"
+                            defaultValue={item.text}
+                            id={'edit-ta-'+item.idx}
+                            style={{width:'100%',minHeight:'70px',marginBottom:'.5rem',fontSize:'.85rem'}}
+                          />
+                          <div style={{display:'flex',gap:'.45rem',flexWrap:'wrap'}}>
+                            <button className="btn-s" onClick={()=>{
+                              const ta = document.getElementById('edit-ta-'+item.idx);
+                              if (ta) saveBehaviourEdit(item.idx, ta.value);
+                            }}>Save</button>
+                            <button className="btn-s" onClick={()=>setEditingBehaviourIdx(null)}>Cancel</button>
+                            {item.is_edited && (
+                              <button className="btn-s" onClick={()=>revertBehaviourEdit(item.idx)} style={{borderColor:'#999',color:'#999'}}>Revert to original</button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div key={item.idx}
+                        onClick={()=>pickBehaviour(item, bucket.key)}
+                        style={{
+                          padding:'.65rem .8rem',marginBottom:'.5rem',
+                          border:isSelected?'2px solid '+bucket.colour:'1px solid #d8d3cb',
+                          background:isSelected?bucket.bg:'#fafaf6',
+                          borderRadius:'4px',cursor:'pointer',
+                          display:'flex',gap:'.5rem',alignItems:'flex-start',
+                          transition:'all .15s',
+                        }}>
+                        <div style={{
+                          width:'18px',height:'18px',borderRadius:'50%',
+                          border:'2px solid '+(isSelected?bucket.colour:'#b0a898'),
+                          background:isSelected?bucket.colour:'transparent',
+                          flexShrink:0,marginTop:'2px',
+                          display:'flex',alignItems:'center',justifyContent:'center',
+                        }}>
+                          {isSelected && <span style={{color:'#fff',fontSize:'.6rem',lineHeight:1}}>✓</span>}
+                        </div>
+                        <div style={{flex:1}}>
+                          <div style={{fontSize:'.84rem',lineHeight:1.5,color:'#1a1a1a'}}>
+                            {item.text}
+                            {item.is_edited && <span style={{display:'inline-block',marginLeft:'.4rem',padding:'.08rem .35rem',background:'#fff8f5',color:'#e07030',fontSize:'.58rem',fontWeight:700,letterSpacing:'.05em',textTransform:'uppercase',borderRadius:'2px',border:'1px solid #f5c8b0',verticalAlign:'middle',fontFamily:"'DM Sans',sans-serif"}}>edited</span>}
+                          </div>
+                          <div style={{marginTop:'.35rem'}}>
+                            <button onClick={e=>{e.stopPropagation();setEditingBehaviourIdx(item.idx);}}
+                              style={{background:'none',border:'none',color:'#888',cursor:'pointer',fontSize:'.72rem',padding:0,fontFamily:"'DM Sans',sans-serif",textDecoration:'underline'}}>
+                              ✎ revise this
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {items.length === 0 && (
+                    <div style={{fontSize:'.78rem',color:'#888',fontStyle:'italic',padding:'.5rem 0',fontFamily:"'DM Sans',sans-serif"}}>
+                      No items in this bucket — your gaps point elsewhere.
+                    </div>
+                  )}
                 </div>
               );
             })}
           </div>
         )}
 
-        {!principlesLoading&&(
-          <div style={{marginTop:'1.5rem',paddingTop:'1.25rem',borderTop:'1px solid #d8d3cb'}}>
-            <div className="field-lbl">Write your own principle</div>
-            <div className="field-sub">Use a verb stem like "Make space for…", "Be willing to…", "Stop treating…", "Recognise that…"</div>
-            <div style={{display:'flex',gap:'.5rem',alignItems:'flex-start'}}>
-              <textarea className="inp inp-ta" style={{flex:1,minHeight:'70px'}}
-                placeholder="e.g. Be willing to slow down decisions when consequences are big."
-                value={customPrinciple}
-                onChange={e=>setCustomPrinciple(e.target.value)}/>
-              <button className="btn-s" onClick={addCustomPrinciple}
-                disabled={!customPrinciple.trim()}
-                style={{whiteSpace:'nowrap'}}>+ Add</button>
-            </div>
-          </div>
-        )}
-
-        <div className="btn-row">
+        <div className="btn-row" style={{marginTop:'1.5rem'}}>
           {principlesLoading?(
             <div style={{display:'inline-flex',alignItems:'center',gap:'.5rem',padding:'.65rem 1rem',background:'#ebe7e0',border:'1px solid #d8d3cb',borderRadius:'3px',color:'#888',fontSize:'.82rem',fontFamily:"'DM Sans',sans-serif",fontStyle:'italic'}}>
               <div className="dots" style={{display:'inline-flex',gap:'4px'}}><div className="dot"/><div className="dot"/><div className="dot"/></div>
-              Waiting for principles to load…
+              Waiting for behaviours to load…
             </div>
           ):loading?(
             <div className="think"><div className="dots"><div className="dot"/><div className="dot"/><div className="dot"/></div><span className="think-txt">Generating your personalised report…</span></div>
           ):(
             <>
               <button className="btn-p" onClick={generate}>Generate My Report →</button>
-              <button className="btn-s" onClick={loadPrinciples}>↻ Regenerate</button>
+              <button className="btn-s" onClick={regenerateBehaviours}>↻ Regenerate</button>
             </>
           )}
           <button className="btn-s" onClick={()=>setPrinciplesStep(false)}>← Back to Future</button>
@@ -2605,7 +2856,7 @@ function App(){
           {loading?(
             <div className="think"><div className="dots"><div className="dot"/><div className="dot"/><div className="dot"/></div><span className="think-txt">Generating your personalised report…</span></div>
           ):(
-            <button className="btn-p" onClick={goToPrinciples}>Continue to Principles →</button>
+            <button className="btn-p" onClick={goToPrinciples}>Continue to Behaviours →</button>
           )}
           <button className="btn-s" onClick={()=>go(3)}>← Back</button>
         </div>
@@ -2951,7 +3202,7 @@ function App(){
     return(
       <div>
 <div className="rpt-section">
-          <div className="rpt-heading">Your Gap and Your Principles</div>
+          <div className="rpt-heading">Your Gap and Your Behaviours</div>
           <p className="rpt-body">The table below summarises the scale of the shift you are committing to across each dimension. Below it are the principles you selected as the ones most likely to make the biggest difference for {th}.</p>
         </div>
         <div className="gap-summary" style={{marginBottom:'1.5rem'}}>
@@ -2962,8 +3213,41 @@ function App(){
           })}
         </div>
         <div className="rpt-section" style={{marginBottom:'2rem'}}>
-          <div className="rpt-heading" style={{fontSize:'1rem',marginBottom:'1rem'}}>Your selected principles</div>
-          {selectedPrinciples&&selectedPrinciples.length>0?(
+          <div className="rpt-heading" style={{fontSize:'1rem',marginBottom:'1rem'}}>Your selected behaviours</div>
+          {selectedBehaviours&&selectedBehaviours.length>0?(
+            <div>
+              {(()=>{
+                const byBucket = {retain:[], less:[], more:[]};
+                selectedBehaviours.forEach(b=>{
+                  let bk = b.bucket;
+                  if(bk==='keep')bk='retain';
+                  else if(bk==='add')bk='more';
+                  else if(bk==='replace')bk='less';
+                  if(byBucket[bk])byBucket[bk].push(b);
+                });
+                const sections = [
+                  {key:'retain', label:'Retain',  color:'#2d7d4a', bg:'#e8f4ed'},
+                  {key:'less',   label:'Less of', color:'#c0392b', bg:'#fcebe9'},
+                  {key:'more',   label:'More of', color:'#1f6fa3', bg:'#e6f0f7'},
+                ];
+                return sections.filter(s=>byBucket[s.key].length>0).map(s=>(
+                  <div key={s.key} style={{marginBottom:'1.25rem'}}>
+                    <div style={{display:'inline-block',padding:'.25rem .65rem',background:s.bg,color:s.color,fontSize:'.7rem',fontWeight:700,letterSpacing:'.06em',textTransform:'uppercase',borderRadius:'3px',marginBottom:'.5rem',fontFamily:"'DM Sans',sans-serif"}}>{s.label}</div>
+                    {byBucket[s.key].map((b,j)=>(
+                      <div key={j} className="sug-item">
+                        <div className="sug-txt" style={{fontWeight:500}}>
+                          {b.text}
+                          {b.is_edited && <span style={{display:'inline-block',marginLeft:'.5rem',padding:'.1rem .4rem',background:'#fff8f5',color:'#e07030',fontSize:'.62rem',fontWeight:700,letterSpacing:'.05em',textTransform:'uppercase',borderRadius:'2px',border:'1px solid #f5c8b0',verticalAlign:'middle',fontFamily:"'DM Sans',sans-serif"}}>edited</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ));
+              })()}
+              <p style={{fontSize:'.78rem',color:'#888',marginTop:'1rem',lineHeight:1.6,fontFamily:"'DM Sans',sans-serif"}}>These are the commitments you have selected as most likely to help {th} make the shift you described. They are not actions for next Tuesday — they are positions you are committing to hold and act from.</p>
+            </div>
+          ):selectedPrinciples&&selectedPrinciples.length>0?(
+            // Legacy fallback for older Solo sessions saved before the bucket rebuild
             <div>
               {selectedPrinciples.map((p,i)=>(
                 <div key={i} className="sug-item">
@@ -2974,7 +3258,7 @@ function App(){
               <p style={{fontSize:'.78rem',color:'#888',marginTop:'1rem',lineHeight:1.6,fontFamily:"'DM Sans',sans-serif"}}>These are the commitments to a way of seeing that you believe will most help {th} make the shift you described. They are not actions for next Tuesday — they are positions you are committing to hold and act from.</p>
             </div>
           ):(
-            <p className="rpt-body" style={{fontStyle:'italic',color:'#888'}}>You did not select any principles. You can go back to the Principles step from the progress bar to choose some, or you can simply use this report's profile and gap analysis as a basis for your own thinking.</p>
+            <p className="rpt-body" style={{fontStyle:'italic',color:'#888'}}>You did not select any behaviours. You can go back to the Behaviours step from the progress bar to choose some, or you can simply use this report's profile and gap analysis as a basis for your own thinking.</p>
           )}
         </div>
 
@@ -3009,6 +3293,7 @@ function App(){
           asIsStrat, tobeStrat,
           s1ans, s2ans,
           selectedPrinciples,
+          selectedBehaviours,
           SLABELS, SDESC, getStrategyText, gapLabel, gapBadgeText,
           S1, S2,
           industryContext,
@@ -3036,6 +3321,7 @@ function App(){
           asIsStrat, tobeStrat,
           s1ans, s2ans,
           selectedPrinciples,
+          selectedBehaviours,
           SLABELS, SDESC, getStrategyText, gapLabel, gapBadgeText,
           S1, S2,
           industryContext,
