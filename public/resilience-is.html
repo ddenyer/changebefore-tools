@@ -724,6 +724,7 @@ function Gate({ initialCode, initialSubject, onEntry }) {
         setValidating(false);
         return null;
       }
+      setValidating(false);
       return { ...data, code: c };
     } catch (e) {
       if (!opts.silent) setError('We couldn\'t reach the validation service. Check your connection and try again.');
