@@ -1572,10 +1572,12 @@ function generateStatParticipantPDF(opts){
         const text = String(b.text).trim();
         const isStarred = starredTexts.has(text);
 
-        const indent = isStarred ? 9 : 4;
+        const indent = 4;
         const textWidth = pageW - 2*margin - indent - 4;
 
-        // Highlight bar for starred items
+        // Highlight bar for starred items — the bar + bold text IS the marker.
+        // We avoid unicode glyphs (★) because jsPDF's default Helvetica doesn't
+        // include them and renders garbage.
         if (isStarred) {
           // Compute height so we can draw the highlight first
           setFont(10, 'bold', TEXT);
@@ -1583,9 +1585,9 @@ function generateStatParticipantPDF(opts){
           const h = Math.max(7, probe.length*4.6) + (b.is_edited ? 4 : 0) + 2;
           doc.setFillColor(255, 244, 232); // soft accent tint
           doc.rect(margin, y, pageW - 2*margin, h, 'F');
-          // Star marker
-          setFont(11, 'bold', bucket.rgb);
-          doc.text('★', margin+2.5, y+5.2);
+          // Coloured left edge so the highlight has a sharper bucket cue
+          doc.setFillColor(bucket.rgb[0], bucket.rgb[1], bucket.rgb[2]);
+          doc.rect(margin, y, 1.2, h, 'F');
         }
 
         // The text itself — bold + slightly larger when starred
@@ -3447,9 +3449,8 @@ function App(){
                     {byBucket[s.key].map((b,j)=>{
                       const isStarred = starredTexts.has(b.text);
                       return (
-                        <div key={j} style={{display:'flex',alignItems:'flex-start',gap:'.5rem',padding:'.5rem .75rem',marginBottom:'.4rem',background:isStarred?'#fff7e8':'transparent',border:isStarred?'1px solid '+s.color:'1px solid #ebe7e0',borderRadius:'3px',borderLeft:isStarred?'4px solid '+s.color:'1px solid #ebe7e0'}}>
-                          <div style={{flexShrink:0,fontSize:'.95rem',color:isStarred?s.color:'#ddd',marginTop:'1px',width:'14px'}}>{isStarred?'★':'·'}</div>
-                          <div style={{flex:1,fontSize:'.85rem',lineHeight:1.55,color:'#1a1a1a',fontWeight:isStarred?600:400}}>
+                        <div key={j} style={{padding:'.5rem .75rem',marginBottom:'.4rem',background:isStarred?'#fff7e8':'transparent',border:isStarred?'1px solid '+s.color:'1px solid #ebe7e0',borderRadius:'3px',borderLeft:isStarred?'4px solid '+s.color:'1px solid #ebe7e0'}}>
+                          <div style={{fontSize:'.85rem',lineHeight:1.55,color:'#1a1a1a',fontWeight:isStarred?600:400}}>
                             {b.text}
                             {b.is_edited && <span style={{display:'inline-block',marginLeft:'.45rem',padding:'.08rem .35rem',background:'#fff8f5',color:'#e07030',fontSize:'.6rem',fontWeight:700,letterSpacing:'.05em',textTransform:'uppercase',borderRadius:'2px',border:'1px solid #f5c8b0',verticalAlign:'middle',fontFamily:"'DM Sans',sans-serif"}}>edited</span>}
                             {b.is_custom && <span style={{display:'inline-block',marginLeft:'.45rem',padding:'.08rem .35rem',background:'#f5f1ea',color:'#666',fontSize:'.6rem',fontWeight:700,letterSpacing:'.05em',textTransform:'uppercase',borderRadius:'2px',border:'1px solid #d8d3cb',verticalAlign:'middle',fontFamily:"'DM Sans',sans-serif"}}>your own</span>}
@@ -3459,7 +3460,7 @@ function App(){
                     })}
                   </div>
                 ))}
-                <p style={{fontSize:'.78rem',color:'#888',marginTop:'1rem',lineHeight:1.6,fontFamily:"'DM Sans',sans-serif"}}>These are the behaviours you've identified as most likely to help {th} make the shift you described. The ones you flagged with a ★ are the three you said matter most.</p>
+                <p style={{fontSize:'.78rem',color:'#888',marginTop:'1rem',lineHeight:1.6,fontFamily:"'DM Sans',sans-serif"}}>These are the behaviours you've identified as most likely to help {th} make the shift you described. The highlighted ones are the three you flagged as most important.</p>
               </div>
             );
           })()}
