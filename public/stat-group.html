@@ -2663,10 +2663,36 @@ function App(){
     });
     return idToNum;
   }
+  // makeAnonMap: assigns a Participant NN number to EVERY row, named or not.
+  // Used by the facilitator dashboard which never shows names.
+  function makeAnonMap(rows){
+    const sorted=[...rows].sort((a,b)=>{
+      const da=a.created_at||a.date||''; const db=b.created_at||b.date||'';
+      return da<db?-1:da>db?1:0;
+    });
+    const idToNum={};
+    let counter = 0;
+    sorted.forEach(r=>{
+      if (r.participant_id && !idToNum[r.participant_id]) {
+        counter++;
+        idToNum[r.participant_id] = counter;
+      }
+    });
+    return idToNum;
+  }
   function displayName(r, idToNum){
     if (r && r.respondent_name && r.respondent_name.trim()) return r.respondent_name.trim();
     if (r && r.participant_id_padded) return `Participant ${r.participant_id_padded}`;
     if (r && r.participant_id && idToNum && idToNum[r.participant_id]) return `Participant ${String(idToNum[r.participant_id]).padStart(2,'0')}`;
+    return 'Participant';
+  }
+  // anonName: ALWAYS returns Participant NN. Ignores respondent_name entirely.
+  // Used by facilitator dashboard (Overview, Individuals, Present, Variance, etc.)
+  // so a session's join-and-send participants are never exposed by name on
+  // dashboards that may be projected or shared.
+  function anonName(r, anonMap){
+    if (r && r.participant_id_padded) return `Participant ${r.participant_id_padded}`;
+    if (r && r.participant_id && anonMap && anonMap[r.participant_id]) return `Participant ${String(anonMap[r.participant_id]).padStart(2,'0')}`;
     return 'Participant';
   }
   function ensureDisplay(rows){
@@ -5279,6 +5305,10 @@ function App(){
   function renderFacilitatorTab(){
     const PAX_COLORS=['#e07030', '#1a4fa0', '#2d7d46', '#b87a20', '#b83232', '#6a3d9a', '#0891b2', '#78350f', '#374151'];
     const augmentedRespondents=ensureDisplay(groupRespondents);
+    // anonMap: participant_id → sequential anon number, for EVERY row regardless
+    // of whether they joined-and-sent (named) or printed (anonymous). Used by all
+    // dashboard renders so names are never exposed in the facilitator UI.
+    const anonMap=makeAnonMap(groupRespondents);
     const realRespondents=augmentedRespondents.filter(r=>(r.respondent_name||r.participant_id)&&r.respondent_name!=='__facilitator__'&&r.respondent_name!=='__session_closed__'&&!r.pending_review&&((r.s1_answers&&r.s1_answers.length>0)||(r.s2_answers&&r.s2_answers.length>0)||r.prog||r.tobe_prog));
     const pendingReviewers=augmentedRespondents.filter(r=>(r.respondent_name||r.participant_id)&&r.respondent_name!=='__facilitator__'&&r.respondent_name!=='__session_closed__'&&r.pending_review===true);
     const completedRespondents=realRespondents.filter(r=>!!(r.prog));
@@ -5429,7 +5459,7 @@ function App(){
                 {dim:'flexible',gap:(r.flex||0)-meanFlex},
               ];
               const biggest=gaps.reduce((m,g)=>Math.abs(g.gap)>Math.abs(m.gap)?g:m,gaps[0]);
-              if(Math.abs(biggest.gap)>=20)outliers.push({name:r.respondent_name,dim:biggest.dim,gap:biggest.gap});
+              if(Math.abs(biggest.gap)>=20)outliers.push({name:anonName(r, anonMap),dim:biggest.dim,gap:biggest.gap});
             });
           }
           // Top-spread dimension for Overview headline
@@ -5718,7 +5748,7 @@ function App(){
               questions.push(`The group sits in ${SLABELS[groupStrat]||'a neutral position'}. Is that an accurate picture of how you currently operate — or does it miss something important?`);
               if(topTension.sd>8)questions.push(`On ${topTension.lbl}, scores ranged widely across the group. What explains that gap — different roles, different experiences, or different readings of the organisation?`);
               if(gTobeStrat2&&gTobeStrat2!==groupStrat)questions.push(`As a group you want to move toward ${SLABELS[gTobeStrat2]}. What would need to change — in systems, behaviours, or leadership — to make that shift real?`);
-              if(outliers.length>0)questions.push(`${outliers.map(r=>r.respondent_name.split(' ')[0]).join(' and ')} ${outliers.length===1?'sees':'see'} the organisation quite differently from the rest of the group. What might explain that?`);
+              if(outliers.length>0)questions.push(`${outliers.map(r=>r.name).join(' and ')} ${outliers.length===1?'sees':'see'} the organisation quite differently from the rest of the group. What might explain that?`);
               if(questions.length<4)questions.push('If you had to identify the single biggest thing holding this organisation back from where it wants to be, what would it be?');
               /* Quadrant map SVG */
               const QW=320,QH=300,QPX=50,QPY=44;
@@ -5753,7 +5783,7 @@ function App(){
                             const flagged=dims.filter(d=>{const v=d.key==='prog'?r.prog:d.key==='def'?r.def:d.key==='con'?r.con:r.flex;return d.sd>5&&Math.abs((v||0)-d.mean)>d.sd;}).map(d=>{const v=d.key==='prog'?r.prog:d.key==='def'?r.def:d.key==='con'?r.con:r.flex;const gap=Math.round((v||0)-d.mean);return d.lbl+' '+(gap>0?'+':'')+gap;});
                             return(
                               <div key={oi} style={{marginBottom:oi<outliers.length-1?'.35rem':0}}>
-                                <strong style={{color:'#1a1a1a'}}>{r.respondent_name.split(' ')[0]}:</strong> {flagged.join(', ')}
+                                <strong style={{color:'#1a1a1a'}}>{anonName(r, anonMap)}:</strong> {flagged.join(', ')}
                               </div>
                             );
                           })}
@@ -5805,10 +5835,10 @@ function App(){
                         return(
                           <g key={i} style={{cursor:'pointer'}} onClick={()=>setQuadrantHoverIdx(sel?null:i)}>
                             <circle cx={x} cy={y} r={sel?7:4} fill={col} fillOpacity={sel?1:.9} stroke="#fff" strokeWidth={sel?2:1}/>
-                            {sel&&<g>
-                              <rect x={x+8} y={y-12} width={r.respondent_name.length*5.6+10} height={18} fill="#1a1a1a" rx={3}/>
-                              <text x={x+13} y={y+1} fontSize={9} fontWeight={700} fill="#fff" fontFamily="DM Sans,sans-serif">{r.respondent_name}</text>
-                            </g>}
+                            {sel&&(()=>{const lbl=anonName(r,anonMap);return(<g>
+                              <rect x={x+8} y={y-12} width={lbl.length*5.6+10} height={18} fill="#1a1a1a" rx={3}/>
+                              <text x={x+13} y={y+1} fontSize={9} fontWeight={700} fill="#fff" fontFamily="DM Sans,sans-serif">{lbl}</text>
+                            </g>);})()}
                           </g>
                         );
                       })}
@@ -5831,7 +5861,7 @@ function App(){
                             <button key={i} onClick={()=>setQuadrantHoverIdx(sel?null:i)}
                               style={{display:'inline-flex',alignItems:'center',gap:'.35rem',padding:'.25rem .55rem',background:sel?'#1a1a1a':'#f0ede8',color:sel?'#fff':'#1a1a1a',border:`1px solid ${sel?'#1a1a1a':'#d8d3cb'}`,borderRadius:'12px',fontSize:'.72rem',fontWeight:600,cursor:'pointer',fontFamily:"'DM Sans',sans-serif",transition:'all .12s'}}>
                               <span style={{display:'inline-block',width:'8px',height:'8px',borderRadius:'50%',background:col,border:sel?'1.5px solid #fff':'none'}}/>
-                              {r.respondent_name}
+                              {anonName(r,anonMap)}
                             </button>
                           );
                         })}
@@ -5960,7 +5990,7 @@ function App(){
                       <div style={{display:'flex',alignItems:'center',gap:'.65rem'}}>
                         <div className="rc-dot" style={{background:PAX_COLORS[i%PAX_COLORS.length]}}/>
                         <div>
-                          <div className="rc-name">{r.respondent_name}</div>
+                          <div className="rc-name">{anonName(r, anonMap)}</div>
                           <div className="rc-role">{r.role||'No role specified'} {r.sector&&r.role?'• '+r.sector:r.sector||''}</div>
                         </div>
                       </div>
@@ -5977,7 +6007,7 @@ function App(){
                     {isRemoving&&(
                       <div style={{marginTop:'.75rem',paddingTop:'.75rem',borderTop:'1px solid #ebe7e0',background:'#fff8f5',padding:'.85rem',borderRadius:'4px',border:'1px solid #f5c8b0'}}>
                         <div style={{fontSize:'.85rem',color:'#1a1a1a',fontFamily:"'DM Sans',sans-serif",marginBottom:'.5rem',fontWeight:600}}>
-                          Permanently remove <strong>{r.respondent_name}</strong> from this session?
+                          Permanently remove <strong>{anonName(r, anonMap)}</strong> from this session?
                         </div>
                         <div style={{fontSize:'.78rem',color:'#c0392b',fontFamily:"'DM Sans',sans-serif",marginBottom:'.75rem',lineHeight:1.5}}>
                           ⚠ This cannot be undone. All survey responses, scores, behaviours, and to-be data for this respondent will be deleted from the database.
@@ -6087,7 +6117,7 @@ function App(){
                     return(
                       <div key={i} className="pending-row" style={{background:'#fff',border:'1px solid #e0dbd4',borderRadius:'4px',padding:'.7rem .9rem',display:'flex',alignItems:'center',justifyContent:'space-between',gap:'.75rem',flexWrap:'wrap'}}>
                         <div style={{flex:1,minWidth:'180px'}}>
-                          <div style={{fontSize:'.88rem',fontWeight:700,color:'#1a1a1a',fontFamily:"'DM Sans',sans-serif"}}>{r.respondent_name}</div>
+                          <div style={{fontSize:'.88rem',fontWeight:700,color:'#1a1a1a',fontFamily:"'DM Sans',sans-serif"}}>{anonName(r, anonMap)}</div>
                           <div style={{fontSize:'.7rem',color:'#888',fontFamily:"'DM Sans',sans-serif",marginTop:'.15rem'}}>
                             {r.role?`${r.role} · `:''}submitted {submittedAt}
                           </div>
@@ -6122,7 +6152,7 @@ function App(){
                   const done=steps.filter(Boolean).length;
                   return(
                     <div key={i} className="prog-person">
-                      <div className="pp-name" title={r.respondent_name}>{r.respondent_name}</div>
+                      <div className="pp-name" title={anonName(r, anonMap)}>{anonName(r, anonMap)}</div>
                       <div style={{fontSize:'.65rem',color:'#888',marginBottom:'.4rem',fontFamily:"'DM Sans',sans-serif"}}>{done}/{steps.length} steps</div>
                       <div className="pp-steps">
                         {steps.map((done,si)=>(
@@ -6222,6 +6252,7 @@ function App(){
   function renderPresentTab(){
     const PAX_C=['#e07030','#1a4fa0','#2d7d46','#b87a20','#b83232','#6a3d9a','#0891b2','#78350f','#374151'];
     const augmentedRespondents=ensureDisplay(groupRespondents);
+    const anonMap=makeAnonMap(groupRespondents);
     const comp=augmentedRespondents.filter(r=>(r.respondent_name||r.participant_id)&&r.respondent_name!=='__facilitator__'&&r.respondent_name!=='__session_closed__'&&r.prog);
     const visibleSet=selectedForPresent===null?new Set(comp.map(r=>r.respondent_name)):selectedForPresent;
     const visible=comp.filter(r=>visibleSet.has(r.respondent_name));
@@ -6385,7 +6416,7 @@ function App(){
                   {on&&<span style={{position:'absolute',top:'-2px',left:'2px',color:'#fff',fontSize:'.85rem',fontWeight:700,lineHeight:1}}>✓</span>}
                 </span>
                 <span style={{display:'inline-block',width:10,height:10,borderRadius:'50%',background:col,flexShrink:0}}/>
-                <span style={{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',fontWeight:on?700:400,flex:1}}>{r.respondent_name}</span>
+                <span style={{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',fontWeight:on?700:400,flex:1}}>{anonName(r, anonMap)}</span>
               </button>
             );
           })}
@@ -6872,6 +6903,7 @@ function App(){
 
   function renderGroupReportTab(){
     const augmentedRespondents=ensureDisplay(groupRespondents);
+    const anonMap=makeAnonMap(groupRespondents);
     const realRespondents=augmentedRespondents.filter(r=>(r.respondent_name||r.participant_id)&&r.respondent_name!=='__facilitator__'&&r.respondent_name!=='__session_closed__'&&!r.pending_review&&((r.s1_answers&&r.s1_answers.length>0)||(r.s2_answers&&r.s2_answers.length>0)||r.prog||r.tobe_prog));
     const myEntry=realRespondents.find(r=>r.respondent_name===respondentName.trim());
     const PAX_COLORS=['#e07030', '#1a4fa0', '#2d7d46', '#b87a20', '#b83232', '#6a3d9a', '#0891b2', '#78350f', '#374151'];
@@ -6907,7 +6939,7 @@ function App(){
               {realRespondents.map((r,i)=>{
                 const isMe=r.respondent_name===respondentName.trim();
                 return(
-                  <div key={i} className={`p-chip done${isMe?' you':''}`} title={r.respondent_name+(isMe?' (you)':'')} style={{background:PAX_COLORS[i%PAX_COLORS.length],borderColor:PAX_COLORS[i%PAX_COLORS.length]}}>
+                  <div key={i} className={`p-chip done${isMe?' you':''}`} title={anonName(r, anonMap)+(isMe?' (you)':'')} style={{background:PAX_COLORS[i%PAX_COLORS.length],borderColor:PAX_COLORS[i%PAX_COLORS.length]}}>
                     {i+1}
                     {isMe&&<span className="you-dot"/>}
                   </div>
