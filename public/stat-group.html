@@ -4096,6 +4096,16 @@ function App(){
     return(
       <div>
         <BackBtn onClick={()=>go(0)}/>
+        {participantId && !facilitatorUnlocked && !isAdmin && (
+          <div style={{margin:'0 0 1.5rem',padding:'1rem 1.2rem',background:'#fff8f5',border:'1px solid #f5c8b0',borderLeft:'4px solid #e07030',borderRadius:'4px',fontFamily:"'DM Sans',sans-serif"}}>
+            <div style={{fontSize:'1.05rem',color:'#1a1a1a',marginBottom:'.45rem',lineHeight:1.4}}>
+              You are <strong style={{color:'#e07030'}}>Participant {participantId}</strong> in this session.
+            </div>
+            <div style={{fontSize:'.82rem',color:'#555',lineHeight:1.55}}>
+              The facilitator's dashboard will refer to your responses as "Participant {participantId}". When the group discusses individual responses or shows the dashboard, that's how you can identify yourself. Neither the facilitator nor other participants will know your ID unless you choose to share it.
+            </div>
+          </div>
+        )}
         <div className="sec-tag">Survey — Part 1 of 2</div>
         <h2 className="pg-title">How does <em style={{fontStyle:'normal',color:'#e07030'}}>{th}</em> operate today?</h2>
         <p className="pg-sub">For each question, allocate up to 10 points between the two options to show how strongly each reflects the current reality in {th}. Answer based on how things <strong>actually are</strong> — not how you would like them to be.</p>
@@ -5379,6 +5389,15 @@ function App(){
               }
             }}>📄 Generate report (PDF)</button>
             <button onClick={()=>{setPrintAll(true);setTimeout(()=>{window.print();setTimeout(()=>setPrintAll(false),800);},800);}} title="Backup: print or Save as PDF via browser, in case the main PDF fails" style={{background:'transparent',color:'#888',border:'1px solid #d8d3cb',borderRadius:'3px',padding:'.4rem .75rem',fontSize:'.7rem',fontWeight:500,fontFamily:"'DM Sans',sans-serif",cursor:'pointer'}}>Browser print (backup)</button>
+            <button
+              onClick={()=>{
+                const ok=window.confirm('Take the survey yourself?\n\nYou\'ll be returned to the entry screen and assigned a participant number. Your responses will appear on this dashboard anonymously alongside everyone else.\n\nThe session is already saved — re-enter the code, click Begin, complete the survey, then use Facilitator ★ + password to return here.');
+                if(ok)restart();
+              }}
+              title="Exit facilitator mode and take the survey yourself"
+              style={{background:'transparent',color:'#888',border:'1px solid #d8d3cb',borderRadius:'3px',padding:'.4rem .75rem',fontSize:'.7rem',fontWeight:500,fontFamily:"'DM Sans',sans-serif",cursor:'pointer'}}>
+              Take the survey yourself
+            </button>
           </div>
         </div>
 
@@ -6998,6 +7017,18 @@ function App(){
   return(
     <div className="shell" ref={topRef}>
       {step>=0&&<Progress step={step} principlesStep={principlesStep}/>}
+      {/* Persistent participant ID strip — visible from the first survey step onwards.
+          Hidden in facilitator mode. Matches the dashboard's "Participant 03" labelling
+          so when the facilitator refers to a number mid-workshop, the participant can
+          glance up and find themselves. (Added May 2026.) */}
+      {participantId && !facilitatorUnlocked && !isAdmin && step>=2 && (
+        <div style={{maxWidth:'760px',margin:'.75rem auto 0',padding:'0 1.5rem'}}>
+          <div style={{background:'#1a1a1a',color:'#f0ede8',padding:'.5rem .85rem',borderRadius:'3px',fontSize:'.78rem',fontFamily:"'DM Sans',sans-serif",display:'flex',justifyContent:'space-between',alignItems:'center',gap:'.65rem',flexWrap:'wrap'}}>
+            <span style={{color:'#999'}}>You are <strong style={{color:'#e07030',fontWeight:700}}>Participant {participantId}</strong> in this session</span>
+            <span style={{color:'#666',fontSize:'.72rem'}}>Session: {codeNorm}</span>
+          </div>
+        </div>
+      )}
       {pendingReviewSelf&&!isAdmin&&!facilitatorUnlocked&&codeNorm&&(
         <div style={{maxWidth:'760px',margin:'1.25rem auto 0',padding:'0 1.5rem'}}>
           <div style={{background:'#fff8f5',border:'1px solid #f5c8b0',borderLeft:'4px solid #e07030',borderRadius:'4px',padding:'.85rem 1.1rem',fontFamily:"'DM Sans',sans-serif"}}>
