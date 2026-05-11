@@ -6260,8 +6260,8 @@ function App(){
     const augmentedRespondents=ensureDisplay(groupRespondents);
     const anonMap=makeAnonMap(groupRespondents);
     const comp=augmentedRespondents.filter(r=>(r.respondent_name||r.participant_id)&&r.respondent_name!=='__facilitator__'&&r.respondent_name!=='__session_closed__'&&r.prog);
-    const visibleSet=selectedForPresent===null?new Set(comp.map(r=>r.respondent_name)):selectedForPresent;
-    const visible=comp.filter(r=>visibleSet.has(r.respondent_name));
+    const visibleSet=selectedForPresent===null?new Set(comp.map(r=>r.participant_id)):selectedForPresent;
+    const visible=comp.filter(r=>visibleSet.has(r.participant_id));
     // As-is mean
     const gM={prog:0,def:0,con:0,flex:0};
     if(comp.length>0){comp.forEach(r=>{gM.prog+=(r.prog||0);gM.def+=(r.def||0);gM.con+=(r.con||0);gM.flex+=(r.flex||0);});['prog','def','con','flex'].forEach(k=>{gM[k]=Math.round(gM[k]/comp.length);});}
@@ -6277,19 +6277,22 @@ function App(){
       return pts.map((pt,i)=>(i===0?'M':'L')+pt[0]+','+pt[1]).join(' ')+' Z';
     }
     function gp(pct){const r=RD*pct;return 'M'+DCX+','+(DCY-r)+' L'+(DCX+r)+','+DCY+' L'+DCX+','+(DCY+r)+' L'+(DCX-r)+','+DCY+' Z';}
-    function toggleOne(name){
+    function togglePid(pid){
       const cur=new Set(visibleSet);
-      if(cur.has(name))cur.delete(name);else cur.add(name);
+      if(cur.has(pid))cur.delete(pid);else cur.add(pid);
       setSelectedForPresent(cur);
     }
-    // Strategy quick-select: count participants by their as-is strategy
+    // Strategy quick-select: count participants by their as-is strategy.
+    // Uses participant_id as identity (not respondent_name) — multiple participants
+    // may share the same name (or both be blank), and using name as the visibility
+    // key would lock them together. The visible set below also keys on participant_id.
     const strategyCounts = { preventative_control:0, mindful_action:0, performance_optimisation:0, adaptive_innovation:0, neutral:0 };
     const strategyMembers = { preventative_control:[], mindful_action:[], performance_optimisation:[], adaptive_innovation:[], neutral:[] };
     comp.forEach(r => {
       const s = getStrategy(r.def||0, r.prog||0, r.con||0, r.flex||0);
       if (strategyCounts[s] !== undefined) {
         strategyCounts[s]++;
-        strategyMembers[s].push(r.respondent_name);
+        strategyMembers[s].push(r.participant_id);
       }
     });
     function toggleStrategy(strat){
@@ -6307,7 +6310,7 @@ function App(){
       setSelectedForPresent(cur);
     }
 
-    function selectAll(){setSelectedForPresent(new Set(comp.map(r=>r.respondent_name)));}
+    function selectAll(){setSelectedForPresent(new Set(comp.map(r=>r.participant_id)));}
     function selectNone(){setSelectedForPresent(new Set());}
     function renderDiamond(asIs){
       const path=asIs?sp(gM.prog,gM.def,gM.con,gM.flex):sp(gT.p,gT.d,gT.c,gT.f);
@@ -6319,7 +6322,7 @@ function App(){
           <line x1={DCX} y1={DCY-RD} x2={DCX} y2={DCY+RD} stroke="#d8d3cb"/>
           <line x1={DCX-RD} y1={DCY} x2={DCX+RD} y2={DCY} stroke="#d8d3cb"/>
           {visible.map((r,i)=>{
-            const ci=comp.findIndex(x=>x.respondent_name===r.respondent_name);
+            const ci=comp.findIndex(x=>x.participant_id===r.participant_id);
             const col=PAX_C[ci%PAX_C.length];
             const indPath=asIs?sp(r.prog||0,r.def||0,r.con||0,r.flex||0):(r.tobe_prog?sp(r.tobe_prog,r.tobe_def,r.tobe_con,r.tobe_flex):null);
             if(!indPath)return null;
@@ -6415,9 +6418,9 @@ function App(){
         <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))',gap:'.4rem'}}>
           {comp.map((r,i)=>{
             const col=PAX_C[i%PAX_C.length];
-            const on=visibleSet.has(r.respondent_name);
+            const on=visibleSet.has(r.participant_id);
             return(
-              <button key={i} type="button" onClick={()=>toggleOne(r.respondent_name)} style={{display:'flex',alignItems:'center',gap:'.5rem',padding:'.5rem .7rem',borderRadius:'3px',cursor:'pointer',background:on?'#fff':'#f5f1ea',border:`1.5px solid ${on?col:'#d8d3cb'}`,fontSize:'.78rem',color:on?'#1a1a1a':'#888',fontFamily:"'DM Sans',sans-serif",textAlign:'left',outline:'none',transition:'all .15s'}}>
+              <button key={i} type="button" onClick={()=>togglePid(r.participant_id)} style={{display:'flex',alignItems:'center',gap:'.5rem',padding:'.5rem .7rem',borderRadius:'3px',cursor:'pointer',background:on?'#fff':'#f5f1ea',border:`1.5px solid ${on?col:'#d8d3cb'}`,fontSize:'.78rem',color:on?'#1a1a1a':'#888',fontFamily:"'DM Sans',sans-serif",textAlign:'left',outline:'none',transition:'all .15s'}}>
                 <span style={{display:'inline-block',width:14,height:14,border:`1.5px solid ${on?col:'#b0a898'}`,borderRadius:'2px',background:on?col:'#fff',position:'relative',flexShrink:0}}>
                   {on&&<span style={{position:'absolute',top:'-2px',left:'2px',color:'#fff',fontSize:'.85rem',fontWeight:700,lineHeight:1}}>✓</span>}
                 </span>
