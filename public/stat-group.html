@@ -2722,6 +2722,7 @@ function App(){
   // Join form state (Phase 5)
   const [joinFirstName,setJoinFirstName]=useState('');
   const [joinLastName,setJoinLastName]=useState('');
+  const [joinOrganisation,setJoinOrganisation]=useState('');
   const [joinEmail,setJoinEmail]=useState('');
   const [joinPrivacyOk,setJoinPrivacyOk]=useState(false);
   const [joinSubmitting,setJoinSubmitting]=useState(false);
@@ -5097,6 +5098,7 @@ function App(){
             email: joinEmail.trim(),
             firstName: joinFirstName.trim(),
             lastName: joinLastName.trim(),
+            organisation: joinOrganisation.trim(),
             sessionCode: accessCode,
             participantId: participantUuid,
             tool: 'stat-group',
@@ -5236,6 +5238,10 @@ function App(){
                 <label className="field-lbl">Last name <span style={{color:'#e07030'}}>*</span></label>
                 <input className="inp" value={joinLastName} onChange={e=>setJoinLastName(e.target.value)} disabled={joinSubmitting}/>
               </div>
+            </div>
+            <div style={{marginBottom:'.75rem'}}>
+              <label className="field-lbl">Organisation</label>
+              <input className="inp" value={joinOrganisation} onChange={e=>setJoinOrganisation(e.target.value)} disabled={joinSubmitting} autoComplete="organization"/>
             </div>
             <div style={{marginBottom:'.75rem'}}>
               <label className="field-lbl">Email <span style={{color:'#e07030'}}>*</span></label>
