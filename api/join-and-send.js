@@ -78,6 +78,12 @@ export default async function handler(req, res) {
   };
 
   try {
+    // Generate a strong random password for new members. They never see this —
+    // they'll use the "Forgot password" link on the login page to set their own.
+    // (Existing members: WP ignores this and keeps their current password.)
+    const crypto = await import('node:crypto');
+    const generatedPassword = crypto.randomBytes(24).toString('base64').replace(/[+/=]/g, '');
+
     // === Step 1: Create or recognise member in WordPress ===
     const wpAuth = Buffer.from(`${wpUser}:${wpPass}`).toString('base64');
     const wpResponse = await fetch(
@@ -90,7 +96,7 @@ export default async function handler(req, res) {
         },
         body: JSON.stringify({
           email,
-          password: password || '',
+          password: generatedPassword,
           first_name: firstName,
           last_name: lastName,
           organisation: organisation || '',
