@@ -5940,21 +5940,58 @@ function App(){
                     <div className="insight-desc">Highest disagreement — SD {topTension.sd.toFixed(1)}.</div>
                   </div>
                   <div className="insight-card outlier">
-                    <div className="insight-label">Outliers</div>
+                    <div className="insight-label">Outliers — by direction</div>
                     <div className="insight-value">{outliers.length>0?outliers.length:'None'}</div>
                     {outliers.length===0?(
                       <div className="insight-desc">All respondents are within 1.5 SD of the group mean.</div>
                     ):(
                       <div className="insight-desc">
-                        <div style={{fontSize:'.7rem',color:'#888',marginBottom:'.4rem',fontStyle:'italic'}}>Showing top {outliers.length} by deviation magnitude.</div>
-                        {outliers.map((r,oi)=>{
-                          const flagged=dims.filter(d=>{const v=d.key==='prog'?r.prog:d.key==='def'?r.def:d.key==='con'?r.con:r.flex;return d.sd>5&&Math.abs((v||0)-d.mean)>d.sd*1.5;}).map(d=>{const v=d.key==='prog'?r.prog:d.key==='def'?r.def:d.key==='con'?r.con:r.flex;const gap=Math.round((v||0)-d.mean);return d.lbl+' '+(gap>0?'+':'')+gap;});
-                          return(
-                            <div key={oi} style={{marginBottom:oi<outliers.length-1?'.35rem':0}}>
-                              <strong style={{color:'#1a1a1a'}}>{anonName(r, anonMap)}:</strong> {flagged.join(', ')}
-                            </div>
-                          );
-                        })}
+                        {(()=>{
+                          // Build 8 buckets: each dimension × direction.
+                          // A participant deviating significantly on multiple dimensions
+                          // can appear in more than one bucket — that's the point: each
+                          // bucket says "here's the fault line and who's pulling on it".
+                          const buckets={};
+                          dims.forEach(d=>{
+                            if(d.sd<=5)return; // skip near-uniform dimensions
+                            const threshold=d.sd*1.5;
+                            const above=[]; const below=[];
+                            outliers.forEach(r=>{
+                              const v=d.key==='prog'?r.prog:d.key==='def'?r.def:d.key==='con'?r.con:r.flex;
+                              const gap=(v||0)-d.mean;
+                              if(gap>threshold)above.push({r,gap});
+                              else if(gap<-threshold)below.push({r,gap});
+                            });
+                            if(above.length>0)buckets[`More ${d.lbl}`]={dir:'above',dim:d.lbl,people:above.sort((a,b)=>b.gap-a.gap)};
+                            if(below.length>0)buckets[`Less ${d.lbl}`]={dir:'below',dim:d.lbl,people:below.sort((a,b)=>a.gap-b.gap)};
+                          });
+                          // Order: biggest cluster first
+                          const ordered=Object.entries(buckets).sort((a,b)=>b[1].people.length-a[1].people.length);
+                          if(ordered.length===0){
+                            return <div>Outliers detected but none cluster on a single direction.</div>;
+                          }
+                          return ordered.map(([label,bucket],bi)=>{
+                            const peopleCount=bucket.people.length;
+                            const directionWord=bucket.dir==='above'?'than the group':'than the group';
+                            const arrow=bucket.dir==='above'?'▲':'▼';
+                            return(
+                              <div key={bi} style={{marginBottom:bi<ordered.length-1?'.65rem':0,padding:'.5rem .65rem',background:'#faf8f5',borderRadius:'3px',borderLeft:`3px solid ${bucket.dir==='above'?'#1a4fa0':'#b83232'}`}}>
+                                <div style={{fontSize:'.78rem',fontWeight:700,color:'#1a1a1a',marginBottom:'.2rem'}}>
+                                  <span style={{color:bucket.dir==='above'?'#1a4fa0':'#b83232',marginRight:'.3rem'}}>{arrow}</span>
+                                  {label} {directionWord} ({peopleCount})
+                                </div>
+                                <div style={{fontSize:'.74rem',color:'#555',lineHeight:1.5}}>
+                                  {bucket.people.map((p,pi)=>(
+                                    <span key={pi}>
+                                      {anonName(p.r, anonMap)} <span style={{color:'#888'}}>({p.gap>0?'+':''}{Math.round(p.gap)})</span>
+                                      {pi<bucket.people.length-1?', ':''}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          });
+                        })()}
                       </div>
                     )}
                   </div>
