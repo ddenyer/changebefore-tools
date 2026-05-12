@@ -1805,15 +1805,48 @@ function generateStatGroupPDF(opts){
   const WHITE = [255, 255, 255];
   const RED = [192, 57, 43];
 
-  // Anonymisation map by created_at order
+  // Filter out incomplete participants (those who never got past the
+  // mid-survey point). Their scores are 0 across the board which would
+  // make them appear as extreme outliers.
+  const completedRespondents = realRespondents.filter(r=>{
+    const p=r.prog||0, d=r.def||0, c=r.con||0, f=r.flex||0;
+    return p>0||d>0||c>0||f>0;
+  });
+
+  // Anonymisation: always use "Participant NN" labels in the PDF.
+  // Even though useNames is a flag, the PDF is a printable document that may be
+  // shared, so we anonymise unconditionally. Names are preserved in the CSV
+  // export only. Numbering uses participant_id so duplicate names don't collide.
   const sorted = [...realRespondents].sort((a,b)=>{
     const da=new Date(a.created_at||a.date||0).getTime();
     const db=new Date(b.created_at||b.date||0).getTime();
     return da-db;
   });
-  const aliasMap = {};
-  sorted.forEach((r,i)=>{aliasMap[r.respondent_name]='R'+(i+1);});
-  const labelOf = (name)=>useNames ? (name||'') : (aliasMap[name]||name||'');
+  const aliasMap = {};        // participant_id -> "Participant NN"
+  const aliasByName = {};     // respondent_name -> "Participant NN" (best-effort lookup for content that arrives with name only)
+  sorted.forEach((r,i)=>{
+    const label = 'Participant '+String(i+1).padStart(2,'0');
+    if(r.participant_id){aliasMap[r.participant_id]=label;}
+    if(r.respondent_name){aliasByName[r.respondent_name]=label;}
+  });
+  function labelForRespondent(r){
+    if(!r)return 'Participant';
+    if(r.participant_id && aliasMap[r.participant_id])return aliasMap[r.participant_id];
+    if(r.respondent_name && aliasByName[r.respondent_name])return aliasByName[r.respondent_name];
+    return 'Participant';
+  }
+  // Best-effort lookup for content that only has the author name (e.g. cluster
+  // items from the AI server). Returns "Participant NN" if we can match it,
+  // otherwise the input passed through (passthrough catches "Participant 03"
+  // strings the server may already have anonymised).
+  function labelForName(name){
+    if(!name)return 'Participant';
+    if(/^Participant\s+\d+/i.test(name))return name;
+    if(aliasByName[name])return aliasByName[name];
+    return name;
+  }
+  // Kept for backward compatibility with the existing labelOf() callsites.
+  const labelOf = (name)=>labelForName(name);
 
   // Helpers
   function setFont(size, weight, color){
@@ -1938,19 +1971,26 @@ function generateStatGroupPDF(opts){
 
   setFont(11, 'bold', TEXT);
   doc.text(sessionCode||'—', margin, coverFY+4);
-  doc.text(String(realRespondents.length), margin+50, coverFY+4);
+  {
+    const total=realRespondents.length;
+    const completed=completedRespondents.length;
+    const respText = total===completed
+      ? String(completed)
+      : (completed+' / '+total);
+    doc.text(respText, margin+50, coverFY+4);
+  }
   doc.text(new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'}), margin+100, coverFY+4);
 
   setFont(7, 'normal', MUTED);
-  doc.text((useNames?'Named report':'Anonymised report')+' · ChangeBefore · tools.changebefore.com',
+  doc.text('Anonymised report · ChangeBefore · tools.changebefore.com',
     pageW/2, pageH-10, {align:'center'});
 
   // ───── PAGE 2: EXECUTIVE SUMMARY ─────
   doc.addPage(); pageNum=1; y=margin+5; addHeader();
   sectionTitle('Executive summary');
 
-  const N = realRespondents.length;
-  const tobeN = withTobe.length;
+  const N = completedRespondents.length;
+  const tobeN = withTobe.filter(r=>(r.prog||0)>0||(r.def||0)>0||(r.con||0)>0||(r.flex||0)>0).length;
   const dominantStrategy = SLABELS[groupStrat]+(groupIsSplit?' (varied as-is)':'');
   const biggestShift = bigGap && Math.abs(bigGap.gap)>=8 ? bigGap : null;
 
@@ -2055,6 +2095,224 @@ function generateStatGroupPDF(opts){
     y += 6;
   }
 
+  // ───── PRE-COMPUTE: OUTLIER CLUSTERS BY DIRECTION ─────
+  // Computed up here so both the Insight cards and the Outliers section can
+  // reference the same bucket structure.
+  const dimLabelsForOutliers = {prog:'Progressive',def:'Defensive',con:'Consistent',flex:'Flexible'};
+  const dimBuckets = {};
+  if(completedRespondents.length>=3){
+    ['prog','def','con','flex'].forEach(dim=>{
+      const vals = completedRespondents.map(r=>r[dim]||0);
+      const m = vals.reduce((s,v)=>s+v,0)/vals.length;
+      const sd = Math.sqrt(localVariance(vals));
+      if(sd<5) return;
+      const threshold = sd*1.5;
+      const above=[]; const below=[];
+      completedRespondents.forEach(r=>{
+        const v=r[dim]||0;
+        const gap=v-m;
+        if(gap>threshold)above.push({r,gap,value:v,mean:Math.round(m)});
+        else if(gap<-threshold)below.push({r,gap,value:v,mean:Math.round(m)});
+      });
+      if(above.length>0)dimBuckets['More '+dimLabelsForOutliers[dim]]={dir:'above',dim:dimLabelsForOutliers[dim],people:above.sort((a,b)=>b.gap-a.gap)};
+      if(below.length>0)dimBuckets['Less '+dimLabelsForOutliers[dim]]={dir:'below',dim:dimLabelsForOutliers[dim],people:below.sort((a,b)=>a.gap-b.gap)};
+    });
+  }
+  const dimBucketsOrdered = Object.entries(dimBuckets).sort((a,b)=>b[1].people.length-a[1].people.length);
+
+  // ───── INSIGHT CARDS ─────
+  // 2x2 grid: Key Tension / Outliers / Desired Shift / To-Be Alignment.
+  // Same headline insights as the on-screen Variance tab — they help the
+  // facilitator see at a glance where the conversation should focus.
+  if(completedRespondents.length>=2){
+    doc.addPage(); pageNum++; y=margin+5; addHeader();
+    sectionTitle('Headline insights');
+    paragraph('Four headlines on where the room sits. Read these first, then drill into the detail.', {color:MUTED, size:9});
+    y += 3;
+
+    // Compute the four headline values
+    const dimsIns=[
+      {key:'prog',lbl:'Progressive',vals:completedRespondents.map(r=>r.prog||0)},
+      {key:'def',lbl:'Defensive',vals:completedRespondents.map(r=>r.def||0)},
+      {key:'con',lbl:'Consistent',vals:completedRespondents.map(r=>r.con||0)},
+      {key:'flex',lbl:'Flexible',vals:completedRespondents.map(r=>r.flex||0)},
+    ].map(d=>{
+      const m=d.vals.reduce((s,v)=>s+v,0)/Math.max(d.vals.length,1);
+      const v=d.vals.reduce((s,v)=>s+(v-m)**2,0)/Math.max(d.vals.length,1);
+      return{...d,mean:m,sd:Math.sqrt(v)};
+    });
+    const topTen=[...dimsIns].sort((a,b)=>b.sd-a.sd)[0];
+    const outliersCount=dimBucketsOrdered.reduce((sum,[,b])=>sum+b.people.length,0);
+    const withTobePdf=completedRespondents.filter(r=>!!(r.tobe_prog));
+    const gTobe2={p:0,d:0,c:0,f:0};
+    if(withTobePdf.length>0){
+      withTobePdf.forEach(r=>{gTobe2.p+=(r.tobe_prog||60);gTobe2.d+=(r.tobe_def||60);gTobe2.c+=(r.tobe_con||60);gTobe2.f+=(r.tobe_flex||60);});
+      ['p','d','c','f'].forEach(k=>{gTobe2[k]=Math.round(gTobe2[k]/withTobePdf.length);});
+    }
+    const gTobeStrat2=withTobePdf.length>0?getStrategy(gTobe2.d,gTobe2.p,gTobe2.c,gTobe2.f):null;
+    const tobeVars=['p','d','c','f'].map(k=>{const vals=withTobePdf.map(r=>k==='p'?r.tobe_prog:k==='d'?r.tobe_def:k==='c'?r.tobe_con:r.tobe_flex);const m=vals.reduce((s,v)=>s+v,0)/Math.max(vals.length,1);return vals.reduce((s,v)=>s+(v-m)**2,0)/Math.max(vals.length,1);});
+    const tobeAligned=withTobePdf.length>1&&Math.max(...tobeVars)<400;
+
+    // Render 2x2 grid of insight cards
+    const cardW=(pageW-2*margin-4)/2;
+    const cardH=28;
+    const cards=[
+      {label:'KEY TENSION',value:topTen.lbl,desc:'Highest disagreement — SD '+topTen.sd.toFixed(1)+'.',col:RED},
+      {label:'OUTLIERS',value:outliersCount>0?String(outliersCount):'None',desc:outliersCount>0?'Significant deviations across '+dimBucketsOrdered.length+' direction'+(dimBucketsOrdered.length!==1?'s':'')+'.':'All within 1.5 SD of mean.',col:[245,158,11]},
+      {label:'DESIRED SHIFT',value:gTobeStrat2?SLABELS[gTobeStrat2]:'—',desc:withTobePdf.length>0?'Group mean to-be ('+withTobePdf.length+' responded). Current: '+(SLABELS[groupStrat]||'Neutral')+'.':'No to-be data yet.',col:[45,125,70]},
+      {label:'TO-BE ALIGNMENT',value:withTobePdf.length<2?'—':tobeAligned?'Aligned':'Divided',desc:withTobePdf.length<2?'Need 2+ to-be responses.':tobeAligned?'Group broadly agrees on direction.':'Group disagrees on direction — worth surfacing.',col:[26,79,160]},
+    ];
+    cards.forEach((c,ci)=>{
+      const col=ci%2, row=Math.floor(ci/2);
+      const x=margin+col*(cardW+4);
+      const cy=y+row*(cardH+4);
+      // Top border accent
+      doc.setFillColor(...c.col);
+      doc.rect(x,cy,cardW,1.5,'F');
+      // Card background
+      doc.setFillColor(...WHITE);
+      doc.setDrawColor(...BORDER);
+      doc.setLineWidth(0.2);
+      doc.rect(x,cy+1.5,cardW,cardH-1.5,'FD');
+      // Label
+      setFont(7,'bold',c.col);
+      doc.text(c.label,x+3,cy+6);
+      // Value
+      setFont(13,'bold',TEXT);
+      doc.text(c.value,x+3,cy+13);
+      // Description (wrap)
+      setFont(8,'normal',MUTED);
+      const wrapped=doc.splitTextToSize(c.desc,cardW-6);
+      doc.text(wrapped,x+3,cy+19);
+    });
+    y += cardH*2+4+5;
+  }
+
+  // ───── QUADRANT MAP ─────
+  // Show every completed respondent as a dot in 2D space:
+  //   X axis: Consistent (left) ↔ Flexible (right)
+  //   Y axis: Defensive (bottom) ↔ Progressive (top)
+  // The mean is marked with a cross. Outliers visually pop.
+  if(completedRespondents.length>=3){
+    doc.addPage(); pageNum++; y=margin+5; addHeader();
+    sectionTitle('Quadrant map — where each person sits');
+    paragraph('Every completed respondent plotted. The cross marks the group mean. Use to see clustering and outliers.', {color:MUTED, size:9});
+    y += 3;
+
+    const QW=pageW-2*margin;
+    const QH=110;
+    const QPX=10, QPY=10;
+    const qx0=margin+QPX, qy0=y+QPY;
+    const qw=QW-2*QPX, qh=QH-2*QPY;
+    // Background quadrants (subtle tints)
+    doc.setFillColor(248,245,240); doc.rect(qx0,qy0,qw/2,qh/2,'F');
+    doc.setFillColor(240,247,240); doc.rect(qx0+qw/2,qy0,qw/2,qh/2,'F');
+    doc.setFillColor(245,240,248); doc.rect(qx0,qy0+qh/2,qw/2,qh/2,'F');
+    doc.setFillColor(240,244,248); doc.rect(qx0+qw/2,qy0+qh/2,qw/2,qh/2,'F');
+    // Outer frame
+    doc.setDrawColor(...BORDER);
+    doc.setLineWidth(0.3);
+    doc.rect(qx0,qy0,qw,qh);
+    // Axes
+    doc.setDrawColor(176,168,152);
+    doc.setLineWidth(0.4);
+    doc.line(qx0,qy0+qh/2,qx0+qw,qy0+qh/2);
+    doc.line(qx0+qw/2,qy0,qx0+qw/2,qy0+qh);
+    // Quadrant corner labels
+    setFont(7,'bold',[176,168,152]);
+    doc.text('PERFORMANCE OPT.',qx0+qw/4,qy0+4,{align:'center'});
+    doc.text('ADAPTIVE INNOV.',qx0+qw*3/4,qy0+4,{align:'center'});
+    doc.text('PREVENTATIVE CTRL',qx0+qw/4,qy0+qh-1.5,{align:'center'});
+    doc.text('MINDFUL ACTION',qx0+qw*3/4,qy0+qh-1.5,{align:'center'});
+    // Axis labels — outside the chart
+    setFont(8,'bold',TEXT);
+    doc.text('Progressive',qx0+qw/2,qy0-2,{align:'center'});
+    doc.text('Defensive',qx0+qw/2,qy0+qh+5,{align:'center'});
+    doc.text('Consistent',qx0-2,qy0+qh/2+1,{align:'right'});
+    doc.text('Flexible',qx0+qw+2,qy0+qh/2+1);
+    // Compute group means
+    const gmPDF={prog:0,def:0,con:0,flex:0};
+    completedRespondents.forEach(r=>{gmPDF.prog+=(r.prog||0);gmPDF.def+=(r.def||0);gmPDF.con+=(r.con||0);gmPDF.flex+=(r.flex||0);});
+    ['prog','def','con','flex'].forEach(k=>{gmPDF[k]=Math.round(gmPDF[k]/completedRespondents.length);});
+    // Plotting function
+    function quadX(flex,con){return qx0+(((flex||0)-(con||0)+120)/240)*qw;}
+    function quadY(prog,def){return qy0+qh-(((prog||0)-(def||0)+120)/240)*qh;}
+    // Plot dots
+    const PAX_COLORS=[[224,112,48],[26,79,160],[45,125,70],[184,122,32],[184,50,50],[106,61,154],[8,145,178],[120,53,15],[55,65,81]];
+    completedRespondents.forEach((r,i)=>{
+      const dotX=quadX(r.flex||0,r.con||0);
+      const dotY=quadY(r.prog||0,r.def||0);
+      const col=PAX_COLORS[i%PAX_COLORS.length];
+      doc.setFillColor(...col);
+      doc.setDrawColor(255,255,255);
+      doc.setLineWidth(0.3);
+      doc.circle(dotX,dotY,1.5,'FD');
+    });
+    // Group mean cross
+    const meanX=quadX(gmPDF.flex,gmPDF.con);
+    const meanY=quadY(gmPDF.prog,gmPDF.def);
+    doc.setDrawColor(...TEXT);
+    doc.setLineWidth(0.8);
+    doc.line(meanX-3,meanY,meanX+3,meanY);
+    doc.line(meanX,meanY-3,meanX,meanY+3);
+    setFont(7,'bold',TEXT);
+    doc.text('Mean',meanX,meanY+6,{align:'center'});
+    y += QH+5;
+  }
+
+  // ───── ROLE VIEW ─────
+  // Group respondents by their declared role and show how each role's mean
+  // profile compares. Mirrors the on-screen Role View tab.
+  {
+    const STANDARD_ROLES=['Frontline / Operational','Team Leader','Manager','Senior Leader','Executive / Board'];
+    const roleGroups={};
+    STANDARD_ROLES.forEach(rl=>{roleGroups[rl]=[];});
+    roleGroups['Other']=[];
+    completedRespondents.forEach(r=>{
+      const rl=r.role||'';
+      const key=STANDARD_ROLES.includes(rl)?rl:'Other';
+      roleGroups[key].push(r);
+    });
+    const rolesWithPeople=Object.entries(roleGroups).filter(([,arr])=>arr.length>0);
+    if(rolesWithPeople.length>=2){
+      doc.addPage(); pageNum++; y=margin+5; addHeader();
+      sectionTitle('Role view — profile by seniority');
+      paragraph('Mean current profile and dominant strategy for each role represented in the session. Roles with no respondents are omitted.', {color:MUTED, size:9});
+      y += 3;
+      // Render each role as a row: role label + mean diamond strategy + count + participant ids
+      rolesWithPeople.forEach(([role,members],ri)=>{
+        checkPage(20);
+        const rm={prog:0,def:0,con:0,flex:0};
+        members.forEach(r=>{rm.prog+=(r.prog||0);rm.def+=(r.def||0);rm.con+=(r.con||0);rm.flex+=(r.flex||0);});
+        ['prog','def','con','flex'].forEach(k=>{rm[k]=Math.round(rm[k]/members.length);});
+        const rmStrat=getStrategy(rm.def,rm.prog,rm.con,rm.flex);
+
+        // Role label + count
+        setFont(10,'bold',TEXT);
+        doc.text(role+'  ('+members.length+(members.length===1?' person':' people')+')', margin, y+4);
+        y += 5.5;
+        // Strategy + scores summary
+        setFont(8,'normal',MUTED);
+        const scoresLine=`Mean: Prog ${rm.prog} · Def ${rm.def} · Con ${rm.con} · Flex ${rm.flex}  →  ${SLABELS[rmStrat]||'—'}`;
+        doc.text(scoresLine, margin, y+3);
+        y += 5;
+        // Participant IDs
+        setFont(8,'normal',TEXT);
+        const ids=members.map(r=>labelForRespondent(r)).join(', ');
+        const wrapped=doc.splitTextToSize(ids, pageW-2*margin-4);
+        checkPage(wrapped.length*4+2);
+        doc.text(wrapped, margin+2, y+3);
+        y += wrapped.length*4+2;
+        if(ri<rolesWithPeople.length-1){
+          doc.setDrawColor(...BORDER);
+          doc.setLineWidth(0.1);
+          doc.line(margin, y+1, pageW-margin, y+1);
+          y += 4;
+        }
+      });
+    }
+  }
+
   // ───── DISAGREEMENTS ─────
   if(qVariances && qVariances.length>0){
     doc.addPage(); pageNum++; y=margin+5; addHeader();
@@ -2109,49 +2367,40 @@ function generateStatGroupPDF(opts){
     });
   }
 
-  // ───── OUTLIERS ─────
-  const outliers = [];
-  if(N>=3){
-    ['prog','def','con','flex'].forEach(dim=>{
-      const vals = realRespondents.map(r=>r[dim]||0);
-      const m = vals.reduce((s,v)=>s+v,0)/vals.length;
-      const sd = Math.sqrt(localVariance(vals));
-      if(sd<5) return;
-      realRespondents.forEach(r=>{
-        const v = r[dim]||0;
-        if(Math.abs(v-m)>=1.5*sd && Math.abs(v-m)>=10){
-          outliers.push({name:r.respondent_name, dim, value:v, mean:Math.round(m), gap:Math.round(v-m)});
-        }
-      });
-    });
-  }
-  if(outliers.length>0){
+  // ───── OUTLIERS — CLUSTERED BY DIRECTION ─────
+  // Match the on-screen Variance tab: bucket significant deviations by
+  // dimension and direction. Uses dimBucketsOrdered computed above so the
+  // Insight cards and this section show the same data.
+  if(dimBucketsOrdered.length>0){
     doc.addPage(); pageNum++; y=margin+5; addHeader();
-    sectionTitle('Outliers and split views');
-    paragraph('Individual scores that diverge most from the group mean — at least 1.5 SD and 10 points away. These are the people whose lens is different. Worth surfacing in the debrief.', {color:MUTED, size:9});
+    sectionTitle('Outliers — where the room splits');
+    paragraph('Outlying participants grouped by the direction they pull. A participant who diverges on multiple dimensions appears in more than one group. The biggest group is the most significant fault line.', {color:MUTED, size:9});
     y += 3;
 
-    outliers.sort((a,b)=>Math.abs(b.gap)-Math.abs(a.gap));
-    const dimLabels = {prog:'Progressive',def:'Defensive',con:'Consistent',flex:'Flexible'};
-    outliers.slice(0, 12).forEach((o,i)=>{
-      checkPage(10);
-      setFont(10, 'bold', TEXT);
-      doc.text(labelOf(o.name), margin, y+4);
-      setFont(8, 'normal', MUTED);
-      doc.text(dimLabels[o.dim], margin+45, y+4);
-      setFont(10, 'normal', TEXT);
-      doc.text(String(o.value), margin+85, y+4);
-      setFont(8, 'normal', MUTED);
-      doc.text('vs group mean '+o.mean, margin+98, y+4);
-      const gapColor = Math.abs(o.gap)>=20?RED:ACCENT;
-      setFont(10, 'bold', gapColor);
-      doc.text((o.gap>0?'+':'')+o.gap+' pts', pageW-margin, y+4, {align:'right'});
-      y += 7;
-      if(i<Math.min(11,outliers.length-1)){
+    dimBucketsOrdered.forEach(([label,bucket],bi)=>{
+      const peopleCount = bucket.people.length;
+      const colour = bucket.dir==='above' ? [26,79,160] : [184,50,50];
+      checkPage(14);
+      // Heading bar
+      setFont(10, 'bold', colour);
+      const dirWord = bucket.dir==='above'?'More':'Less';
+      // The label already starts with "More" or "Less" — strip and re-add
+      // for consistent rendering (avoids "More More Progressive").
+      const cleanedLabel = label.replace(/^(More|Less)\s+/i,'');
+      doc.text(dirWord+' '+cleanedLabel+' than group  ('+peopleCount+')', margin, y+4);
+      y += 6;
+      // Wrap participant lines neatly
+      const peopleStrs = bucket.people.map(p=>labelForRespondent(p.r)+' ('+(p.gap>0?'+':'')+Math.round(p.gap)+')');
+      setFont(9, 'normal', TEXT);
+      const wrapped = doc.splitTextToSize(peopleStrs.join(', '), pageW-2*margin-4);
+      checkPage(wrapped.length*4.5+3);
+      doc.text(wrapped, margin+2, y+3);
+      y += wrapped.length*4.5+2;
+      if(bi<dimBucketsOrdered.length-1){
         doc.setDrawColor(...BORDER);
         doc.setLineWidth(0.1);
-        doc.line(margin, y, pageW-margin, y);
-        y += 1;
+        doc.line(margin, y+1, pageW-margin, y+1);
+        y += 4;
       }
     });
   }
@@ -2222,7 +2471,7 @@ function generateStatGroupPDF(opts){
       groups.forEach(([q, members], i) => {
         checkPage(8);
         setFont(9, 'normal', TEXT);
-        const names = members.map(m => m.display_name).join(', ');
+        const names = members.map(m => labelForName(m.display_name)).join(', ');
         const line = '• Group '+String.fromCharCode(65+i)+' ('+members.length+' '+(members.length===1?'person':'people')+') → '+(QL[q]||q)+': '+names;
         const wrapped = doc.splitTextToSize(line, pageW-2*margin-2);
         doc.text(wrapped, margin+2, y+3);
@@ -2413,7 +2662,7 @@ function generateStatGroupPDF(opts){
       respondentsWithBehaviours.forEach(r=>{
         checkPage(15);
         setFont(10,'bold',TEXT);
-        doc.text(labelOf(r.respondent_name||'Participant'),margin,y+4);
+        doc.text(labelForRespondent(r),margin,y+4);
         y += 6;
         setFont(9,'normal',TEXT);
         // Prefer structured selected_behaviours; fall back to flat selected_principles
@@ -2500,7 +2749,7 @@ function generateStatGroupPDF(opts){
   // ───── APPENDIX 1: PROFILES TABLE ─────
   doc.addPage(); pageNum++; y=margin+5; addHeader();
   sectionTitle('Appendix: per-respondent profiles');
-  paragraph(useNames?'Individual scores for every respondent.':'Individual scores for every respondent (anonymised).', {color:MUTED, size:9});
+  paragraph('Individual scores for every completed respondent (anonymised).', {color:MUTED, size:9});
   y += 3;
 
   checkPage(10);
@@ -2515,14 +2764,19 @@ function generateStatGroupPDF(opts){
   doc.text('Strategy', margin+115, y+5);
   y += 7;
 
-  sorted.forEach((r,i)=>{
+  const completedSorted = [...completedRespondents].sort((a,b)=>{
+    const da=new Date(a.created_at||a.date||0).getTime();
+    const db=new Date(b.created_at||b.date||0).getTime();
+    return da-db;
+  });
+  completedSorted.forEach((r,i)=>{
     checkPage(7);
     if(i%2===0){
       doc.setFillColor(...BG);
       doc.rect(margin, y, pageW-2*margin, 6, 'F');
     }
     setFont(8, 'normal', TEXT);
-    doc.text(labelOf(r.respondent_name), margin+2, y+4);
+    doc.text(labelForRespondent(r), margin+2, y+4);
     doc.text(String(r.prog||0), margin+45, y+4);
     doc.text(String(r.def||0), margin+62, y+4);
     doc.text(String(r.con||0), margin+79, y+4);
