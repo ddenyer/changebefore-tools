@@ -1917,7 +1917,7 @@ function generateStatGroupPDF(opts){
 
   // Diamond chart helper. Draws a STAT diamond at (cx, cy) with radius r.
   //   mean: {prog, def, con, flex} — group mean (drawn as solid bold profile)
-  //   individuals: array of {prog, def, con, flex, _idx} — drawn as dashed profiles
+  //   individuals: array of {prog, def, con, flex, _idx} — drawn as thin profiles
   //   options.color: colour for the mean diamond (default black for as-is, accent for to-be)
   //   options.title: optional label below the diamond
   //   options.compact: smaller axis labels for tight layouts
@@ -1928,6 +1928,7 @@ function generateStatGroupPDF(opts){
     const PAX_COLORS=[[224,112,48],[26,79,160],[45,125,70],[184,122,32],[184,50,50],[106,61,154],[8,145,178],[120,53,15],[55,65,81]];
 
     function pointFor(p, d, co, f){
+      // p, d, co, f range 0..120. r is the chart radius.
       return [
         [cx, cy - (p/120)*r],            // Progressive (top)
         [cx + (f/120)*r, cy],            // Flexible (right)
@@ -1935,21 +1936,14 @@ function generateStatGroupPDF(opts){
         [cx - (co/120)*r, cy],           // Consistent (left)
       ];
     }
-    function drawPath(pts, color, width, dashed){
-      doc.setDrawColor(...color);
+    function drawShape(pts, color, width){
+      doc.setDrawColor(color[0], color[1], color[2]);
       doc.setLineWidth(width);
-      if(dashed){
-        doc.setLineDashPattern([0.8, 0.8], 0);
-      } else {
-        doc.setLineDashPattern([], 0);
-      }
-      // Connect points to form a closed shape
       const p0 = pts[0];
       doc.line(p0[0], p0[1], pts[1][0], pts[1][1]);
       doc.line(pts[1][0], pts[1][1], pts[2][0], pts[2][1]);
       doc.line(pts[2][0], pts[2][1], pts[3][0], pts[3][1]);
       doc.line(pts[3][0], pts[3][1], p0[0], p0[1]);
-      doc.setLineDashPattern([], 0);
     }
     // Grid: 4 concentric diamonds at 25%, 50%, 75%, 100% radius
     [0.25, 0.5, 0.75, 1.0].forEach(pct=>{
@@ -1960,34 +1954,34 @@ function generateStatGroupPDF(opts){
         [cx, cy+rr],
         [cx-rr, cy],
       ];
-      drawPath(gx, BORDER, pct===1?0.4:0.2, false);
+      drawShape(gx, BORDER, pct===1?0.4:0.2);
     });
     // Axes
-    doc.setDrawColor(...BORDER);
+    doc.setDrawColor(BORDER[0], BORDER[1], BORDER[2]);
     doc.setLineWidth(0.2);
     doc.line(cx, cy-r, cx, cy+r);
     doc.line(cx-r, cy, cx+r, cy);
-    // Individual profiles (dashed)
+    // Individual profiles (thin, semi-transparent feel via thin lines)
     if(individuals && individuals.length>0){
       individuals.forEach((ind, i)=>{
         const idx = (ind._idx!==undefined)?ind._idx:i;
         const col = PAX_COLORS[idx%PAX_COLORS.length];
         const pts = pointFor(ind.prog||0, ind.def||0, ind.con||0, ind.flex||0);
-        drawPath(pts, col, 0.3, true);
+        drawShape(pts, col, 0.25);
       });
     }
     // Mean profile (bold solid)
     if(mean && (mean.prog!==undefined || mean.def!==undefined)){
       const pts = pointFor(mean.prog||0, mean.def||0, mean.con||0, mean.flex||0);
-      drawPath(pts, meanColor, 1.0, false);
+      drawShape(pts, meanColor, 1.2);
     }
-    // Axis labels
+    // Axis labels (3mm gap from diamond tip to label baseline)
     const lbl = compact?6:8;
     setFont(lbl, 'bold', MUTED);
-    doc.text('Progressive', cx, cy-r-2, {align:'center'});
-    doc.text('Defensive', cx, cy+r+(compact?3:4), {align:'center'});
-    doc.text('Consistent', cx-r-2, cy+1, {align:'right'});
-    doc.text('Flexible', cx+r+2, cy+1);
+    doc.text('Progressive', cx, cy-r-3, {align:'center'});
+    doc.text('Defensive', cx, cy+r+(compact?4:5), {align:'center'});
+    doc.text('Consistent', cx-r-3, cy+1, {align:'right'});
+    doc.text('Flexible', cx+r+3, cy+1);
     if(options.title){
       setFont(compact?7:9, 'bold', TEXT);
       doc.text(options.title, cx, cy+r+(compact?9:11), {align:'center'});
@@ -2361,11 +2355,12 @@ function generateStatGroupPDF(opts){
       ['prog','def','con','flex'].forEach(k=>{sT[k]=Math.round(sT[k]/sToBeOnly.length);});
     }
 
-    // Layout: two diamonds side by side
-    const diamondR = 38;
-    const leftCx = margin + (pageW-2*margin)/4;
-    const rightCx = margin + 3*(pageW-2*margin)/4;
-    const diamondCy = y + diamondR + 6;
+    // Layout: two diamonds side by side. We need room for axis labels on the
+    // inner side of each diamond, so reduce radius and push centres apart.
+    const diamondR = 30;
+    const leftCx = margin + (pageW-2*margin)*0.22;
+    const rightCx = margin + (pageW-2*margin)*0.78;
+    const diamondCy = y + diamondR + 8;
 
     // Left: as-is diamond with all individuals
     drawDiamond(leftCx, diamondCy, diamondR, sM,
