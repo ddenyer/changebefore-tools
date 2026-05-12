@@ -503,6 +503,28 @@ const SDESC={
 function gapLabel(g){if(Math.abs(g)<8)return 'small';if(Math.abs(g)<20)return 'medium';return 'large';}
 function gapBadgeText(g){if(Math.abs(g)<8)return 'Minor tweak';if(Math.abs(g)<20)return 'Moderate shift';return 'Significant change';}
 
+// Derive Purpose/People/Process/Product dimension from question id.
+// Question ids look like s1p1, s1pe2, s1pr3, s1pd2 (s2 equivalents same shape).
+function dimensionFromQid(qid){
+  if(!qid)return null;
+  // Match the letters after s1/s2 before the trailing digit.
+  const m=qid.match(/^s[12](pe|pr|pd|p)\d+$/);
+  if(!m)return null;
+  switch(m[1]){
+    case 'p':  return 'Purpose';
+    case 'pe': return 'People';
+    case 'pr': return 'Process';
+    case 'pd': return 'Product';
+    default:   return null;
+  }
+}
+const DIMENSION_COLOURS={
+  Purpose: '#1a4fa0',
+  People:  '#2d7d46',
+  Process: '#b87a20',
+  Product: '#6a3d9a',
+};
+
 function getStrategyText(strat,th){
   const capTh=th?th.charAt(0).toUpperCase()+th.slice(1):'The organisation';
   const texts={
@@ -5739,8 +5761,19 @@ function App(){
               }
               const gTobeStrat2=withTobe2.length>0?getStrategy(gTobe2.d,gTobe2.p,gTobe2.c,gTobe2.f):null;
               const outliers=completedRespondents.filter(r=>
-                dims.some(d=>{const v=d.key==='prog'?r.prog:d.key==='def'?r.def:d.key==='con'?r.con:r.flex;return d.sd>5&&Math.abs((v||0)-d.mean)>d.sd;})
-              );
+                dims.some(d=>{const v=d.key==='prog'?r.prog:d.key==='def'?r.def:d.key==='con'?r.con:r.flex;return d.sd>5&&Math.abs((v||0)-d.mean)>d.sd*1.5;})
+              )
+              // Sort by largest total deviation across all dimensions, descending
+              .map(r=>{
+                const totalGap=dims.reduce((sum,d)=>{
+                  const v=d.key==='prog'?r.prog:d.key==='def'?r.def:d.key==='con'?r.con:r.flex;
+                  return sum+Math.max(0,Math.abs((v||0)-d.mean)-d.sd*1.5);
+                },0);
+                return{r,totalGap};
+              })
+              .sort((a,b)=>b.totalGap-a.totalGap)
+              .slice(0,10)
+              .map(x=>x.r);
               const tobeVars=['p','d','c','f'].map(k=>{const vals=withTobe2.map(r=>k==='p'?r.tobe_prog:k==='d'?r.tobe_def:k==='c'?r.tobe_con:r.tobe_flex);const m=vals.reduce((s,v)=>s+v,0)/Math.max(vals.length,1);return vals.reduce((s,v)=>s+(v-m)**2,0)/Math.max(vals.length,1);});
               const tobeAligned=withTobe2.length>1&&Math.max(...tobeVars)<400;
               /* Narrative */
@@ -5771,42 +5804,7 @@ function App(){
                     <div className="narrative-text">{narrative}</div>
                   </div>
 
-                  {/* Insight cards */}
-                  <div className="insight-grid">
-                    <div className="insight-card tension">
-                      <div className="insight-label">Key Tension</div>
-                      <div className="insight-value">{topTension.lbl}</div>
-                      <div className="insight-desc">Highest disagreement — SD {topTension.sd.toFixed(1)}.</div>
-                    </div>
-                    <div className="insight-card outlier">
-                      <div className="insight-label">Outliers</div>
-                      <div className="insight-value">{outliers.length>0?outliers.length:'None'}</div>
-                      {outliers.length===0?(
-                        <div className="insight-desc">All respondents are within one standard deviation of the group mean.</div>
-                      ):(
-                        <div className="insight-desc">
-                          {outliers.map((r,oi)=>{
-                            const flagged=dims.filter(d=>{const v=d.key==='prog'?r.prog:d.key==='def'?r.def:d.key==='con'?r.con:r.flex;return d.sd>5&&Math.abs((v||0)-d.mean)>d.sd;}).map(d=>{const v=d.key==='prog'?r.prog:d.key==='def'?r.def:d.key==='con'?r.con:r.flex;const gap=Math.round((v||0)-d.mean);return d.lbl+' '+(gap>0?'+':'')+gap;});
-                            return(
-                              <div key={oi} style={{marginBottom:oi<outliers.length-1?'.35rem':0}}>
-                                <strong style={{color:'#1a1a1a'}}>{anonName(r, anonMap)}:</strong> {flagged.join(', ')}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                    <div className="insight-card shift">
-                      <div className="insight-label">Desired Shift</div>
-                      <div className="insight-value">{gTobeStrat2?SLABELS[gTobeStrat2]:'—'}</div>
-                      <div className="insight-desc">{withTobe2.length>0?`Group mean to-be (${withTobe2.length} responded). Current: ${SLABELS[groupStrat]||'Neutral'}.`:'No to-be data yet.'}</div>
-                    </div>
-                    <div className="insight-card alignment">
-                      <div className="insight-label">To-Be Alignment</div>
-                      <div className="insight-value">{withTobe2.length<2?'—':tobeAligned?'Aligned':'Divided'}</div>
-                      <div className="insight-desc">{withTobe2.length<2?'Need 2+ to-be responses.':tobeAligned?'People broadly agree on where they want to go, even if they disagree on where they are.':'People disagree about the desired direction. This is an important conversation to have.'}</div>
-                    </div>
-                  </div>
+                  {/* Insight cards moved to Variance tab */}
 
                   {/* Quadrant map */}
                   <div className="quadrant-wrap">
@@ -5892,6 +5890,87 @@ function App(){
         {(facTab==='variance'||printAll)&&(
           <div>
             {printAll&&<div className="print-section-title">Variance</div>}
+
+            {/* Headline insights — moved from Overview */}
+            {completedRespondents.length>=2&&(()=>{
+              const dims=[
+                {key:'prog',lbl:'Progressive',vals:completedRespondents.map(r=>r.prog||0)},
+                {key:'def',lbl:'Defensive',vals:completedRespondents.map(r=>r.def||0)},
+                {key:'con',lbl:'Consistent',vals:completedRespondents.map(r=>r.con||0)},
+                {key:'flex',lbl:'Flexible',vals:completedRespondents.map(r=>r.flex||0)},
+              ].map(d=>{
+                const m=d.vals.reduce((s,v)=>s+v,0)/d.vals.length;
+                const variance=d.vals.reduce((s,v)=>s+(v-m)**2,0)/d.vals.length;
+                return{...d,mean:m,sd:Math.sqrt(variance)};
+              });
+              const topTension=[...dims].sort((a,b)=>b.sd-a.sd)[0];
+              const outliers=completedRespondents.filter(r=>
+                dims.some(d=>{const v=d.key==='prog'?r.prog:d.key==='def'?r.def:d.key==='con'?r.con:r.flex;return d.sd>5&&Math.abs((v||0)-d.mean)>d.sd*1.5;})
+              )
+              .map(r=>{
+                const totalGap=dims.reduce((sum,d)=>{
+                  const v=d.key==='prog'?r.prog:d.key==='def'?r.def:d.key==='con'?r.con:r.flex;
+                  return sum+Math.max(0,Math.abs((v||0)-d.mean)-d.sd*1.5);
+                },0);
+                return{r,totalGap};
+              })
+              .sort((a,b)=>b.totalGap-a.totalGap)
+              .slice(0,10)
+              .map(x=>x.r);
+              const withTobe2=completedRespondents.filter(r=>!!(r.tobe_prog));
+              const gTobe2={p:0,d:0,c:0,f:0};
+              if(withTobe2.length>0){
+                withTobe2.forEach(r=>{gTobe2.p+=(r.tobe_prog||60);gTobe2.d+=(r.tobe_def||60);gTobe2.c+=(r.tobe_con||60);gTobe2.f+=(r.tobe_flex||60);});
+                ['p','d','c','f'].forEach(k=>{gTobe2[k]=Math.round(gTobe2[k]/withTobe2.length);});
+              }
+              const gTobeStrat2=withTobe2.length>0?getStrategy(gTobe2.d,gTobe2.p,gTobe2.c,gTobe2.f):null;
+              const tobeVars=['p','d','c','f'].map(k=>{const vals=withTobe2.map(r=>k==='p'?r.tobe_prog:k==='d'?r.tobe_def:k==='c'?r.tobe_con:r.tobe_flex);const m=vals.reduce((s,v)=>s+v,0)/Math.max(vals.length,1);return vals.reduce((s,v)=>s+(v-m)**2,0)/Math.max(vals.length,1);});
+              const tobeAligned=withTobe2.length>1&&Math.max(...tobeVars)<400;
+              // Compute as-is group strategy for the Desired Shift card
+              const gMean={prog:0,def:0,con:0,flex:0};
+              completedRespondents.forEach(r=>{gMean.prog+=(r.prog||0);gMean.def+=(r.def||0);gMean.con+=(r.con||0);gMean.flex+=(r.flex||0);});
+              ['prog','def','con','flex'].forEach(k=>{gMean[k]=Math.round(gMean[k]/completedRespondents.length);});
+              const groupStrat=getStrategy(gMean.def,gMean.prog,gMean.con,gMean.flex);
+              return(
+                <div className="insight-grid" style={{marginBottom:'1.5rem'}}>
+                  <div className="insight-card tension">
+                    <div className="insight-label">Key Tension</div>
+                    <div className="insight-value">{topTension.lbl}</div>
+                    <div className="insight-desc">Highest disagreement — SD {topTension.sd.toFixed(1)}.</div>
+                  </div>
+                  <div className="insight-card outlier">
+                    <div className="insight-label">Outliers</div>
+                    <div className="insight-value">{outliers.length>0?outliers.length:'None'}</div>
+                    {outliers.length===0?(
+                      <div className="insight-desc">All respondents are within 1.5 SD of the group mean.</div>
+                    ):(
+                      <div className="insight-desc">
+                        <div style={{fontSize:'.7rem',color:'#888',marginBottom:'.4rem',fontStyle:'italic'}}>Showing top {outliers.length} by deviation magnitude.</div>
+                        {outliers.map((r,oi)=>{
+                          const flagged=dims.filter(d=>{const v=d.key==='prog'?r.prog:d.key==='def'?r.def:d.key==='con'?r.con:r.flex;return d.sd>5&&Math.abs((v||0)-d.mean)>d.sd*1.5;}).map(d=>{const v=d.key==='prog'?r.prog:d.key==='def'?r.def:d.key==='con'?r.con:r.flex;const gap=Math.round((v||0)-d.mean);return d.lbl+' '+(gap>0?'+':'')+gap;});
+                          return(
+                            <div key={oi} style={{marginBottom:oi<outliers.length-1?'.35rem':0}}>
+                              <strong style={{color:'#1a1a1a'}}>{anonName(r, anonMap)}:</strong> {flagged.join(', ')}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                  <div className="insight-card shift">
+                    <div className="insight-label">Desired Shift</div>
+                    <div className="insight-value">{gTobeStrat2?SLABELS[gTobeStrat2]:'—'}</div>
+                    <div className="insight-desc">{withTobe2.length>0?`Group mean to-be (${withTobe2.length} responded). Current: ${SLABELS[groupStrat]||'Neutral'}.`:'No to-be data yet.'}</div>
+                  </div>
+                  <div className="insight-card alignment">
+                    <div className="insight-label">To-Be Alignment</div>
+                    <div className="insight-value">{withTobe2.length<2?'—':tobeAligned?'Aligned':'Divided'}</div>
+                    <div className="insight-desc">{withTobe2.length<2?'Need 2+ to-be responses.':tobeAligned?'People broadly agree on where they want to go, even if they disagree on where they are.':'People disagree about the desired direction. This is an important conversation to have.'}</div>
+                  </div>
+                </div>
+              );
+            })()}
+
             <div className="rpt-section">
               <div className="rpt-heading">Per-Dimension Spread</div>
               <p className="rpt-body" style={{marginBottom:'1rem'}}>How tightly the group agrees on each dimension. SD &lt; 6 = strong consensus; 6–10 = moderate spread; 10–15 = significant disagreement; &gt; 15 = highly polarised.</p>
@@ -5942,6 +6021,9 @@ function App(){
                       <div style={{fontSize:'.78rem',fontWeight:700,color:'#888',fontFamily:"'DM Sans',sans-serif"}}>{i+1}.</div>
                       <div style={{display:'flex',gap:'.5rem',alignItems:'center',minWidth:0}}>
                         <span style={{fontSize:'.6rem',fontWeight:700,color:item.isS1?'#2563eb':'#7c3aed',fontFamily:"'DM Sans',sans-serif",flexShrink:0}}>{item.isS1?'§1':'§2'}</span>
+                        {(()=>{const dim=dimensionFromQid(item.q.id);return dim?(
+                          <span style={{fontSize:'.6rem',fontWeight:700,color:'#fff',background:DIMENSION_COLOURS[dim],padding:'.1rem .4rem',borderRadius:'2px',letterSpacing:'.04em',textTransform:'uppercase',fontFamily:"'DM Sans',sans-serif",flexShrink:0}}>{dim}</span>
+                        ):null;})()}
                         <span style={{fontSize:'.78rem',fontWeight:600,color:'#1a1a1a',fontFamily:"'DM Sans',sans-serif",overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={item.q.q}>{item.q.q}</span>
                       </div>
                       <div style={{position:'relative',height:'8px',background:'#ebe7e0',borderRadius:'4px',overflow:'hidden'}}>
