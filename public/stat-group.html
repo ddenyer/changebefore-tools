@@ -2855,6 +2855,7 @@ function App(){
   const [orgNameDraft,setOrgNameDraft]=useState('');
 
   const [selectedForPresent,setSelectedForPresent]=useState(null); // null = all visible
+  const [selectedForRoleView,setSelectedForRoleView]=useState(null); // null = all visible
   const [selectedRespondent,setSelectedRespondent]=useState(null);
   const [removeTarget,setRemoveTarget]=useState(null);
   const [removeLoading,setRemoveLoading]=useState(false);
@@ -5519,7 +5520,7 @@ function App(){
           const tiles=[
             {key:'config',icon:'⚙️',name:'Session Config',chip:sessionConfig&&sessionConfig.thing_for_everyone?null:'setup',headline:sessionConfig&&sessionConfig.thing_for_everyone?sessionConfig.thing_for_everyone:'Not set up yet',sub:sessionConfig&&sessionConfig.thing_for_everyone?'Tap to view or edit':'Set the thing the group is working on',desc:'Set up the session so participants can join.'},
             {key:'progress',icon:'📊',name:'Progress',chip:pendingReviewers.length>0?'review':sessionClosed?'closed':null,headline:`${submittedCount} of ${realCount} in`,sub:pendingReviewers.length>0?`${pendingReviewers.length} late submission${pendingReviewers.length!==1?'s':''} awaiting review`:sessionClosed?'Session closed — no new responses':inProgressCount>0?`${inProgressCount} still completing`:'All respondents complete',extra:'pips',desc:'Track who has joined and where they are in the survey.'},
-            {key:'group-report',icon:'📈',name:'Group Report',headline:realCount<2?'Awaiting data':groupStrat?(SLABELS[groupStrat]+splitTag):'Awaiting data',sub:realCount>=2?'Group profile and means':'Need at least 2 respondents',desc:'See the group\'s combined profile and dominant strategy.'},
+            {key:'group-report',icon:'👥',name:'Role View',headline:realCount<2?'Awaiting data':`${realCount} respondent${realCount!==1?'s':''}`,sub:realCount>=2?'Compare profiles by role':'Need at least 2 respondents',desc:'Compare profiles bucketed by role, with the same toggle UX as Share/Present.'},
             {key:'present',icon:'🎤',name:'Share / Present',chip:'live',headline:`${presentVisibleCount} visible`,sub:'Reveal one at a time on the projector',desc:'Reveal results to the room one slide at a time.'},
             {key:'overview',icon:'🔍',name:'Overview',headline:realCount<2?'Awaiting data':topSpreadDim&&topSpreadSD>=10?`Biggest spread on ${topSpreadDim}`:outliers.length>0?`${outliers.length} outlier${outliers.length!==1?'s':''}`:'Group well-aligned',sub:realCount<2?'Group profile and headlines':topSpreadDim&&topSpreadSD>=10?`SD ${topSpreadSD.toFixed(1)} · ${outliers.length} outlier${outliers.length!==1?'s':''}`:outliers.length>0?outliers.slice(0,2).map(o=>`${o.name} on ${o.dim}`).join(' · '):'Group profile and headlines',desc:'Group means, spread, and outliers at a glance.'},
             {key:'variance',icon:'⚖️',name:'Variance',headline:realCount>=2?(contestedCount>0?`${contestedCount} sharply split`:'Group aligned'):'Awaiting data',sub:realCount>=2?`All ${qVariances.length} questions ranked by spread`:'Where the group disagrees',desc:'Find the questions where the group most disagrees.'},
@@ -5571,7 +5572,7 @@ function App(){
                   <div className="dash-ovr-name">{
                     facTab==='config'?'Session Config':
                     facTab==='progress'?'Progress':
-                    facTab==='group-report'?'Group Report':
+                    facTab==='group-report'?'Role View':
                     facTab==='present'?'Share / Present':
                     facTab==='overview'?'Overview':
                     facTab==='variance'?'Variance':
@@ -5721,8 +5722,8 @@ function App(){
               {/* Group Report tab */}
               {(facTab==='group-report'||printAll)&&(
                 <div>
-                  {printAll&&<div className="print-section-title">Group Report</div>}
-                  {renderGroupReportTab()}
+                  {printAll&&<div className="print-section-title">Role View</div>}
+                  {renderRoleViewTab()}
                 </div>
               )}
 
@@ -6508,6 +6509,189 @@ function App(){
                 </span>
                 <span style={{display:'inline-block',width:10,height:10,borderRadius:'50%',background:col,flexShrink:0}}/>
                 <span style={{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',fontWeight:on?700:400,flex:1}}>{anonName(r, anonMap)}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  // Role View tab — same UX as Share/Present but quick-select bucketed by role
+  // instead of strategy. Replaces the facilitator-side Group Report tab.
+  function renderRoleViewTab(){
+    const PAX_C=['#e07030','#1a4fa0','#2d7d46','#b87a20','#b83232','#6a3d9a','#0891b2','#78350f','#374151'];
+    const augmentedRespondents=ensureDisplay(groupRespondents);
+    const anonMap=makeAnonMap(groupRespondents);
+    const comp=augmentedRespondents.filter(r=>(r.respondent_name||r.participant_id)&&r.respondent_name!=='__facilitator__'&&r.respondent_name!=='__session_closed__'&&r.prog);
+    const visibleSet=selectedForRoleView===null?new Set(comp.map(r=>r.participant_id)):selectedForRoleView;
+    const visible=comp.filter(r=>visibleSet.has(r.participant_id));
+    // As-is mean
+    const gM={prog:0,def:0,con:0,flex:0};
+    if(comp.length>0){comp.forEach(r=>{gM.prog+=(r.prog||0);gM.def+=(r.def||0);gM.con+=(r.con||0);gM.flex+=(r.flex||0);});['prog','def','con','flex'].forEach(k=>{gM[k]=Math.round(gM[k]/comp.length);});}
+    // To-be mean
+    const compTobe=comp.filter(r=>r.tobe_prog);
+    const gT={p:0,d:0,c:0,f:0};
+    if(compTobe.length>0){compTobe.forEach(r=>{gT.p+=(r.tobe_prog||60);gT.d+=(r.tobe_def||60);gT.c+=(r.tobe_con||60);gT.f+=(r.tobe_flex||60);});['p','d','c','f'].forEach(k=>{gT[k]=Math.round(gT[k]/compTobe.length);});}
+    const gStrat=comp.length>0?getStrategy(gM.def,gM.prog,gM.con,gM.flex):null;
+    const W=320,H=320,DCX=160,DCY=160,RD=110;
+    const vBox='0 0 '+W+' '+H;
+    function sp(p,d,co,f){
+      const pts=[[DCX,DCY-(p/120)*RD],[DCX+(f/120)*RD,DCY],[DCX,DCY+(d/120)*RD],[DCX-(co/120)*RD,DCY]];
+      return pts.map((pt,i)=>(i===0?'M':'L')+pt[0]+','+pt[1]).join(' ')+' Z';
+    }
+    function gp(pct){const r=RD*pct;return 'M'+DCX+','+(DCY-r)+' L'+(DCX+r)+','+DCY+' L'+DCX+','+(DCY+r)+' L'+(DCX-r)+','+DCY+' Z';}
+    function togglePid(pid){
+      const cur=new Set(visibleSet);
+      if(cur.has(pid))cur.delete(pid);else cur.add(pid);
+      setSelectedForRoleView(cur);
+    }
+    // Role quick-select: bucket participants by their declared role.
+    // Standard roles are well-known; any non-standard value (people who picked
+    // "None of the above" and typed something custom) goes into "Other".
+    const STANDARD_ROLES=['Frontline / Operational','Team Leader','Manager','Senior Leader','Executive / Board'];
+    const ROLE_COLOURS={
+      'Frontline / Operational':'#2d7d46',
+      'Team Leader':            '#1a4fa0',
+      'Manager':                '#b87a20',
+      'Senior Leader':          '#6a3d9a',
+      'Executive / Board':      '#b83232',
+      'Other':                  '#888',
+    };
+    const roleCounts={};
+    const roleMembers={};
+    STANDARD_ROLES.forEach(rl=>{roleCounts[rl]=0;roleMembers[rl]=[];});
+    roleCounts['Other']=0;roleMembers['Other']=[];
+    comp.forEach(r=>{
+      const rl=r.role||'';
+      const key=STANDARD_ROLES.includes(rl)?rl:'Other';
+      roleCounts[key]++;
+      roleMembers[key].push(r.participant_id);
+    });
+    function toggleRole(rl){
+      const members=roleMembers[rl]||[];
+      if(members.length===0)return;
+      const cur=new Set(visibleSet);
+      const allVisible=members.every(pid=>cur.has(pid));
+      if(allVisible){members.forEach(pid=>cur.delete(pid));}
+      else{members.forEach(pid=>cur.add(pid));}
+      setSelectedForRoleView(cur);
+    }
+    function selectAll(){setSelectedForRoleView(new Set(comp.map(r=>r.participant_id)));}
+    function selectNone(){setSelectedForRoleView(new Set());}
+    function renderDiamond(asIs){
+      const path=asIs?sp(gM.prog,gM.def,gM.con,gM.flex):sp(gT.p,gT.d,gT.c,gT.f);
+      const meanColor=asIs?'#1a1a1a':'#e07030';
+      const hasMean=asIs?comp.length>0:compTobe.length>0;
+      return(
+        <svg width="100%" viewBox={vBox} style={{overflow:'visible',maxWidth:'100%'}}>
+          {[.25,.5,.75,1].map(pct=><path key={pct} d={gp(pct)} fill="none" stroke="#d8d3cb" strokeWidth={pct===1?1.5:1}/>)}
+          <line x1={DCX} y1={DCY-RD} x2={DCX} y2={DCY+RD} stroke="#d8d3cb"/>
+          <line x1={DCX-RD} y1={DCY} x2={DCX+RD} y2={DCY} stroke="#d8d3cb"/>
+          {visible.map((r,i)=>{
+            const ci=comp.findIndex(x=>x.participant_id===r.participant_id);
+            const col=PAX_C[ci%PAX_C.length];
+            const indPath=asIs?sp(r.prog||0,r.def||0,r.con||0,r.flex||0):(r.tobe_prog?sp(r.tobe_prog,r.tobe_def,r.tobe_con,r.tobe_flex):null);
+            if(!indPath)return null;
+            return(<path key={i} d={indPath} fill="none" stroke={col} strokeWidth={1.25} strokeDasharray="3,3" opacity={0.7} strokeLinejoin="round"/>);
+          })}
+          {hasMean&&<path d={path} fill={meanColor} fillOpacity={.06} stroke={meanColor} strokeWidth={3} strokeLinejoin="round"/>}
+          <text x={DCX} y={DCY-RD-10} textAnchor="middle" fill="#555" fontSize={10} fontWeight={700} fontFamily="DM Sans,sans-serif">Progressive</text>
+          <text x={DCX+RD+8} y={DCY+4} textAnchor="start" fill="#555" fontSize={10} fontWeight={700} fontFamily="DM Sans,sans-serif">Flexible</text>
+          <text x={DCX} y={DCY+RD+18} textAnchor="middle" fill="#555" fontSize={10} fontWeight={700} fontFamily="DM Sans,sans-serif">Defensive</text>
+          <text x={DCX-RD-8} y={DCY+4} textAnchor="end" fill="#555" fontSize={10} fontWeight={700} fontFamily="DM Sans,sans-serif">Consistent</text>
+        </svg>
+      );
+    }
+    if(comp.length===0){
+      return(
+        <div className="rpt-section">
+          <div className="rpt-heading">Role View</div>
+          <div className="waiting-state"><div className="wait-icon">📊</div><h3>No completed responses yet</h3><p style={{fontSize:'.82rem',color:'#888',marginTop:'.5rem'}}>Once participants finish the survey, you can use this tab to compare profiles by role.</p></div>
+        </div>
+      );
+    }
+    return(
+      <div className="rpt-section">
+        <div className="rpt-heading">Role View</div>
+        <div className="dual-diamond-wrap">
+          <div className="chart-box">
+            <div className="chart-lbl">Current (As-Is) — {visible.length} of {comp.length} shown</div>
+            {renderDiamond(true)}
+            <div style={{fontSize:'.72rem',fontWeight:700,color:'#888',fontFamily:"'DM Sans',sans-serif",marginTop:'.4rem'}}>{SLABELS[gStrat]||''}</div>
+          </div>
+          <div className="chart-box">
+            <div className="chart-lbl">Desired (To-Be) — {compTobe.length} response{compTobe.length!==1?'s':''}</div>
+            {compTobe.length>0?renderDiamond(false):<div style={{padding:'2rem 0',color:'#b0a898',fontSize:'.82rem',fontFamily:"'DM Sans',sans-serif"}}>No to-be data yet</div>}
+            {compTobe.length>0&&(()=>{const ts=getStrategy(gT.d,gT.p,gT.c,gT.f);return <div style={{fontSize:'.72rem',fontWeight:700,color:'#888',fontFamily:"'DM Sans',sans-serif",marginTop:'.4rem'}}>{SLABELS[ts]||''}</div>;})()}
+          </div>
+        </div>
+
+        <div style={{display:'flex',gap:'.75rem',flexWrap:'wrap',justifyContent:'center',marginBottom:'1rem',padding:'.6rem .9rem',background:'#fff',border:'1px solid #d8d3cb',borderRadius:'4px',fontSize:'.72rem',color:'#555',fontFamily:"'DM Sans',sans-serif"}}>
+          <div style={{display:'flex',alignItems:'center',gap:'.4rem'}}>
+            <svg width="22" height="6"><line x1="0" y1="3" x2="22" y2="3" stroke="#1a1a1a" strokeWidth="3"/></svg>
+            <span><strong>Group mean (current)</strong></span>
+          </div>
+          <div style={{display:'flex',alignItems:'center',gap:'.4rem'}}>
+            <svg width="22" height="6"><line x1="0" y1="3" x2="22" y2="3" stroke="#e07030" strokeWidth="3"/></svg>
+            <span><strong>Group mean (desired)</strong></span>
+          </div>
+          <div style={{display:'flex',alignItems:'center',gap:'.4rem'}}>
+            <svg width="22" height="6"><line x1="0" y1="3" x2="22" y2="3" stroke="#888" strokeWidth="1.25" strokeDasharray="3,3"/></svg>
+            <span>Selected individuals</span>
+          </div>
+        </div>
+
+        {/* Role quick-select */}
+        <div style={{display:'flex',gap:'.4rem',marginBottom:'.6rem',flexWrap:'wrap',alignItems:'center'}}>
+          <span style={{fontSize:'.7rem',fontWeight:700,letterSpacing:'.05em',textTransform:'uppercase',color:'#888',fontFamily:"'DM Sans',sans-serif",marginRight:'.2rem'}}>Quick-select by role:</span>
+          {[...STANDARD_ROLES,'Other'].map(rl=>{
+            const count=roleCounts[rl];
+            const members=roleMembers[rl]||[];
+            const allOn=members.length>0&&members.every(pid=>visibleSet.has(pid));
+            const disabled=count===0;
+            const col=ROLE_COLOURS[rl]||'#888';
+            return(
+              <button key={rl} type="button" disabled={disabled} onClick={()=>toggleRole(rl)}
+                style={{
+                  padding:'.4rem .65rem',
+                  borderRadius:'3px',
+                  cursor:disabled?'not-allowed':'pointer',
+                  background:allOn?col:'#fff',
+                  color:allOn?'#fff':disabled?'#b0a898':'#1a1a1a',
+                  border:`1.5px solid ${disabled?'#e2ddd3':col}`,
+                  fontSize:'.72rem',fontWeight:600,
+                  fontFamily:"'DM Sans',sans-serif",
+                  outline:'none',transition:'all .15s',
+                  opacity:disabled?0.5:1,
+                }}>
+                {rl} ({count})
+              </button>
+            );
+          })}
+        </div>
+
+        <div style={{display:'flex',gap:'.5rem',marginBottom:'.75rem',flexWrap:'wrap'}}>
+          <button className="btn-s" onClick={selectAll}>Show all</button>
+          <button className="btn-s" onClick={selectNone}>Hide all</button>
+          <span style={{fontSize:'.72rem',color:'#888',alignSelf:'center',marginLeft:'.5rem',fontFamily:"'DM Sans',sans-serif"}}>Tap a name to show or hide that profile.</span>
+        </div>
+
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))',gap:'.4rem'}}>
+          {comp.map((r,i)=>{
+            const col=PAX_C[i%PAX_C.length];
+            const on=visibleSet.has(r.participant_id);
+            const rl=r.role||'';
+            const roleKey=STANDARD_ROLES.includes(rl)?rl:'Other';
+            const roleCol=ROLE_COLOURS[roleKey]||'#888';
+            return(
+              <button key={i} type="button" onClick={()=>togglePid(r.participant_id)} style={{display:'flex',alignItems:'center',gap:'.5rem',padding:'.5rem .7rem',borderRadius:'3px',cursor:'pointer',background:on?'#fff':'#f5f1ea',border:`1.5px solid ${on?col:'#d8d3cb'}`,fontSize:'.78rem',color:on?'#1a1a1a':'#888',fontFamily:"'DM Sans',sans-serif",textAlign:'left',outline:'none',transition:'all .15s'}}>
+                <span style={{display:'inline-block',width:14,height:14,border:`1.5px solid ${on?col:'#b0a898'}`,borderRadius:'2px',background:on?col:'#fff',position:'relative',flexShrink:0}}>
+                  {on&&<span style={{position:'absolute',top:'-2px',left:'2px',color:'#fff',fontSize:'.85rem',fontWeight:700,lineHeight:1}}>✓</span>}
+                </span>
+                <span style={{display:'inline-block',width:10,height:10,borderRadius:'50%',background:col,flexShrink:0}}/>
+                <span style={{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',fontWeight:on?700:400,flex:1}}>{anonName(r, anonMap)}</span>
+                <span style={{fontSize:'.6rem',fontWeight:700,color:'#fff',background:roleCol,padding:'.1rem .3rem',borderRadius:'2px',whiteSpace:'nowrap',flexShrink:0,letterSpacing:'.02em',textTransform:'uppercase'}} title={rl||'No role'}>{rl?(rl==='Frontline / Operational'?'Frontline':rl==='Senior Leader'?'Senior':rl==='Executive / Board'?'Exec':rl==='Team Leader'?'TL':rl==='Manager'?'Mgr':'Other'):'—'}</span>
               </button>
             );
           })}
