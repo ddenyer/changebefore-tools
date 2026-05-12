@@ -1915,6 +1915,85 @@ function generateStatGroupPDF(opts){
     return arr.reduce((s,v)=>s+(v-m)**2,0)/arr.length;
   }
 
+  // Diamond chart helper. Draws a STAT diamond at (cx, cy) with radius r.
+  //   mean: {prog, def, con, flex} — group mean (drawn as solid bold profile)
+  //   individuals: array of {prog, def, con, flex, _idx} — drawn as dashed profiles
+  //   options.color: colour for the mean diamond (default black for as-is, accent for to-be)
+  //   options.title: optional label below the diamond
+  //   options.compact: smaller axis labels for tight layouts
+  function drawDiamond(cx, cy, r, mean, individuals, options){
+    options = options || {};
+    const meanColor = options.color || TEXT;
+    const compact = !!options.compact;
+    const PAX_COLORS=[[224,112,48],[26,79,160],[45,125,70],[184,122,32],[184,50,50],[106,61,154],[8,145,178],[120,53,15],[55,65,81]];
+
+    function pointFor(p, d, co, f){
+      return [
+        [cx, cy - (p/120)*r],            // Progressive (top)
+        [cx + (f/120)*r, cy],            // Flexible (right)
+        [cx, cy + (d/120)*r],            // Defensive (bottom)
+        [cx - (co/120)*r, cy],           // Consistent (left)
+      ];
+    }
+    function drawPath(pts, color, width, dashed){
+      doc.setDrawColor(...color);
+      doc.setLineWidth(width);
+      if(dashed){
+        doc.setLineDashPattern([0.8, 0.8], 0);
+      } else {
+        doc.setLineDashPattern([], 0);
+      }
+      // Connect points to form a closed shape
+      const p0 = pts[0];
+      doc.line(p0[0], p0[1], pts[1][0], pts[1][1]);
+      doc.line(pts[1][0], pts[1][1], pts[2][0], pts[2][1]);
+      doc.line(pts[2][0], pts[2][1], pts[3][0], pts[3][1]);
+      doc.line(pts[3][0], pts[3][1], p0[0], p0[1]);
+      doc.setLineDashPattern([], 0);
+    }
+    // Grid: 4 concentric diamonds at 25%, 50%, 75%, 100% radius
+    [0.25, 0.5, 0.75, 1.0].forEach(pct=>{
+      const rr = r*pct;
+      const gx = [
+        [cx, cy-rr],
+        [cx+rr, cy],
+        [cx, cy+rr],
+        [cx-rr, cy],
+      ];
+      drawPath(gx, BORDER, pct===1?0.4:0.2, false);
+    });
+    // Axes
+    doc.setDrawColor(...BORDER);
+    doc.setLineWidth(0.2);
+    doc.line(cx, cy-r, cx, cy+r);
+    doc.line(cx-r, cy, cx+r, cy);
+    // Individual profiles (dashed)
+    if(individuals && individuals.length>0){
+      individuals.forEach((ind, i)=>{
+        const idx = (ind._idx!==undefined)?ind._idx:i;
+        const col = PAX_COLORS[idx%PAX_COLORS.length];
+        const pts = pointFor(ind.prog||0, ind.def||0, ind.con||0, ind.flex||0);
+        drawPath(pts, col, 0.3, true);
+      });
+    }
+    // Mean profile (bold solid)
+    if(mean && (mean.prog!==undefined || mean.def!==undefined)){
+      const pts = pointFor(mean.prog||0, mean.def||0, mean.con||0, mean.flex||0);
+      drawPath(pts, meanColor, 1.0, false);
+    }
+    // Axis labels
+    const lbl = compact?6:8;
+    setFont(lbl, 'bold', MUTED);
+    doc.text('Progressive', cx, cy-r-2, {align:'center'});
+    doc.text('Defensive', cx, cy+r+(compact?3:4), {align:'center'});
+    doc.text('Consistent', cx-r-2, cy+1, {align:'right'});
+    doc.text('Flexible', cx+r+2, cy+1);
+    if(options.title){
+      setFont(compact?7:9, 'bold', TEXT);
+      doc.text(options.title, cx, cy+r+(compact?9:11), {align:'center'});
+    }
+  }
+
   // ───── COVER PAGE ─────
   doc.setFillColor(...BG);
   doc.rect(0, 0, pageW, pageH, 'F');
@@ -2260,9 +2339,70 @@ function generateStatGroupPDF(opts){
     y += QH+5;
   }
 
+  // ───── SHARE / PRESENT ─────
+  // Dual-diamond visualisation: every completed respondent rendered as a dashed
+  // profile, with group mean drawn solid. Mirrors the on-screen Share/Present tab.
+  if(completedRespondents.length>=2){
+    doc.addPage(); pageNum++; y=margin+5; addHeader();
+    sectionTitle('All profiles overlaid');
+    paragraph('Every completed respondent shown as a dashed profile, with the group mean as the solid line. Use this to see overall spread and where individuals diverge from the average.', {color:MUTED, size:9});
+    y += 5;
+
+    // Compute as-is mean
+    const sM={prog:0,def:0,con:0,flex:0};
+    completedRespondents.forEach(r=>{sM.prog+=(r.prog||0);sM.def+=(r.def||0);sM.con+=(r.con||0);sM.flex+=(r.flex||0);});
+    ['prog','def','con','flex'].forEach(k=>{sM[k]=Math.round(sM[k]/completedRespondents.length);});
+
+    // Compute to-be mean (only over respondents who completed to-be)
+    const sToBeOnly = completedRespondents.filter(r=>r.tobe_prog);
+    const sT={prog:0,def:0,con:0,flex:0};
+    if(sToBeOnly.length>0){
+      sToBeOnly.forEach(r=>{sT.prog+=(r.tobe_prog||0);sT.def+=(r.tobe_def||0);sT.con+=(r.tobe_con||0);sT.flex+=(r.tobe_flex||0);});
+      ['prog','def','con','flex'].forEach(k=>{sT[k]=Math.round(sT[k]/sToBeOnly.length);});
+    }
+
+    // Layout: two diamonds side by side
+    const diamondR = 38;
+    const leftCx = margin + (pageW-2*margin)/4;
+    const rightCx = margin + 3*(pageW-2*margin)/4;
+    const diamondCy = y + diamondR + 6;
+
+    // Left: as-is diamond with all individuals
+    drawDiamond(leftCx, diamondCy, diamondR, sM,
+      completedRespondents.map((r,idx)=>({prog:r.prog,def:r.def,con:r.con,flex:r.flex,_idx:idx})),
+      {color:TEXT, title:'Current (As-Is) — '+completedRespondents.length+' respondents'});
+
+    // Right: to-be diamond with all individuals (who completed to-be)
+    if(sToBeOnly.length>0){
+      drawDiamond(rightCx, diamondCy, diamondR, sT,
+        sToBeOnly.map(r=>({prog:r.tobe_prog,def:r.tobe_def,con:r.tobe_con,flex:r.tobe_flex,_idx:completedRespondents.findIndex(x=>x.participant_id===r.participant_id)})),
+        {color:ACCENT, title:'Desired (To-Be) — '+sToBeOnly.length+' responses'});
+    } else {
+      setFont(9, 'italic', MUTED);
+      doc.text('No to-be data yet', rightCx, diamondCy, {align:'center'});
+    }
+
+    y = diamondCy + diamondR + 16;
+
+    // Strategy labels under each diamond
+    const asIsStrat = getStrategy(sM.def, sM.prog, sM.con, sM.flex);
+    setFont(8, 'bold', MUTED);
+    doc.text(SLABELS[asIsStrat]||'', leftCx, y, {align:'center'});
+    if(sToBeOnly.length>0){
+      const toBeStrat = getStrategy(sT.def, sT.prog, sT.con, sT.flex);
+      doc.text(SLABELS[toBeStrat]||'', rightCx, y, {align:'center'});
+    }
+    y += 7;
+
+    // Legend
+    setFont(8, 'normal', MUTED);
+    doc.text('Solid: group mean.  Dashed: individual respondents.', margin, y);
+    y += 6;
+  }
+
   // ───── ROLE VIEW ─────
-  // Group respondents by their declared role and show how each role's mean
-  // profile compares. Mirrors the on-screen Role View tab.
+  // Per-role mean diamonds. Each role gets its own diamond with members' profiles
+  // overlaid as dashed lines. Mirrors the on-screen Role View tab.
   {
     const STANDARD_ROLES=['Frontline / Operational','Team Leader','Manager','Senior Leader','Executive / Board'];
     const roleGroups={};
@@ -2277,39 +2417,62 @@ function generateStatGroupPDF(opts){
     if(rolesWithPeople.length>=2){
       doc.addPage(); pageNum++; y=margin+5; addHeader();
       sectionTitle('Role view — profile by seniority');
-      paragraph('Mean current profile and dominant strategy for each role represented in the session. Roles with no respondents are omitted.', {color:MUTED, size:9});
-      y += 3;
-      // Render each role as a row: role label + mean diamond strategy + count + participant ids
+      paragraph('Each role represented in the session, with its mean current profile (solid) and individual members (dashed). Use to spot where seniority levels see things differently.', {color:MUTED, size:9});
+      y += 5;
+
+      // Grid layout: 2 columns of mini diamonds
+      const cols = 2;
+      const cellW = (pageW-2*margin)/cols;
+      const cellH = 95; // total cell height (diamond + labels + member list)
+      const diamondR = 26;
+
       rolesWithPeople.forEach(([role,members],ri)=>{
-        checkPage(20);
+        const col = ri%cols;
+        const row = Math.floor(ri/cols);
+        if(col===0 && row>0){
+          y += cellH;
+          checkPage(cellH);
+        } else if(ri===0){
+          checkPage(cellH);
+        }
+        const cellX = margin + col*cellW;
+        const cellY = y;
+
+        // Compute role mean
         const rm={prog:0,def:0,con:0,flex:0};
         members.forEach(r=>{rm.prog+=(r.prog||0);rm.def+=(r.def||0);rm.con+=(r.con||0);rm.flex+=(r.flex||0);});
         ['prog','def','con','flex'].forEach(k=>{rm[k]=Math.round(rm[k]/members.length);});
-        const rmStrat=getStrategy(rm.def,rm.prog,rm.con,rm.flex);
+        const rmStrat = getStrategy(rm.def, rm.prog, rm.con, rm.flex);
 
-        // Role label + count
-        setFont(10,'bold',TEXT);
-        doc.text(role+'  ('+members.length+(members.length===1?' person':' people')+')', margin, y+4);
-        y += 5.5;
-        // Strategy + scores summary
-        setFont(8,'normal',MUTED);
-        const scoresLine=`Mean: Prog ${rm.prog} · Def ${rm.def} · Con ${rm.con} · Flex ${rm.flex}  →  ${SLABELS[rmStrat]||'—'}`;
-        doc.text(scoresLine, margin, y+3);
-        y += 5;
-        // Participant IDs
-        setFont(8,'normal',TEXT);
-        const ids=members.map(r=>labelForRespondent(r)).join(', ');
-        const wrapped=doc.splitTextToSize(ids, pageW-2*margin-4);
-        checkPage(wrapped.length*4+2);
-        doc.text(wrapped, margin+2, y+3);
-        y += wrapped.length*4+2;
-        if(ri<rolesWithPeople.length-1){
-          doc.setDrawColor(...BORDER);
-          doc.setLineWidth(0.1);
-          doc.line(margin, y+1, pageW-margin, y+1);
-          y += 4;
+        // Role label above diamond
+        setFont(10, 'bold', TEXT);
+        doc.text(role, cellX+cellW/2, cellY+5, {align:'center'});
+        setFont(8, 'normal', MUTED);
+        doc.text('('+members.length+(members.length===1?' person':' people')+') · '+SLABELS[rmStrat], cellX+cellW/2, cellY+10, {align:'center'});
+
+        // Diamond
+        const dCx = cellX + cellW/2;
+        const dCy = cellY + 15 + diamondR;
+        drawDiamond(dCx, dCy, diamondR, rm,
+          members.map(r=>({prog:r.prog,def:r.def,con:r.con,flex:r.flex,_idx:completedRespondents.findIndex(x=>x.participant_id===r.participant_id)})),
+          {color:TEXT, compact:true});
+
+        // Member list below diamond
+        const listY = dCy + diamondR + 12;
+        setFont(7, 'normal', TEXT);
+        const ids = members.map(r=>labelForRespondent(r)).join(', ');
+        const wrapped = doc.splitTextToSize(ids, cellW-10);
+        // Cap at 2 lines so the layout doesn't break
+        const capped = wrapped.slice(0, 2);
+        if(wrapped.length>2){
+          capped[1] = capped[1].replace(/[, ]+$/,'') + '…';
         }
+        doc.text(capped, cellX+5, listY);
       });
+
+      // Advance y by the height of the last row
+      const lastRow = Math.floor((rolesWithPeople.length-1)/cols);
+      y += cellH * (lastRow+1) + 5;
     }
   }
 
