@@ -127,13 +127,11 @@ export default async function handler(req, res) {
     const html = isExisting
       ? `<p>Hi ${firstName},</p>
          <p>Welcome back to ChangeBefore. Your personalised report is attached.</p>
-         <p>You can log in any time using your email and password at <a href="https://changebefore.com/login/">changebefore.com/login</a>.</p>
-         <p>You can unsubscribe from emails at any time.</p>
+         <p>To manage your email preferences (including unsubscribing from future updates), visit your account: <a href="https://changebefore.com/account/">changebefore.com/account</a>. If you've forgotten your password, use the <a href="https://changebefore.com/login/">Lost your password?</a> link at the login page.</p>
          <p>— David</p>`
       : `<p>Hi ${firstName},</p>
          <p>Welcome to ChangeBefore. Your personalised report is attached.</p>
-         <p>You can log in any time using your email and password at <a href="https://changebefore.com/login/">changebefore.com/login</a>.</p>
-         <p>You can unsubscribe from emails at any time.</p>
+         <p>An account has been set up for you. To manage your email preferences (including unsubscribing from future updates), visit your account: <a href="https://changebefore.com/account/">changebefore.com/account</a>. If it's your first time, use the <a href="https://changebefore.com/login/">Lost your password?</a> link to set a password.</p>
          <p>— David</p>`;
 
     const pdfFilename = `ChangeBefore-${tool}-results.pdf`;
