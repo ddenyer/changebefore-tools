@@ -1,7 +1,7 @@
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({error:'Method not allowed'});
   const SUPABASE_URL = process.env.SUPABASE_URL || 'https://vxovyhzqzlvjvntjnzej.supabase.co';
-  const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY;
+  const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const RESEND_KEY = process.env.RESEND_API_KEY;
   if (!SUPABASE_KEY) return res.status(500).json({error:'Supabase key not configured'});
 
