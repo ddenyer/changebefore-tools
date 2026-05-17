@@ -10,7 +10,7 @@ export default async function handler(req, res) {
   if (req.method !== 'DELETE') return res.status(405).json({ error: 'Method not allowed' });
 
   const SUPABASE_URL = process.env.SUPABASE_URL || 'https://vxovyhzqzlvjvntjnzej.supabase.co';
-  const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY;
+  const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!SUPABASE_KEY) return res.status(500).json({ error: 'Supabase key not configured' });
 
   const body = req.body || {};

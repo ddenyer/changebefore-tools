@@ -142,7 +142,7 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const SUPABASE_URL = process.env.SUPABASE_URL;
-  const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY;
+  const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
   // Use SERVICE_ROLE_KEY if available — cache writes need it bypassing RLS.
   // Fall back to anon key (works for reads; writes may fail silently and that's fine).
   const SUPABASE_WRITE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || SUPABASE_KEY;
