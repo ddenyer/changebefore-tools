@@ -45,7 +45,7 @@ export default async function handler(req, res) {
     if (data && data.valid) {
       try {
         const supabaseUrl = process.env.SUPABASE_URL;
-        const supabaseKey = process.env.SUPABASE_ANON_KEY;
+        const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
         if (supabaseUrl && supabaseKey) {
           const cfgResp = await fetch(
             `${supabaseUrl}/rest/v1/session_configs?session_code=eq.${encodeURIComponent(cleanCode)}&select=*&limit=1`,
