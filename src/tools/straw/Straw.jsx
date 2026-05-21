@@ -1361,10 +1361,7 @@ function Step11Changes({ pData, confirmed, onConfirm, onBack }) {
     const pos = pData.purposeTensions ? getPositionSummary(pData.purposeTensions) : "not specified";
     const groups = getGroupSummary(pData.purposeGroups || {});
     const keepContext = keepStatements.length > 0
-      ? `
-
-Already selected (keep these in mind, do NOT repeat them):
-${keepStatements.map((s,i) => `${i+1}. ${s.text}`).join("\n")}`
+      ? "\n\nAlready selected (keep these in mind, do NOT repeat them):\n" + keepStatements.map((s,i) => (i+1) + ". " + s.text).join("\n")
       : "";
     const serviceChargeNote = isCostFocused
       ? "\n- The user has positioned FBaM toward cost reduction. INCLUDE a service charge renegotiation option (e.g. 'Renegotiate the university service charge from £10.3m to £Xm — without this the contribution target cannot be reached without eliminating entire programme areas.')."
@@ -1531,8 +1528,7 @@ function Step12CloseGap({ pData, confirmed, onConfirm, onBack }) {
     const pos = pData.purposeTensions ? getPositionSummary(pData.purposeTensions) : "not specified";
     const groups = getGroupSummary(pData.purposeGroups || {});
     const changesCtx = selectedChanges.length > 0
-      ? `Selected strategic changes:
-${selectedChanges.map((s,i) => `${i+1}. ${s.text}`).join("\n")}`
+      ? "Selected strategic changes:\n" + selectedChanges.map((s,i) => (i+1) + ". " + s.text).join("\n")
       : "No strategic changes selected.";
     const profitSlider = nv(pData.purposeTensions?.profit, 50);
     return `You are simultaneously a world-leading strategy consultant, a world-leading management accountant, a world-leading finance expert, and a world-leading accountant advising Cranfield University's Faculty of Business and Management (FBaM).
@@ -1545,9 +1541,9 @@ CRITICAL FINANCIAL TARGET:
 - Gap to close from do-nothing trajectory: £${Math.round(baseGap)}k
 
 DO-NOTHING TRAJECTORY:
-- Revenue: ${REV_LINES.map(l => `${l.name} £${Math.round(nv(predRevs[l.id]))}k`).join(", ")}
+- Revenue: ${REV_LINES.map(l => l.name + " £" + Math.round(nv(predRevs[l.id])) + "k").join(", ")}
 - Total revenue: £${Math.round(predRev)}k
-- Costs: ${COST_LINES.map(l => `${l.name} £${Math.round(nv(predCosts[l.id]))}k`).join(", ")}
+- Costs: ${COST_LINES.map(l => l.name + " £" + Math.round(nv(predCosts[l.id])) + "k").join(", ")}
 - Total costs: £${Math.round(predCost)}k
 - Do-nothing surplus: £${Math.round(predRev - predCost)}k (${predRev > 0 ? ((predRev - predCost)/predRev*100).toFixed(1) : 0}%)
 
@@ -1593,7 +1589,7 @@ Respond ONLY in this exact JSON format:
     try {
       const txt = await callAI(buildPrompt(), 25000);
       const m = txt.match(/{[\s\S]*}/);
-      const parsed = JSON.parse(m ? m[0] : txt.replace(/```json|```/g, "").trim());
+      const parsed = JSON.parse(m ? m[0] : txt.replace(/\x60\x60\x60json|\x60\x60\x60/g, "").trim());
       const newRevs = {}; REV_LINES.forEach(l => newRevs[l.id] = String(Math.round(nv(parsed.revs?.[l.id], nv(predRevs[l.id])))));
       const newCosts = {}; COST_LINES.forEach(l => newCosts[l.id] = String(Math.round(nv(predCosts[l.id]))));
       newRevs["pt_levy"] = "0";
@@ -1775,8 +1771,8 @@ function Step17CloseGap({ pData, confirmed, onConfirm, onBack }) {
     const purpose = (pData.purposeRanked || [])[0] || pData.purposeOwn || "not specified";
     const unique  = (pData.purposeUniqueRanked || [])[0] || pData.purposeUniqueOwn || "not specified";
     const why     = pData.purposeWhy || "";
-    const revCtx  = REV_LINES.map(l => `${l.name}: baseline £${nv(predRevs[l.id]).toFixed(0)}k`).join(", ");
-    const costCtx = COST_LINES.map(l => `${l.name}: baseline £${nv(predCosts[l.id]).toFixed(0)}k`).join(", ");
+    const revCtx  = REV_LINES.map(l => l.name + ": baseline £" + nv(predRevs[l.id]).toFixed(0) + "k").join(", ");
+    const costCtx = COST_LINES.map(l => l.name + ": baseline £" + nv(predCosts[l.id]).toFixed(0) + "k").join(", ");
     return { pos, purpose, unique, why, revCtx, costCtx };
   };
 
@@ -1835,11 +1831,12 @@ Respond in this EXACT JSON format only — no text outside the JSON:
     "ops_overhead": ${Math.round(nv(predCosts.ops_overhead))},
     "uni_charge": ${Math.round(nv(predCosts.uni_charge))}
   }
-}\`);
+}
+`);
 
     try {
       const m = txt.match(/{[\s\S]*}/);
-      const parsed = JSON.parse(m ? m[0] : txt.replace(/```json|```/g, "").trim());
+      const parsed = JSON.parse(m ? m[0] : txt.replace(/\x60\x60\x60json|\x60\x60\x60/g, "").trim());
       const newRevs = {}; REV_LINES.forEach(l => newRevs[l.id] = String(Math.round(nv(parsed.revs?.[l.id], nv(predRevs[l.id])))));
       const newCosts = {}; COST_LINES.forEach(l => newCosts[l.id] = String(Math.round(nv(predCosts[l.id]))));
       newRevs["pt_levy"] = "0";
