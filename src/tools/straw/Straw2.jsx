@@ -15,7 +15,7 @@ const pSave = (name, d) => {
 const pGet  = n => STORE.participants[n] || { name: n };
 const pAll  = () => Object.values(STORE.participants);
 
-/* Auto-save hook — debounces save 800ms after last change */
+/* Auto-save hook */
 const useAutoSave = (name, getData) => {
   const getDataRef = useRef(getData);
   getDataRef.current = getData;
@@ -49,7 +49,7 @@ const REV_LINES = [
     note: "Award Bearing Fee Income — MSc Management, Finance, LSCM, Procurement, BDA, Banking." },
   { id: "pt_levy",     name: "PT Levy / Apprenticeship programmes",   baseK: 4729,  prefillK: 4729,
     note: "Award Bearing Fee Income – Masterships. Level 7 SLA ends — going to zero. Default rate −100%." },
-  { id: "ced_custom",  name: "CED Customised",                        baseK: 5000,  prefillK: 5000,
+  { id: "ced_custom",  name: "CED Customised",                        baseK: 5400,  prefillK: 5400,
     note: "Bespoke organisational programmes. Pipeline 86% confirmed. High-growth sector (+6–9% CAGR)." },
   { id: "slep",        name: "SLEP / Non-Award Bearing",              baseK: 2798,  prefillK: 2798,
     note: "SLEP/Non-Award Bearing income. Structural loss — ending. Default rate −80%." },
@@ -82,7 +82,7 @@ const COST_LINES = [
     note: "Bursaries funded £295k + unfunded £2,528k; student costs £833k; course accommodation £1,164k; learning materials £178k. Variable — moves with intake volume." },
   { id: "ops_overhead",   name: "Operational overheads & support",           baseK: 7947,
     note: "Professional/consultancy £3,090k, commissions & profit share £2,349k, premises/utilities £309k, travel £564k, marketing £357k, depreciation & other £1,278k." },
-  { id: "uni_charge",     name: "University service charge",                 baseK: 10325,
+  { id: "uni_charge",     name: "University service charge",                 baseK: 8991,
     note: "Internal overhead recharge — university taxation on the School. Current figure: £10,325k (24/25 budget basis). New TRAC-based figure pending. This charge converts the contribution surplus into the fully-loaded operating result." },
 ];
 
@@ -1392,11 +1392,13 @@ STRATEGIC CHOICES:
 ${serviceChargeNote}${keepContext}
 
 Generate exactly 10 strategic direction statements that would help close this gap. STRICT RULES:
-- Stay at the WHAT and WHY level — no specific figures, no percentages, no £ amounts, no operational detail
+- Stay at the WHAT and WHY level — no specific course names, no programme titles, no operational detail
 - Name the revenue stream or activity TYPE (e.g. "executive education", "open programmes", "research income") but NEVER name specific programmes
 - Include market reality: if a revenue stream has low CAGR (e.g. award-bearing FT MSc, open programmes) explicitly note that growth requires taking market share, not a growing market
-- IMPORTANT: Customised and Executive Education is a HIGH GROWTH sector (+6% to +9% sector CAGR). The overall exec ed line looks poor because it includes SLEP/Non-Award Bearing income that is ending and levy income going to zero. The underlying CED customised and cabinet office income is healthy. When suggesting exec ed growth, be clear that the sector is growing strongly and this is a realistic opportunity
+- IMPORTANT: Customised and Executive Education is a HIGH GROWTH sector (+6% to +9% sector CAGR). The overall exec_ed line looks poor because it includes SLEP/Non-Award Bearing income that is ending (£2,798k) and levy income going to zero. The underlying CED customised and cabinet office income is healthy. When suggesting exec ed growth, be clear that the sector is growing strongly and this is a realistic opportunity — but growth must compensate for the structural SLEP/levy loss on top of hitting the gap target
+- If the growth required is very large, flag the scale of ambition required explicitly
 - If exec ed growth is needed to compensate for levy income loss, say so explicitly
+- If a change is substantial (e.g. doubling exec ed), flag the scale of ambition required
 - Be directionally honest — not optimistic generic statements
 - Max 45 words per statement
 
@@ -1603,10 +1605,8 @@ Respond ONLY in this exact JSON format:
       const m = txt.match(/{[\s\S]*}/);
       const parsed = JSON.parse(m ? m[0] : txt.replace(/```json|```/g, "").trim());
       const newRevs = {}; REV_LINES.forEach(l => newRevs[l.id] = String(Math.round(nv(parsed.revs?.[l.id], nv(predRevs[l.id])))));
-      // Costs are ALWAYS the user's predicted values — never overridden by AI
       const newCosts = {}; COST_LINES.forEach(l => newCosts[l.id] = String(Math.round(nv(predCosts[l.id]))));
       newRevs["pt_levy"] = "0";
-      // Verify surplus meets target
       const aiRev = REV_LINES.reduce((s, l) => s + nv(newRevs[l.id]), 0);
       const aiCost = COST_LINES.reduce((s, l) => s + nv(newCosts[l.id]), 0);
       const aiSurplus = aiRev - aiCost;
@@ -1808,23 +1808,20 @@ ${COST_LINES.map(l => `- ${l.name}: £${Math.round(nv(predCosts[l.id]))}k`).join
 Revenue baseline by July 2028 (do-nothing trajectory):
 ${REV_LINES.map(l => `- ${l.name}: £${Math.round(nv(predRevs[l.id]))}k`).join('\n')}
 - Total predicted revenue: £${Math.round(predRev)}k
-
 - Do-nothing surplus: £${Math.round(predRev - predCost)}k (${predRev > 0 ? ((predRev - predCost)/predRev*100).toFixed(1) : 0}%)
 - Target surplus: ${tgt}%
-- Required total revenue to hit target (with fixed costs of £${Math.round(predCost)}k): £${Math.round(predCost + predCost * tgt / (100 - tgt) + (predRev * tgt / 100 - (predRev - predCost)))}k
 - Gap to close through revenue growth: £${Math.round(baseGap)}k
 
 CRITICAL CONSTRAINTS:
-- COSTS ARE FIXED. Return exactly the cost figures above — do not change any cost line.
+- COSTS ARE FIXED. Return exactly the cost figures above.
 - pt_levy MUST be 0. The Level 7 apprenticeship levy is defunded.
-- Only change revenue lines. Revenue must be grown enough to hit the target surplus with the fixed costs.
-- Align revenue growth with the strategic positioning: if positioned toward exec ed, grow exec ed; if post-experience, grow open programmes and exec ed; if applied/impact, grow research income.
+- Only change revenue lines. Align growth with strategic positioning.
 - All figures must be positive integers in £k.
 
 Respond in this EXACT JSON format only — no text outside the JSON:
 {
   "keyMoves": [
-    "bullet 1 — specific revenue move with rationale aligned to strategic choices",
+    "bullet 1 — specific revenue move aligned to strategic choices",
     "bullet 2",
     "bullet 3",
     "bullet 4",
@@ -1853,17 +1850,14 @@ Respond in this EXACT JSON format only — no text outside the JSON:
     "ops_overhead": ${Math.round(nv(predCosts.ops_overhead))},
     "uni_charge": ${Math.round(nv(predCosts.uni_charge))}
   }
-}`);
+}\`);
 
     try {
       const m = txt.match(/{[\s\S]*}/);
       const parsed = JSON.parse(m ? m[0] : txt.replace(/```json|```/g, "").trim());
       const newRevs = {}; REV_LINES.forEach(l => newRevs[l.id] = String(Math.round(nv(parsed.revs?.[l.id], nv(predRevs[l.id])))));
-      // Costs are ALWAYS the user's predicted values — never overridden by AI
       const newCosts = {}; COST_LINES.forEach(l => newCosts[l.id] = String(Math.round(nv(predCosts[l.id]))));
-      // Force pt_levy to 0
       newRevs["pt_levy"] = "0";
-      // Verify gap closes — if not, adjust exec_ed upward until it does
       const aiTotalRev  = REV_LINES.reduce((s, l) => s + nv(newRevs[l.id]), 0);
       const aiTotalCost = COST_LINES.reduce((s, l) => s + nv(newCosts[l.id]), 0);
       const aiSurplus   = aiTotalRev - aiTotalCost;
