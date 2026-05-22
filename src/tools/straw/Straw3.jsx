@@ -32,20 +32,30 @@ const syncFromSupabase = async () => {
 
 /* ── DATA — Q2 FCA 2025/26 ACTUALS ───────────────────────────────────────── */
 const REV_LINES = [
-  { id: "ft_msc",      name: "FT MSc & MBA programmes",              baseK: 11586, prefillK: 11586,
-    note: "Award Bearing Fee Income — gross fees before bursaries. MBA, MSc Management, Finance, LSCM, Procurement, BDA, Banking. Q2 actuals: MSc Management 4 students (forecast 10); Finance 9 (met forecast)." },
+  { id: "ft_mba",      name: "FT MBA",                                baseK: 3000,  prefillK: 3000,
+    note: "Award Bearing Fee Income — MBA programme. Flagship residential MBA cohort." },
+  { id: "ft_msc_prog", name: "FT MSc programmes",                     baseK: 8586,  prefillK: 8586,
+    note: "Award Bearing Fee Income — MSc Management, Finance, LSCM, Procurement, BDA, Banking." },
   { id: "pt_levy",     name: "PT Levy / Apprenticeship programmes",   baseK: 4729,  prefillK: 4729,
-    note: "Award Bearing Fee Income – Masterships. Q2 25/26 actuals: £4,729k. Level 7 SLA ends — this income will go to zero. Default rate set to −100%." },
-  { id: "exec_ed",     name: "Customised & Executive Education",      baseK: 9949,  prefillK: 9949,
-    note: "CED Customised £5,000k + SLEP/Non-Award Bearing £2,798k + Cabinet Office £1,885k + other £266k. Pipeline 86% confirmed. SLEP/Non-Award Bearing (£2,798k) ends." },
+    note: "Award Bearing Fee Income – Masterships. Level 7 SLA ends — going to zero. Default rate −100%." },
+  { id: "ced_custom",  name: "CED Customised",                        baseK: 5400,  prefillK: 5400,
+    note: "Bespoke organisational programmes. Pipeline 86% confirmed. High-growth sector (+6–9% CAGR)." },
+  { id: "slep",        name: "SLEP / Non-Award Bearing",              baseK: 2798,  prefillK: 2798,
+    note: "SLEP/Non-Award Bearing income. Structural loss — ending. Default rate −80%." },
+  { id: "cabinet",     name: "Cabinet Office",                        baseK: 1885,  prefillK: 1885,
+    note: "Cabinet Office contract. Growing government relationship. Default rate +20%." },
+  { id: "ced_other",   name: "Other exec ed",                         baseK: 266,   prefillK: 266,
+    note: "Other customised and executive education income." },
+  { id: "micro_cred",  name: "Micro credentials / award bearing exec ed", baseK: 0, prefillK: 0,
+    note: "New revenue line — micro credentials and award-bearing exec ed. Q2 baseline: £0k." },
   { id: "open",        name: "Open Programmes",                       baseK: 3216,  prefillK: 3216,
     note: "CMDL £2,709k (LTP, Specialist, Praxis, BGP) + CU Open £505k (Entrepreneurship, Digital Stackable, Specialist Online)." },
   { id: "research_dd", name: "Research, Design & Development",        baseK: 1755,  prefillK: 1755,
-    note: "Changing World of Work £712k, LSCM £972k, Entrepreneurship £60k, Strategic Marketing £11k. Year-end delivery tied to academic capacity." },
+    note: "Changing World of Work £712k, LSCM £972k, Entrepreneurship £60k, Strategic Marketing £11k." },
   { id: "hefce",       name: "HEFCE & Allocated Research Funding",    baseK: 1404,  prefillK: 1404,
     note: "Research Funding £270k, QR Allocated £493k, Business Funding £368k, Research Supervision £58k, HEIF £200k, PRF £14k." },
   { id: "residences",  name: "Residences & Conference Facilities",    baseK: 690,   prefillK: 690,
-    note: "Conference centre and accommodation income. Linked to customised programme volume — moves with CED." },
+    note: "Conference centre and accommodation income. Linked to customised programme volume." },
   { id: "other_rev",   name: "Other income",                          baseK: 1049,  prefillK: 1049,
     note: "Endowment £159k, Interest £10k, Miscellaneous £698k (inc MoD AP), Gift Aid £181k." },
 ];
@@ -67,7 +77,7 @@ const COST_LINES = [
 
 /* Loan repayment and investment lines are computed dynamically — not in COST_LINES */
 const VARIABLE_COST_IDS = ["associates", "prog_costs"];
-const REV_DEF_RATES = { ft_msc: 0, pt_levy: -100, exec_ed: -13.214, open: 0, research_dd: 0, hefce: 0, residences: -6.7374, other_rev: 0 };
+const REV_DEF_RATES = { ft_mba: -8, ft_msc_prog: -8, pt_levy: -100, ced_custom: -13.214, slep: -80, cabinet: 20, ced_other: -13.214, micro_cred: 0, open: 0, research_dd: 0, hefce: 0, residences: -6.7374, other_rev: 0 };
 const COST_DRIVERS  = { academic_staff: "Pay award", support_staff: "Pay award", associates: "Day rate / volume", prog_costs: "Intake volume", ops_overhead: "Inflation / recharge", uni_charge: "TRAC / university allocation" };
 const STEP_NAMES    = ["1. Set goal","2. Revenue","3. Costs","4. Current position","5. Market context","6. Predicted revenues","7. Predicted costs","8. Prognosis","→ Section one","10. Who FBaM serves","11. Positioning","12. Changes","→ Section two","14. Close the gap","15. Theme P&L","16. Comparison","17. Finalise"];
 
@@ -149,24 +159,19 @@ const THEMES        = ["Business Transformation and Growth","People, Skills and 
 
 /* ── MARKET BENCHMARKS — UK business schools 2024→2028 ─────────────────── */
 const MARKET_BENCHMARKS = [
-  { id: "ft_msc",      label: "Postgraduate MSc & MBA (FT)",
-    range: "−2% to 0% CAGR",
-    fbamTrend: "Peaked £21.9m (22/23), now £16.3m — declining",
-    fbamCurrent: "−26% vs last year. Poor Jan 2026 intake (4 students vs 10 forecast). Withdrawals continuing.",
-    mid: -8,
-    context: "Sector declining due to Graduate Route compression and £925 international student levy (Aug 2028). FBaM performing significantly below sector — Jan intake shortfall and withdrawal rate suggest structural demand problem, not cyclical. FBaM 5-year trend peaked 22/23 and is now reversing sharply. CAGR of −8% reflects continuation of current trajectory with modest stabilisation." },
+  { id: "ft_mba",      label: "FT MBA", range: "−2% to 0% CAGR", fbamTrend: "Declining", fbamCurrent: "Under pressure from Graduate Route compression.", mid: -8, context: "MBA market under pressure from Graduate Route visa compression." },
+  { id: "ft_msc_prog", label: "FT MSc programmes", range: "−2% to 0% CAGR", fbamTrend: "Peaked £21.9m (22/23), now reversing", fbamCurrent: "Poor Jan 2026 intake (4 vs 10 forecast).", mid: -8, context: "Sector declining due to Graduate Route compression." },
   { id: "pt_levy",     label: "Apprenticeships / Levy",
     range: "Eliminated",
     fbamTrend: "Structural decline — last intakes completed",
     fbamCurrent: "Going to zero. Final Level 7 SLA intakes done. No further cohorts planned.",
     mid: -100,
     context: "Level 7 defunded Jan 2026. This income does not exist by 2028. Revenue at zero by mid-2027 at latest. Any residual is marginal employer self-funded activity." },
-  { id: "exec_ed",     label: "Customised & Executive Education",
-    range: "+6% to +9% sector CAGR",
-    fbamTrend: "Consistent growth 18/19→24/25, +4.8% CAGR — but SLEP at risk",
-    fbamCurrent: "−11% vs last year. 86% confirmed. SLEP/Non-Award Bearing (£2,798k) ending. PLP contract at risk at rebid 2026.",
-    mid: -13,
-    context: "Sector growing strongly (UNICON 2025) but FBaM loses SLEP/Non-Award Bearing (£2,798k) and faces PLP rebid risk. 5-year growth trend reverses sharply once these structural losses land. CAGR of −13% reflects confirmed SLEP loss and current confirmed income at only 86%. Adjust if you believe new contracts will replace SLEP volume." },
+  { id: "ced_custom",  label: "CED Customised", range: "+6% to +9% sector CAGR", fbamTrend: "Main growth lever", fbamCurrent: "Pipeline 86% confirmed.", mid: -13, context: "Sector growing strongly. CED Customised is the primary growth lever." },
+  { id: "slep",        label: "SLEP / Non-Award Bearing", range: "Structural elimination", fbamTrend: "Ending", fbamCurrent: "Default −80%.", mid: -80, context: "Structural loss. Does not exist by 2028." },
+  { id: "cabinet",     label: "Cabinet Office", range: "Growing", fbamTrend: "Established and growing", fbamCurrent: "Default +20%.", mid: 20, context: "Growing government relationship." },
+  { id: "ced_other",   label: "Other exec ed", range: "Follows exec ed trend", fbamTrend: "Stable", fbamCurrent: "Small residual line.", mid: -13, context: "Other exec ed." },
+  { id: "micro_cred",  label: "Micro credentials", range: "Emerging", fbamTrend: "New line", fbamCurrent: "No current income.", mid: 0, context: "Emerging market. Baseline £0k." },
   { id: "open",        label: "Open Programmes",
     range: "+6% to +9% CAGR",
     fbamTrend: "Recovering from Covid low — below sector pace",
@@ -867,9 +872,7 @@ function PredStep({ stepN, lines, defRates, lineRates, setLineRates, heading, no
     });
     return s;
   });
-  const [overrides, setOverrides] = useState(() => (isCost ? pData?.predCostsDirect : pData?.predRevsDirect) || {});
-  // pData reference for fallback
-  const [pData] = useState(() => null); // not needed here — lines carry prefillK
+  const [overrides, setOverrides] = useState({});
 
   /* Compute predicted value for a line/year */
   const getPred = (l, yr) => {
@@ -1905,10 +1908,10 @@ Respond ONLY in this exact JSON:
 {
   "keyMoves": ["move 1", "move 2", "move 3", "move 4", "move 5"],
   "scenario": {
-    "2027": { "ft_msc": <int>, "pt_levy": 0, "exec_ed": <int>, "open": <int>, "research_dd": <int>, "hefce": <int>, "residences": <int>, "other_rev": <int> },
-    "2028": { "ft_msc": <int>, "pt_levy": 0, "exec_ed": <int>, "open": <int>, "research_dd": <int>, "hefce": <int>, "residences": <int>, "other_rev": <int> },
-    "2029": { "ft_msc": <int>, "pt_levy": 0, "exec_ed": <int>, "open": <int>, "research_dd": <int>, "hefce": <int>, "residences": <int>, "other_rev": <int> },
-    "2030": { "ft_msc": <int>, "pt_levy": 0, "exec_ed": <int>, "open": <int>, "research_dd": <int>, "hefce": <int>, "residences": <int>, "other_rev": <int> }
+    "2027": { "ft_mba": <int>, "ft_msc_prog": <int>, "pt_levy": 0, "ced_custom": <int>, "slep": <int>, "cabinet": <int>, "ced_other": <int>, "micro_cred": <int>, "open": <int>, "research_dd": <int>, "hefce": <int>, "residences": <int>, "other_rev": <int> },
+    "2028": { "ft_mba": <int>, "ft_msc_prog": <int>, "pt_levy": 0, "ced_custom": <int>, "slep": <int>, "cabinet": <int>, "ced_other": <int>, "micro_cred": <int>, "open": <int>, "research_dd": <int>, "hefce": <int>, "residences": <int>, "other_rev": <int> },
+    "2029": { "ft_mba": <int>, "ft_msc_prog": <int>, "pt_levy": 0, "ced_custom": <int>, "slep": <int>, "cabinet": <int>, "ced_other": <int>, "micro_cred": <int>, "open": <int>, "research_dd": <int>, "hefce": <int>, "residences": <int>, "other_rev": <int> },
+    "2030": { "ft_mba": <int>, "ft_msc_prog": <int>, "pt_levy": 0, "ced_custom": <int>, "slep": <int>, "cabinet": <int>, "ced_other": <int>, "micro_cred": <int>, "open": <int>, "research_dd": <int>, "hefce": <int>, "residences": <int>, "other_rev": <int> }
   }
 }`);
 
@@ -3003,8 +3006,12 @@ function Step19Comparison({ pData, onConfirm, onBack }) {
   );
 
   const REV_SEGS = [
-    { id: "ft_msc",      label: "FT MSc",   color: "#1a4fa0" },
-    { id: "exec_ed",     label: "Exec ed",  color: "#e07030" },
+    { id: "ft_mba",      label: "FT MBA",      color: "#1a4fa0" },
+    { id: "ft_msc_prog", label: "FT MSc",      color: "#3a6fc0" },
+    { id: "ced_custom",  label: "CED Custom",  color: "#e07030" },
+    { id: "slep",        label: "SLEP",        color: "#c05010" },
+    { id: "cabinet",     label: "Cabinet",     color: "#f09050" },
+    { id: "micro_cred",  label: "Micro cred",  color: "#9b4e9b" },
     { id: "open",        label: "Open",     color: "#2d7d46" },
     { id: "research_dd", label: "Research", color: "#b87a20" },
     { id: "hefce",       label: "HEFCE",    color: "#6a3d9a" },
@@ -3584,7 +3591,7 @@ ${!why && !how && !what ? `<p style="font-size:12px;color:#888">Purpose section 
         ${all.map((p,i)=>{
           const sr=p.s12Revs||p.s17Revs||{};
           const total=REV_LINES.reduce((s,l)=>s+nv(sr[l.id]),0)||1;
-          const REV_COLORS_M={"ft_msc":"#1a4fa0","exec_ed":"#e07030","open":"#2d7d46","research_dd":"#b87a20","hefce":"#6a3d9a","residences":"#888","other_rev":"#bbb","pt_levy":"#999"};
+          const REV_COLORS_M={"ft_mba":"#1a4fa0","ft_msc_prog":"#3a6fc0","ced_custom":"#e07030","slep":"#c05010","cabinet":"#f09050","micro_cred":"#9b4e9b","open":"#2d7d46","research_dd":"#b87a20","hefce":"#6a3d9a","residences":"#888","other_rev":"#bbb","pt_levy":"#999","ced_other":"#d06028"};
           return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
             <span style="font-size:10px;width:80px;flex-shrink:0"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${PAX_COLORS[i%7]};margin-right:4px"></span>${p.name}</span>
             <div style="flex:1;display:flex;height:14px;border-radius:2px;overflow:hidden">
