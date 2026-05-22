@@ -73,6 +73,8 @@ const COST_LINES = [
     note: "Professional/consultancy £3,090k, commissions & profit share £2,349k, premises/utilities £309k, travel £564k, marketing £357k, depreciation & other £1,278k." },
   { id: "uni_charge",     name: "University service charge",                 baseK: 8991,
     note: "Internal overhead recharge — university taxation on the School. Current figure: £8,991k (predicted 25/26). This charge converts the contribution surplus into the fully-loaded operating result." },
+  { id: "loan_repayment", name: "University loan repayment contribution",    baseK: 1500,
+    note: "FBaM contribution to university loan repayment. Default: £30m total × 20% FBaM share ÷ 4 years = £1,500k/year. Adjust per year in Close the Gap." },
 ];
 
 const VARIABLE_COST_IDS = ["associates", "prog_costs"];
@@ -247,9 +249,7 @@ const calcPredCosts = (p, yr = 2028) => {
   const rates  = p.costRates || {};
   const costs  = p.costs || {};
   const direct = (p.predCostsDirect || {})[yr] || {};
-  const loanTotal  = nv(p.loanTotal, LOAN_DEFAULTS.totalM) * 1000; // £k
-  const loanShare  = nv(p.loanShare, LOAN_DEFAULTS.sharePct) / 100;
-  const loanAnnual = loanTotal * loanShare / 4; // spread over 4 years
+  // Loan repayment is handled as a COST_LINE (loan_repayment) — editable like other costs
   let total = 0;
   const predCosts = {};
   COST_LINES.forEach(l => {
@@ -264,10 +264,12 @@ const calcPredCosts = (p, yr = 2028) => {
     predCosts[l.id] = pred;
     total += pred;
   });
-  // Add loan repayment contribution (per-year value if set, else even spread)
-  const loanForYear = p.loanByYear?.[yr] !== undefined ? nv(p.loanByYear[yr]) : loanAnnual;
-  predCosts.loan_repayment = loanForYear;
-  total += loanForYear;
+  // Per-year loan override from Close the Gap (overrides the COST_LINE value)
+  if (p.loanByYear?.[yr] !== undefined) {
+    total -= predCosts.loan_repayment;
+    predCosts.loan_repayment = nv(p.loanByYear[yr]);
+    total += predCosts.loan_repayment;
+  }
   total += nv(p.costOtherK, 0);
   return { predCosts, total };
 };
@@ -1784,7 +1786,7 @@ const STAFF_DATA = {
 };
 
 function Step17CloseGap({ pData, confirmed, onConfirm, onBack }) {
-  const loanDefault = (nv(pData.loanTotal, LOAN_DEFAULTS.totalM) * 1000 * nv(pData.loanShare, LOAN_DEFAULTS.sharePct) / 100 / 4);
+  const loanDefault = nv(pData.costs?.loan_repayment, 1500); // from Step 3 user input
   const marginPct   = nv(pData.marginPct, MARGIN_DEFAULT);
 
   /* Per-year targets — live-editable on this page */
@@ -1907,13 +1909,20 @@ Respond ONLY in this exact JSON (no text outside):
             <tr style={{ background: "#fff8ee" }}>
               <td style={{ ...rhStyle, fontWeight: 600, color: "#e07030" }}>Target surplus %</td>
               {YEAR_LABELS.map(yr => (
-                <td key={yr} style={{ padding: "4px 6px", textAlign: "right" }}>
-                  <input type="number" step="0.5" min="-10" max="15"
-                    value={nv(targets[yr]).toFixed(1)}
-                    onChange={e => yr < 2030 ? setYrTarget(yr, parseFloat(e.target.value)) : null}
-                    readOnly={yr === 2030}
-                    style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 12, textAlign: "right", width: 64, padding: "3px 5px", border: "1px solid #e07030", borderRadius: 3, background: yr === 2030 ? "#ffe8d0" : "#fffbe6", color: "#e07030", fontWeight: 600 }}
-                  />
+                <td key={yr} style={{ padding: "6px 8px", textAlign: "center", verticalAlign: "middle" }}>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+                    <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 14, fontWeight: 700, color: "#e07030" }}>
+                      {nv(targets[yr]) >= 0 ? "+" : ""}{nv(targets[yr]).toFixed(1)}%
+                    </div>
+                    <input type="range" min="-5" max="12" step="0.5"
+                      value={nv(targets[yr])}
+                      onChange={e => yr < 2030 ? setYrTarget(yr, parseFloat(e.target.value)) : null}
+                      disabled={yr === 2030}
+                      style={{ width: 80, accentColor: "#e07030", cursor: yr === 2030 ? "default" : "pointer", opacity: yr === 2030 ? 0.6 : 1 }}
+                      title={yr === 2030 ? "2030 target set in Step 1" : "Drag to adjust"}
+                    />
+                    {yr === 2030 && <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 9, color: "#aaa" }}>Step 1</div>}
+                  </div>
                 </td>
               ))}
             </tr>
