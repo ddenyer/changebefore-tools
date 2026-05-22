@@ -75,7 +75,6 @@ const COST_LINES = [
     note: "Internal overhead recharge — university taxation on the School. Current figure: £8,991k (predicted 25/26). This charge converts the contribution surplus into the fully-loaded operating result." },
 ];
 
-/* Loan repayment and investment lines are computed dynamically — not in COST_LINES */
 const VARIABLE_COST_IDS = ["associates", "prog_costs"];
 const REV_DEF_RATES = { ft_mba: -8, ft_msc_prog: -8, pt_levy: -100, ced_custom: -13.214, slep: -80, cabinet: 20, ced_other: -13.214, micro_cred: 0, open: 0, research_dd: 0, hefce: 0, residences: -6.7374, other_rev: 0 };
 const COST_DRIVERS  = { academic_staff: "Pay award", support_staff: "Pay award", associates: "Day rate / volume", prog_costs: "Intake volume", ops_overhead: "Inflation / recharge", uni_charge: "TRAC / university allocation" };
@@ -265,9 +264,10 @@ const calcPredCosts = (p, yr = 2028) => {
     predCosts[l.id] = pred;
     total += pred;
   });
-  // Add loan repayment contribution
-  predCosts.loan_repayment = loanAnnual;
-  total += loanAnnual;
+  // Add loan repayment contribution (per-year value if set, else even spread)
+  const loanForYear = p.loanByYear?.[yr] !== undefined ? nv(p.loanByYear[yr]) : loanAnnual;
+  predCosts.loan_repayment = loanForYear;
+  total += loanForYear;
   total += nv(p.costOtherK, 0);
   return { predCosts, total };
 };
@@ -1829,84 +1829,71 @@ const STAFF_DATA = {
 };
 
 function Step17CloseGap({ pData, confirmed, onConfirm, onBack }) {
-  const allYears  = calcAllYears(pData);
-  const targets   = pData.targets || defaultTargetPath(pData, nv(pData.targetPct, 7.5));
-  const marginPct = nv(pData.marginPct, MARGIN_DEFAULT);
-  const loanTotal = nv(pData.loanTotal, LOAN_DEFAULTS.totalM);
-  const loanShare = nv(pData.loanShare, LOAN_DEFAULTS.sharePct);
-  const loanAnnual = loanTotal * 1000 * loanShare / 100 / 4;
+  const loanDefault = (nv(pData.loanTotal, LOAN_DEFAULTS.totalM) * 1000 * nv(pData.loanShare, LOAN_DEFAULTS.sharePct) / 100 / 4);
+  const marginPct   = nv(pData.marginPct, MARGIN_DEFAULT);
 
-  const [aiAdvice, setAiAdvice] = useState(pData.s17Advice || null);
-  const [loading, setLoading]   = useState(false);
+  /* Per-year targets — live-editable on this page */
+  const initTargets = () => pData.targets || defaultTargetPath(pData, nv(pData.targetPct, 7.5));
+  const [targets, setTargets] = useState(initTargets);
+  const setYrTarget = (yr, v) => setTargets(t => ({ ...t, [yr]: v }));
+
+  /* Per-year loan repayment — editable inputs */
+  const initLoan = () => pData.loanByYear || Object.fromEntries(YEAR_LABELS.map(yr => [yr, Math.round(loanDefault)]));
+  const [loanByYear, setLoanByYear] = useState(initLoan);
+  const setLoan = (yr, v) => setLoanByYear(l => ({ ...l, [yr]: v }));
+
+  /* Active year for detail editor */
   const [activeYr, setActiveYr] = useState(2027);
 
-  /* Scenario data: per-year revenue and cost figures */
+  /* Scenario data: per-year revenue figures (costs locked to do-nothing) */
+  const allYears = calcAllYears({ ...pData, loanByYear });
   const initScenario = () => {
     const s = {};
     YEAR_LABELS.forEach(yr => {
-      const { predRevs, predCosts } = allYears[yr];
-      s[yr] = {
-        revs: Object.fromEntries(REV_LINES.map(l => [l.id, String(Math.round(nv(predRevs[l.id])))])),
-        costs: Object.fromEntries(COST_LINES.map(l => [l.id, String(Math.round(nv(predCosts[l.id])))])),
-      };
+      s[yr] = { revs: Object.fromEntries(REV_LINES.map(l => [l.id, String(Math.round(nv(allYears[yr].predRevs[l.id])))])) };
     });
     return s;
   };
   const [scenario, setScenario] = useState(pData.s17Scenario || initScenario());
-  const [stmt, setStmt] = useState(pData.s17Stmt || "");
+  const [stmt, setStmt]         = useState(pData.s17Stmt || "");
+  const [aiAdvice, setAiAdvice] = useState(pData.s17Advice || null);
+  const [loading, setLoading]   = useState(false);
 
   const setRevForYr = (yr, id, val) => setScenario(s => ({ ...s, [yr]: { ...s[yr], revs: { ...s[yr].revs, [id]: val } } }));
-  const setCostForYr = (yr, id, val) => setScenario(s => ({ ...s, [yr]: { ...s[yr], costs: { ...s[yr].costs, [id]: val } } }));
 
-  /* KPIs per year */
+  /* KPIs for one year including loan + growth investment */
   const yrKpis = (yr) => {
-    const revs  = scenario[yr]?.revs || {};
-    const costs = scenario[yr]?.costs || {};
+    const revs      = scenario[yr]?.revs || {};
     const totalRev  = REV_LINES.reduce((s, l) => s + nv(revs[l.id]), 0);
-    const totalCost = COST_LINES.reduce((s, l) => s + nv(costs[l.id]), 0) + loanAnnual;
-    // Investment in growth: (scenario rev - do-nothing rev) * (1 - margin%)
-    const dnRev = allYears[yr].revTotal;
-    const growthInvest = Math.max(0, totalRev - dnRev) * (1 - marginPct / 100);
-    const totalCostWithInvest = totalCost + growthInvest;
-    const surplus = totalRev - totalCostWithInvest;
+    const dnRevTotal = allYears[yr].revTotal;
+    const dnCostTotal = allYears[yr].costTotal; // already includes loan for that year
+    const growthInvest = Math.max(0, totalRev - dnRevTotal) * (1 - marginPct / 100);
+    const totalCost = dnCostTotal + growthInvest;
+    const surplus = totalRev - totalCost;
     const surplusPct = totalRev > 0 ? surplus / totalRev * 100 : 0;
     const tgt = nv(targets[yr]);
     const gap = totalRev * tgt / 100 - surplus;
-    return { totalRev, totalCost: totalCostWithInvest, surplus, surplusPct, growthInvest, gap, tgt };
+    return { totalRev, totalCost, surplus, surplusPct, growthInvest, gap, tgt, dnRevTotal, dnSurplus: allYears[yr].surplus, dnSurplusPct: allYears[yr].surplusPct };
   };
 
+  /* AI generate */
   const generate = async () => {
     setLoading(true);
     const pos = pData.purposeTensions ? getPositionSummary(pData.purposeTensions) : "not specified";
     const yrSummary = YEAR_LABELS.map(yr => {
-      const { revTotal, costTotal, surplus, surplusPct } = allYears[yr];
-      return "Jul " + yr + ": rev £" + Math.round(revTotal) + "k costs £" + Math.round(costTotal) + "k surplus " + surplusPct.toFixed(1) + "%";
+      const k = yrKpis(yr);
+      return "Jul " + yr + ": do-nothing rev £" + Math.round(k.dnRevTotal) + "k surplus " + k.dnSurplusPct.toFixed(1) + "% target " + nv(targets[yr]).toFixed(1) + "% gap £" + Math.round(k.gap) + "k";
     }).join("; ");
-    const tgtSummary = YEAR_LABELS.map(yr => "Jul " + yr + ": " + nv(targets[yr]).toFixed(1) + "%").join(", ");
 
-    const revLines = REV_LINES.map(l => l.id + ": " + Math.round(allYears[2030].predRevs[l.id]) + "k by 2030").join(", ");
-    const costLines = COST_LINES.map(l => l.id + ": " + Math.round(allYears[2030].predCosts[l.id]) + "k by 2030").join(", ");
-
-    const txt = await callAI(`You are a top-tier strategy consultant advising Cranfield University's Faculty of Business and Management (FBaM).
-
-Strategic positioning: ${pos}
-
-Do-nothing trajectory: ${yrSummary}
-Surplus targets: ${tgtSummary}
-Revenue lines (2030 do-nothing): ${revLines}
-Cost lines (2030 do-nothing): ${costLines}
-Loan repayment: £${Math.round(loanAnnual)}k/year added to costs.
-Investment in growth: ${marginPct}% margin assumed — incremental revenue above do-nothing carries ${100 - marginPct}% cost.
-
-Generate scenario revenue figures for all 4 years (2027, 2028, 2029, 2030) that:
-1. Lock costs to the do-nothing trajectory — only revenues vary
-2. Grow revenue lines consistent with the strategic positioning
-3. Hit or exceed the target surplus in each year
-4. Show a credible progression (2027 may dip before recovery)
-
-Respond ONLY in this exact JSON:
+    const txt = await callAI(`You are a top-tier strategy consultant advising Cranfield University's FBaM. Strategic positioning: ${pos}.
+Four-year do-nothing trajectory and targets: ${yrSummary}.
+Revenue lines (2030 do-nothing): ${REV_LINES.map(l => l.id + ": £" + Math.round(allYears[2030].predRevs[l.id]) + "k").join(", ")}.
+Costs are LOCKED to the do-nothing trajectory for each year. Only vary revenues.
+Growth investment: ${marginPct}% margin assumed on incremental revenue above do-nothing.
+Generate revenue scenario for all 4 years that hits or exceeds the target surplus each year.
+Respond ONLY in this exact JSON (no text outside):
 {
-  "keyMoves": ["move 1", "move 2", "move 3", "move 4", "move 5"],
+  "keyMoves": ["move 1","move 2","move 3","move 4","move 5"],
   "scenario": {
     "2027": { "ft_mba": <int>, "ft_msc_prog": <int>, "pt_levy": 0, "ced_custom": <int>, "slep": <int>, "cabinet": <int>, "ced_other": <int>, "micro_cred": <int>, "open": <int>, "research_dd": <int>, "hefce": <int>, "residences": <int>, "other_rev": <int> },
     "2028": { "ft_mba": <int>, "ft_msc_prog": <int>, "pt_levy": 0, "ced_custom": <int>, "slep": <int>, "cabinet": <int>, "ced_other": <int>, "micro_cred": <int>, "open": <int>, "research_dd": <int>, "hefce": <int>, "residences": <int>, "other_rev": <int> },
@@ -1914,19 +1901,15 @@ Respond ONLY in this exact JSON:
     "2030": { "ft_mba": <int>, "ft_msc_prog": <int>, "pt_levy": 0, "ced_custom": <int>, "slep": <int>, "cabinet": <int>, "ced_other": <int>, "micro_cred": <int>, "open": <int>, "research_dd": <int>, "hefce": <int>, "residences": <int>, "other_rev": <int> }
   }
 }`);
-
     try {
       const m = txt.match(/{[\s\S]*}/);
       const parsed = JSON.parse(m ? m[0] : txt);
       const newScenario = { ...scenario };
       YEAR_LABELS.forEach(yr => {
         if (parsed.scenario?.[yr]) {
-          const aiRevs = parsed.scenario[yr];
-          aiRevs.pt_levy = "0";
-          newScenario[yr] = {
-            revs: Object.fromEntries(REV_LINES.map(l => [l.id, String(Math.round(nv(aiRevs[l.id], nv(scenario[yr]?.revs?.[l.id]))))])),
-            costs: Object.fromEntries(COST_LINES.map(l => [l.id, String(Math.round(allYears[yr].predCosts[l.id]))])),
-          };
+          const ai = parsed.scenario[yr];
+          ai.pt_levy = "0";
+          newScenario[yr] = { revs: Object.fromEntries(REV_LINES.map(l => [l.id, String(Math.round(nv(ai[l.id], nv(scenario[yr]?.revs?.[l.id]))))])) };
           newScenario[yr].revs.pt_levy = "0";
         }
       });
@@ -1939,53 +1922,108 @@ Respond ONLY in this exact JSON:
   };
 
   const applyToStore = () => {
-    pSave(pData.name, { s17Scenario: scenario, s17Stmt: stmt, s17Advice: aiAdvice, step17Confirmed: true });
+    pSave(pData.name, { s17Scenario: scenario, s17Stmt: stmt, s17Advice: aiAdvice, targets, loanByYear, step17Confirmed: true });
     onConfirm();
   };
 
-  const KpiTile = ({ label, value, sub, color }) => (
-    <div style={{ background: "#ebe7e1", border: "1px solid #d8d3cb", borderRadius: 4, padding: "10px 12px", textAlign: "center" }}>
-      <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 18, fontWeight: 500, color: color || "#1a1a1a" }}>{value}</div>
-      {sub && <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 11, color: "#888", marginTop: 2 }}>{sub}</div>}
-      <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 10, textTransform: "uppercase", letterSpacing: 1, color: "#888", marginTop: 4 }}>{label}</div>
-    </div>
-  );
-
-  const kpis = yrKpis(activeYr);
+  const surplusColor = v => v >= 0 ? "#2d7d46" : "#b83232";
+  const thStyle = { fontFamily: "'IBM Plex Mono',monospace", fontSize: 11, fontWeight: 600, textAlign: "right", padding: "6px 8px", background: "#1a1a1a", color: "#f0ede8" };
+  const tdStyle = { fontFamily: "'IBM Plex Mono',monospace", fontSize: 12, textAlign: "right", padding: "5px 8px" };
+  const rhStyle = { fontFamily: "'DM Sans',sans-serif", fontSize: 12, padding: "5px 8px" };
 
   return (
     <div className="sl-content">
       <BackBtn onClick={onBack} />
       {confirmed && <ConfirmedBanner stepN={17} />}
-      <div className="sl-step-h">Close the gap — four-year scenario</div>
-      <div className="sl-prompt">Build your financial scenario for each year end. Costs are locked to your do-nothing trajectory. Vary revenue. Investment in growth is calculated automatically.</div>
+      <div className="sl-step-h">Close the gap — 2027 to 2030</div>
+      <div className="sl-prompt">Set your interim surplus targets and loan repayment per year. The gap columns update in real time. Then build or generate your revenue scenario below.</div>
 
-      {/* Year selector */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
-        {YEAR_LABELS.map(yr => {
-          const k = yrKpis(yr);
-          return (
-            <button key={yr} onClick={() => setActiveYr(yr)} style={{
-              padding: "8px 16px", border: "2px solid", borderRadius: 4, cursor: "pointer", fontFamily: "'DM Sans',sans-serif", fontSize: 13,
-              borderColor: activeYr === yr ? "#e07030" : "#d8d3cb",
-              background: activeYr === yr ? "#fff5ee" : "#f0ede8",
-              fontWeight: activeYr === yr ? 600 : 400,
-            }}>
-              Jul {yr} <span style={{ color: k.gap > 0 ? "#b83232" : "#2d7d46", fontFamily: "'IBM Plex Mono',monospace", fontSize: 11, marginLeft: 4 }}>{k.surplusPct.toFixed(1)}%</span>
-            </button>
-          );
-        })}
+      {/* ── Targets + loan per year ── */}
+      <div style={{ overflowX: "auto", marginBottom: 24 }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 560 }}>
+          <thead>
+            <tr>
+              <th style={{ ...thStyle, textAlign: "left" }}>Parameter</th>
+              {YEAR_LABELS.map(yr => <th key={yr} style={thStyle}>Jul {yr}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {/* Target surplus row */}
+            <tr style={{ background: "#fff8ee" }}>
+              <td style={{ ...rhStyle, fontWeight: 600, color: "#e07030" }}>Target surplus %</td>
+              {YEAR_LABELS.map(yr => (
+                <td key={yr} style={{ padding: "4px 6px", textAlign: "right" }}>
+                  <input type="number" step="0.5" min="-10" max="15"
+                    value={nv(targets[yr]).toFixed(1)}
+                    onChange={e => yr < 2030 ? setYrTarget(yr, parseFloat(e.target.value)) : null}
+                    readOnly={yr === 2030}
+                    style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 12, textAlign: "right", width: 64, padding: "3px 5px", border: "1px solid #e07030", borderRadius: 3, background: yr === 2030 ? "#ffe8d0" : "#fffbe6", color: "#e07030", fontWeight: 600 }}
+                  />
+                </td>
+              ))}
+            </tr>
+            {/* Loan repayment row */}
+            <tr style={{ background: "#f5f3f0" }}>
+              <td style={{ ...rhStyle, color: "#666" }}>Loan repayment £k</td>
+              {YEAR_LABELS.map(yr => (
+                <td key={yr} style={{ padding: "4px 6px", textAlign: "right" }}>
+                  <input type="number" step="100" min="0"
+                    value={Math.round(nv(loanByYear[yr], loanDefault))}
+                    onChange={e => setLoan(yr, e.target.value)}
+                    style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 12, textAlign: "right", width: 72, padding: "3px 5px", border: "1px solid #d8d3cb", borderRadius: 3, background: "#fff" }}
+                  />
+                </td>
+              ))}
+            </tr>
+          </tbody>
+        </table>
       </div>
 
-      {/* KPI strip for active year */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10, marginBottom: 20 }}>
-        <KpiTile label="Revenue" value={fmtK(kpis.totalRev)} />
-        <KpiTile label="Costs (incl. invest)" value={fmtK(kpis.totalCost)} />
-        <KpiTile label="Surplus" value={fmtK(kpis.surplus)} sub={kpis.surplusPct.toFixed(1) + "%"} color={kpis.surplus >= 0 ? "#2d7d46" : "#b83232"} />
-        <KpiTile label={kpis.gap > 0 ? "Gap" : "Over target"} value={fmtK(Math.abs(kpis.gap))} color={kpis.gap > 0 ? "#b83232" : "#2d7d46"} />
+      {/* ── 4-year summary table ── */}
+      <div style={{ overflowX: "auto", marginBottom: 24 }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 560 }}>
+          <thead>
+            <tr>
+              <th style={{ ...thStyle, textAlign: "left" }}>Summary</th>
+              {YEAR_LABELS.map(yr => {
+                const k = yrKpis(yr);
+                return <th key={yr} style={{ ...thStyle, color: k.gap > 100 ? "#ffaaaa" : k.gap < -100 ? "#aaffcc" : "#f0ede8" }}>Jul {yr}{k.gap <= 100 ? " ✓" : ""}</th>;
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {[
+              { label: "Do-nothing surplus", fn: k => fmtK(k.dnSurplus), color: k => surplusColor(k.dnSurplus) },
+              { label: "Do-nothing %", fn: k => k.dnSurplusPct.toFixed(1) + "%", color: k => surplusColor(k.dnSurplus) },
+              { label: "Target %", fn: k => (k.tgt >= 0 ? "+" : "") + k.tgt.toFixed(1) + "%", color: () => "#e07030" },
+              { label: "Gap (do-nothing)", fn: k => k.dnSurplus < k.totalRev * k.tgt / 100 ? fmtK(k.totalRev * k.tgt / 100 - k.dnSurplus) : "None", color: k => k.dnSurplus < k.totalRev * k.tgt / 100 ? "#b83232" : "#2d7d46" },
+            ].map(row => (
+              <tr key={row.label} style={{ borderBottom: "1px solid #e8e4de" }}>
+                <td style={{ ...rhStyle, color: "#888", fontSize: 11 }}>{row.label}</td>
+                {YEAR_LABELS.map(yr => { const k = yrKpis(yr); return <td key={yr} style={{ ...tdStyle, color: row.color(k), fontSize: 11 }}>{row.fn(k)}</td>; })}
+              </tr>
+            ))}
+            <tr style={{ borderTop: "2px solid #1a1a1a", background: "#faf8f5" }}>
+              <td style={{ ...rhStyle, fontWeight: 700 }}>Scenario surplus</td>
+              {YEAR_LABELS.map(yr => { const k = yrKpis(yr); return <td key={yr} style={{ ...tdStyle, fontWeight: 700, color: surplusColor(k.surplus) }}>{fmtK(k.surplus)}</td>; })}
+            </tr>
+            <tr style={{ background: "#faf8f5" }}>
+              <td style={{ ...rhStyle, color: "#888" }}>Scenario %</td>
+              {YEAR_LABELS.map(yr => { const k = yrKpis(yr); return <td key={yr} style={{ ...tdStyle, color: surplusColor(k.surplus) }}>{k.surplusPct.toFixed(1)}%</td>; })}
+            </tr>
+            <tr style={{ background: "#faf8f5" }}>
+              <td style={{ ...rhStyle, color: "#888" }}>Gap to target</td>
+              {YEAR_LABELS.map(yr => { const k = yrKpis(yr); return <td key={yr} style={{ ...tdStyle, color: k.gap > 100 ? "#b83232" : "#2d7d46", fontWeight: 500 }}>{k.gap > 100 ? fmtK(k.gap) : "Met ✓"}</td>; })}
+            </tr>
+            <tr>
+              <td style={{ ...rhStyle, color: "#aaa", fontStyle: "italic", fontSize: 11 }}>Growth investment</td>
+              {YEAR_LABELS.map(yr => { const k = yrKpis(yr); return <td key={yr} style={{ ...tdStyle, color: "#aaa", fontSize: 11, fontStyle: "italic" }}>{k.growthInvest > 0 ? fmtK(k.growthInvest) : "—"}</td>; })}
+            </tr>
+          </tbody>
+        </table>
       </div>
 
-      {/* AI recommendation */}
+      {/* ── AI / generate ── */}
       {!aiAdvice && !loading && (
         <button className="sl-btn" style={{ marginBottom: 20 }} onClick={generate}>Generate strategic model</button>
       )}
@@ -2000,7 +2038,7 @@ Respond ONLY in this exact JSON:
           <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, color: "#888", marginBottom: 8 }}>Strategic moves</div>
           {aiAdvice.keyMoves.map((m, i) => (
             <div key={i} style={{ display: "flex", gap: 10, marginBottom: 6 }}>
-              <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 11, color: "#e07030", flexShrink: 0 }}>{i + 1}.</span>
+              <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 11, color: "#e07030", flexShrink: 0 }}>{i+1}.</span>
               <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, color: "#1a1a1a", lineHeight: 1.5 }}>{m}</span>
             </div>
           ))}
@@ -2008,59 +2046,65 @@ Respond ONLY in this exact JSON:
         </div>
       )}
 
-      {/* Revenue editor for active year */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20 }}>
-        <div>
-          <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, color: "#888", marginBottom: 10 }}>Revenue — Jul {activeYr} (£k)</div>
-          {REV_LINES.map(l => {
-            const base = nv(allYears[activeYr].predRevs[l.id]);
-            const cur  = nv(scenario[activeYr]?.revs?.[l.id]);
-            const diff = cur - base;
-            return (
-              <div key={l.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 7, paddingBottom: 7, borderBottom: "1px solid #e8e4de" }}>
-                <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#1a1a1a", flex: 1 }}>{l.name}</div>
-                <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                  {diff !== 0 && <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 10, color: diff > 0 ? "#2d7d46" : "#b83232" }}>{diff > 0 ? "+" : ""}{Math.round(diff)}</span>}
-                  <input type="number" className="sl-pred-input" value={scenario[activeYr]?.revs?.[l.id] ?? ""} onChange={e => setRevForYr(activeYr, l.id, e.target.value)} style={{ width: 72 }} />
-                </div>
-              </div>
-            );
-          })}
-          <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderTop: "2px solid #1a1a1a" }}>
-            <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 600 }}>Total</span>
-            <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 12, color: "#e07030" }}>{fmtK(kpis.totalRev)}</span>
-          </div>
-        </div>
-        <div>
-          <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, color: "#888", marginBottom: 10 }}>Costs — Jul {activeYr} (£k, locked)</div>
-          {COST_LINES.map(l => (
-            <div key={l.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 7, paddingBottom: 7, borderBottom: "1px solid #e8e4de" }}>
-              <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#666" }}>{l.name}</div>
-              <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 11, color: "#888" }}>{fmtK(allYears[activeYr].predCosts[l.id])}</span>
-            </div>
-          ))}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 7, paddingBottom: 7, borderBottom: "1px solid #e8e4de" }}>
-            <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#888", fontStyle: "italic" }}>Loan repayment</div>
-            <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 11, color: "#888" }}>{fmtK(loanAnnual)}</span>
-          </div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 7, paddingBottom: 7, borderBottom: "1px solid #e8e4de" }}>
-            <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#888", fontStyle: "italic" }}>Investment in growth ({100 - marginPct}% of incremental rev)</div>
-            <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 11, color: "#888" }}>{fmtK(kpis.growthInvest)}</span>
-          </div>
-          <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderTop: "2px solid #1a1a1a" }}>
-            <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 600 }}>Total costs</span>
-            <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 12 }}>{fmtK(kpis.totalCost)}</span>
-          </div>
-        </div>
+      {/* ── Year tab + revenue editor ── */}
+      <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, color: "#888", marginBottom: 10 }}>Revenue by year — edit figures</div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+        {YEAR_LABELS.map(yr => {
+          const k = yrKpis(yr);
+          return (
+            <button key={yr} onClick={() => setActiveYr(yr)} style={{
+              padding: "7px 14px", border: "2px solid", borderRadius: 4, cursor: "pointer",
+              fontFamily: "'DM Sans',sans-serif", fontSize: 12,
+              borderColor: activeYr === yr ? "#e07030" : "#d8d3cb",
+              background: activeYr === yr ? "#fff5ee" : "#f0ede8",
+              fontWeight: activeYr === yr ? 600 : 400,
+            }}>
+              Jul {yr} <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 11, color: k.gap > 100 ? "#b83232" : "#2d7d46", marginLeft: 4 }}>{k.surplusPct.toFixed(1)}%</span>
+            </button>
+          );
+        })}
       </div>
 
-      {kpis.gap > 500 && <div className="sl-note-box" style={{ borderColor: "#e07030" }}>Gap open in Jul {activeYr}: {fmtK(kpis.gap)}. Adjust revenue figures above.</div>}
+      {/* Revenue line editor for active year */}
+      {(() => {
+        const k = yrKpis(activeYr);
+        return (
+          <div style={{ marginBottom: 20 }}>
+            {REV_LINES.map(l => {
+              const base = nv(allYears[activeYr].predRevs[l.id]);
+              const cur  = nv(scenario[activeYr]?.revs?.[l.id]);
+              const diff = cur - base;
+              return (
+                <div key={l.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 7, paddingBottom: 7, borderBottom: "1px solid #e8e4de" }}>
+                  <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, color: "#1a1a1a", flex: 1 }}>{l.name}</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    {diff !== 0 && <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 10, color: diff > 0 ? "#2d7d46" : "#b83232" }}>{diff > 0 ? "+" : ""}{Math.round(diff)}</span>}
+                    <input type="number" className="sl-pred-input" value={scenario[activeYr]?.revs?.[l.id] ?? ""} onChange={e => setRevForYr(activeYr, l.id, e.target.value)} style={{ width: 72 }} />
+                  </div>
+                </div>
+              );
+            })}
+            <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderTop: "2px solid #1a1a1a" }}>
+              <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, fontWeight: 600 }}>Total revenue</span>
+              <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 12, color: "#e07030" }}>{fmtK(k.totalRev)}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0" }}>
+              <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#888" }}>Costs (do-nothing + loan £{Math.round(nv(loanByYear[activeYr], loanDefault))}k + invest)</span>
+              <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 11, color: "#888" }}>{fmtK(k.totalCost)}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderTop: "1px solid #e8e4de", marginTop: 4 }}>
+              <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, fontWeight: 700 }}>Surplus</span>
+              <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 13, fontWeight: 700, color: surplusColor(k.surplus) }}>{fmtK(k.surplus)} ({k.surplusPct.toFixed(1)}%)</span>
+            </div>
+            {k.gap > 100 && <div className="sl-note-box" style={{ borderColor: "#e07030", marginTop: 10 }}>Gap open in Jul {activeYr}: {fmtK(k.gap)}. Increase revenue or adjust the target above.</div>}
+          </div>
+        );
+      })()}
 
       {/* Notes */}
       <div style={{ marginBottom: 20 }}>
         <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, color: "#888", marginBottom: 8 }}>Your notes (optional)</div>
-        <textarea className="sl-input" rows={3} value={stmt} onChange={e => setStmt(e.target.value)}
-          placeholder="Add your own commentary on the scenario…" />
+        <textarea className="sl-input" rows={3} value={stmt} onChange={e => setStmt(e.target.value)} placeholder="Add your own commentary on the scenario…" />
       </div>
 
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
