@@ -546,22 +546,6 @@ function Entry({ onEnter }) {
 /* ── STEP 1: SET GOAL ─────────────────────────────────────────────────────── */
 function Step1({ pData, confirmed, onConfirm, onBack }) {
   const [tgt2030, setTgt2030] = useState(nv(pData.targetPct, 7.5));
-  const initPath = () => pData.targets || defaultTargetPath(pData, nv(pData.targetPct, 7.5));
-  const [targets, setTargets] = useState(initPath);
-
-  // Recalculate path whenever 2030 target changes (unless user has edited individually)
-  const [pathEdited, setPathEdited] = useState(!!pData.targets);
-
-  const setYrTarget = (yr, v) => {
-    setTargets(t => ({ ...t, [yr]: v }));
-    setPathEdited(true);
-  };
-
-  const resetPath = () => {
-    const path = defaultTargetPath(pData, tgt2030);
-    setTargets(path);
-    setPathEdited(false);
-  };
 
   const desc = (v) => {
     if (v <= -5) return "Significant managed deficit";
@@ -574,50 +558,25 @@ function Step1({ pData, confirmed, onConfirm, onBack }) {
   };
 
   const doConfirm = () => {
-    const finalTargets = pathEdited ? targets : defaultTargetPath(pData, tgt2030);
-    pSave(pData.name, { targetPct: tgt2030, targets: finalTargets, step1Confirmed: true });
+    pSave(pData.name, { targetPct: tgt2030, step1Confirmed: true });
     onConfirm();
   };
-
-  const yrStyle = { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid #e8e4de" };
 
   return (
     <div className="sl-content">
       <BackBtn onClick={onBack} />
       {confirmed && <ConfirmedBanner stepN={1} />}
       <div className="sl-step-h">What operating surplus should FBaM achieve by July 2030?</div>
-      <div className="sl-prompt">Set your 2030 target. The tool will model the path to get there across 2027, 2028, 2029, and 2030.</div>
-      <div className="sl-note-box">The tool models four year-end positions — July 2027, 2028, 2029, and 2030. Interim targets can be adjusted below.</div>
+      <div className="sl-prompt">Set your 2030 target. You will set the path to get there — year by year — in the Close the Gap step.</div>
+      <div className="sl-note-box">The tool models four year-end positions — July 2027, 2028, 2029, and 2030. Interim targets are set in the Close the Gap step where you can also see the gap for each year.</div>
       <div className="sl-slider-wrap">
         <div className="sl-slider-val">{tgt2030 >= 0 ? "+" : ""}{tgt2030.toFixed(1)}%</div>
         <div className="sl-slider-desc">{desc(tgt2030)} by July 2030</div>
         <input type="range" className="sl-slider" min="-10" max="10" step="0.5" value={tgt2030}
-          onChange={e => { const v = parseFloat(e.target.value); setTgt2030(v); if (!pathEdited) setTargets(defaultTargetPath(pData, v)); }} />
+          onChange={e => setTgt2030(parseFloat(e.target.value))} />
         <div className="sl-slider-range"><span>−10%</span><span>0%</span><span>+10%</span></div>
       </div>
-
-      <div className="sl-section" style={{ marginTop: 24 }}>
-        <h3>Interim surplus targets</h3>
-        <div className="sl-step-lead" style={{ marginBottom: 12 }}>The path below is auto-calculated. Adjust any year if the interim target is not acceptable — the remaining years will not change.</div>
-        {YEAR_LABELS.map(yr => (
-          <div key={yr} style={yrStyle}>
-            <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, fontWeight: 600, minWidth: 50 }}>July {yr}</div>
-            <div style={{ flex: 1, padding: "0 16px" }}>
-              <input type="range" className="sl-slider" min="-10" max="10" step="0.5"
-                value={nv(targets[yr], tgt2030)}
-                onChange={e => { if (yr < 2030) setYrTarget(yr, parseFloat(e.target.value)); }}
-                disabled={yr === 2030}
-                style={{ margin: 0 }} />
-            </div>
-            <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 14, fontWeight: 500, minWidth: 60, textAlign: "right", color: nv(targets[yr]) >= 0 ? "#2d7d46" : "#b83232" }}>
-              {nv(targets[yr], tgt2030) >= 0 ? "+" : ""}{nv(targets[yr], tgt2030).toFixed(1)}%
-            </div>
-          </div>
-        ))}
-        {pathEdited && <button className="sl-btn sl-btn-outline" style={{ fontSize: 12, padding: "8px 14px", marginTop: 10 }} onClick={resetPath}>Reset to auto path</button>}
-      </div>
-
-      <button className="sl-btn" onClick={doConfirm}>Confirm targets → Step 2: Revenue</button>
+      <button className="sl-btn" onClick={doConfirm}>Confirm target → Step 2: Revenue</button>
     </div>
   );
 }
@@ -994,9 +953,6 @@ function PredStep({ stepN, lines, defRates, lineRates, setLineRates, heading, no
 function Step7({ pData, confirmed, onConfirm, onBack }) {
   const allYears = calcAllYears(pData);
   const targets  = pData.targets || defaultTargetPath(pData, nv(pData.targetPct, 7.5));
-  const loanTotal = nv(pData.loanTotal, LOAN_DEFAULTS.totalM);
-  const loanShare = nv(pData.loanShare, LOAN_DEFAULTS.sharePct);
-  const loanAnnual = loanTotal * 1000 * loanShare / 100 / 4;
 
   const doConfirm = () => { pSave(pData.name, { step7Confirmed: true }); onConfirm(); };
 
@@ -1041,8 +997,8 @@ function Step7({ pData, confirmed, onConfirm, onBack }) {
               </tr>
             ))}
             <tr style={{ borderBottom: "1px solid #e8e4de" }}>
-              <td style={{ ...rowHdr, color: "#888", fontStyle: "italic" }}>Loan repayment contribution</td>
-              {YEAR_LABELS.map(yr => <td key={yr} style={{ ...tdStyle, color: "#888", fontStyle: "italic" }}>{fmtK(loanAnnual)}</td>)}
+              <td style={{ ...rowHdr, color: "#444" }}>University loan repayment contribution</td>
+              {YEAR_LABELS.map(yr => <td key={yr} style={{ ...tdStyle, color: "#444" }}>{fmtK(allYears[yr].predCosts.loan_repayment || 0)}</td>)}
             </tr>
             <tr style={{ borderTop: "2px solid #1a1a1a" }}>
               <td style={{ ...rowHdr, fontWeight: 700 }}>Total costs</td>
@@ -1072,8 +1028,7 @@ function Step7({ pData, confirmed, onConfirm, onBack }) {
       </div>
 
       <div className="sl-note-box" style={{ marginTop: 12 }}>
-        Loan repayment contribution: £{loanTotal}m total × {loanShare}% FBaM share = £{Math.round(loanTotal * loanShare / 100)}m total contribution, spread £{Math.round(loanAnnual)}k/year.{" "}
-        These parameters can be adjusted.
+        University loan repayment contribution: adjust per year in the Close the Gap step.
       </div>
 
       <button className="sl-btn" onClick={doConfirm}>Confirm prognosis → Section one complete</button>
