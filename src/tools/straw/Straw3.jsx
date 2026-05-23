@@ -80,7 +80,7 @@ const COST_LINES = [
 const VARIABLE_COST_IDS = ["associates", "prog_costs"];
 const REV_DEF_RATES = { ft_mba: -8, ft_msc_prog: -8, pt_levy: -100, ced_custom: -13.214, slep: -80, cabinet: 20, ced_other: -13.214, micro_cred: 0, open: 0, research_dd: 0, hefce: 0, residences: -6.7374, other_rev: 0 };
 const COST_DRIVERS  = { academic_staff: "Pay award", support_staff: "Pay award", associates: "Day rate / volume", prog_costs: "Intake volume", ops_overhead: "Inflation / recharge", uni_charge: "TRAC / university allocation" };
-const STEP_NAMES    = ["1. Set goal","2. Revenue","3. Costs","4. Current position","5. Market context","6. Predicted revenues","7. Predicted costs","8. Prognosis","→ Section one","10. Who FBaM serves","11. Positioning","12. Changes","→ Section two","14. Close the gap","15. Theme P&L","16. Comparison","17. Finalise"];
+const STEP_NAMES    = ["1. Set goal","2. Revenue","3. Costs","4. Current position","5. Market context","6. Predicted revenues","7. Predicted costs","8. Prognosis","→ Section one","10. Who FBaM serves","11. Positioning","12. Changes","→ Section two","14. Close the gap","15. Yearly P&L","16. Theme P&L","17. Comparison","18. Finalise"];
 
 /* ── PURPOSE TOOL DATA ──────────────────────────────────────────────────── */
 const PURPOSE_GROUPS = [
@@ -1651,7 +1651,7 @@ Respond ONLY in this exact JSON (replace the revenue values to hit the target, k
   }
 
   const applyToStore = () => {
-    pSave(pData.name, { s17Revs: revs, s17Costs: costs, s12Revs: revs, s12Costs: costs, s12Narrative: aiNarrative, step17Confirmed: true });
+    pSave(pData.name, { s12Revs: revs, s12Costs: costs, s12Narrative: aiNarrative, step14Confirmed: true });
     onConfirm();
   };
 
@@ -1769,6 +1769,207 @@ Respond ONLY in this exact JSON (replace the revenue values to hit the target, k
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+/* ── STEP 15: YEARLY P&L — revenue & cost transition table ──────────────── */
+function Step15YearlyPL({ pData, confirmed, onConfirm, onBack }) {
+  const allYears = calcAllYears(pData);
+  const targets  = pData.targets || defaultTargetPath(pData, nv(pData.targetPct, 7.5));
+
+  /* Initialise per-year data from section 14 scenario (s12Revs = 2028 target)
+     and do-nothing costs per year. Revenues: interpolate from do-nothing toward
+     s12Revs target, with s12Revs anchoring 2028. */
+  const initData = () => {
+    const s12Revs  = pData.s12Revs  || {};
+    const data = {};
+    YEAR_LABELS.forEach((yr, idx) => {
+      const dnRevs  = allYears[yr].predRevs;
+      const dnCosts = allYears[yr].predCosts;
+      // Blend: 2027=25%, 2028=100% (s12Revs anchor), 2029=125%, 2030=150%
+      const blends  = { 2027: 0.25, 2028: 1.0, 2029: 1.25, 2030: 1.5 };
+      const blend   = blends[yr];
+      const revs = {};
+      REV_LINES.forEach(l => {
+        const dn = nv(dnRevs[l.id]);
+        const tgt = nv(s12Revs[l.id], dn);
+        const delta = tgt - dn;
+        revs[l.id] = String(Math.round(dn + delta * blend));
+      });
+      revs.pt_levy = "0";
+      const costs = {};
+      COST_LINES.forEach(l => {
+        costs[l.id] = String(Math.round(nv(dnCosts[l.id])));
+      });
+      data[yr] = { revs, costs };
+    });
+    return data;
+  };
+
+  const [data, setData] = useState(pData.s15Data || initData());
+  const [activeYr, setActiveYr] = useState(2027);
+
+  const setRev  = (yr, id, v) => setData(d => ({ ...d, [yr]: { ...d[yr], revs:  { ...d[yr].revs,  [id]: v } } }));
+  const setCost = (yr, id, v) => setData(d => ({ ...d, [yr]: { ...d[yr], costs: { ...d[yr].costs, [id]: v } } }));
+
+  /* KPIs per year */
+  const kpis = (yr) => {
+    const revs      = data[yr]?.revs  || {};
+    const costs     = data[yr]?.costs || {};
+    const totalRev  = REV_LINES.reduce((s, l) => s + nv(revs[l.id]),  0);
+    const totalCost = COST_LINES.reduce((s, l) => s + nv(costs[l.id]), 0);
+    const surplus   = totalRev - totalCost;
+    const surplusPct = totalRev > 0 ? surplus / totalRev * 100 : 0;
+    const tgt       = nv(targets[yr]);
+    const gap       = totalRev * tgt / 100 - surplus;
+    return { totalRev, totalCost, surplus, surplusPct, tgt, gap };
+  };
+
+  const surplusColor = v => v >= 0 ? "#2d7d46" : "#b83232";
+
+  /* Table header style */
+  const thS = { fontFamily: "'IBM Plex Mono',monospace", fontSize: 11, fontWeight: 600, textAlign: "right", padding: "6px 8px", background: "#1a1a1a", color: "#f0ede8", whiteSpace: "nowrap" };
+  const rhS = { fontFamily: "'DM Sans',sans-serif", fontSize: 12, padding: "5px 8px", color: "#1a1a1a" };
+  const inpS = { fontFamily: "'IBM Plex Mono',monospace", fontSize: 11, textAlign: "right", width: 72, padding: "3px 5px", border: "1px solid #d8d3cb", borderRadius: 3, background: "#fff" };
+  const roS  = { fontFamily: "'IBM Plex Mono',monospace", fontSize: 12, textAlign: "right", padding: "5px 8px" };
+
+  return (
+    <div className="sl-content">
+      <BackBtn onClick={onBack} />
+      {confirmed && <ConfirmedBanner stepN={15} />}
+      <div className="sl-step-h">Yearly P&L — transition to target</div>
+      <div className="sl-prompt">Revenues from your section 14 scenario, laid out year by year. Costs default to the do-nothing trajectory. Edit any cell. Surplus % updates in real time.</div>
+
+      {/* Year tab buttons with live surplus% */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
+        {YEAR_LABELS.map(yr => {
+          const k = kpis(yr);
+          return (
+            <button key={yr} onClick={() => setActiveYr(yr)} style={{
+              padding: "8px 14px", border: "2px solid", borderRadius: 4, cursor: "pointer",
+              fontFamily: "'DM Sans',sans-serif", fontSize: 12,
+              borderColor: activeYr === yr ? "#e07030" : "#d8d3cb",
+              background: activeYr === yr ? "#fff5ee" : "#f0ede8",
+              fontWeight: activeYr === yr ? 600 : 400,
+            }}>
+              Jul {yr}
+              <span style={{ marginLeft: 6, fontFamily: "'IBM Plex Mono',monospace", fontSize: 11, color: k.gap <= 100 ? "#2d7d46" : "#b83232" }}>
+                {k.surplusPct.toFixed(1)}%
+              </span>
+              {k.gap <= 100 && <span style={{ marginLeft: 4, fontSize: 10 }}>✓</span>}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Full 4-column P&L table */}
+      <div style={{ overflowX: "auto", marginBottom: 24 }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 600 }}>
+          <thead>
+            <tr>
+              <th style={{ ...thS, textAlign: "left", minWidth: 160 }}>Line</th>
+              {YEAR_LABELS.map(yr => <th key={yr} style={thS}>Jul {yr}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {/* Revenue section */}
+            <tr><td colSpan={5} style={{ ...rhS, fontWeight: 700, background: "#e8e4de", fontSize: 11, textTransform: "uppercase", letterSpacing: 1, paddingTop: 8 }}>Revenue</td></tr>
+            {REV_LINES.map(l => (
+              <tr key={l.id} style={{ borderBottom: "1px solid #f0ede8" }}>
+                <td style={rhS}>{l.name}</td>
+                {YEAR_LABELS.map(yr => (
+                  <td key={yr} style={{ padding: "3px 6px", textAlign: "right" }}>
+                    {l.id === "pt_levy"
+                      ? <span style={roS}>0</span>
+                      : <input type="number" step="10" style={{ ...inpS, background: activeYr === yr ? "#fffbe6" : "#fff" }}
+                          value={data[yr]?.revs?.[l.id] ?? "0"}
+                          onChange={e => setRev(yr, l.id, e.target.value)}
+                        />
+                    }
+                  </td>
+                ))}
+              </tr>
+            ))}
+            <tr style={{ borderTop: "2px solid #1a1a1a", background: "#faf8f5" }}>
+              <td style={{ ...rhS, fontWeight: 700 }}>Total revenue</td>
+              {YEAR_LABELS.map(yr => {
+                const k = kpis(yr);
+                return <td key={yr} style={{ ...roS, fontWeight: 700, color: "#e07030" }}>{fmtK(k.totalRev)}</td>;
+              })}
+            </tr>
+
+            {/* Spacer */}
+            <tr><td colSpan={5} style={{ height: 8 }} /></tr>
+
+            {/* Cost section */}
+            <tr><td colSpan={5} style={{ ...rhS, fontWeight: 700, background: "#e8e4de", fontSize: 11, textTransform: "uppercase", letterSpacing: 1, paddingTop: 8 }}>Costs</td></tr>
+            {COST_LINES.map(l => (
+              <tr key={l.id} style={{ borderBottom: "1px solid #f0ede8" }}>
+                <td style={rhS}>{l.name}</td>
+                {YEAR_LABELS.map(yr => (
+                  <td key={yr} style={{ padding: "3px 6px", textAlign: "right" }}>
+                    <input type="number" step="10" style={{ ...inpS, background: activeYr === yr ? "#fffbe6" : "#fff" }}
+                      value={data[yr]?.costs?.[l.id] ?? "0"}
+                      onChange={e => setCost(yr, l.id, e.target.value)}
+                    />
+                  </td>
+                ))}
+              </tr>
+            ))}
+            <tr style={{ borderTop: "2px solid #1a1a1a", background: "#faf8f5" }}>
+              <td style={{ ...rhS, fontWeight: 700 }}>Total costs</td>
+              {YEAR_LABELS.map(yr => {
+                const k = kpis(yr);
+                return <td key={yr} style={{ ...roS, fontWeight: 700 }}>{fmtK(k.totalCost)}</td>;
+              })}
+            </tr>
+
+            {/* Spacer */}
+            <tr><td colSpan={5} style={{ height: 8 }} /></tr>
+
+            {/* Summary rows */}
+            <tr style={{ borderTop: "2px solid #e07030", background: "#faf8f5" }}>
+              <td style={{ ...rhS, fontWeight: 700 }}>Surplus / (deficit)</td>
+              {YEAR_LABELS.map(yr => {
+                const k = kpis(yr);
+                return <td key={yr} style={{ ...roS, fontWeight: 700, color: surplusColor(k.surplus) }}>{fmtK(k.surplus)}</td>;
+              })}
+            </tr>
+            <tr style={{ background: "#faf8f5" }}>
+              <td style={{ ...rhS, fontWeight: 600 }}>% of income</td>
+              {YEAR_LABELS.map(yr => {
+                const k = kpis(yr);
+                return <td key={yr} style={{ ...roS, fontWeight: 600, color: surplusColor(k.surplus) }}>{k.surplusPct.toFixed(1)}%</td>;
+              })}
+            </tr>
+            <tr style={{ background: "#fff8ee" }}>
+              <td style={{ ...rhS, color: "#e07030", fontWeight: 600 }}>Target %</td>
+              {YEAR_LABELS.map(yr => {
+                const k = kpis(yr);
+                return <td key={yr} style={{ ...roS, color: "#e07030", fontWeight: 600 }}>{k.tgt >= 0 ? "+" : ""}{k.tgt.toFixed(1)}%</td>;
+              })}
+            </tr>
+            <tr style={{ background: "#fff8ee" }}>
+              <td style={{ ...rhS, color: "#888", fontSize: 11 }}>Gap to target</td>
+              {YEAR_LABELS.map(yr => {
+                const k = kpis(yr);
+                return (
+                  <td key={yr} style={{ ...roS, fontSize: 11, color: k.gap > 100 ? "#b83232" : "#2d7d46", fontWeight: 500 }}>
+                    {k.gap > 100 ? fmtK(k.gap) : "Met ✓"}
+                  </td>
+                );
+              })}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div className="sl-note-box">Yellow columns are the active year. All cells are editable. Totals and surplus % update in real time.</div>
+
+      <button className="sl-btn" onClick={() => { pSave(pData.name, { s15Data: data, step15Confirmed: true }); onConfirm(); }}>
+        Confirm yearly P&L → Theme P&L
+      </button>
     </div>
   );
 }
@@ -2437,10 +2638,11 @@ function ParticipantView({ name, tick, onLogout }) {
       )}
 
       {/* ── SECTION THREE: Steps 14–17 ── */}
-      {displayStep === 14 && <Step12CloseGap pData={pd} confirmed={pd.step17Confirmed} onConfirm={() => { pSave(name, { step17Confirmed: true }); advance(); }} onBack={() => go(13)} />}
-      {displayStep === 15 && <Step18ThemePL pData={pd} confirmed={pd.step18Confirmed} onConfirm={() => { pSave(name, { step18Confirmed: true }); advance(); }} onBack={() => go(14)} />}
-      {displayStep === 16 && <Step19Comparison pData={pd} onConfirm={() => { pSave(name, { step19Confirmed: true }); advance(); }} onBack={() => go(15)} />}
-      {displayStep === 17 && <Step20Finalise pData={pd} onBack={() => go(16)} />}
+      {displayStep === 14 && <Step12CloseGap pData={pd} confirmed={pd.step14Confirmed} onConfirm={() => { pSave(name, { step14Confirmed: true }); advance(); }} onBack={() => go(13)} />}
+      {displayStep === 15 && <Step15YearlyPL pData={pd} confirmed={pd.step15Confirmed} onConfirm={() => { pSave(name, { step15Confirmed: true }); advance(); }} onBack={() => go(14)} />}
+      {displayStep === 16 && <Step18ThemePL pData={pd} confirmed={pd.step18Confirmed} onConfirm={() => { pSave(name, { step18Confirmed: true }); advance(); }} onBack={() => go(15)} />}
+      {displayStep === 17 && <Step19Comparison pData={pd} onConfirm={() => { pSave(name, { step19Confirmed: true }); advance(); }} onBack={() => go(16)} />}
+      {displayStep === 18 && <Step20Finalise pData={pd} onBack={() => go(17)} />}
     </div>
   );
 }
