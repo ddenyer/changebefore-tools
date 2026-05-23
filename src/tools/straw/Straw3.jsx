@@ -1836,6 +1836,7 @@ function Step17CloseGap({ pData, confirmed, onConfirm, onBack }) {
   /* AI generate */
   const generate = async () => {
     setLoading(true);
+    try {
     const pos = pData.purposeTensions ? getPositionSummary(pData.purposeTensions) : "not specified";
     const yrSummary = YEAR_LABELS.map(yr => {
       const k = yrKpis(yr);
@@ -1857,8 +1858,9 @@ Respond ONLY in this exact JSON (no text outside):
     "2029": { "ft_mba": <int>, "ft_msc_prog": <int>, "pt_levy": 0, "ced_custom": <int>, "slep": <int>, "cabinet": <int>, "ced_other": <int>, "micro_cred": <int>, "open": <int>, "research_dd": <int>, "hefce": <int>, "residences": <int>, "other_rev": <int> },
     "2030": { "ft_mba": <int>, "ft_msc_prog": <int>, "pt_levy": 0, "ced_custom": <int>, "slep": <int>, "cabinet": <int>, "ced_other": <int>, "micro_cred": <int>, "open": <int>, "research_dd": <int>, "hefce": <int>, "residences": <int>, "other_rev": <int> }
   }
-}`);
+}`, 35000);
     try {
+      if (!txt) throw new Error("Empty response from API");
       const m = txt.match(/{[\s\S]*}/);
       const parsed = JSON.parse(m ? m[0] : txt);
       const newScenario = { ...scenario };
@@ -1874,6 +1876,10 @@ Respond ONLY in this exact JSON (no text outside):
       setAiAdvice(parsed);
     } catch (e) {
       setAiAdvice({ keyMoves: ["Could not parse model — adjust figures manually."] });
+    }
+    } catch(outerErr) {
+      console.error('Generate error:', outerErr);
+      setAiAdvice({ keyMoves: ["Could not build model automatically — please adjust figures manually. (" + outerErr.message + ")"] });
     }
     setLoading(false);
   };
