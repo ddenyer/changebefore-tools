@@ -1569,49 +1569,45 @@ function Step12CloseGap({ pData, confirmed, onConfirm, onBack }) {
     const pos = pData.purposeTensions ? getPositionSummary(pData.purposeTensions) : "not specified";
     const groups = getGroupSummary(pData.purposeGroups || {});
     const changesCtx = selectedChanges.length > 0
-      ? `Selected strategic changes:
-${selectedChanges.map((s,i) => `${i+1}. ${s.text}`).join("\n")}`
+      ? "Selected strategic changes:\n" + selectedChanges.map((s,i) => (i+1) + ". " + s.text).join("\n")
       : "No strategic changes selected.";
     const profitSlider = nv(pData.purposeTensions?.profit, 50);
-    return `You are simultaneously a world-leading strategy consultant, a world-leading management accountant, a world-leading finance expert, and a world-leading accountant advising Cranfield University's Faculty of Business and Management (FBaM).
+    const revCtx = REV_LINES.map(l => l.name + " £" + Math.round(nv(predRevs[l.id])) + "k").join(", ");
+    const costCtx = COST_LINES.map(l => l.name + " £" + Math.round(nv(predCosts[l.id])) + "k").join(", ");
+    const revSchema = REV_LINES.map(l => '"' + l.id + '": ' + Math.round(nv(predRevs[l.id]))).join(', ');
+    const costSchema = COST_LINES.map(l => '"' + l.id + '": ' + Math.round(nv(predCosts[l.id]))).join(', ');
+    return `You are a world-leading strategy consultant and finance expert advising Cranfield University's Faculty of Business and Management (FBaM).
 
-Build a complete financially viable P&L for FBaM by July 2028.
+Build a financially viable P&L for FBaM by July 2028 that is coherent with the strategic positioning.
 
-CRITICAL FINANCIAL TARGET:
-- Net surplus as % of total revenue (after ALL costs including university service charge) must be at least ${tgt}%
+FINANCIAL TARGET:
+- Net surplus as % of total revenue must be at least ${tgt}%
 - Required surplus: £${Math.round(predRev * tgt / 100)}k
-- Gap to close from do-nothing trajectory: £${Math.round(baseGap)}k
+- Gap to close: £${Math.round(baseGap)}k
 
-DO-NOTHING TRAJECTORY:
-- Revenue: ${REV_LINES.map(l => `${l.name} £${Math.round(nv(predRevs[l.id]))}k`).join(", ")}
+DO-NOTHING TRAJECTORY (adjust these to close the gap):
+- Revenue: ${revCtx}
 - Total revenue: £${Math.round(predRev)}k
-- Costs: ${COST_LINES.map(l => `${l.name} £${Math.round(nv(predCosts[l.id]))}k`).join(", ")}
+- Costs: ${costCtx}
 - Total costs: £${Math.round(predCost)}k
 - Do-nothing surplus: £${Math.round(predRev - predCost)}k (${predRev > 0 ? ((predRev - predCost)/predRev*100).toFixed(1) : 0}%)
 
 STRATEGIC CONTEXT:
 - Positioning: ${pos}
 - Priority stakeholders: ${groups}
-- Strategic orientation: ${profitSlider > 55 ? "COST REDUCTION focused" : "REVENUE GROWTH focused"}
+- Orientation: ${profitSlider > 55 ? "COST REDUCTION focused" : "REVENUE GROWTH focused"}
 
 ${changesCtx}
 
-HARD CONSTRAINTS:
-- pt_levy MUST be 0 (Level 7 eliminated)
-- The model must be internally coherent with the strategic positioning
-- All figures must be positive integers in £k
-- The sum of all revenue lines minus sum of all cost lines must be at least £${Math.round(predRev * tgt / 100)}k
+RULES:
+- pt_levy MUST be 0 (levy defunded)
+- Costs are locked — do not change cost values
+- Only change revenue figures to close the gap
+- All values are positive integers in £k
+- Total revenue minus total costs must be at least £${Math.round(predRev * tgt / 100)}k
 
-Respond ONLY in this exact JSON format:
-{
-  "narrative": "2-3 sentence explanation of the strategic logic",
-  "revs": {
-    ${REV_LINES.map(l => '"' + l.id + '": ' + (l.id === 'pt_levy' ? '0' : '<integer £k>')).join(',\n    ')}
-  },
-  "costs": {
-    ${COST_LINES.map(l => '"' + l.id + '": <integer £k>').join(',\n    ')}
-  }
-}`;
+Respond ONLY in this exact JSON (replace the revenue values to hit the target, keep costs unchanged):
+{"narrative": "2-3 sentences explaining the strategy", "revs": {${revSchema}}, "costs": {${costSchema}}}`;
   };
 
   const generateModel = async () => {
