@@ -1565,61 +1565,28 @@ function Step12CloseGap({ pData, confirmed, onConfirm, onBack }) {
   const gap        = (totalRev * tgt / 100) - surplus;
 
   const buildPrompt = () => {
-    const pos = pData.purposeTensions ? getPositionSummary(pData.purposeTensions) : "not specified";
-    const groups = getGroupSummary(pData.purposeGroups || {});
-    const changesCtx = selectedChanges.length > 0
-      ? "Selected strategic changes:\n" + selectedChanges.map((s,i) => (i+1) + ". " + s.text).join("\n")
-      : "No strategic changes selected.";
-    const profitSlider = nv(pData.purposeTensions?.profit, 50);
-    const revCtx = REV_LINES.map(l => l.name + " £" + Math.round(nv(predRevs[l.id])) + "k").join(", ");
-    const costCtx = COST_LINES.map(l => l.name + " £" + Math.round(nv(predCosts[l.id])) + "k").join(", ");
-    const revSchema = REV_LINES.map(l => '"' + l.id + '": ' + Math.round(nv(predRevs[l.id]))).join(', ');
-    const costSchema = COST_LINES.map(l => '"' + l.id + '": ' + Math.round(nv(predCosts[l.id]))).join(', ');
-    return `You are a world-leading strategy consultant and finance expert advising Cranfield University's Faculty of Business and Management (FBaM).
+    const pos = pData.purposeTensions ? getPositionSummary(pData.purposeTensions) : "revenue growth";
+    const tgt = nv(pData.targetPct, 7.5);
+    const revCtx = REV_LINES.map(l => '"' + l.id + '":' + Math.round(nv(predRevs[l.id]))).join(',');
+    const costCtx = COST_LINES.map(l => '"' + l.id + '":' + Math.round(nv(predCosts[l.id]))).join(',');
+    return `FBaM financial scenario. Target surplus: ${tgt}% of revenue. Gap to close: £${Math.round(baseGap)}k. Strategic positioning: ${pos}.
 
-Build a financially viable P&L for FBaM by July 2028 that is coherent with the strategic positioning.
+Current do-nothing revenue: total £${Math.round(predRev)}k. Current do-nothing costs: total £${Math.round(predCost)}k.
 
-FINANCIAL TARGET:
-- Net surplus as % of total revenue must be at least ${tgt}%
-- Required surplus: £${Math.round(predRev * tgt / 100)}k
-- Gap to close: £${Math.round(baseGap)}k
-
-DO-NOTHING TRAJECTORY (adjust these to close the gap):
-- Revenue: ${revCtx}
-- Total revenue: £${Math.round(predRev)}k
-- Costs: ${costCtx}
-- Total costs: £${Math.round(predCost)}k
-- Do-nothing surplus: £${Math.round(predRev - predCost)}k (${predRev > 0 ? ((predRev - predCost)/predRev*100).toFixed(1) : 0}%)
-
-STRATEGIC CONTEXT:
-- Positioning: ${pos}
-- Priority stakeholders: ${groups}
-- Orientation: ${profitSlider > 55 ? "COST REDUCTION focused" : "REVENUE GROWTH focused"}
-
-${changesCtx}
-
-RULES:
-- pt_levy MUST be 0 (levy defunded)
-- Costs are locked — do not change cost values
-- Only change revenue figures to close the gap
-- All values are positive integers in £k
-- Total revenue minus total costs must be at least £${Math.round(predRev * tgt / 100)}k
-
-Respond ONLY in this exact JSON (replace the revenue values to hit the target, keep costs unchanged):
-{"narrative": "2-3 sentences explaining the strategy", "revs": {${revSchema}}, "costs": {${costSchema}}}`;
+Return ONLY valid JSON. Adjust revenue values to close the gap. Keep costs unchanged:
+{"narrative":"one sentence explaining strategy","revs":{${revCtx}},"costs":{${costCtx}}}`;
   };
 
   const generateModel = async () => {
     setLoading(true);
     try {
       const txt = await callAI(buildPrompt(), 30000);
-      if (!txt) throw new Error("Empty response");
+      if (!txt) throw new Error("empty");
       const m = txt.match(/{[\s\S]*}/);
       const parsed = JSON.parse(m ? m[0] : txt);
       const newRevs = {}; REV_LINES.forEach(l => newRevs[l.id] = String(Math.round(nv(parsed.revs?.[l.id], nv(predRevs[l.id])))));
       const newCosts = {}; COST_LINES.forEach(l => newCosts[l.id] = String(Math.round(nv(predCosts[l.id]))));
       newRevs["pt_levy"] = "0";
-      // Verify surplus meets target
       const aiRev = REV_LINES.reduce((s, l) => s + nv(newRevs[l.id]), 0);
       const aiCost = COST_LINES.reduce((s, l) => s + nv(newCosts[l.id]), 0);
       const aiSurplus = aiRev - aiCost;
@@ -1630,14 +1597,16 @@ Respond ONLY in this exact JSON (replace the revenue values to hit the target, k
       }
       setRevs(newRevs);
       setCosts(newCosts);
-      setAiNarrative(parsed.narrative || "Strategic scenario built based on your inputs.");
+      setAiNarrative(parsed.narrative || "Scenario built from strategic inputs. Adjust figures below.");
       pSave(pData.name, { s12Revs: newRevs, s12Costs: newCosts, s12Narrative: parsed.narrative });
     } catch (e) {
-      setAiNarrative("Could not build model automatically — please adjust the figures below manually.");
+      // Silent fallback — just use do-nothing values, let user adjust
       const initRevs = {}; REV_LINES.forEach(l => initRevs[l.id] = String(Math.round(nv(predRevs[l.id]))));
       const initCosts = {}; COST_LINES.forEach(l => initCosts[l.id] = String(Math.round(nv(predCosts[l.id]))));
+      initRevs["pt_levy"] = "0";
       setRevs(initRevs);
       setCosts(initCosts);
+      setAiNarrative("Starting from do-nothing trajectory — adjust figures below to close the gap.");
     }
     setLoading(false);
   };
