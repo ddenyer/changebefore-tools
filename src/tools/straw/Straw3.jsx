@@ -1604,24 +1604,12 @@ HARD CONSTRAINTS:
 
 Respond ONLY in this exact JSON format:
 {
-  "narrative": "2-3 sentence explanation of the strategic logic — which revenue lines were grown and why, which costs were cut and why, how this is coherent with the positioning choices",
+  "narrative": "2-3 sentence explanation of the strategic logic",
   "revs": {
-    "ft_msc": <integer £k>,
-    "pt_levy": 0,
-    "exec_ed": <integer £k>,
-    "open": <integer £k>,
-    "research_dd": <integer £k>,
-    "hefce": <integer £k>,
-    "residences": <integer £k>,
-    "other_rev": <integer £k>
+    ${REV_LINES.map(l => '"' + l.id + '": ' + (l.id === 'pt_levy' ? '0' : '<integer £k>')).join(',\n    ')}
   },
   "costs": {
-    "academic_staff": <integer £k>,
-    "support_staff": <integer £k>,
-    "associates": <integer £k>,
-    "prog_costs": <integer £k>,
-    "ops_overhead": <integer £k>,
-    "uni_charge": <integer £k>
+    ${COST_LINES.map(l => '"' + l.id + '": <integer £k>').join(',\n    ')}
   }
 }`;
   };
@@ -1629,11 +1617,12 @@ Respond ONLY in this exact JSON format:
   const generateModel = async () => {
     setLoading(true);
     try {
-      const txt = await callAI(buildPrompt(), 25000);
-      const clean = txt.replace(/\`\`\`json|\`\`\`/g, "").trim();
-      const parsed = JSON.parse(clean);
+      const txt = await callAI(buildPrompt(), 30000);
+      if (!txt) throw new Error("Empty response");
+      const m = txt.match(/{[\s\S]*}/);
+      const parsed = JSON.parse(m ? m[0] : txt);
       const newRevs = {}; REV_LINES.forEach(l => newRevs[l.id] = String(Math.round(nv(parsed.revs?.[l.id], nv(predRevs[l.id])))));
-      const newCosts = {}; COST_LINES.forEach(l => newCosts[l.id] = String(Math.round(nv(parsed.costs?.[l.id], nv(predCosts[l.id])))));
+      const newCosts = {}; COST_LINES.forEach(l => newCosts[l.id] = String(Math.round(nv(predCosts[l.id]))));
       newRevs["pt_levy"] = "0";
       // Verify surplus meets target
       const aiRev = REV_LINES.reduce((s, l) => s + nv(newRevs[l.id]), 0);
@@ -1642,7 +1631,7 @@ Respond ONLY in this exact JSON format:
       const reqSurplus = aiRev * tgt / 100;
       if (aiSurplus < reqSurplus) {
         const shortfall = Math.ceil(reqSurplus - aiSurplus) + 50;
-        newRevs["exec_ed"] = String(nv(newRevs["exec_ed"]) + shortfall);
+        newRevs["ced_custom"] = String(nv(newRevs["ced_custom"]) + shortfall);
       }
       setRevs(newRevs);
       setCosts(newCosts);
