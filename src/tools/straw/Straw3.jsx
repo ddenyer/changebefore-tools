@@ -1555,7 +1555,6 @@ function Step12CloseGap({ pData, confirmed, onConfirm, onBack }) {
   const [revs, setRevs] = useState(pData.s12Revs || null);
   const [costs, setCosts] = useState(pData.s12Costs || null);
   const [loading, setLoading] = useState(false);
-  const [loadStarted, setLoadStarted] = useState(false);
 
   const selectedChanges = pData.s11Selected || pData.s11Statements?.filter(s => s.checked || s.own) || [];
 
@@ -1643,10 +1642,12 @@ Respond ONLY in this exact JSON (replace the revenue values to hit the target, k
     setLoading(false);
   };
 
-  // Auto-generate on mount if no existing data
-  if (!loadStarted && !revs && !loading) {
-    setLoadStarted(true);
-    generateModel();
+  // Default to do-nothing values if no existing data — user clicks Generate when ready
+  if (!revs) {
+    const initRevs = {}; REV_LINES.forEach(l => initRevs[l.id] = String(Math.round(nv(predRevs[l.id]))));
+    const initCosts = {}; COST_LINES.forEach(l => initCosts[l.id] = String(Math.round(nv(predCosts[l.id]))));
+    setRevs(initRevs);
+    setCosts(initCosts);
   }
 
   const applyToStore = () => {
@@ -1667,22 +1668,31 @@ Respond ONLY in this exact JSON (replace the revenue values to hit the target, k
       <BackBtn onClick={onBack} />
       {confirmed && <ConfirmedBanner stepN={12} />}
       <div className="sl-step-h">Close the gap</div>
-      <div className="sl-prompt">Based on your strategic choices, here is your strawperson revenue and cost structure to ensure both coherence and financial viability by July 2028. You can edit the figures.</div>
+      <div className="sl-prompt">The do-nothing figures are shown below. Generate a strategic model based on your choices, or adjust the figures manually.</div>
 
       {loading && (
-        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "32px 0", fontFamily: "'DM Sans',sans-serif", fontSize: 13, color: "#888" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "20px 0", fontFamily: "'DM Sans',sans-serif", fontSize: 13, color: "#888" }}>
           <div style={{ width: 16, height: 16, border: "2px solid #d8d3cb", borderTopColor: "#e07030", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
           Building your strawperson financial model…
         </div>
+      )}
+
+      {!loading && !aiNarrative && (
+        <button className="sl-btn" style={{ marginBottom: 20 }} onClick={generateModel}>
+          Generate strategic model
+        </button>
       )}
 
       {!loading && revs && (
         <>
           {/* Narrative */}
           {aiNarrative && (
-            <div style={{ background: "#ebe7e1", borderLeft: "3px solid #e07030", padding: "14px 16px", marginBottom: 20, fontFamily: "'DM Sans',sans-serif", fontSize: 14, color: "#444", lineHeight: 1.7 }}>
+            <div style={{ background: "#ebe7e1", borderLeft: "3px solid #e07030", padding: "14px 16px", marginBottom: 12, fontFamily: "'DM Sans',sans-serif", fontSize: 14, color: "#444", lineHeight: 1.7 }}>
               {aiNarrative}
             </div>
+          )}
+          {aiNarrative && (
+            <button className="sl-btn sl-btn-outline" style={{ fontSize: 12, padding: "6px 12px", marginBottom: 20 }} onClick={generateModel}>Regenerate model</button>
           )}
 
           {/* Selected changes reference */}
