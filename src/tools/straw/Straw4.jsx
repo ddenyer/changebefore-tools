@@ -34,46 +34,46 @@ const syncFromSupabase = async () => {
 const REV_LINES = [
   { id: "ft_mba",      name: "FT MBA",                                baseK: 3000,  prefillK: 3000,
     note: "Q3 25/26 forecast: stable vs Q2. 26/27 budget: 37 students vs 41 in 25/26 (−10%). Deposits currently 33 vs 41 at this point last year. Default CAGR −15% reflects continued structural decline from Graduate Route visa compression without assuming full recovery." },
-  { id: "ft_msc_prog", name: "FT MSc programmes",                     baseK: 8586,  prefillK: 8586,
+  { id: "ft_msc_prog", name: "FT MSc programmes",                     baseK: 8649,  prefillK: 8649,
     note: "Q3 25/26: two January intakes each +1 student vs forecast (+£63k net). 26/27 budget: 211 FT students vs 255 in 25/26 (−17%). MSc deposits 162 vs 203 last year. Gross fees drop ~£3.9m year-on-year. Default CAGR −20% reflects steep but not catastrophic continued decline." },
-  { id: "pt_levy",     name: "PT Levy / Apprenticeship programmes",   baseK: 4729,  prefillK: 4729,
+  { id: "pt_levy",     name: "PT Levy / Apprenticeship programmes",   baseK: 4597,  prefillK: 4597,
     note: "Q3 25/26: £4,729k with ongoing withdrawals and Break in Learning pauses. Final Level 7 SLA intakes completed. No new cohorts planned. 26/27: teach-out only of remaining cohorts — income going to zero. Default CAGR −80% per year reflects near-total elimination by 2028." },
-  { id: "ced_custom",  name: "CED Customised",                        baseK: 5400,  prefillK: 5400,
+  { id: "ced_custom",  name: "CED Customised",                        baseK: 5300,  prefillK: 5300,
     note: "Q3 25/26: £5,300k with 100% confirmed (key clients: Qatar Energy £214k, Network Rail). 26/27 budget: £5,700k (+7.5% on Q3). Sector CAGR +6–9% (UNICON 2025). Main growth lever for FBaM. Default CAGR +7% reflects sector growth with confirmed pipeline strength." },
-  { id: "slep",        name: "SLEP / Non-Award Bearing",              baseK: 2798,  prefillK: 2798,
+  { id: "slep",        name: "SLEP / Non-Award Bearing",              baseK: 2746,  prefillK: 2746,
     note: "Q3 25/26: £2,746k with withdrawals and Break in Learning pauses. 26/27 budget: £713k — last cohort started Nov 2025, levy income ends Feb 2027. Only 6 months levy in 26/27 for final cohort. Structural elimination. Default CAGR −80% per year." },
-  { id: "cabinet",     name: "Cabinet Office",                        baseK: 1885,  prefillK: 1885,
+  { id: "cabinet",     name: "Cabinet Office",                        baseK: 1925,  prefillK: 1925,
     note: "Q3 25/26: £1,925k (PLP contract win adding first new cohort). 26/27 budget: £1,812k — new PLP3 contract with 7 cohorts planned at 40 delegates each (vs 48+ per cohort on outgoing contract). Slight decrease reflects development work in prior year being one-off. Default CAGR +10%." },
   { id: "ced_other",   name: "Other exec ed",                         baseK: 266,   prefillK: 266,
     note: "Small residual exec ed income not captured in CED Customised or SLEP. Stable. Default CAGR 0%." },
   { id: "micro_cred",  name: "Micro credentials / award bearing exec ed", baseK: 0, prefillK: 0,
     note: "New revenue line — no current income. April 2026 scenario target: £1m by July 2028. Emerging market; requires investment in programme design and accreditation. Default CAGR 0% (baseline £0). Enter your own projection if a programme is in development." },
-  { id: "open",        name: "Open Programmes",                       baseK: 3216,  prefillK: 3216,
+  { id: "open",        name: "Open Programmes",                       baseK: 3159,  prefillK: 3159,
     note: "Q3 25/26: small decrease vs Q2 — concerns over marketing in Entrepreneurship and BGP. Thrive programme removed from portfolio. 26/27 budget: +£167k on Q3 with 2 new programmes planned (Chief People Officer, Project Management/Leadership). Default CAGR +7% reflects modest recovery below sector pace." },
-  { id: "research_dd", name: "Research, Design & Development",        baseK: 1755,  prefillK: 1755,
+  { id: "research_dd", name: "Research, Design & Development",        baseK: 1508,  prefillK: 1508,
     note: "Q3 25/26: £1,755k. 26/27 budget shows decrease as LSCM research programmes end and are invoiced in 25/26. UKRI four-year settlement provides ~2% nominal annual growth. Delivery risk remains (tight year-end). Default CAGR +1% reflects flat real-terms trajectory." },
   { id: "hefce",       name: "HEFCE & Allocated Research Funding",    baseK: 1404,  prefillK: 1404,
     note: "Q3 25/26: £1,404k. QR allocated funding (£493k) unlikely to be fully spent before year end. HEIF (£200k) already committed to Entrepreneurship. Sector CAGR +1–2% nominal. Default CAGR +1%." },
-  { id: "residences",  name: "Residences & Conference Facilities",    baseK: 690,   prefillK: 690,
+  { id: "residences",  name: "Residences & Conference Facilities",    baseK: 617,   prefillK: 617,
     note: "Q3 25/26: £690k, down £73k vs Q2 due to shift to off-site delivery on customised programmes. Directly linked to CED and Cabinet Office on-site volume. As SLEP and levy programmes end, residential income falls with them. Default CAGR −15% reflects accelerating decline with levy teach-out." },
-  { id: "other_rev",   name: "Other income",                          baseK: 1049,  prefillK: 1049,
+  { id: "other_rev",   name: "Other income",                          baseK: 964,  prefillK: 964,
     note: "Q3 25/26: £1,049k — includes MoD AP, internship income (down £42k), GT coaching (down £5k). 26/27 budget: £85k lower overall. Broadly stable. Default CAGR 0%." },
 ];
 
 const COST_LINES = [
-  { id: "academic_staff", name: "Academic staff (64.5 FTE)",               baseK: 7529,
+  { id: "academic_staff", name: "Academic staff (64.5 FTE)",               baseK: 7302,
     note: "Q3 25/26: 64.5 FTE (down from 74 at Q1, budget 82 FTE). 1.5% pay award Feb 2026. 26/27: 3.5% from Aug 2026 + 1% incremental drift Oct 2026. Savings from change programme feeding through. Redundancy costs excluded. Predicted July 2028: £5,280k (−30% total). Default CAGR −11%." },
-  { id: "support_staff",  name: "PS & research staff (50 FTE)",             baseK: 2529,
+  { id: "support_staff",  name: "PS & research staff (50 FTE)",             baseK: 2453,
     note: "Q3 25/26: 38.8 FTE professional services (£2,238k) + 11.25 FTE research (£291k). CMDL staff moving to CU Commercial reduces headcount. PS cover increasing as academic leavers rise. Predicted July 2028: £1,715k (−32% total). Default CAGR −12%." },
-  { id: "associates",     name: "Associates & visiting lecturers",           baseK: 499,
+  { id: "associates",     name: "Associates & visiting lecturers",           baseK: 484,
     note: "Q3 25/26: £422k visiting lecturers/consultants, £7k agency/temp, £35k training, £35k other. Increases as associate delivery replaces permanent faculty — deliberate shift. 26/27 professional/consultancy costs fall with fewer student starters but associate delivery rises with CED growth. Predicted July 2028: £680k (+36% total). Default CAGR +12%." },
-  { id: "prog_costs",     name: "Programme delivery & student costs",        baseK: 4998,
+  { id: "prog_costs",     name: "Programme delivery & student costs",        baseK: 4847,
     note: "Q3 25/26: Funded bursaries £295k, unfunded £2,528k (up £40k — corrections + MSc extension), student costs £833k, accommodation £1,164k, learning materials £178k. Variable — declines with FT and levy intake reductions. Predicted July 2028: £4,213k (−16% total). Default CAGR −6%." },
-  { id: "ops_overhead",   name: "Operational overheads & support",           baseK: 7947,
+  { id: "ops_overhead",   name: "Operational overheads & support",           baseK: 7705,
     note: "Q3 25/26: Professional/consultancy £3,090k, commissions/profit share £2,349k (down £40k — GT net income share reducing as EMBA/MML cohorts complete), premises/utilities £309k, travel £564k, marketing £357k, depreciation & other £1,278k. 26/27: travel up £156k for HEIF and customised courses. Predicted July 2028: £5,904k (−26% total). Default CAGR −10%." },
   { id: "uni_charge",     name: "University service charge",                 baseK: 8991,
     note: "Q3 25/26 predicted figure: £8,991k (reduced from £10,325k in original model and £9,510k at workshop). New TRAC-based figure. Held flat — no CAGR applied. This charge converts the contribution surplus into the fully-loaded operating result. Default CAGR 0%." },
-  { id: "loan_repayment", name: "University loan repayment contribution",    baseK: 1500,
+  { id: "loan_repayment", name: "University loan repayment contribution",    baseK: 0,
     note: "FBaM contribution to university loan repayment. Default: £30m total × 20% FBaM share ÷ 4 years = £1,500k/year. Adjust per year in the Close the Gap step — e.g. £0k in 2027 then higher in subsequent years. Default CAGR 0% (flat)." },
 ];
 
@@ -1427,15 +1427,63 @@ function Step10({ pData, onConfirm, onBack, confirmed }) {
 /* ── FORECAST IMAGE REF (Step 2) ──────────────────────────────────────────── */
 function ForecastImageRef() {
   const [open, setOpen] = useState(false);
+  const [tab, setTab]   = useState("forecast"); // "forecast" | "notes"
+
+  const tabBtn = (id, label) => (
+    <button onClick={() => setTab(id)} style={{
+      padding: "6px 14px", fontSize: 11, fontWeight: tab === id ? 700 : 400, cursor: "pointer",
+      border: "none", borderBottom: tab === id ? "2px solid #e07030" : "2px solid transparent",
+      background: "transparent", color: tab === id ? "#e07030" : "#888",
+      fontFamily: "'DM Sans',sans-serif", textTransform: "uppercase", letterSpacing: 1,
+    }}>{label}</button>
+  );
+
   return (
     <div style={{ marginBottom: 20 }}>
       <button className="sl-btn sl-btn-outline" style={{ fontSize: 12, padding: "8px 14px" }} onClick={() => setOpen(o => !o)}>
-        {open ? "▲ Hide forecast" : "▼ REVEAL SOM QTR 2 FORECAST 2025/2026"}
+        {open ? "▲ Hide forecast" : "▼ REVEAL SOM QTR 3 FORECAST 2025/2026"}
       </button>
       {open && (
         <div style={{ marginTop: 12, border: "1px solid #d8d3cb", borderRadius: 4, overflow: "hidden" }}>
-          <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, color: "#888", padding: "8px 12px", background: "#ebe7e1" }}>SOM QTR 2 FORECAST 2025/2026</div>
-          <img src="/fbam-q2-forecast.png" alt="SOM Q2 Forecast 2025/26" style={{ width: "100%", display: "block" }} />
+          <div style={{ background: "#ebe7e1", borderBottom: "1px solid #d8d3cb", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 12px" }}>
+            <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, color: "#888" }}>SOM QTR 3 FORECAST 2025/2026</span>
+            <div>{tabBtn("forecast", "Forecast")}{tabBtn("notes", "Notes")}</div>
+          </div>
+          {tab === "forecast" && (
+            <img src="/fbam-q3-forecast.png" alt="SOM Q3 Forecast 2025/26" style={{ width: "100%", display: "block" }} />
+          )}
+          {tab === "notes" && (
+            <div style={{ padding: "16px 20px", fontFamily: "'DM Sans',sans-serif", fontSize: 13, lineHeight: 1.7, color: "#1a1a1a", maxHeight: 400, overflowY: "auto" }}>
+              <div style={{ fontWeight: 700, color: "#e07030", marginBottom: 12, fontSize: 14 }}>Q3 Forecast 2025/26 — Key points</div>
+              <div style={{ marginBottom: 10 }}><strong>Total revenue: £34,135k</strong> — down £243k vs Q2.</div>
+              <div style={{ fontWeight: 600, marginTop: 14, marginBottom: 6, color: "#444", textTransform: "uppercase", fontSize: 11, letterSpacing: 1 }}>Revenue changes Q2 → Q3</div>
+              <ul style={{ margin: 0, paddingLeft: 18 }}>
+                <li><strong>Award Bearing (Masterships):</strong> −£132k mainly MiML due to leavers.</li>
+                <li><strong>CED Customised:</strong> increased to £5,300k — 100% confirmed. Key clients: Qatar Energy £214k, Network Rail.</li>
+                <li><strong>SLEP/Non-Award Bearing:</strong> −£52k to £2,746k. Withdrawals and Break in Learning pauses across cohorts.</li>
+                <li><strong>Cabinet Office/PLP:</strong> +£40k — first cohort on new PLP contract delivering before year end.</li>
+                <li><strong>Open Programmes:</strong> −£57k — concerns over lack of marketing in Entrepreneurship and BGP. Thrive programme removed.</li>
+                <li><strong>Research, Design & Development:</strong> −£247k (incl. £149k duplication from Q2 and some income moving to next financial year).</li>
+                <li><strong>Residences:</strong> −£73k due to shift to customer site delivery on customised programmes.</li>
+                <li><strong>FT MSc:</strong> +£63k net — two extra January intake students (1 each on MSc Finance and MSc Management).</li>
+              </ul>
+              <div style={{ fontWeight: 600, marginTop: 14, marginBottom: 6, color: "#444", textTransform: "uppercase", fontSize: 11, letterSpacing: 1 }}>Cost changes Q2 → Q3</div>
+              <ul style={{ margin: 0, paddingLeft: 18 }}>
+                <li><strong>Staff costs:</strong> reduced — reflects leavers. Support staff also reflects transfer of CMDL staff to CU Commercial (offset by £86k recharge from Commercial for delivery costs).</li>
+                <li><strong>Professional/consultancy:</strong> −£29k on customised delivery mix.</li>
+                <li><strong>Commission/profit share:</strong> −£40k — more accurate recruitment agent fees now in system.</li>
+                <li><strong>Bursaries:</strong> −£42k funded (fewer paid internships); +£40k unfunded (corrections + MSc extension).</li>
+                <li><strong>Subscriptions:</strong> +£33k — APM accreditation required for new PLP contract.</li>
+                <li><strong>1.5% pay award</strong> implemented from 1 February 2026.</li>
+              </ul>
+              <div style={{ fontWeight: 600, marginTop: 14, marginBottom: 6, color: "#444", textTransform: "uppercase", fontSize: 11, letterSpacing: 1 }}>Student numbers</div>
+              <ul style={{ margin: 0, paddingLeft: 18 }}>
+                <li>No new intakes since Q2 — last intakes were additional January intakes on FT MSc Finance and MSc Management.</li>
+                <li>PT MSc withdrawals: 10 MML, 3 LSCM, 2 Sustainability, 1 Banking.</li>
+                <li>EMBA levy: −£39k — 3 student withdrawals from recent cohorts.</li>
+              </ul>
+            </div>
+          )}
         </div>
       )}
     </div>
