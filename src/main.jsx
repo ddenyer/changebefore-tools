@@ -7,6 +7,7 @@ import StrategyLab from './tools/strategy-lab/StrategyLab'
 import StrawTool from './tools/straw/Straw'
 import Straw2Tool from './tools/straw/Straw2'
 import Straw3Tool from './tools/straw/Straw3'
+import Straw4Tool from './tools/straw/Straw4'
 import PurposeTool from './tools/purpose/Purpose'
 
 const Home = () => (
@@ -43,6 +44,7 @@ function App() {
         <Route path="/straw" element={<StrawTool />} />
         <Route path="/straw2" element={<Straw2Tool />} />
         <Route path="/straw3" element={<Straw3Tool />} />
+        <Route path="/straw4" element={<Straw4Tool />} />
         <Route path="/purpose" element={<PurposeTool />} />
         <Route path="/" element={<Home />} />
       </Routes>
