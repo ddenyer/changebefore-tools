@@ -42,7 +42,7 @@ const REV_LINES = [
     note: "Q3 25/26: £5,300k with 100% confirmed (key clients: Qatar Energy £214k, Network Rail). 26/27 budget: £5,700k (+7.5% on Q3). Sector CAGR +6–9% (UNICON 2025). Main growth lever for FBaM. Default CAGR +7% reflects sector growth with confirmed pipeline strength." },
   { id: "slep",        name: "SLEP / Non-Award Bearing",              baseK: 2746,  prefillK: 2746,
     note: "Q3 25/26: £2,746k with withdrawals and Break in Learning pauses. 26/27 budget: £713k — last cohort started Nov 2025, levy income ends Feb 2027. Only 6 months levy in 26/27 for final cohort. Structural elimination. Default CAGR −80% per year." },
-  { id: "cabinet",     name: "Cabinet Office",                        baseK: 1925,  prefillK: 1925,
+  { id: "cabinet",     name: "Cabinet Office",                        baseK: 1925,  prefillK: 1925,  plateau2028: true,
     note: "Q3 25/26: £1,925k (PLP contract win adding first new cohort). 26/27 budget: £1,812k — new PLP3 contract with 7 cohorts planned at 40 delegates each (vs 48+ per cohort on outgoing contract). Slight decrease reflects development work in prior year being one-off. Default CAGR +10%." },
   { id: "ced_other",   name: "Other exec ed",                         baseK: 181,   prefillK: 181,
     note: "Small residual exec ed income not captured in CED Customised or SLEP. Stable. Default CAGR 0%." },
@@ -82,7 +82,8 @@ const REV_DEF_RATES = { ft_mba: -15, ft_msc_prog: -20, pt_levy: -80, ced_custom:
 
 /* Default cost CAGRs — calculated from Q3 25/26 baselines to hit July 2028 targets
    (academic £5,280k, PS staff £1,715k, associates £680k, prog delivery £4,213k, ops overhead £5,904k) */
-const COST_DEF_RATES = { academic_staff: -11.1, support_staff: -7.9, associates: 10.1, prog_costs: -5.3, ops_overhead: -10.2, uni_charge: 0, loan_repayment: 0 };
+/* Cost CAGRs from July 2026 year-end to July 2028 targets (2 years) */
+const COST_DEF_RATES = { academic_staff: -14.9, support_staff: -10.7, associates: 14.1, prog_costs: -7.2, ops_overhead: -13.7, uni_charge: 0, loan_repayment: 0 };
 const COST_DRIVERS  = { academic_staff: "Pay award", support_staff: "Pay award", associates: "Day rate / volume", prog_costs: "Intake volume", ops_overhead: "Inflation / recharge", uni_charge: "TRAC / university allocation", loan_repayment: "University loan schedule" };
 const STEP_NAMES    = ["1. Set goal","2. Revenue","3. Costs","4. Current position","5. Market context","6. Predicted revenues","7. Predicted costs","8. Prognosis","→ Section one","10. Who FBaM serves","11. Positioning","12. Changes","→ Section two","14. Close the gap","15. Yearly P&L","16. Theme P&L","17. Comparison","18. Finalise"];
 
@@ -284,7 +285,8 @@ const MARKET_BENCHMARKS = [
 ];
 const PART_PWD      = "FBAM-straw-03!";
 const YEAR_LABELS   = [2027, 2028, 2029, 2030];
-const PERIODS_BY_YEAR = { 2027: 1.75, 2028: 2.75, 2029: 3.75, 2030: 4.75 };
+/* Periods from July 2026 year-end (Q3 forecast baseline): each year-end is exactly 1 year further */
+const PERIODS_BY_YEAR = { 2027: 1.0, 2028: 2.0, 2029: 3.0, 2030: 4.0 };
 const PERIODS       = 2.75; // kept for legacy single-year calcs (2028 default)
 
 /* University loan repayment defaults */
@@ -313,7 +315,9 @@ const calcPredRevs = (p, yr = 2028) => {
     } else {
       const cur  = nv(revs[l.id], l.prefillK);
       const rate = nv(rates[l.id], REV_DEF_RATES[l.id]);
-      predRevs[l.id] = cur * Math.pow(1 + rate / 100, per);
+      // Lines with plateau2028: grow to 2028 then hold flat (e.g. Cabinet Office)
+      const effectivePer = l.plateau2028 ? Math.min(per, PERIODS_BY_YEAR[2028]) : per;
+      predRevs[l.id] = cur * Math.pow(1 + rate / 100, effectivePer);
     }
     total += predRevs[l.id];
   });
@@ -922,7 +926,7 @@ function PredStep({ stepN, lines, defRates, lineRates, setLineRates, heading, no
     const rate = nv(cagrs[l.id], 0);
     // Costs plateau at 2028 — cap period so 2029/2030 hold flat
     const rawPer = PERIODS_BY_YEAR[yr] || 2.75;
-    const per = isCost ? Math.min(rawPer, PERIODS_BY_YEAR[2028]) : rawPer;
+    const per = (isCost || l.plateau2028) ? Math.min(rawPer, PERIODS_BY_YEAR[2028]) : rawPer;
     return base * Math.pow(1 + rate / 100, per);
   };
 
