@@ -64,7 +64,7 @@ const COST_LINES = [
   { id: "academic_staff", name: "Academic staff (64.5 FTE)",               baseK: 7295,
     note: "Q3 25/26: 64.5 FTE (down from 74 at Q1, budget 82 FTE). 1.5% pay award Feb 2026. 26/27: 3.5% from Aug 2026 + 1% incremental drift Oct 2026. Savings from change programme feeding through. Redundancy costs excluded. Predicted July 2028: £5,280k (−30% total). Default CAGR −11%." },
   { id: "support_staff",  name: "PS & research staff (50 FTE)",             baseK: 2150,
-    note: "Q3 25/26: 38.8 FTE professional services (£2,238k) + 11.25 FTE research (£291k). CMDL staff moving to CU Commercial reduces headcount. PS cover increasing as academic leavers rise. Predicted July 2028: £1,715k (−32% total). Default CAGR −12%." },
+    note: "Q3 25/26: 38.8 FTE professional services (£2,238k) + 11.25 FTE research (£291k). CMDL staff moving to CU Commercial reduces headcount. PS cover increasing as academic leavers rise. Predicted July 2028: £1,715k (−32% by Jul 2028, then flat to 2030). Default CAGR −9.9%." },
   { id: "associates",     name: "Associates & visiting lecturers",           baseK: 522,
     note: "Q3 25/26: £422k visiting lecturers/consultants, £7k agency/temp, £35k training, £35k other. Increases as associate delivery replaces permanent faculty — deliberate shift. 26/27 professional/consultancy costs fall with fewer student starters but associate delivery rises with CED growth. Predicted July 2028: £680k (+36% total). Default CAGR +12%." },
   { id: "prog_costs",     name: "Programme delivery & student costs",        baseK: 4893,
@@ -900,7 +900,7 @@ function Step5MarketContext({ pData, confirmed, onConfirm, onBack }) {
       </div>
 
       <div className="sl-note-box" style={{ marginTop: 8 }}>
-        Edit any FBaM CAGR figure. Your rates carry forward into predicted revenues (Step 6). CAGR = compound annual growth rate — the rate applied over the period Jul 2025 → Jul 2028.
+        Edit any FBaM CAGR figure. Your rates carry forward into predicted revenues (Step 6). CAGR = compound annual growth rate — applied from the July 2026 year-end baseline to each year through July 2030.
       </div>
       <button className="sl-btn" onClick={doConfirm}>Confirm market context → Step 6: Predicted revenues</button>
     </div>
@@ -1423,7 +1423,7 @@ function Step10({ pData, onConfirm, onBack, confirmed }) {
       </div>
 
       <div className="sl-section">
-        <h3>Revenue mix by July 2028 (%)</h3>
+        <h3>Revenue mix by July 2030 (%)</h3>
         <div className="sl-step-lead">Allocate 100% across lines. Total: <strong style={{ color: Math.abs(totalMix - 100) < 1 ? "#2d7d46" : "#b83232" }}>{totalMix.toFixed(0)}%</strong></div>
         {REV_LINES.map(l => (
           <div key={l.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
@@ -1564,7 +1564,7 @@ ${keepStatements.map((s,i) => `${i+1}. ${s.text}`).join("\n")}`
     return `You are simultaneously a world-leading strategy consultant, a world-leading management accountant, a world-leading finance expert, and a world-leading accountant advising Cranfield University's Faculty of Business and Management (FBaM).
 
 FINANCIAL CONTEXT:
-- Do-nothing revenue by July 2028: £${Math.round(predRev)}k
+- Do-nothing revenue by July 2030: £${Math.round(predRev)}k
 - Do-nothing costs: £${Math.round(predCost)}k
 - Do-nothing surplus: £${Math.round(predRev - predCost)}k (${predRev > 0 ? ((predRev - predCost)/predRev*100).toFixed(1) : 0}%)
 - Target surplus: ${tgt}%
@@ -2714,7 +2714,7 @@ function ParticipantView({ name, tick, onLogout }) {
           stepN={7} lines={COST_LINES.map(l => ({ ...l, prefillK: nv(pd.costs?.[l.id], l.baseK) }))}
           defRates={pd.costRates || COST_DEF_RATES} lineRates={{}} setLineRates={() => {}}
           heading="Do-nothing cost trajectory — 2027 to 2030"
-          note="Enter a CAGR for each cost line. Pay awards, TRAC changes, and headcount reductions. Loan repayment and investment in growth are added automatically."
+          note="Enter a CAGR for each cost line. Costs reduce to their July 2028 target then hold flat through 2030. Pay awards, TRAC changes, and headcount reductions all apply."
           confirmLabel="Confirm predicted costs → Step 8: Prognosis"
           isCost={true} confirmed={pd.step7Confirmed}
           onConfirm={(rates, predDirect) => { pSave(name, { costRates: rates, predCostsDirect: predDirect, step7Confirmed: true }); advance(); }}
@@ -2748,7 +2748,7 @@ function ParticipantView({ name, tick, onLogout }) {
       {displayStep === 13 && (
         <TransitionScreen
           heading="Section two complete."
-          body="You have considered who FBaM should serve, where it should position itself, and which changes would make the most difference. In section three we move to the numbers. You will build a strawperson financial scenario — a complete revenue and cost structure that is both coherent with your strategic choices and financially viable by July 2028. The scenarios will then be compared across the group."
+          body="You have considered who FBaM should serve, where it should position itself, and which changes would make the most difference. In section three we move to the numbers. You will build a strawperson financial scenario — a complete revenue and cost structure that is both coherent with your strategic choices and financially viable by July 2030. The scenarios will then be compared across the group."
           onContinue={advance}
           continueLabel="Continue → Step 14: Close the gap"
           onBack={() => go(12)}
@@ -2886,7 +2886,7 @@ function PurposeStep9({ pData, confirmed, onConfirm, onBack }) {
       <BackBtn onClick={onBack} />
       {confirmed && <ConfirmedBanner stepN={10} />}
       <div className="sl-step-h">Strategic positioning</div>
-      <div className="sl-prompt">These sliders define where you believe FBaM should position itself by July 2028. They shape the strategic changes generated in the next step. Set each to your honest view — the disagreements across the group are the conversation.</div>
+      <div className="sl-prompt">These sliders define where you believe FBaM should position itself by July 2030. They shape the strategic changes generated in the next step. Set each to your honest view — the disagreements across the group are the conversation.</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 28, marginBottom: 32 }}>
         {PURPOSE_TENSIONS.map(t => {
           const v = nv(tensions[t.key], 50);
@@ -3690,7 +3690,7 @@ ${tbl([["Revenue line"],["£k","right"]],
   tr([["Net surplus","left",true],[fmtK(curSurplus),"right",true,curSurplus>=0?"#2d7d46":"#b83232"]])
 )}
 
-${H2("3. Do-nothing trajectory by July 2028")}
+${H2("3. Do-nothing trajectory by July 2030")}
 ${tbl([["Revenue line"],["CAGR applied","right"],["Predicted £k","right"]],
   REV_LINES.map(l=>tr([[l.name],[`${nv(getRevRate(l.id)).toFixed(1)}%`,"right"],[fmtK(nv(predRevs[l.id])),"right"]])).join("")+
   tr([["Total revenue","left",true],["","right"],[fmtK(predRev),"right",true]])+
@@ -3715,7 +3715,7 @@ ${tbl([["Dimension"],["Position"]],
 ${H2("6. Selected changes")}
 ${changes.length>0?`<ol style="font-size:12px;padding-left:18px">${changes.map(s=>`<li style="margin-bottom:5px">${s.text}</li>`).join("")}</ol>`:"<p style='font-size:12px;color:#888'>None selected.</p>"}
 
-${H2("7. Strawperson scenario by July 2028")}
+${H2("7. Strawperson scenario by July 2030")}
 ${scenRevs ? tbl([["Revenue line"],["£k","right"]],
   REV_LINES.map(l=>tr([[l.name],[fmtK(nv(scenRevs[l.id])),"right"]])).join("")+
   tr([["Total revenue","left",true],[fmtK(s17R),"right",true]])+
@@ -3807,12 +3807,12 @@ ${!why && !how && !what ? `<p style="font-size:12px;color:#888">Purpose section 
         [["Revenue stream"],["Sector CAGR"],["FBaM CAGR applied","right"]],
         MARKET_BENCHMARKS.map(b=>tr([[b.label],[b.range],[`${nv(getRevRate(b.id)).toFixed(1)}%`,"right"]])).join("")
       )),
-      PAGE("6. Predicted revenues by July 2028", 6, tbl(
+      PAGE("6. Predicted revenues by July 2030", 6, tbl(
         [["Revenue line"],["CAGR %","right"],["Current £k","right"],["Predicted £k","right"]],
         REV_LINES.map(l=>{const base=nv(l.prefillK);const pred=nv(predRevs[l.id]);return tr([[l.name],[`${nv(getRevRate(l.id)).toFixed(1)}%`,"right"],[fmtK(base),"right"],[fmtK(pred),"right",false,pred<base?"#b83232":"#2d7d46"]]);}).join("")+
         tr([["Total","left",true],["","right"],[fmtK(REV_LINES.reduce((s,l)=>s+nv(l.prefillK),0)),"right",true],[fmtK(predRev),"right",true]])
       )),
-      PAGE("7. Predicted costs by July 2028", 7, tbl(
+      PAGE("7. Predicted costs by July 2030", 7, tbl(
         [["Cost line"],["CAGR %","right"],["Current £k","right"],["Predicted £k","right"]],
         COST_LINES.map(l=>{const base=nv(l.baseK);const pred=nv(predCosts[l.id]);return tr([[l.name],[`${nv(pData.costRates?.[l.id]||0).toFixed(1)}%`,"right"],[fmtK(base),"right"],[fmtK(pred),"right"]]);}).join("")+
         tr([["Total","left",true],["","right"],[fmtK(COST_LINES.reduce((s,l)=>s+nv(l.baseK),0)),"right",true],[fmtK(predCost),"right",true]])
@@ -3844,7 +3844,7 @@ ${!why && !how && !what ? `<p style="font-size:12px;color:#888">Purpose section 
       ),
       PAGE("Section two complete", "→", `
         <p class="transition-body">You have considered who FBaM should serve, where it should position itself, and which changes would make the most difference.</p>
-        <p class="transition-body">In section three you build the strawperson financial scenario — a complete revenue and cost structure that is both coherent with your strategic choices and financially viable by July 2028.</p>
+        <p class="transition-body">In section three you build the strawperson financial scenario — a complete revenue and cost structure that is both coherent with your strategic choices and financially viable by July 2030.</p>
       `),
       PAGE("14. Close the gap — Strawperson scenario", 14, scenRevs ? tbl(
         [["Revenue line"],["£k","right"]],
