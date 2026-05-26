@@ -1907,20 +1907,20 @@ function Step15YearlyPL({ pData, confirmed, onConfirm, onBack }) {
      s12Revs target, with s12Revs anchoring 2028. */
   const initData = () => ({
     2027: {
-      revs:  {ft_mba:"2438",ft_msc_prog:"6270",pt_levy:"0",ced_custom:"6440",slep:"437",cabinet:"2288",ced_other:"223",micro_cred:"50",open:"3835",research_dd:"1667",hefce:"1429",residences:"493",other_rev:"1084"},
-      costs: {academic_staff:"6208",support_staff:"1920",associates:"596",prog_costs:"4541",ops_overhead:"6844",uni_charge:"8991",loan_repayment:"0"},
+      revs:  {ft_mba:"2304",ft_msc_prog:"6000",pt_levy:"0",ced_custom:"7506",slep:"413",cabinet:"1925",ced_other:"181",micro_cred:"400",open:"4130",research_dd:"1667",hefce:"1429",residences:"474",other_rev:"998"},
+      costs: {academic_staff:"5283",support_staff:"1715",associates:"596",prog_costs:"4541",ops_overhead:"6844",uni_charge:"8991",loan_repayment:"1500"},
     },
     2028: {
-      revs:  {ft_mba:"2100",ft_msc_prog:"4200",pt_levy:"0",ced_custom:"8746",slep:"100",cabinet:"2800",ced_other:"350",micro_cred:"200",open:"5200",research_dd:"2100",hefce:"1461",residences:"400",other_rev:"1340"},
-      costs: {academic_staff:"5283",support_staff:"1715",associates:"680",prog_costs:"4214",ops_overhead:"5907",uni_charge:"8991",loan_repayment:"0"},
+      revs:  {ft_mba:"2304",ft_msc_prog:"6000",pt_levy:"0",ced_custom:"8580",slep:"0",cabinet:"1925",ced_other:"181",micro_cred:"600",open:"4900",research_dd:"1667",hefce:"1461",residences:"550",other_rev:"998"},
+      costs: {academic_staff:"5283",support_staff:"1715",associates:"680",prog_costs:"4214",ops_overhead:"5907",uni_charge:"8991",loan_repayment:"1500"},
     },
     2029: {
-      revs:  {ft_mba:"2164",ft_msc_prog:"4136",pt_levy:"0",ced_custom:"9309",slep:"120",cabinet:"2918",ced_other:"392",micro_cred:"250",open:"5533",research_dd:"2237",hefce:"1465",residences:"405",other_rev:"1426"},
-      costs: {academic_staff:"5283",support_staff:"1715",associates:"680",prog_costs:"4214",ops_overhead:"5907",uni_charge:"8991",loan_repayment:"0"},
+      revs:  {ft_mba:"2304",ft_msc_prog:"6000",pt_levy:"0",ced_custom:"8963",slep:"0",cabinet:"1925",ced_other:"181",micro_cred:"800",open:"5208",research_dd:"1667",hefce:"1465",residences:"600",other_rev:"998"},
+      costs: {academic_staff:"5788",support_staff:"1715",associates:"680",prog_costs:"4214",ops_overhead:"5907",uni_charge:"8991",loan_repayment:"1500"},
     },
     2030: {
-      revs:  {ft_mba:"2367",ft_msc_prog:"4518",pt_levy:"0",ced_custom:"9645",slep:"148",cabinet:"3035",ced_other:"435",micro_cred:"300",open:"5730",research_dd:"2365",hefce:"1461",residences:"439",other_rev:"1511"},
-      costs: {academic_staff:"5283",support_staff:"1715",associates:"-680",prog_costs:"4214",ops_overhead:"5907",uni_charge:"8991",loan_repayment:"0"},
+      revs:  {ft_mba:"2304",ft_msc_prog:"6000",pt_levy:"0",ced_custom:"10000",slep:"0",cabinet:"1925",ced_other:"181",micro_cred:"1000",open:"5180",research_dd:"1667",hefce:"1461",residences:"650",other_rev:"998"},
+      costs: {academic_staff:"6003",support_staff:"1715",associates:"680",prog_costs:"4214",ops_overhead:"5907",uni_charge:"8991",loan_repayment:"1500"},
     },
   });
 
