@@ -920,7 +920,9 @@ function PredStep({ stepN, lines, defRates, lineRates, setLineRates, heading, no
     if (ovr !== undefined) return nv(ovr);
     const base = nv(l.prefillK ?? l.baseK, 0);
     const rate = nv(cagrs[l.id], 0);
-    const per  = PERIODS_BY_YEAR[yr] || 2.75;
+    // Costs plateau at 2028 — cap period so 2029/2030 hold flat
+    const rawPer = PERIODS_BY_YEAR[yr] || 2.75;
+    const per = isCost ? Math.min(rawPer, PERIODS_BY_YEAR[2028]) : rawPer;
     return base * Math.pow(1 + rate / 100, per);
   };
 
