@@ -1050,9 +1050,30 @@ function Step7({ pData, confirmed, onConfirm, onBack }) {
       <BackBtn onClick={onBack} />
       {confirmed && <ConfirmedBanner stepN={7} />}
       <div className="sl-step-h">Prognosis: do-nothing trajectory — four years</div>
-      <div className="sl-prompt">Where we end up if nothing changes. Predicted revenues minus predicted costs for each year end.</div>
+      <div className="sl-prompt">Where we end up if nothing changes. Starting from the Q3 25/26 baseline, the table shows projected revenues and costs for each year end.</div>
 
-      <div style={{ overflowX: "auto", marginTop: 16 }}>
+      {/* Baseline context banner */}
+      {(() => {
+        const baseRevTotal  = REV_LINES.reduce((s, l) => s + nv(l.prefillK), 0);
+        const baseCostTotal = COST_LINES.reduce((s, l) => s + nv(l.baseK), 0);
+        const baseSurplus   = baseRevTotal - baseCostTotal;
+        return (
+          <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 20, marginTop: 4 }}>
+            {[
+              { label: "Q3 baseline revenue", val: fmtK(baseRevTotal), color: "#1a1a1a" },
+              { label: "Q3 baseline costs",   val: fmtK(baseCostTotal), color: "#1a1a1a" },
+              { label: "Q3 surplus",          val: fmtK(baseSurplus) + " (" + (baseSurplus/baseRevTotal*100).toFixed(1) + "%)", color: baseSurplus >= 0 ? "#2d7d46" : "#b83232" },
+            ].map(item => (
+              <div key={item.label} style={{ background: "#ebe7e1", padding: "10px 14px", borderRadius: 4, borderLeft: "3px solid #e07030" }}>
+                <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, color: "#888", marginBottom: 2 }}>{item.label}</div>
+                <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 14, fontWeight: 700, color: item.color }}>{item.val}</div>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
+
+      <div style={{ overflowX: "auto", marginTop: 4 }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
           <thead>
             <tr>
