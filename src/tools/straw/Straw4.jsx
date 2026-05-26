@@ -323,7 +323,8 @@ const calcPredRevs = (p, yr = 2028) => {
 
 /* Returns { predCosts, total } for a specific year period */
 const calcPredCosts = (p, yr = 2028) => {
-  const per    = PERIODS_BY_YEAR[yr] || PERIODS;
+  // Costs reduce to 2028 target then hold flat — cap compounding period at 2.75 (July 2028)
+  const per    = Math.min(PERIODS_BY_YEAR[yr] || PERIODS, PERIODS_BY_YEAR[2028]);
   const rates  = p.costRates || {};
   const costs  = p.costs || {};
   const direct = (p.predCostsDirect || {})[yr] || {};
