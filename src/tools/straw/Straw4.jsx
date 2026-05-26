@@ -79,6 +79,10 @@ const COST_LINES = [
 
 const VARIABLE_COST_IDS = ["associates", "prog_costs"];
 const REV_DEF_RATES = { ft_mba: -15, ft_msc_prog: -20, pt_levy: -80, ced_custom: 7, slep: -80, cabinet: 10, ced_other: 0, micro_cred: 0, open: 7, research_dd: 1, hefce: 1, residences: -15, other_rev: 0 };
+
+/* Default cost CAGRs — calculated from Q3 25/26 baselines to hit July 2028 targets
+   (academic £5,280k, PS staff £1,715k, associates £680k, prog delivery £4,213k, ops overhead £5,904k) */
+const COST_DEF_RATES = { academic_staff: -11.1, support_staff: -7.9, associates: 10.1, prog_costs: -5.3, ops_overhead: -10.2, uni_charge: 0, loan_repayment: 0 };
 const COST_DRIVERS  = { academic_staff: "Pay award", support_staff: "Pay award", associates: "Day rate / volume", prog_costs: "Intake volume", ops_overhead: "Inflation / recharge", uni_charge: "TRAC / university allocation", loan_repayment: "University loan schedule" };
 const STEP_NAMES    = ["1. Set goal","2. Revenue","3. Costs","4. Current position","5. Market context","6. Predicted revenues","7. Predicted costs","8. Prognosis","→ Section one","10. Who FBaM serves","11. Positioning","12. Changes","→ Section two","14. Close the gap","15. Yearly P&L","16. Theme P&L","17. Comparison","18. Finalise"];
 
@@ -1072,10 +1076,6 @@ function Step7({ pData, confirmed, onConfirm, onBack }) {
                 {YEAR_LABELS.map(yr => <td key={yr} style={tdStyle}>{fmtK(allYears[yr].predCosts[l.id])}</td>)}
               </tr>
             ))}
-            <tr style={{ borderBottom: "1px solid #e8e4de" }}>
-              <td style={{ ...rowHdr, color: "#444" }}>University loan repayment contribution</td>
-              {YEAR_LABELS.map(yr => <td key={yr} style={{ ...tdStyle, color: "#444" }}>{fmtK(allYears[yr].predCosts.loan_repayment || 0)}</td>)}
-            </tr>
             <tr style={{ borderTop: "2px solid #1a1a1a" }}>
               <td style={{ ...rowHdr, fontWeight: 700 }}>Total costs</td>
               {YEAR_LABELS.map(yr => <td key={yr} style={{ ...tdStyle, fontWeight: 700 }}>{fmtK(allYears[yr].costTotal)}</td>)}
@@ -2685,7 +2685,7 @@ function ParticipantView({ name, tick, onLogout }) {
       {displayStep === 7 && (
         <PredStep
           stepN={7} lines={COST_LINES.map(l => ({ ...l, prefillK: nv(pd.costs?.[l.id], l.baseK) }))}
-          defRates={pd.costRates || {}} lineRates={{}} setLineRates={() => {}}
+          defRates={pd.costRates || COST_DEF_RATES} lineRates={{}} setLineRates={() => {}}
           heading="Do-nothing cost trajectory — 2027 to 2030"
           note="Enter a CAGR for each cost line. Pay awards, TRAC changes, and headcount reductions. Loan repayment and investment in growth are added automatically."
           confirmLabel="Confirm predicted costs → Step 8: Prognosis"
