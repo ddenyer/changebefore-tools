@@ -111,16 +111,33 @@ const fmtK   = v => { const n = Math.round(v); return (n < 0 ? "−" : "") + "£
 const fmtPct = v => (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(1) + "%";
 const round1 = v => Math.round(v * 10) / 10;
 
-/* Observed one-year trend Q3 25/26 → Budget 26/27 */
-const trendPct = (l) => l.q3 > 0 ? (l.bud - l.q3) / l.q3 * 100 : 0;
+/* Resolve a line's base anchors (q3, bud) from the model — every figure is
+   editable in §2; if not overridden it falls back to the hardcoded default.   */
+function resolveBase(store, l) {
+  const o = store?.[l.id] || {};
+  const q3  = o.q3  !== undefined && o.q3  !== "" ? nv(o.q3)  : l.q3;
+  const bud = o.bud !== undefined && o.bud !== "" ? nv(o.bud) : l.bud;
+  return { q3, bud };
+}
+/* Live revenue lines = the fixed lines + any custom streams the room adds. */
+function revLinesFor(m) {
+  const custom = (m.customRev || []).map(c => ({
+    id: c.id, name: c.name, q3: 0, bud: 0, cagr: 0, kind: "new", custom: true,
+  }));
+  return REV_LINES.concat(custom);
+}
+
+/* Observed one-year trend Q3 25/26 → Budget 26/27 (on resolved anchors) */
+const trendPct = (l, m) => { const { q3, bud } = resolveBase(m?.baseRev, l); return q3 > 0 ? (bud - q3) / q3 * 100 : 0; };
 /* Default blended forward rate = average of observed trend and sector CAGR */
-const defaultBlend = (l) => round1((trendPct(l) + l.cagr) / 2);
+const defaultBlend = (l, m) => round1((trendPct(l, m) + l.cagr) / 2);
 
 /* ── CALC ENGINE — single source of truth ────────────────────────────────── */
 /* Project one revenue line for a year, honouring overrides, postures, blend. */
 function projRev(l, yr, m) {
-  if (yr === 2026) return l.q3;
-  if (yr === 2027) return l.bud;                 /* budget is hard — never projected */
+  const { q3, bud } = resolveBase(m.baseRev, l);
+  if (yr === 2026) return q3;
+  if (yr === 2027) return bud;                   /* budget anchor (editable in §2) */
   const ovr = m.revOverride?.[yr]?.[l.id];
   if (ovr !== undefined && ovr !== "") return nv(ovr);
   const steps = yr - 2027;                        /* 1,2,3 for 2028,29,30 */
@@ -132,33 +149,41 @@ function projRev(l, yr, m) {
   const postureId = m.posture?.[l.id];
   if (postureId) {
     const p = POSTURE_BY_ID[postureId];
-    if (p.rate === null) { const glide = [0.5, 0.25, 0][steps - 1]; return l.bud * glide; }
-    return l.bud * Math.pow(1 + p.rate / 100, steps);
+    if (p.rate === null) { const glide = [0.5, 0.25, 0][steps - 1]; return bud * glide; }
+    return bud * Math.pow(1 + p.rate / 100, steps);
   }
-  const rate = nv(m.blend?.[l.id], defaultBlend(l));
-  return l.bud * Math.pow(1 + rate / 100, steps);
+  const rate = nv(m.blend?.[l.id], defaultBlend(l, m));
+  return bud * Math.pow(1 + rate / 100, steps);
 }
 
 /* Project one cost line for a year — do-nothing holds flat at budget. */
 function projCost(l, yr, m) {
-  if (yr === 2026) return l.q3;
-  if (yr === 2027) return l.bud;
+  const { q3, bud } = resolveBase(m.baseCost, l);
+  if (yr === 2026) return q3;
+  if (yr === 2027) return bud;
   const ovr = m.costOverride?.[yr]?.[l.id];
   if (ovr !== undefined && ovr !== "") return nv(ovr);
-  return l.bud;                                   /* held flat at budget */
+  return bud;                                     /* held flat at budget */
 }
 
-const uniCharge = (yr) => yr === 2026 ? UNI_CHARGE.q3 : UNI_CHARGE.bud;     /* flat 8,991 */
-const loanFor   = (yr, m) => nv(m.loanByYear?.[yr], 0);
+/* Service charge — editable anchors (§2) plus per-estimate-year override (§7) */
+function uniFor(yr, m) {
+  const ov = m.uniByYear?.[yr];
+  if (ov !== undefined && ov !== "") return nv(ov);
+  const o = m.baseUni || {};
+  if (yr === 2026) return o.q3 !== undefined && o.q3 !== "" ? nv(o.q3) : UNI_CHARGE.q3;
+  return o.bud !== undefined && o.bud !== "" ? nv(o.bud) : UNI_CHARGE.bud;
+}
+const loanFor = (yr, m) => nv(m.loanByYear?.[yr], 0);
 
 /* Whole-year aggregates */
 function yearKpis(yr, m) {
-  const revTotal   = REV_LINES.reduce((s, l) => s + projRev(l, yr, m), 0);
+  const revTotal   = revLinesFor(m).reduce((s, l) => s + projRev(l, yr, m), 0);
   const staffTotal = COST_LINES.filter(l => l.group === "staff").reduce((s, l) => s + projCost(l, yr, m), 0);
   const opTotal    = COST_LINES.filter(l => l.group === "operating").reduce((s, l) => s + projCost(l, yr, m), 0);
   const operatingCost = staffTotal + opTotal;
   const contribution  = revTotal - operatingCost;
-  const uni   = uniCharge(yr);
+  const uni   = uniFor(yr, m);
   const loan  = loanFor(yr, m);
   const net   = contribution - uni - loan;
   const netPct = revTotal > 0 ? net / revTotal * 100 : 0;
@@ -179,6 +204,81 @@ function targetPath(m) {
 }
 
 const surplusColor = v => v >= 0 ? "#2d7d46" : "#b83232";
+
+/* ── SUGGESTION ENGINE — §4 (who) + §5 (positioning) inform §6 (changes) ──── */
+/* Returns { posture, why } for a revenue line, or null for locked/new lines. */
+function suggestPosture(l, m) {
+  if (l.kind === "ending" || l.kind === "new" || l.custom) return null;
+  const t = k => nv(m.purposeTensions?.[k], DEFAULT_TENSIONS[k]);   /* 0..100 */
+  const g = name => nv(m.purposeGroups?.[name], DEFAULT_GROUP_SCORES[name] || 5); /* 1..9 */
+  const grow = t("profit") <= 40, cut = t("profit") >= 60;          /* grow revenue vs cut cost */
+  const focused = t("breadth") <= 40, wide = t("breadth") >= 60;
+  const research = t("research") >= 60, teaching = t("research") <= 40;
+  const preExp = t("experience") >= 60, postExp = t("experience") <= 40;
+  const highEnd = t("market") <= 40, mass = t("market") >= 60;
+  const intl = t("geography") <= 40;
+  const reasons = [];
+  let score = 0;  /* + grow, − shrink */
+
+  const consider = (cond, w, why) => { if (cond) { score += w; if (w !== 0 && why) reasons.push(why); } };
+
+  switch (l.id) {
+    case "ced_custom":
+      consider(g("Organisations commissioning exec ed") >= 8, 2, "you made commissioning organisations a top priority");
+      consider(highEnd, 1, "you positioned at the high-end executive market");
+      consider(grow, 1, "you chose to grow revenue"); consider(cut, -1, "you chose to cut the cost base");
+      consider(focused, 1, "customised is core to a focused portfolio");
+      break;
+    case "cabinet":
+      consider(g("Policymakers / government") >= 8, 2, "you prioritised policymakers / government");
+      consider(g("Policymakers / government") <= 3, -1, "government ranks low in your priorities");
+      consider(grow, 1, "you chose to grow revenue");
+      break;
+    case "open":
+      consider(g("Exec education delegates") >= 8, 2, "you prioritised exec-education delegates");
+      consider(postExp, 1, "open programmes serve a post-experience focus");
+      consider(mass, 1, "open programmes reach a broader market"); consider(grow, 1, "you chose to grow revenue");
+      consider(cut, -1, "you chose to cut the cost base");
+      break;
+    case "award_bearing":
+      consider(g("FT students (MSc, MBA)") >= 8 || g("PT students (MSc, MBA)") >= 8, 2, "you prioritised degree students");
+      consider(preExp, 1, "you leaned pre-experience");
+      consider(postExp, -1, "you leaned post-experience, away from degrees");
+      consider(cut, -1, "you chose to cut the cost base"); consider(grow, 1, "you chose to grow revenue");
+      break;
+    case "research_dd":
+      consider(research, 2, "you positioned as research-intensive");
+      consider(teaching, -2, "you positioned as teaching-intensive");
+      consider(g("Research partners and funders") >= 8, 1, "you prioritised research partners and funders");
+      break;
+    case "hefce":
+      consider(research, 1, "research funding follows a research-intensive stance");
+      consider(teaching, -1, "a teaching-intensive stance reduces reliance on research funding");
+      break;
+    case "ced_other":
+      consider(wide, 1, "these fit a wide portfolio"); consider(focused, -1, "a focused portfolio trims the long tail");
+      break;
+    case "residences":
+      consider(cut, -1, "you chose to cut the cost base"); consider(intl, 1, "international cohorts use residential delivery");
+      break;
+    default: break;
+  }
+
+  let posture;
+  if (score >= 3) posture = "radical";
+  else if (score >= 1) posture = "incremental";
+  else if (score === 0) posture = "maintain";
+  else if (score <= -2) posture = "end";
+  else posture = "decline";
+  const why = reasons.length ? reasons.slice(0, 2).join("; ") : "no strong signal from your earlier choices — hold at budget";
+  return { posture, why };
+}
+
+function allSuggestions(m) {
+  const out = {};
+  REV_LINES.forEach(l => { const s = suggestPosture(l, m); if (s) out[l.id] = s.posture; });
+  return out;
+}
 
 /* ── PURPOSE / POSITIONING DATA (retained; default numbers unchanged) ─────── */
 const PURPOSE_GROUPS = [
@@ -304,22 +404,44 @@ function NumInput({ value, onChange, min, step = 1, width = 90 }) {
 }
 
 /* ── REUSABLE P&L TABLE — the recognisable Cranfield format ───────────────── */
-/* years: array of year keys to show. editYears: which years allow editing of
-   estimate cells. onCell(kind,yr,id,val): kind = "rev" | "cost".              */
-function PLTable({ m, years, editYears = [], onCell, compact = false }) {
-  const ed = (yr) => editYears.includes(yr);
+/* years: year keys to show. editBase: make the Q3+Budget anchor cells editable
+   (§2). editYears: estimate years whose cells are editable (§7).
+   onCell(kind,yr,id,val): kind = "rev" | "cost" | "uni" | "loan".              */
+function PLTable({ m, years, editBase = false, editYears = [], onCell, compact = false }) {
+  const isBaseYr = (yr) => yr === 2026 || yr === 2027;
+  const baseCol  = (yr) => yr === 2026 ? "q3" : "bud";
+
   const cell = (kind, l, yr) => {
     const val = kind === "rev" ? projRev(l, yr, m) : projCost(l, yr, m);
-    if (ed(yr) && IS_ACTUAL[yr] === false && !(kind === "rev" && (l.kind === "ending"))) {
-      const stored = (kind === "rev" ? m.revOverride : m.costOverride)?.[yr]?.[l.id];
+    const baseEditable = editBase && isBaseYr(yr);
+    const estEditable  = editYears.includes(yr) && IS_ACTUAL[yr] === false && !(kind === "rev" && l.kind === "ending");
+    if (baseEditable || estEditable) {
+      const store = baseEditable
+        ? (kind === "rev" ? m.baseRev : m.baseCost)?.[l.id]?.[baseCol(yr)]
+        : (kind === "rev" ? m.revOverride : m.costOverride)?.[yr]?.[l.id];
       return <td key={yr} className="mono"><NumInput width={72} step={10}
-        value={stored !== undefined && stored !== "" ? stored : Math.round(val)}
+        value={store !== undefined && store !== "" ? store : Math.round(val)}
         onChange={v => onCell(kind, yr, l.id, v)} /></td>;
     }
     return <td key={yr} className="mono">{fmtK(val)}</td>;
   };
 
+  const uniLoanCell = (kind, yr) => {
+    const cur = kind === "uni" ? uniFor(yr, m) : loanFor(yr, m);
+    const editable = (editBase && isBaseYr(yr)) || editYears.includes(yr);
+    if (editable) {
+      const store = kind === "uni"
+        ? (isBaseYr(yr) ? m.baseUni?.[baseCol(yr)] : m.uniByYear?.[yr])
+        : m.loanByYear?.[yr];
+      return <td key={yr} className="mono"><NumInput width={64} step={10}
+        value={store !== undefined && store !== "" ? store : Math.round(cur)}
+        onChange={v => onCell(kind, yr, null, v)} /></td>;
+    }
+    return <td key={yr} className="mono">{"(" + fmtK(cur) + ")"}</td>;
+  };
+
   const yr = (fn) => years.map(y => <td key={y} className="mono">{fn(y)}</td>);
+  const revLines = revLinesFor(m);
 
   return (
     <div style={{ overflowX: "auto", marginBottom: 16 }}>
@@ -330,9 +452,9 @@ function PLTable({ m, years, editYears = [], onCell, compact = false }) {
         </tr></thead>
         <tbody>
           <tr><td className="grp" colSpan={years.length + 1}>Income</td></tr>
-          {REV_LINES.map(l => (
+          {revLines.map(l => (
             <tr key={l.id}>
-              <td>{l.name}{l.kind === "ending" ? " ⟶ 0" : ""}</td>
+              <td>{l.name}{l.kind === "ending" ? " ⟶ 0" : ""}{l.custom ? " (new)" : ""}</td>
               {years.map(y => cell("rev", l, y))}
             </tr>
           ))}
@@ -355,23 +477,15 @@ function PLTable({ m, years, editYears = [], onCell, compact = false }) {
             {yr(y => { const k = yearKpis(y, m); return <span style={{ color: surplusColor(k.contribution) }}>{fmtK(k.contribution)}</span>; })}
           </tr>
 
-          <tr className="below"><td>less University service charge (TRAC)</td>{yr(y => "(" + fmtK(yearKpis(y, m).uni).replace("£", "£") + ")")}</tr>
-          <tr className="below"><td>less University loan repayment</td>
-            {years.map(y => (
-              <td key={y} className="mono">
-                {editYears.includes(y)
-                  ? <NumInput width={64} value={loanFor(y, m)} onChange={v => onCell("loan", y, null, v)} />
-                  : "(" + fmtK(loanFor(y, m)) + ")"}
-              </td>
-            ))}
-          </tr>
+          <tr className="below"><td>less University service charge (TRAC)</td>{years.map(y => uniLoanCell("uni", y))}</tr>
+          <tr className="below"><td>less University loan repayment</td>{years.map(y => uniLoanCell("loan", y))}</tr>
           <tr className="net"><td>NET SURPLUS</td>
             {yr(y => { const k = yearKpis(y, m); return `${fmtK(k.net)}  (${k.netPct.toFixed(1)}%)`; })}
           </tr>
         </tbody>
       </table>
       <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#999" }}>
-        Q3 25/26 and Budget 26/27 are the School's own figures (locked). Columns marked * are estimates.
+        {editBase ? "Every figure here is editable — correct any line or the service charge if the numbers have moved." : "Columns marked * are estimates."}
       </div>
     </div>
   );
@@ -401,7 +515,6 @@ function Entry({ onEnter }) {
       <div className="sl-overview">
         <p>This model starts from real numbers. The current position is the Q3 2025/26 forecast. The first year ahead is the agreed 2026/27 budget.</p>
         <p>From 2027/28 onward the figures are estimates only, built from the current trajectory and from sector growth rates drawn from market research. They are based on the observed movement from the 2025/26 forecast to the 2026/27 budget, blended with the sector growth rate for each line, to give a forward rate you can adjust.</p>
-        <p className="sl-disc"><strong>NOT A FINANCIAL MODEL.</strong> The estimate years are a direction of travel only — not a forecast, and not a financial model. Any scenario that emerges must be tested against proper financial modelling before a decision is taken.</p>
       </div>
       <hr className="sl-rule" />
       <div className="sl-field">
@@ -435,14 +548,13 @@ function StepGoal({ m, confirmed, onConfirm, onBack }) {
   const [tgt, setTgt] = useState(nv(m.targetPct, 7.5));
   const desc = (v) => v <= -5 ? "Significant managed deficit" : v < 0 ? "Managed deficit" : v === 0 ? "Break-even"
     : v <= 2.5 ? "Minimal surplus" : v <= 5 ? "Modest surplus" : v <= 7.5 ? "Sustainable surplus" : "Strong surplus";
-  const cur = yearKpis(2027, m);
   const doConfirm = () => { mSave({ targetPct: tgt, step1Confirmed: true }); onConfirm(); };
   return (
     <div className="sl-content">
       <BackBtn onClick={onBack} />
       {confirmed && <ConfirmedBanner n={1} />}
       <div className="sl-step-h">What net operating surplus should FBaM achieve by July 2030?</div>
-      <div className="sl-prompt">Set the 2030 target. The 2026/27 budget delivers a net surplus of {fmtK(cur.net)} ({cur.netPct.toFixed(1)}%) after the University service charge. You will set the year-by-year path in the Yearly P&L step.</div>
+      <div className="sl-prompt">Set the 2030 target. You will set the year-by-year path in the Yearly P&L step.</div>
       <div className="sl-slider-wrap">
         <div className="sl-slider-val">{tgt >= 0 ? "+" : ""}{tgt.toFixed(1)}%</div>
         <div className="sl-slider-desc">{desc(tgt)} by July 2030</div>
@@ -454,35 +566,53 @@ function StepGoal({ m, confirmed, onConfirm, onBack }) {
   );
 }
 
-/* ── 2. CURRENT POSITION (full Cranfield P&L, Q3 + Budget) ────────────────── */
+/* ── 2. CURRENT POSITION (full Cranfield P&L, Q3 + Budget — all editable) ──── */
 function StepCurrent({ m, confirmed, onConfirm, onBack }) {
-  const k26 = yearKpis(2026, m), k27 = yearKpis(2027, m);
-  const doConfirm = () => { mSave({ step2Confirmed: true }); onConfirm(); };
+  const [baseRev, setBaseRev]   = useState(m.baseRev || {});
+  const [baseCost, setBaseCost] = useState(m.baseCost || {});
+  const [baseUni, setBaseUni]   = useState(m.baseUni || {});
+  const [loanByYear, setLoanByYear] = useState(m.loanByYear || {});
+  const liveM = { ...m, baseRev, baseCost, baseUni, loanByYear };
+  const k26 = yearKpis(2026, liveM), k27 = yearKpis(2027, liveM);
+
+  const onCell = (kind, yr, id, val) => {
+    const col = yr === 2026 ? "q3" : "bud";
+    if (kind === "rev")  setBaseRev(o => ({ ...o, [id]: { ...(o[id] || {}), [col]: val } }));
+    else if (kind === "cost") setBaseCost(o => ({ ...o, [id]: { ...(o[id] || {}), [col]: val } }));
+    else if (kind === "uni")  setBaseUni(o => ({ ...o, [col]: val }));
+    else if (kind === "loan") setLoanByYear(o => ({ ...o, [yr]: val }));
+  };
+  const reset = () => { setBaseRev({}); setBaseCost({}); setBaseUni({}); setLoanByYear(o => ({ ...o, 2026: "", 2027: "" })); };
+
+  const doConfirm = () => { mSave({ baseRev, baseCost, baseUni, loanByYear, step2Confirmed: true }); onConfirm(); };
   return (
     <div className="sl-content">
       <BackBtn onClick={onBack} />
       {confirmed && <ConfirmedBanner n={2} />}
       <div className="sl-step-h">Current position</div>
-      <div className="sl-prompt">This is the School's own P&L — the same lines, the same order, the same wording you already know. The left column is the Q3 2025/26 forecast; the right is the agreed 2026/27 budget. Recognise this picture before we project forward.</div>
-      <PLTable m={m} years={[2026, 2027]} />
+      <div className="sl-prompt">This is the School's own P&L — the same lines, the same order, the same wording you already know. The left column is the Q3 2025/26 forecast; the right is the agreed 2026/27 budget. Every figure is editable: correct any line, the service charge or the loan if the numbers have moved. Your edits flow through every later step.</div>
+      <PLTable m={liveM} years={[2026, 2027]} editBase onCell={onCell} />
       <div className="sl-kpis">
         <div className="sl-kpi"><div className="l">Contribution 26/27</div><div className="v">{fmtK(k27.contribution)} ({k27.contribPct.toFixed(1)}%)</div></div>
         <div className="sl-kpi"><div className="l">Net surplus 26/27</div><div className="v" style={{ color: surplusColor(k27.net) }}>{fmtK(k27.net)} ({k27.netPct.toFixed(1)}%)</div></div>
         <div className="sl-kpi"><div className="l">Net surplus Q3 25/26</div><div className="v" style={{ color: surplusColor(k26.net) }}>{fmtK(k26.net)} ({k26.netPct.toFixed(1)}%)</div></div>
       </div>
-      <button className="sl-btn" onClick={doConfirm}>Confirm current position → Do-nothing</button>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+        <button className="sl-btn sl-btn-outline" style={{ fontSize: 12, padding: "8px 14px" }} onClick={reset}>↺ Reset to original figures</button>
+        <button className="sl-btn" onClick={doConfirm}>Confirm current position → Do-nothing</button>
+      </div>
     </div>
   );
 }
 
 /* ── 3. DO-NOTHING (trend → sector CAGR → blended rate, editable) ─────────── */
 function StepDoNothing({ m, confirmed, onConfirm, onBack }) {
-  const init = () => { const b = {}; REV_LINES.forEach(l => { if (l.kind === "normal") b[l.id] = String(nv(m.blend?.[l.id], defaultBlend(l))); }); return b; };
+  const init = () => { const b = {}; REV_LINES.forEach(l => { if (l.kind === "normal") b[l.id] = String(nv(m.blend?.[l.id], defaultBlend(l, m))); }); return b; };
   const [blend, setBlend] = useState(init);
   const liveM = { ...m, blend: Object.fromEntries(Object.entries(blend).map(([k, v]) => [k, nv(v)])), posture: {} };
 
   const doConfirm = () => {
-    const b = {}; REV_LINES.forEach(l => { if (l.kind === "normal") b[l.id] = nv(blend[l.id], defaultBlend(l)); });
+    const b = {}; REV_LINES.forEach(l => { if (l.kind === "normal") b[l.id] = nv(blend[l.id], defaultBlend(l, m)); });
     mSave({ blend: b, step3Confirmed: true });
     onConfirm();
   };
@@ -501,13 +631,13 @@ function StepDoNothing({ m, confirmed, onConfirm, onBack }) {
             <th>Q3 25/26</th><th>Budget 26/27</th><th>Trend</th><th>Sector CAGR</th><th>Blended rate</th>
           </tr></thead>
           <tbody>
-            {REV_LINES.map(l => (
+            {REV_LINES.map(l => { const rb = resolveBase(m.baseRev, l); return (
               <tr key={l.id}>
                 <td>{l.name}</td>
-                <td style={td}>{fmtK(l.q3)}</td>
-                <td style={td}>{fmtK(l.bud)}</td>
-                <td style={{ ...td, color: l.kind === "normal" ? (trendPct(l) >= 0 ? "#2d7d46" : "#b83232") : "#aaa" }}>
-                  {l.kind === "normal" ? fmtPct(trendPct(l)) : "—"}
+                <td style={td}>{fmtK(rb.q3)}</td>
+                <td style={td}>{fmtK(rb.bud)}</td>
+                <td style={{ ...td, color: l.kind === "normal" ? (trendPct(l, m) >= 0 ? "#2d7d46" : "#b83232") : "#aaa" }}>
+                  {l.kind === "normal" ? fmtPct(trendPct(l, m)) : "—"}
                 </td>
                 <td style={{ ...td, color: "#888" }}>{l.kind === "normal" ? fmtPct(l.cagr) : "—"}</td>
                 <td style={td}>
@@ -517,7 +647,7 @@ function StepDoNothing({ m, confirmed, onConfirm, onBack }) {
                         value={blend[l.id] ?? "0"} onChange={e => setBlend(s => ({ ...s, [l.id]: e.target.value }))} />}
                 </td>
               </tr>
-            ))}
+            ); })}
           </tbody>
         </table>
       </div>
@@ -589,28 +719,50 @@ function StepPositioning({ m, confirmed, onConfirm, onBack }) {
   );
 }
 
-/* ── 6. CHANGES (macro postures) ──────────────────────────────────────────── */
+/* ── 6. CHANGES (macro postures, suggested from §4/§5, + new streams) ─────── */
 function StepChanges({ m, confirmed, onConfirm, onBack }) {
   const [posture, setPosture] = useState(m.posture || {});
   const [microTarget, setMicroTarget] = useState(String(nv(m.newTarget?.micro_cred, 0)));
+  const [customRev, setCustomRev] = useState(m.customRev || []);
+  const [customTargets, setCustomTargets] = useState(() => {
+    const t = {}; (m.customRev || []).forEach(c => t[c.id] = String(nv(m.newTarget?.[c.id], 0))); return t;
+  });
+  const [newName, setNewName] = useState("");
+  const [newTgt, setNewTgt] = useState("");
 
-  const liveM = { ...m, posture, newTarget: { ...(m.newTarget || {}), micro_cred: nv(microTarget) } };
+  const newTargetObj = { ...(m.newTarget || {}), micro_cred: nv(microTarget) };
+  customRev.forEach(c => { newTargetObj[c.id] = nv(customTargets[c.id]); });
+  const liveM = { ...m, posture, customRev, newTarget: newTargetObj };
+
   const normals = REV_LINES.filter(l => l.kind === "normal");
+  const suggestions = {}; normals.forEach(l => suggestions[l.id] = suggestPosture(l, m));
 
   const setP = (id, pid) => setPosture(p => { const n = { ...p }; if (n[id] === pid) delete n[id]; else n[id] = pid; return n; });
+  const applyAllSuggestions = () => setPosture(p => { const n = { ...p }; normals.forEach(l => { if (suggestions[l.id]) n[l.id] = suggestions[l.id].posture; }); return n; });
+
+  const addStream = () => {
+    if (!newName.trim()) return;
+    const id = "custom_" + Date.now().toString(36);
+    setCustomRev(cs => [...cs, { id, name: newName.trim() }]);
+    setCustomTargets(t => ({ ...t, [id]: newTgt || "0" }));
+    setNewName(""); setNewTgt("");
+  };
+  const removeStream = (id) => { setCustomRev(cs => cs.filter(c => c.id !== id)); setCustomTargets(t => { const n = { ...t }; delete n[id]; return n; }); };
 
   const doConfirm = () => {
-    mSave({ posture, newTarget: { ...(m.newTarget || {}), micro_cred: nv(microTarget) }, step6Confirmed: true });
+    mSave({ posture, customRev, newTarget: newTargetObj, step6Confirmed: true });
     onConfirm();
   };
 
-  const btn = (l, p) => {
+  const btn = (l, p, suggested) => {
     const active = posture[l.id] === p.id;
     return (
       <button key={p.id} onClick={() => setP(l.id, p.id)} title={p.note}
         style={{ padding: "5px 9px", borderRadius: 4, cursor: "pointer", fontFamily: "'DM Sans',sans-serif", fontSize: 11,
-          border: "1px solid " + (active ? "#e07030" : "#d8d3cb"), background: active ? "#e07030" : "#f0ede8",
-          color: active ? "#fff" : "#1a1a1a", whiteSpace: "nowrap" }}>{p.label}</button>
+          border: "1px solid " + (active ? "#e07030" : suggested ? "#2d7d46" : "#d8d3cb"),
+          background: active ? "#e07030" : "#f0ede8",
+          color: active ? "#fff" : suggested ? "#2d7d46" : "#1a1a1a", whiteSpace: "nowrap",
+          fontWeight: suggested && !active ? 600 : 400 }}>{p.label}{suggested ? " ◦" : ""}</button>
     );
   };
 
@@ -619,20 +771,24 @@ function StepChanges({ m, confirmed, onConfirm, onBack }) {
       <BackBtn onClick={onBack} />
       {confirmed && <ConfirmedBanner n={6} />}
       <div className="sl-step-h">Changes</div>
-      <div className="sl-prompt">This is the strategic choice: what do you do with each existing revenue stream — and do you bring in new ones? Choose one posture per stream. If you choose nothing, the stream follows its do-nothing trajectory. Apprenticeship and SLEP income ends in 2027 and cannot be grown.</div>
+      <div className="sl-prompt">This is the strategic choice: what do you do with each existing revenue stream — and do you bring in new ones? Each stream carries a suggested posture (marked ◦, in green) drawn from who you chose to serve and how you positioned FBaM. Accept the suggestions or override them. If you choose nothing, the stream follows its do-nothing trajectory.</div>
       <div className="sl-note-box">End / Teach-out — wind down to £0 &nbsp;·&nbsp; Managed decline −15%/yr &nbsp;·&nbsp; Maintain — hold at budget &nbsp;·&nbsp; Incremental +5%/yr &nbsp;·&nbsp; Radical +15%/yr. Rates compound from the 2026/27 budget.</div>
+      <button className="sl-btn sl-btn-outline" style={{ fontSize: 12, padding: "8px 14px", marginBottom: 16 }} onClick={applyAllSuggestions}>✓ Apply all suggested postures</button>
 
-      {normals.map(l => (
+      {normals.map(l => { const sg = suggestions[l.id]; return (
         <div key={l.id} style={{ borderBottom: "1px solid #e8e4de", padding: "12px 0" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
             <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, fontWeight: 500 }}>{l.name}</span>
             <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 12, color: "#888" }}>
-              budget {fmtK(l.bud)} → 2030 {fmtK(projRev(l, 2030, liveM))}
+              budget {fmtK(resolveBase(m.baseRev, l).bud)} → 2030 {fmtK(projRev(l, 2030, liveM))}
             </span>
           </div>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{POSTURES.map(p => btn(l, p))}</div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 6 }}>{POSTURES.map(p => btn(l, p, sg && sg.posture === p.id))}</div>
+          {sg && <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#2d7d46" }}>
+            Suggested: <strong>{POSTURE_BY_ID[sg.posture].label}</strong> — {sg.why}.
+          </div>}
         </div>
-      ))}
+      ); })}
 
       {/* Locked ending lines */}
       {REV_LINES.filter(l => l.kind === "ending").map(l => (
@@ -645,7 +801,7 @@ function StepChanges({ m, confirmed, onConfirm, onBack }) {
         </div>
       ))}
 
-      {/* New stream */}
+      {/* Micro-credentials (built-in new stream) */}
       <div style={{ borderBottom: "1px solid #e8e4de", padding: "12px 0" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
@@ -659,7 +815,34 @@ function StepChanges({ m, confirmed, onConfirm, onBack }) {
         </div>
       </div>
 
-      <div style={{ marginTop: 20 }} className="sl-kpis">
+      {/* Custom new streams */}
+      {customRev.map(c => (
+        <div key={c.id} style={{ borderBottom: "1px solid #e8e4de", padding: "12px 0" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, fontWeight: 500 }}>{c.name} <span style={{ color: "#888", fontWeight: 400 }}>(new stream)</span></div>
+              <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#999", marginTop: 2 }}>Ramps linearly from £0 to the 2030 target.</div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, color: "#888" }}>2030 £k</span>
+              <NumInput width={80} step={50} value={customTargets[c.id] ?? "0"} onChange={v => setCustomTargets(t => ({ ...t, [c.id]: v }))} min={0} />
+              <button onClick={() => removeStream(c.id)} title="Remove stream"
+                style={{ background: "none", border: "1px solid #d8d3cb", borderRadius: 4, cursor: "pointer", padding: "4px 8px", fontSize: 12, color: "#b83232" }}>✕</button>
+            </div>
+          </div>
+        </div>
+      ))}
+
+      {/* Add a new stream */}
+      <div style={{ padding: "16px 0", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+        <input type="text" className="sl-input" style={{ flex: 1, minWidth: 180 }} placeholder="New revenue stream (e.g. Online MBA, Degree apprenticeships v2)"
+          value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => e.key === "Enter" && addStream()} />
+        <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, color: "#888" }}>2030 £k</span>
+        <NumInput width={80} step={50} value={newTgt} onChange={setNewTgt} min={0} />
+        <button className="sl-btn sl-btn-outline" style={{ fontSize: 12, padding: "10px 14px" }} onClick={addStream}>+ Add stream</button>
+      </div>
+
+      <div style={{ marginTop: 8 }} className="sl-kpis">
         {YEARS.map(y => { const k = yearKpis(y, liveM); return (
           <div className="sl-kpi" key={y}><div className="l">{COL_LABEL[y]}</div>
             <div className="v" style={{ color: surplusColor(k.net) }}>{k.netPct.toFixed(1)}%</div></div>
@@ -675,18 +858,20 @@ function StepYearly({ m, confirmed, onConfirm, onBack }) {
   const [revOverride, setRevOverride]   = useState(m.revOverride || {});
   const [costOverride, setCostOverride] = useState(m.costOverride || {});
   const [loanByYear, setLoanByYear]     = useState(m.loanByYear || {});
+  const [uniByYear, setUniByYear]       = useState(m.uniByYear || {});
 
-  const liveM = { ...m, revOverride, costOverride, loanByYear };
+  const liveM = { ...m, revOverride, costOverride, loanByYear, uniByYear };
   const tp = targetPath(liveM);
 
   const onCell = (kind, yr, id, val) => {
     if (kind === "loan") { setLoanByYear(o => ({ ...o, [yr]: val })); return; }
+    if (kind === "uni")  { setUniByYear(o => ({ ...o, [yr]: val })); return; }
     const setter = kind === "rev" ? setRevOverride : setCostOverride;
     setter(o => ({ ...o, [yr]: { ...(o[yr] || {}), [id]: val } }));
   };
-  const resetEstimates = () => { setRevOverride({}); setCostOverride({}); };
+  const resetEstimates = () => { setRevOverride({}); setCostOverride({}); setUniByYear({}); };
 
-  const doConfirm = () => { mSave({ revOverride, costOverride, loanByYear, step7Confirmed: true }); onConfirm(); };
+  const doConfirm = () => { mSave({ revOverride, costOverride, loanByYear, uniByYear, step7Confirmed: true }); onConfirm(); };
 
   return (
     <div className="sl-content">
@@ -850,7 +1035,7 @@ function buildSummaryHtml(m) {
   const plRows = () => {
     let r = "";
     r += tr([["INCOME", "left", true]].concat(YEARS.map(() => ["", "right"])));
-    REV_LINES.forEach(l => r += tr([[l.name]].concat(YEARS.map(y => [fmtK(projRev(l, y, m)), "right"]))));
+    revLinesFor(m).forEach(l => r += tr([[l.name + (l.custom ? " (new)" : "")]].concat(YEARS.map(y => [fmtK(projRev(l, y, m)), "right"]))));
     r += tr([["Total income", "left", true]].concat(YEARS.map(y => [fmtK(yearKpis(y, m).revTotal), "right", true])));
     r += tr([["STAFF COSTS", "left", true]].concat(YEARS.map(() => ["", "right"])));
     COST_LINES.filter(l => l.group === "staff").forEach(l => r += tr([[l.name]].concat(YEARS.map(y => [fmtK(projCost(l, y, m)), "right"]))));
