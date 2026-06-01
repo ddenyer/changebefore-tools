@@ -286,6 +286,11 @@ const MARKET_BENCHMARKS = [
 ];
 const PART_PWD      = "FBAM-straw-03!";
 const YEAR_LABELS   = [2027, 2028, 2029, 2030];
+/* Jul 2026 = Q3 25/26 forecast — static baseline shown as first column in P&L tables */
+const BASELINE_2026_REV  = () => Object.fromEntries(REV_LINES.map(l  => [l.id,  nv(l.prefillK)]));
+const BASELINE_2026_COST = () => Object.fromEntries(COST_LINES.map(l => [l.id,  nv(l.baseK)]));
+const BASELINE_2026_LOAN = 0; // loan repayment not in Q3 25/26
+
 /* Periods from July 2026 year-end (Q3 forecast baseline): each year-end is exactly 1 year further */
 const PERIODS_BY_YEAR = { 2027: 1.0, 2028: 2.0, 2029: 3.0, 2030: 4.0 };
 const PERIODS       = 2.75; // kept for legacy single-year calcs (2028 default)
@@ -1086,6 +1091,7 @@ function Step7({ pData, confirmed, onConfirm, onBack }) {
           <thead>
             <tr>
               <th style={{ ...thStyle, textAlign: "left", background: "#1a1a1a" }}>Line</th>
+              <th style={{ ...thStyle, background: "#3a3a3a", color: "#ccc" }}>Jul 2026 (Q3)</th>
               {YEAR_LABELS.map(yr => <th key={yr} style={thStyle}>Jul {yr}</th>)}
             </tr>
           </thead>
@@ -1094,30 +1100,36 @@ function Step7({ pData, confirmed, onConfirm, onBack }) {
             {REV_LINES.map(l => (
               <tr key={l.id} style={{ borderBottom: "1px solid #e8e4de" }}>
                 <td style={rowHdr}>{l.name}</td>
+                <td style={{ ...tdStyle, color: "#999", background: "#f9f7f4" }}>{fmtK(BASELINE_2026_REV()[l.id])}</td>
                 {YEAR_LABELS.map(yr => <td key={yr} style={tdStyle}>{fmtK(allYears[yr].predRevs[l.id])}</td>)}
               </tr>
             ))}
             <tr style={{ borderTop: "2px solid #1a1a1a" }}>
               <td style={{ ...rowHdr, fontWeight: 700 }}>Total revenue</td>
+              <td style={{ ...tdStyle, fontWeight: 700, background: "#f9f7f4", opacity: 0.85 }}>{fmtK(REV_LINES.reduce((s,l) => s+BASELINE_2026_REV()[l.id], 0))}</td>
               {YEAR_LABELS.map(yr => <td key={yr} style={{ ...tdStyle, fontWeight: 700 }}>{fmtK(allYears[yr].revTotal)}</td>)}
             </tr>
             <tr><td colSpan={5} style={{ ...rowHdr, fontWeight: 700, background: "#e8e4de", fontSize: 11, textTransform: "uppercase", letterSpacing: 1, paddingTop: 10 }}>Costs</td></tr>
             {COST_LINES.map(l => (
               <tr key={l.id} style={{ borderBottom: "1px solid #e8e4de" }}>
                 <td style={rowHdr}>{l.name}</td>
+                <td style={{ ...tdStyle, color: "#999", background: "#f9f7f4" }}>{fmtK(BASELINE_2026_COST()[l.id])}</td>
                 {YEAR_LABELS.map(yr => <td key={yr} style={tdStyle}>{fmtK(allYears[yr].predCosts[l.id])}</td>)}
               </tr>
             ))}
             <tr style={{ borderTop: "2px solid #1a1a1a" }}>
               <td style={{ ...rowHdr, fontWeight: 700 }}>Total operating costs</td>
+              <td style={{ ...tdStyle, fontWeight: 700, background: "#f9f7f4", opacity: 0.85 }}>{fmtK(COST_LINES.reduce((s,l) => s+BASELINE_2026_COST()[l.id], 0))}</td>
               {YEAR_LABELS.map(yr => <td key={yr} style={{ ...tdStyle, fontWeight: 700 }}>{fmtK(allYears[yr].costTotal)}</td>)}
             </tr>
             <tr style={{ borderBottom: "1px solid #e07030" }}>
               <td style={{ ...rowHdr, color: "#e07030", fontStyle: "italic" }}>University loan repayment contribution</td>
+              <td style={{ ...tdStyle, color: "#e07030", fontStyle: "italic", background: "#f9f7f4", opacity: 0.85 }}>{fmtK(BASELINE_2026_LOAN)}</td>
               {YEAR_LABELS.map(yr => <td key={yr} style={{ ...tdStyle, color: "#e07030", fontStyle: "italic" }}>{fmtK(getLoan(pData, yr))}</td>)}
             </tr>
             <tr style={{ borderTop: "2px solid #e07030", background: "#faf8f5" }}>
               <td style={{ ...rowHdr, fontWeight: 700 }}>Surplus / (deficit)</td>
+              <td style={{ ...tdStyle, fontWeight: 700, color: surplusColor((REV_LINES.reduce((s,l) => s+BASELINE_2026_REV()[l.id], 0) - COST_LINES.reduce((s,l) => s+BASELINE_2026_COST()[l.id], 0) - BASELINE_2026_LOAN)), background: "#f9f7f4", opacity: 0.85 }}>{fmtK((REV_LINES.reduce((s,l) => s+BASELINE_2026_REV()[l.id], 0) - COST_LINES.reduce((s,l) => s+BASELINE_2026_COST()[l.id], 0) - BASELINE_2026_LOAN))}</td>
               {YEAR_LABELS.map(yr => {
                 const net = allYears[yr].surplus - getLoan(pData, yr);
                 return <td key={yr} style={{ ...tdStyle, fontWeight: 700, color: surplusColor(net) }}>{fmtK(net)}</td>;
@@ -1125,6 +1137,7 @@ function Step7({ pData, confirmed, onConfirm, onBack }) {
             </tr>
             <tr style={{ background: "#faf8f5" }}>
               <td style={{ ...rowHdr, color: "#888" }}>As % of income</td>
+              {(() => { const b26surp = (REV_LINES.reduce((s,l) => s+BASELINE_2026_REV()[l.id], 0) - COST_LINES.reduce((s,l) => s+BASELINE_2026_COST()[l.id], 0) - BASELINE_2026_LOAN); const b26rev = REV_LINES.reduce((s,l) => s+BASELINE_2026_REV()[l.id], 0); const b26pct = b26rev > 0 ? b26surp / b26rev * 100 : 0; return <td style={{ ...tdStyle, color: surplusColor(b26surp), background: "#f9f7f4", opacity: 0.85 }}>{b26pct.toFixed(1)}%</td>; })()}
               {YEAR_LABELS.map(yr => {
                 const net = allYears[yr].surplus - getLoan(pData, yr);
                 const pct = allYears[yr].revTotal > 0 ? net / allYears[yr].revTotal * 100 : 0;
@@ -1133,10 +1146,12 @@ function Step7({ pData, confirmed, onConfirm, onBack }) {
             </tr>
             <tr style={{ background: "#fff8ee", borderTop: "1px dashed #e07030" }}>
               <td style={{ ...rowHdr, color: "#e07030", fontWeight: 600 }}>Target</td>
+              <td style={{ ...tdStyle, color: "#aaa", background: "#f9f7f4" }}>—</td>
               {YEAR_LABELS.map(yr => <td key={yr} style={{ ...tdStyle, color: "#e07030", fontWeight: 600 }}>{nv(targets[yr]) >= 0 ? "+" : ""}{nv(targets[yr]).toFixed(1)}%</td>)}
             </tr>
             <tr style={{ background: "#fff8ee" }}>
               <td style={{ ...rowHdr, color: "#888" }}>Gap to close</td>
+              <td style={{ ...tdStyle, color: "#aaa", background: "#f9f7f4" }}>—</td>
               {YEAR_LABELS.map(yr => {
                 const net = allYears[yr].surplus - getLoan(pData, yr);
                 const gap = allYears[yr].revTotal * nv(targets[yr]) / 100 - net;
@@ -1843,7 +1858,7 @@ function Step15YearlyPL({ pData, confirmed, onConfirm, onBack }) {
   const setRev  = (yr, id, v) => setData(d => ({ ...d, [yr]: { ...d[yr], revs:  { ...d[yr].revs,  [id]: v } } }));
   const setCost = (yr, id, v) => setData(d => ({ ...d, [yr]: { ...d[yr], costs: { ...d[yr].costs, [id]: v } } }));
 
-  /* KPIs per year — loan repayment shown separately */
+  /* KPIs per year — loan repayment shown separately, not in operating costs */
   const kpis = (yr) => {
     const revs      = data[yr]?.revs  || {};
     const costs     = data[yr]?.costs || {};
@@ -1900,6 +1915,7 @@ function Step15YearlyPL({ pData, confirmed, onConfirm, onBack }) {
           <thead>
             <tr>
               <th style={{ ...thS, textAlign: "left", minWidth: 160 }}>Line</th>
+              <th style={{ ...thS, background: "#3a3a3a", color: "#ccc", minWidth: 80 }}>Jul 2026</th>
               {YEAR_LABELS.map(yr => <th key={yr} style={thS}>Jul {yr}</th>)}
             </tr>
           </thead>
@@ -1909,6 +1925,9 @@ function Step15YearlyPL({ pData, confirmed, onConfirm, onBack }) {
             {REV_LINES.map(l => (
               <tr key={l.id} style={{ borderBottom: "1px solid #f0ede8" }}>
                 <td style={rhS}>{l.name}</td>
+                <td style={{ padding: "3px 6px", textAlign: "right", background: "#f7f5f2" }}>
+                  <span style={{ ...roS, color: "#999", fontSize: 11 }}>{fmtK(BASELINE_2026_REV()[l.id]).replace("£","").replace("k","")}</span>
+                </td>
                 {YEAR_LABELS.map(yr => (
                   <td key={yr} style={{ padding: "3px 6px", textAlign: "right" }}>
                     {l.id === "pt_levy"
@@ -1924,6 +1943,7 @@ function Step15YearlyPL({ pData, confirmed, onConfirm, onBack }) {
             ))}
             <tr style={{ borderTop: "2px solid #1a1a1a", background: "#faf8f5" }}>
               <td style={{ ...rhS, fontWeight: 700 }}>Total revenue</td>
+              <td style={{ ...roS, fontWeight: 700, color: "#e07030", background: "#f7f5f2", opacity: 0.85 }}>{fmtK(REV_LINES.reduce((s,l) => s+BASELINE_2026_REV()[l.id], 0))}</td>
               {YEAR_LABELS.map(yr => {
                 const k = kpis(yr);
                 return <td key={yr} style={{ ...roS, fontWeight: 700, color: "#e07030" }}>{fmtK(k.totalRev)}</td>;
@@ -1938,6 +1958,9 @@ function Step15YearlyPL({ pData, confirmed, onConfirm, onBack }) {
             {COST_LINES.map(l => (
               <tr key={l.id} style={{ borderBottom: "1px solid #f0ede8" }}>
                 <td style={rhS}>{l.name}</td>
+                <td style={{ padding: "3px 6px", textAlign: "right", background: "#f7f5f2" }}>
+                  <span style={{ ...roS, color: "#999", fontSize: 11 }}>{fmtK(BASELINE_2026_COST()[l.id]).replace("£","").replace("k","")}</span>
+                </td>
                 {YEAR_LABELS.map(yr => (
                   <td key={yr} style={{ padding: "3px 6px", textAlign: "right" }}>
                     <input type="number" step="10" style={{ ...inpS, background: activeYr === yr ? "#fffbe6" : "#fff" }}
@@ -1950,6 +1973,7 @@ function Step15YearlyPL({ pData, confirmed, onConfirm, onBack }) {
             ))}
             <tr style={{ borderTop: "2px solid #1a1a1a", background: "#faf8f5" }}>
               <td style={{ ...rhS, fontWeight: 700 }}>Total operating costs</td>
+              <td style={{ ...roS, fontWeight: 700, background: "#f7f5f2", opacity: 0.85 }}>{fmtK(COST_LINES.reduce((s,l) => s+BASELINE_2026_COST()[l.id], 0))}</td>
               {YEAR_LABELS.map(yr => {
                 const k = kpis(yr);
                 return <td key={yr} style={{ ...roS, fontWeight: 700 }}>{fmtK(k.totalCost)}</td>;
@@ -1957,6 +1981,7 @@ function Step15YearlyPL({ pData, confirmed, onConfirm, onBack }) {
             </tr>
             <tr style={{ borderBottom: "1px solid #e07030" }}>
               <td style={{ ...rhS, color: "#e07030", fontStyle: "italic" }}>University loan repayment contribution</td>
+              <td style={{ ...roS, color: "#e07030", fontStyle: "italic", background: "#f7f5f2", opacity: 0.85 }}>{fmtK(BASELINE_2026_LOAN)}</td>
               {YEAR_LABELS.map(yr => {
                 const k = kpis(yr);
                 return <td key={yr} style={{ ...roS, color: "#e07030", fontStyle: "italic" }}>{fmtK(k.loan)}</td>;
@@ -1969,6 +1994,7 @@ function Step15YearlyPL({ pData, confirmed, onConfirm, onBack }) {
             {/* Summary rows */}
             <tr style={{ borderTop: "2px solid #e07030", background: "#faf8f5" }}>
               <td style={{ ...rhS, fontWeight: 700 }}>Surplus / (deficit)</td>
+              {(() => { const s = (REV_LINES.reduce((s,l)=>s+BASELINE_2026_REV()[l.id],0)-COST_LINES.reduce((s,l)=>s+BASELINE_2026_COST()[l.id],0)-BASELINE_2026_LOAN); return <td style={{ ...roS, fontWeight: 700, color: surplusColor(s), background: "#f7f5f2", opacity: 0.85 }}>{fmtK(s)}</td>; })()}
               {YEAR_LABELS.map(yr => {
                 const k = kpis(yr);
                 return <td key={yr} style={{ ...roS, fontWeight: 700, color: surplusColor(k.surplus) }}>{fmtK(k.surplus)}</td>;
@@ -1976,6 +2002,7 @@ function Step15YearlyPL({ pData, confirmed, onConfirm, onBack }) {
             </tr>
             <tr style={{ background: "#faf8f5" }}>
               <td style={{ ...rhS, fontWeight: 600 }}>% of income</td>
+              {(() => { const s = (REV_LINES.reduce((s,l)=>s+BASELINE_2026_REV()[l.id],0)-COST_LINES.reduce((s,l)=>s+BASELINE_2026_COST()[l.id],0)-BASELINE_2026_LOAN); const r = REV_LINES.reduce((s,l)=>s+BASELINE_2026_REV()[l.id],0); const p = r > 0 ? s/r*100 : 0; return <td style={{ ...roS, fontWeight: 600, color: surplusColor(s), background: "#f7f5f2", opacity: 0.85 }}>{p.toFixed(1)}%</td>; })()}
               {YEAR_LABELS.map(yr => {
                 const k = kpis(yr);
                 return <td key={yr} style={{ ...roS, fontWeight: 600, color: surplusColor(k.surplus) }}>{k.surplusPct.toFixed(1)}%</td>;
@@ -1983,6 +2010,7 @@ function Step15YearlyPL({ pData, confirmed, onConfirm, onBack }) {
             </tr>
             <tr style={{ background: "#fff8ee" }}>
               <td style={{ ...rhS, color: "#e07030", fontWeight: 600 }}>Target %</td>
+              <td style={{ ...roS, color: "#aaa", background: "#f7f5f2" }}>—</td>
               {YEAR_LABELS.map(yr => {
                 const k = kpis(yr);
                 return <td key={yr} style={{ ...roS, color: "#e07030", fontWeight: 600 }}>{k.tgt >= 0 ? "+" : ""}{k.tgt.toFixed(1)}%</td>;
@@ -1990,6 +2018,7 @@ function Step15YearlyPL({ pData, confirmed, onConfirm, onBack }) {
             </tr>
             <tr style={{ background: "#fff8ee" }}>
               <td style={{ ...rhS, color: "#888", fontSize: 11 }}>vs target</td>
+              <td style={{ ...roS, color: "#aaa", background: "#f7f5f2", fontSize: 11 }}>—</td>
               {YEAR_LABELS.map(yr => {
                 const k = kpis(yr);
                 const vs = k.surplusPct - k.tgt;
