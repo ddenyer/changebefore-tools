@@ -9,6 +9,7 @@ import Straw2Tool from './tools/straw/Straw2'
 import Straw3Tool from './tools/straw/Straw3'
 import Straw4Tool from './tools/straw/Straw4'
 import Straw5Tool from './tools/straw/Straw5'
+import Straw6Tool from './tools/straw/Straw6'
 import PurposeTool from './tools/purpose/Purpose'
 
 const Home = () => (
@@ -18,6 +19,7 @@ const Home = () => (
       <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 32, fontWeight: 400, color: '#1a1a1a', marginBottom: 32 }}>Diagnostic Tools</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {[
+          { path: '/straw6', label: 'STRAWPERSON Scenario Tool v6', desc: 'One shared model — real budget, do-nothing, postures' },
           { path: '/straw', label: 'STRAWPERSON Scenario Tool', desc: 'Financial viability scenario — 15 steps' },
           { path: '/straw2', label: 'STRAWPERSON Scenario Tool v2', desc: 'Financial viability scenario — expanded revenue lines' },
           { path: '/straw3', label: 'STRAWPERSON Scenario Tool v3', desc: 'Four-year scenario — 2027, 2028, 2029, 2030' },
@@ -47,6 +49,7 @@ function App() {
         <Route path="/straw3" element={<Straw3Tool />} />
         <Route path="/straw4" element={<Straw4Tool />} />
         <Route path="/straw5" element={<Straw5Tool />} />
+        <Route path="/straw6" element={<Straw6Tool />} />
         <Route path="/purpose" element={<PurposeTool />} />
         <Route path="/" element={<Home />} />
       </Routes>
