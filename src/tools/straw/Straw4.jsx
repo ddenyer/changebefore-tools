@@ -42,11 +42,11 @@ const REV_LINES = [
     note: "Q3 25/26: £5,300k with 100% confirmed (key clients: Qatar Energy £214k, Network Rail). 26/27 budget: £5,700k (+7.5% on Q3). Sector CAGR +6–9% (UNICON 2025). Main growth lever for FBaM. Default CAGR +7% reflects sector growth with confirmed pipeline strength." },
   { id: "slep",        name: "SLEP / Non-Award Bearing",              baseK: 2746,  prefillK: 2746,
     note: "Q3 25/26: £2,746k with withdrawals and Break in Learning pauses. 26/27 budget: £713k — last cohort started Nov 2025, levy income ends Feb 2027. Only 6 months levy in 26/27 for final cohort. Structural elimination. Default CAGR −80% per year." },
-  { id: "cabinet",     name: "Cabinet Office",                        baseK: 1925,  prefillK: 1925,  plateau2028: true,
+  { id: "cabinet",     name: "Cabinet Office",                        baseK: 1925,  prefillK: 1925,
     note: "Q3 25/26: £1,925k (PLP contract win adding first new cohort). 26/27 budget: £1,812k — new PLP3 contract with 7 cohorts planned at 40 delegates each (vs 48+ per cohort on outgoing contract). Slight decrease reflects development work in prior year being one-off. Default CAGR +10%." },
   { id: "ced_other",   name: "Other exec ed",                         baseK: 181,   prefillK: 181,
     note: "Small residual exec ed income not captured in CED Customised or SLEP. Stable. Default CAGR 0%." },
-  { id: "micro_cred",  name: "Micro credentials / award bearing exec ed", baseK: 0, prefillK: 0,
+  { id: "micro_cred",  name: "Micro credentials / award bearing exec ed", baseK: 0, prefillK: 0,  linearGrowth: 1000,
     note: "New revenue line — no current income. April 2026 scenario target: £1m by July 2028. Emerging market; requires investment in programme design and accreditation. Default CAGR 0% (baseline £0). Enter your own projection if a programme is in development." },
   { id: "open",        name: "Open Programmes",                       baseK: 3159,  prefillK: 3159,
     note: "Q3 25/26: small decrease vs Q2 — concerns over marketing in Entrepreneurship and BGP. Thrive programme removed from portfolio. 26/27 budget: +£167k on Q3 with 2 new programmes planned (Chief People Officer, Project Management/Leadership). Default CAGR +7% reflects modest recovery below sector pace." },
@@ -64,7 +64,7 @@ const COST_LINES = [
   { id: "academic_staff", name: "Academic staff (64.5 FTE)",               baseK: 7295,
     note: "Q3 25/26: 64.5 FTE (down from 74 at Q1, budget 82 FTE). 1.5% pay award Feb 2026. 26/27: 3.5% from Aug 2026 + 1% incremental drift Oct 2026. Savings from change programme feeding through. Redundancy costs excluded. Predicted July 2028: £5,280k (−30% total). Default CAGR −11%." },
   { id: "support_staff",  name: "PS & research staff (50 FTE)",             baseK: 2150,
-    note: "Q3 25/26: 38.8 FTE professional services (£2,238k) + 11.25 FTE research (£291k). CMDL staff moving to CU Commercial reduces headcount. PS cover increasing as academic leavers rise. Predicted July 2028: £1,715k (−32% total). Default CAGR −12%." },
+    note: "Q3 25/26: 38.8 FTE professional services (£2,238k) + 11.25 FTE research (£291k). CMDL staff moving to CU Commercial reduces headcount. PS cover increasing as academic leavers rise. Predicted July 2028: £1,715k (−32% by Jul 2028, then flat to 2030). Default CAGR −9.9%." },
   { id: "associates",     name: "Associates & visiting lecturers",           baseK: 522,
     note: "Q3 25/26: £422k visiting lecturers/consultants, £7k agency/temp, £35k training, £35k other. Increases as associate delivery replaces permanent faculty — deliberate shift. 26/27 professional/consultancy costs fall with fewer student starters but associate delivery rises with CED growth. Predicted July 2028: £680k (+36% total). Default CAGR +12%." },
   { id: "prog_costs",     name: "Programme delivery & student costs",        baseK: 4893,
@@ -73,18 +73,19 @@ const COST_LINES = [
     note: "Q3 25/26: Professional/consultancy £3,090k, commissions/profit share £2,349k (down £40k — GT net income share reducing as EMBA/MML cohorts complete), premises/utilities £309k, travel £564k, marketing £357k, depreciation & other £1,278k. 26/27: travel up £156k for HEIF and customised courses. Predicted July 2028: £5,904k (−26% total). Default CAGR −10%." },
   { id: "uni_charge",     name: "University service charge",                 baseK: 8991,
     note: "Q3 25/26 predicted figure: £8,991k (reduced from £10,325k in original model and £9,510k at workshop). New TRAC-based figure. Held flat — no CAGR applied. This charge converts the contribution surplus into the fully-loaded operating result. Default CAGR 0%." },
-  { id: "loan_repayment", name: "University loan repayment contribution",    baseK: 0,
-    note: "FBaM contribution to university loan repayment. Default: £30m total × 20% FBaM share ÷ 4 years = £1,500k/year. Adjust per year in the Close the Gap step — e.g. £0k in 2027 then higher in subsequent years. Default CAGR 0% (flat)." },
 ];
 
+/* Loan repayment is NOT an operating cost — shown as a separate row below costs in all tables */
+const LOAN_DEFAULT_K = 1500; // £30m total × 20% FBaM share ÷ 4 years
+
 const VARIABLE_COST_IDS = ["associates", "prog_costs"];
-const REV_DEF_RATES = { ft_mba: -15, ft_msc_prog: -20, pt_levy: -80, ced_custom: 7, slep: -80, cabinet: 10, ced_other: 0, micro_cred: 0, open: 7, research_dd: 1, hefce: 1, residences: -15, other_rev: 0 };
+const REV_DEF_RATES = { ft_mba: -15, ft_msc_prog: -20, pt_levy: -80, ced_custom: 7, slep: -80, cabinet: 0, ced_other: 0, micro_cred: 0, open: 7, research_dd: 0, hefce: 1, residences: -15, other_rev: 0 };
 
 /* Default cost CAGRs — calculated from Q3 25/26 baselines to hit July 2028 targets
    (academic £5,280k, PS staff £1,715k, associates £680k, prog delivery £4,213k, ops overhead £5,904k) */
 /* Cost CAGRs from July 2026 year-end to July 2028 targets (2 years) */
-const COST_DEF_RATES = { academic_staff: -14.9, support_staff: -10.7, associates: 14.1, prog_costs: -7.2, ops_overhead: -13.7, uni_charge: 0, loan_repayment: 0 };
-const COST_DRIVERS  = { academic_staff: "Pay award", support_staff: "Pay award", associates: "Day rate / volume", prog_costs: "Intake volume", ops_overhead: "Inflation / recharge", uni_charge: "TRAC / university allocation", loan_repayment: "University loan schedule" };
+const COST_DEF_RATES = { academic_staff: -14.9, support_staff: -10.7, associates: 14.1, prog_costs: -7.2, ops_overhead: -13.7, uni_charge: 0 };
+const COST_DRIVERS  = { academic_staff: "Pay award", support_staff: "Pay award", associates: "Day rate / volume", prog_costs: "Intake volume", ops_overhead: "Inflation / recharge", uni_charge: "TRAC / university allocation" };
 const STEP_NAMES    = ["1. Set goal","2. Revenue","3. Costs","4. Current position","5. Market context","6. Predicted revenues","7. Predicted costs","8. Prognosis","→ Section one","10. Who FBaM serves","11. Positioning","12. Changes","→ Section two","14. Close the gap","15. Yearly P&L","16. Theme P&L","17. Comparison","18. Finalise"];
 
 /* ── PURPOSE TOOL DATA ──────────────────────────────────────────────────── */
@@ -310,13 +311,16 @@ const calcPredRevs = (p, yr = 2028) => {
   let total = 0;
   const predRevs = {};
   REV_LINES.forEach(l => {
+    // Lines with plateau2028: grow to 2028 then hold flat
+    const effectivePer = l.plateau2028 ? Math.min(per, PERIODS_BY_YEAR[2028]) : per;
     if (direct[l.id] !== undefined) {
       predRevs[l.id] = nv(direct[l.id]);
+    } else if (l.linearGrowth) {
+      // Linear ramp from £0 to linearGrowth target by July 2030
+      predRevs[l.id] = l.linearGrowth * (effectivePer / PERIODS_BY_YEAR[2030]);
     } else {
       const cur  = nv(revs[l.id], l.prefillK);
       const rate = nv(rates[l.id], REV_DEF_RATES[l.id]);
-      // Lines with plateau2028: grow to 2028 then hold flat (e.g. Cabinet Office)
-      const effectivePer = l.plateau2028 ? Math.min(per, PERIODS_BY_YEAR[2028]) : per;
       predRevs[l.id] = cur * Math.pow(1 + rate / 100, effectivePer);
     }
     total += predRevs[l.id];
@@ -326,6 +330,12 @@ const calcPredRevs = (p, yr = 2028) => {
 };
 
 /* Returns { predCosts, total } for a specific year period */
+/* Get loan repayment for a year — from loanByYear override or default */
+const getLoan = (p, yr) => {
+  if (p?.loanByYear?.[yr] !== undefined) return nv(p.loanByYear[yr]);
+  return LOAN_DEFAULT_K;
+};
+
 const calcPredCosts = (p, yr = 2028) => {
   // Costs reduce to 2028 target then hold flat — cap compounding period at 2.75 (July 2028)
   const per    = Math.min(PERIODS_BY_YEAR[yr] || PERIODS, PERIODS_BY_YEAR[2028]);
@@ -347,13 +357,8 @@ const calcPredCosts = (p, yr = 2028) => {
     predCosts[l.id] = pred;
     total += pred;
   });
-  // Per-year loan override from Close the Gap (overrides the COST_LINE value)
-  if (p.loanByYear?.[yr] !== undefined) {
-    total -= predCosts.loan_repayment;
-    predCosts.loan_repayment = nv(p.loanByYear[yr]);
-    total += predCosts.loan_repayment;
-  }
   total += nv(p.costOtherK, 0);
+  // Note: loan repayment excluded from operating costs — shown separately
   return { predCosts, total };
 };
 
@@ -897,7 +902,7 @@ function Step5MarketContext({ pData, confirmed, onConfirm, onBack }) {
       </div>
 
       <div className="sl-note-box" style={{ marginTop: 8 }}>
-        Edit any FBaM CAGR figure. Your rates carry forward into predicted revenues (Step 6). CAGR = compound annual growth rate — the rate applied over the period Jul 2025 → Jul 2028.
+        Edit any FBaM CAGR figure. Your rates carry forward into predicted revenues (Step 6). CAGR = compound annual growth rate — applied from the July 2026 year-end baseline to each year through July 2030.
       </div>
       <button className="sl-btn" onClick={doConfirm}>Confirm market context → Step 6: Predicted revenues</button>
     </div>
@@ -924,9 +929,9 @@ function PredStep({ stepN, lines, defRates, lineRates, setLineRates, heading, no
     if (ovr !== undefined) return nv(ovr);
     const base = nv(l.prefillK ?? l.baseK, 0);
     const rate = nv(cagrs[l.id], 0);
-    // Costs plateau at 2028 — cap period so 2029/2030 hold flat
-    const rawPer = PERIODS_BY_YEAR[yr] || 2.75;
+    const rawPer = PERIODS_BY_YEAR[yr] || 2.0;
     const per = (isCost || l.plateau2028) ? Math.min(rawPer, PERIODS_BY_YEAR[2028]) : rawPer;
+    if (l.linearGrowth) return l.linearGrowth * (per / PERIODS_BY_YEAR[2030]);
     return base * Math.pow(1 + rate / 100, per);
   };
 
@@ -1105,16 +1110,27 @@ function Step7({ pData, confirmed, onConfirm, onBack }) {
               </tr>
             ))}
             <tr style={{ borderTop: "2px solid #1a1a1a" }}>
-              <td style={{ ...rowHdr, fontWeight: 700 }}>Total costs</td>
+              <td style={{ ...rowHdr, fontWeight: 700 }}>Total operating costs</td>
               {YEAR_LABELS.map(yr => <td key={yr} style={{ ...tdStyle, fontWeight: 700 }}>{fmtK(allYears[yr].costTotal)}</td>)}
+            </tr>
+            <tr style={{ borderBottom: "1px solid #e07030" }}>
+              <td style={{ ...rowHdr, color: "#e07030", fontStyle: "italic" }}>University loan repayment contribution</td>
+              {YEAR_LABELS.map(yr => <td key={yr} style={{ ...tdStyle, color: "#e07030", fontStyle: "italic" }}>{fmtK(getLoan(pData, yr))}</td>)}
             </tr>
             <tr style={{ borderTop: "2px solid #e07030", background: "#faf8f5" }}>
               <td style={{ ...rowHdr, fontWeight: 700 }}>Surplus / (deficit)</td>
-              {YEAR_LABELS.map(yr => <td key={yr} style={{ ...tdStyle, fontWeight: 700, color: surplusColor(allYears[yr].surplus) }}>{fmtK(allYears[yr].surplus)}</td>)}
+              {YEAR_LABELS.map(yr => {
+                const net = allYears[yr].surplus - getLoan(pData, yr);
+                return <td key={yr} style={{ ...tdStyle, fontWeight: 700, color: surplusColor(net) }}>{fmtK(net)}</td>;
+              })}
             </tr>
             <tr style={{ background: "#faf8f5" }}>
               <td style={{ ...rowHdr, color: "#888" }}>As % of income</td>
-              {YEAR_LABELS.map(yr => <td key={yr} style={{ ...tdStyle, color: surplusColor(allYears[yr].surplus) }}>{allYears[yr].surplusPct.toFixed(1)}%</td>)}
+              {YEAR_LABELS.map(yr => {
+                const net = allYears[yr].surplus - getLoan(pData, yr);
+                const pct = allYears[yr].revTotal > 0 ? net / allYears[yr].revTotal * 100 : 0;
+                return <td key={yr} style={{ ...tdStyle, color: surplusColor(net) }}>{pct.toFixed(1)}%</td>;
+              })}
             </tr>
             <tr style={{ background: "#fff8ee", borderTop: "1px dashed #e07030" }}>
               <td style={{ ...rowHdr, color: "#e07030", fontWeight: 600 }}>Target</td>
@@ -1123,7 +1139,8 @@ function Step7({ pData, confirmed, onConfirm, onBack }) {
             <tr style={{ background: "#fff8ee" }}>
               <td style={{ ...rowHdr, color: "#888" }}>Gap to close</td>
               {YEAR_LABELS.map(yr => {
-                const gap = allYears[yr].revTotal * nv(targets[yr]) / 100 - allYears[yr].surplus;
+                const net = allYears[yr].surplus - getLoan(pData, yr);
+                const gap = allYears[yr].revTotal * nv(targets[yr]) / 100 - net;
                 return <td key={yr} style={{ ...tdStyle, color: gap > 0 ? "#b83232" : "#2d7d46", fontWeight: 500 }}>{gap > 0 ? fmtK(gap) : "—"}</td>;
               })}
             </tr>
@@ -1420,7 +1437,7 @@ function Step10({ pData, onConfirm, onBack, confirmed }) {
       </div>
 
       <div className="sl-section">
-        <h3>Revenue mix by July 2028 (%)</h3>
+        <h3>Revenue mix by July 2030 (%)</h3>
         <div className="sl-step-lead">Allocate 100% across lines. Total: <strong style={{ color: Math.abs(totalMix - 100) < 1 ? "#2d7d46" : "#b83232" }}>{totalMix.toFixed(0)}%</strong></div>
         {REV_LINES.map(l => (
           <div key={l.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
@@ -1561,7 +1578,7 @@ ${keepStatements.map((s,i) => `${i+1}. ${s.text}`).join("\n")}`
     return `You are simultaneously a world-leading strategy consultant, a world-leading management accountant, a world-leading finance expert, and a world-leading accountant advising Cranfield University's Faculty of Business and Management (FBaM).
 
 FINANCIAL CONTEXT:
-- Do-nothing revenue by July 2028: £${Math.round(predRev)}k
+- Do-nothing revenue by July 2030: £${Math.round(predRev)}k
 - Do-nothing costs: £${Math.round(predCost)}k
 - Do-nothing surplus: £${Math.round(predRev - predCost)}k (${predRev > 0 ? ((predRev - predCost)/predRev*100).toFixed(1) : 0}%)
 - Target surplus: ${tgt}%
@@ -1723,6 +1740,8 @@ function Step12CloseGap({ pData, confirmed, onConfirm, onBack }) {
 
 Current do-nothing revenue: total £${Math.round(predRev)}k. Current do-nothing costs: total £${Math.round(predCost)}k.
 
+Priority: grow CED Customised as the primary lever. Micro-credentials is a secondary growth line. Do NOT increase research_dd, hefce, other_rev, or cabinet above their do-nothing values — these are fixed. Only change revenue figures to close the gap.
+
 Return ONLY valid JSON. Adjust revenue values to close the gap. Keep costs unchanged:
 {"narrative":"one sentence explaining strategy","revs":{${revCtx}},"costs":{${costCtx}}}`;
   };
@@ -1837,7 +1856,7 @@ Return ONLY valid JSON. Adjust revenue values to close the gap. Keep costs uncha
           {/* Editable tables */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 24 }}>
             <div>
-              <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, color: "#888", marginBottom: 10 }}>Revenue by July 2028 (£k)</div>
+              <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, color: "#888", marginBottom: 10 }}>Revenue by July 2030 (£k)</div>
               {REV_LINES.map(l => {
                 const base = nv(predRevs[l.id]);
                 const cur  = revs ? nv(revs[l.id]) : base;
@@ -1858,7 +1877,7 @@ Return ONLY valid JSON. Adjust revenue values to close the gap. Keep costs uncha
               </div>
             </div>
             <div>
-              <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, color: "#888", marginBottom: 10 }}>Costs by July 2028 (£k)</div>
+              <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, color: "#888", marginBottom: 10 }}>Costs by July 2030 (£k)</div>
               {COST_LINES.map(l => {
                 const base = nv(predCosts[l.id]);
                 const cur  = costs ? nv(costs[l.id]) : base;
@@ -1900,31 +1919,24 @@ function Step15YearlyPL({ pData, confirmed, onConfirm, onBack }) {
   /* Initialise per-year data from section 14 scenario (s12Revs = 2028 target)
      and do-nothing costs per year. Revenues: interpolate from do-nothing toward
      s12Revs target, with s12Revs anchoring 2028. */
-  const initData = () => {
-    const s12Revs  = pData.s12Revs  || {};
-    const data = {};
-    YEAR_LABELS.forEach((yr, idx) => {
-      const dnRevs  = allYears[yr].predRevs;
-      const dnCosts = allYears[yr].predCosts;
-      // Blend: 2027=25%, 2028=100% (s12Revs anchor), 2029=125%, 2030=150%
-      const blends  = { 2027: 0.25, 2028: 1.0, 2029: 1.25, 2030: 1.5 };
-      const blend   = blends[yr];
-      const revs = {};
-      REV_LINES.forEach(l => {
-        const dn = nv(dnRevs[l.id]);
-        const tgt = nv(s12Revs[l.id], dn);
-        const delta = tgt - dn;
-        revs[l.id] = String(Math.round(dn + delta * blend));
-      });
-      revs.pt_levy = "0";
-      const costs = {};
-      COST_LINES.forEach(l => {
-        costs[l.id] = String(Math.round(nv(dnCosts[l.id])));
-      });
-      data[yr] = { revs, costs };
-    });
-    return data;
-  };
+  const initData = () => ({
+    2027: {
+      revs:  {ft_mba:"2304",ft_msc_prog:"6000",pt_levy:"0",ced_custom:"7506",slep:"413",cabinet:"1925",ced_other:"181",micro_cred:"400",open:"4130",research_dd:"1667",hefce:"1429",residences:"474",other_rev:"998"},
+      costs: {academic_staff:"5283",support_staff:"1715",associates:"596",prog_costs:"4541",ops_overhead:"6844",uni_charge:"8991"},
+    },
+    2028: {
+      revs:  {ft_mba:"2304",ft_msc_prog:"6000",pt_levy:"0",ced_custom:"8580",slep:"0",cabinet:"1925",ced_other:"181",micro_cred:"600",open:"4900",research_dd:"1667",hefce:"1461",residences:"550",other_rev:"998"},
+      costs: {academic_staff:"5283",support_staff:"1715",associates:"680",prog_costs:"4214",ops_overhead:"5907",uni_charge:"8991"},
+    },
+    2029: {
+      revs:  {ft_mba:"2304",ft_msc_prog:"6000",pt_levy:"0",ced_custom:"8963",slep:"0",cabinet:"1925",ced_other:"181",micro_cred:"800",open:"5208",research_dd:"1667",hefce:"1465",residences:"600",other_rev:"998"},
+      costs: {academic_staff:"5788",support_staff:"1715",associates:"680",prog_costs:"4214",ops_overhead:"5907",uni_charge:"8991"},
+    },
+    2030: {
+      revs:  {ft_mba:"2304",ft_msc_prog:"6000",pt_levy:"0",ced_custom:"10000",slep:"0",cabinet:"1925",ced_other:"181",micro_cred:"1000",open:"5180",research_dd:"1667",hefce:"1461",residences:"650",other_rev:"998"},
+      costs: {academic_staff:"6003",support_staff:"1715",associates:"680",prog_costs:"4214",ops_overhead:"5907",uni_charge:"8991"},
+    },
+  });
 
   const [data, setData] = useState(pData.s15Data || initData());
   const [activeYr, setActiveYr] = useState(2027);
@@ -1932,17 +1944,18 @@ function Step15YearlyPL({ pData, confirmed, onConfirm, onBack }) {
   const setRev  = (yr, id, v) => setData(d => ({ ...d, [yr]: { ...d[yr], revs:  { ...d[yr].revs,  [id]: v } } }));
   const setCost = (yr, id, v) => setData(d => ({ ...d, [yr]: { ...d[yr], costs: { ...d[yr].costs, [id]: v } } }));
 
-  /* KPIs per year */
+  /* KPIs per year — loan repayment shown separately, not in operating costs */
   const kpis = (yr) => {
     const revs      = data[yr]?.revs  || {};
     const costs     = data[yr]?.costs || {};
     const totalRev  = REV_LINES.reduce((s, l) => s + nv(revs[l.id]),  0);
     const totalCost = COST_LINES.reduce((s, l) => s + nv(costs[l.id]), 0);
-    const surplus   = totalRev - totalCost;
+    const loan      = getLoan(pData, yr);
+    const surplus   = totalRev - totalCost - loan;
     const surplusPct = totalRev > 0 ? surplus / totalRev * 100 : 0;
     const tgt       = nv(targets[yr]);
     const gap       = totalRev * tgt / 100 - surplus;
-    return { totalRev, totalCost, surplus, surplusPct, tgt, gap };
+    return { totalRev, totalCost, loan, surplus, surplusPct, tgt, gap };
   };
 
   const surplusColor = v => v >= 0 ? "#2d7d46" : "#b83232";
@@ -2037,10 +2050,17 @@ function Step15YearlyPL({ pData, confirmed, onConfirm, onBack }) {
               </tr>
             ))}
             <tr style={{ borderTop: "2px solid #1a1a1a", background: "#faf8f5" }}>
-              <td style={{ ...rhS, fontWeight: 700 }}>Total costs</td>
+              <td style={{ ...rhS, fontWeight: 700 }}>Total operating costs</td>
               {YEAR_LABELS.map(yr => {
                 const k = kpis(yr);
                 return <td key={yr} style={{ ...roS, fontWeight: 700 }}>{fmtK(k.totalCost)}</td>;
+              })}
+            </tr>
+            <tr style={{ borderBottom: "1px solid #e07030" }}>
+              <td style={{ ...rhS, color: "#e07030", fontStyle: "italic" }}>University loan repayment contribution</td>
+              {YEAR_LABELS.map(yr => {
+                const k = kpis(yr);
+                return <td key={yr} style={{ ...roS, color: "#e07030", fontStyle: "italic" }}>{fmtK(k.loan)}</td>;
               })}
             </tr>
 
@@ -2070,12 +2090,13 @@ function Step15YearlyPL({ pData, confirmed, onConfirm, onBack }) {
               })}
             </tr>
             <tr style={{ background: "#fff8ee" }}>
-              <td style={{ ...rhS, color: "#888", fontSize: 11 }}>Gap to target</td>
+              <td style={{ ...rhS, color: "#888", fontSize: 11 }}>vs target</td>
               {YEAR_LABELS.map(yr => {
                 const k = kpis(yr);
+                const vs = k.surplusPct - k.tgt;
                 return (
-                  <td key={yr} style={{ ...roS, fontSize: 11, color: k.gap > 100 ? "#b83232" : "#2d7d46", fontWeight: 500 }}>
-                    {k.gap > 100 ? fmtK(k.gap) : "Met ✓"}
+                  <td key={yr} style={{ ...roS, fontSize: 11, color: vs >= 0 ? "#2d7d46" : "#b83232", fontWeight: 600 }}>
+                    {vs >= 0 ? "+" : ""}{vs.toFixed(1)}pp
                   </td>
                 );
               })}
@@ -2715,7 +2736,7 @@ function ParticipantView({ name, tick, onLogout }) {
           stepN={7} lines={COST_LINES.map(l => ({ ...l, prefillK: nv(pd.costs?.[l.id], l.baseK) }))}
           defRates={pd.costRates || COST_DEF_RATES} lineRates={{}} setLineRates={() => {}}
           heading="Do-nothing cost trajectory — 2027 to 2030"
-          note="Enter a CAGR for each cost line. Pay awards, TRAC changes, and headcount reductions. Loan repayment and investment in growth are added automatically."
+          note="Enter a CAGR for each cost line. Costs reduce to their July 2028 target then hold flat through 2030. Pay awards, TRAC changes, and headcount reductions all apply."
           confirmLabel="Confirm predicted costs → Step 8: Prognosis"
           isCost={true} confirmed={pd.step7Confirmed}
           onConfirm={(rates, predDirect) => { pSave(name, { costRates: rates, predCostsDirect: predDirect, step7Confirmed: true }); advance(); }}
@@ -2749,7 +2770,7 @@ function ParticipantView({ name, tick, onLogout }) {
       {displayStep === 13 && (
         <TransitionScreen
           heading="Section two complete."
-          body="You have considered who FBaM should serve, where it should position itself, and which changes would make the most difference. In section three we move to the numbers. You will build a strawperson financial scenario — a complete revenue and cost structure that is both coherent with your strategic choices and financially viable by July 2028. The scenarios will then be compared across the group."
+          body="You have considered who FBaM should serve, where it should position itself, and which changes would make the most difference. In section three we move to the numbers. You will build a strawperson financial scenario — a complete revenue and cost structure that is both coherent with your strategic choices and financially viable by July 2030. The scenarios will then be compared across the group."
           onContinue={advance}
           continueLabel="Continue → Step 14: Close the gap"
           onBack={() => go(12)}
@@ -2887,7 +2908,7 @@ function PurposeStep9({ pData, confirmed, onConfirm, onBack }) {
       <BackBtn onClick={onBack} />
       {confirmed && <ConfirmedBanner stepN={10} />}
       <div className="sl-step-h">Strategic positioning</div>
-      <div className="sl-prompt">These sliders define where you believe FBaM should position itself by July 2028. They shape the strategic changes generated in the next step. Set each to your honest view — the disagreements across the group are the conversation.</div>
+      <div className="sl-prompt">These sliders define where you believe FBaM should position itself by July 2030. They shape the strategic changes generated in the next step. Set each to your honest view — the disagreements across the group are the conversation.</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 28, marginBottom: 32 }}>
         {PURPOSE_TENSIONS.map(t => {
           const v = nv(tensions[t.key], 50);
@@ -3691,7 +3712,7 @@ ${tbl([["Revenue line"],["£k","right"]],
   tr([["Net surplus","left",true],[fmtK(curSurplus),"right",true,curSurplus>=0?"#2d7d46":"#b83232"]])
 )}
 
-${H2("3. Do-nothing trajectory by July 2028")}
+${H2("3. Do-nothing trajectory by July 2030")}
 ${tbl([["Revenue line"],["CAGR applied","right"],["Predicted £k","right"]],
   REV_LINES.map(l=>tr([[l.name],[`${nv(getRevRate(l.id)).toFixed(1)}%`,"right"],[fmtK(nv(predRevs[l.id])),"right"]])).join("")+
   tr([["Total revenue","left",true],["","right"],[fmtK(predRev),"right",true]])+
@@ -3716,7 +3737,7 @@ ${tbl([["Dimension"],["Position"]],
 ${H2("6. Selected changes")}
 ${changes.length>0?`<ol style="font-size:12px;padding-left:18px">${changes.map(s=>`<li style="margin-bottom:5px">${s.text}</li>`).join("")}</ol>`:"<p style='font-size:12px;color:#888'>None selected.</p>"}
 
-${H2("7. Strawperson scenario by July 2028")}
+${H2("7. Strawperson scenario by July 2030")}
 ${scenRevs ? tbl([["Revenue line"],["£k","right"]],
   REV_LINES.map(l=>tr([[l.name],[fmtK(nv(scenRevs[l.id])),"right"]])).join("")+
   tr([["Total revenue","left",true],[fmtK(s17R),"right",true]])+
@@ -3808,12 +3829,12 @@ ${!why && !how && !what ? `<p style="font-size:12px;color:#888">Purpose section 
         [["Revenue stream"],["Sector CAGR"],["FBaM CAGR applied","right"]],
         MARKET_BENCHMARKS.map(b=>tr([[b.label],[b.range],[`${nv(getRevRate(b.id)).toFixed(1)}%`,"right"]])).join("")
       )),
-      PAGE("6. Predicted revenues by July 2028", 6, tbl(
+      PAGE("6. Predicted revenues by July 2030", 6, tbl(
         [["Revenue line"],["CAGR %","right"],["Current £k","right"],["Predicted £k","right"]],
         REV_LINES.map(l=>{const base=nv(l.prefillK);const pred=nv(predRevs[l.id]);return tr([[l.name],[`${nv(getRevRate(l.id)).toFixed(1)}%`,"right"],[fmtK(base),"right"],[fmtK(pred),"right",false,pred<base?"#b83232":"#2d7d46"]]);}).join("")+
         tr([["Total","left",true],["","right"],[fmtK(REV_LINES.reduce((s,l)=>s+nv(l.prefillK),0)),"right",true],[fmtK(predRev),"right",true]])
       )),
-      PAGE("7. Predicted costs by July 2028", 7, tbl(
+      PAGE("7. Predicted costs by July 2030", 7, tbl(
         [["Cost line"],["CAGR %","right"],["Current £k","right"],["Predicted £k","right"]],
         COST_LINES.map(l=>{const base=nv(l.baseK);const pred=nv(predCosts[l.id]);return tr([[l.name],[`${nv(pData.costRates?.[l.id]||0).toFixed(1)}%`,"right"],[fmtK(base),"right"],[fmtK(pred),"right"]]);}).join("")+
         tr([["Total","left",true],["","right"],[fmtK(COST_LINES.reduce((s,l)=>s+nv(l.baseK),0)),"right",true],[fmtK(predCost),"right",true]])
@@ -3845,7 +3866,7 @@ ${!why && !how && !what ? `<p style="font-size:12px;color:#888">Purpose section 
       ),
       PAGE("Section two complete", "→", `
         <p class="transition-body">You have considered who FBaM should serve, where it should position itself, and which changes would make the most difference.</p>
-        <p class="transition-body">In section three you build the strawperson financial scenario — a complete revenue and cost structure that is both coherent with your strategic choices and financially viable by July 2028.</p>
+        <p class="transition-body">In section three you build the strawperson financial scenario — a complete revenue and cost structure that is both coherent with your strategic choices and financially viable by July 2030.</p>
       `),
       PAGE("14. Close the gap — Strawperson scenario", 14, scenRevs ? tbl(
         [["Revenue line"],["£k","right"]],

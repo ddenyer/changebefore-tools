@@ -73,9 +73,10 @@ const COST_LINES = [
     note: "Q3 25/26: Professional/consultancy £3,090k, commissions/profit share £2,349k (down £40k — GT net income share reducing as EMBA/MML cohorts complete), premises/utilities £309k, travel £564k, marketing £357k, depreciation & other £1,278k. 26/27: travel up £156k for HEIF and customised courses. Predicted July 2028: £5,904k (−26% total). Default CAGR −10%." },
   { id: "uni_charge",     name: "University service charge",                 baseK: 8991,
     note: "Q3 25/26 predicted figure: £8,991k (reduced from £10,325k in original model and £9,510k at workshop). New TRAC-based figure. Held flat — no CAGR applied. This charge converts the contribution surplus into the fully-loaded operating result. Default CAGR 0%." },
-  { id: "loan_repayment", name: "University loan repayment contribution",    baseK: 0,
-    note: "FBaM contribution to university loan repayment. Default: £30m total × 20% FBaM share ÷ 4 years = £1,500k/year. Adjust per year in the Close the Gap step — e.g. £0k in 2027 then higher in subsequent years. Default CAGR 0% (flat)." },
 ];
+
+/* Loan repayment is NOT an operating cost — shown as a separate row below costs in all tables */
+const LOAN_DEFAULT_K = 1500;
 
 const VARIABLE_COST_IDS = ["associates", "prog_costs"];
 const REV_DEF_RATES = { ft_mba: -15, ft_msc_prog: -20, pt_levy: -80, ced_custom: 7, slep: -80, cabinet: 0, ced_other: 0, micro_cred: 0, open: 7, research_dd: 0, hefce: 1, residences: -15, other_rev: 0 };
@@ -83,8 +84,8 @@ const REV_DEF_RATES = { ft_mba: -15, ft_msc_prog: -20, pt_levy: -80, ced_custom:
 /* Default cost CAGRs — calculated from Q3 25/26 baselines to hit July 2028 targets
    (academic £5,280k, PS staff £1,715k, associates £680k, prog delivery £4,213k, ops overhead £5,904k) */
 /* Cost CAGRs from July 2026 year-end to July 2028 targets (2 years) */
-const COST_DEF_RATES = { academic_staff: -14.9, support_staff: -10.7, associates: 14.1, prog_costs: -7.2, ops_overhead: -13.7, uni_charge: 0, loan_repayment: 0 };
-const COST_DRIVERS  = { academic_staff: "Pay award", support_staff: "Pay award", associates: "Day rate / volume", prog_costs: "Intake volume", ops_overhead: "Inflation / recharge", uni_charge: "TRAC / university allocation", loan_repayment: "University loan schedule" };
+const COST_DEF_RATES = { academic_staff: -14.9, support_staff: -10.7, associates: 14.1, prog_costs: -7.2, ops_overhead: -13.7, uni_charge: 0 };
+const COST_DRIVERS  = { academic_staff: "Pay award", support_staff: "Pay award", associates: "Day rate / volume", prog_costs: "Intake volume", ops_overhead: "Inflation / recharge", uni_charge: "TRAC / university allocation" };
 const STEP_NAMES    = ["1. Set goal","2. Revenue","3. Costs","4. Current position","5. Market context","6. Predicted revenues","7. Predicted costs","8. Prognosis","→ Section one","10. Who FBaM serves","11. Positioning","12. Changes","→ Section two","14. Close the gap","15. Yearly P&L","16. Theme P&L","17. Comparison","18. Finalise"];
 
 /* ── PURPOSE TOOL DATA ──────────────────────────────────────────────────── */
@@ -329,6 +330,11 @@ const calcPredRevs = (p, yr = 2028) => {
 };
 
 /* Returns { predCosts, total } for a specific year period */
+const getLoan = (p, yr) => {
+  if (p?.loanByYear?.[yr] !== undefined) return nv(p.loanByYear[yr]);
+  return LOAN_DEFAULT_K;
+};
+
 const calcPredCosts = (p, yr = 2028) => {
   // Costs reduce to 2028 target then hold flat — cap compounding period at 2.75 (July 2028)
   const per    = Math.min(PERIODS_BY_YEAR[yr] || PERIODS, PERIODS_BY_YEAR[2028]);
@@ -350,13 +356,8 @@ const calcPredCosts = (p, yr = 2028) => {
     predCosts[l.id] = pred;
     total += pred;
   });
-  // Per-year loan override from Close the Gap (overrides the COST_LINE value)
-  if (p.loanByYear?.[yr] !== undefined) {
-    total -= predCosts.loan_repayment;
-    predCosts.loan_repayment = nv(p.loanByYear[yr]);
-    total += predCosts.loan_repayment;
-  }
   total += nv(p.costOtherK, 0);
+  // Note: loan repayment excluded from operating costs — shown separately
   return { predCosts, total };
 };
 
@@ -1108,16 +1109,27 @@ function Step7({ pData, confirmed, onConfirm, onBack }) {
               </tr>
             ))}
             <tr style={{ borderTop: "2px solid #1a1a1a" }}>
-              <td style={{ ...rowHdr, fontWeight: 700 }}>Total costs</td>
+              <td style={{ ...rowHdr, fontWeight: 700 }}>Total operating costs</td>
               {YEAR_LABELS.map(yr => <td key={yr} style={{ ...tdStyle, fontWeight: 700 }}>{fmtK(allYears[yr].costTotal)}</td>)}
+            </tr>
+            <tr style={{ borderBottom: "1px solid #e07030" }}>
+              <td style={{ ...rowHdr, color: "#e07030", fontStyle: "italic" }}>University loan repayment contribution</td>
+              {YEAR_LABELS.map(yr => <td key={yr} style={{ ...tdStyle, color: "#e07030", fontStyle: "italic" }}>{fmtK(getLoan(pData, yr))}</td>)}
             </tr>
             <tr style={{ borderTop: "2px solid #e07030", background: "#faf8f5" }}>
               <td style={{ ...rowHdr, fontWeight: 700 }}>Surplus / (deficit)</td>
-              {YEAR_LABELS.map(yr => <td key={yr} style={{ ...tdStyle, fontWeight: 700, color: surplusColor(allYears[yr].surplus) }}>{fmtK(allYears[yr].surplus)}</td>)}
+              {YEAR_LABELS.map(yr => {
+                const net = allYears[yr].surplus - getLoan(pData, yr);
+                return <td key={yr} style={{ ...tdStyle, fontWeight: 700, color: surplusColor(net) }}>{fmtK(net)}</td>;
+              })}
             </tr>
             <tr style={{ background: "#faf8f5" }}>
               <td style={{ ...rowHdr, color: "#888" }}>As % of income</td>
-              {YEAR_LABELS.map(yr => <td key={yr} style={{ ...tdStyle, color: surplusColor(allYears[yr].surplus) }}>{allYears[yr].surplusPct.toFixed(1)}%</td>)}
+              {YEAR_LABELS.map(yr => {
+                const net = allYears[yr].surplus - getLoan(pData, yr);
+                const pct = allYears[yr].revTotal > 0 ? net / allYears[yr].revTotal * 100 : 0;
+                return <td key={yr} style={{ ...tdStyle, color: surplusColor(net) }}>{pct.toFixed(1)}%</td>;
+              })}
             </tr>
             <tr style={{ background: "#fff8ee", borderTop: "1px dashed #e07030" }}>
               <td style={{ ...rowHdr, color: "#e07030", fontWeight: 600 }}>Target</td>
@@ -1126,7 +1138,8 @@ function Step7({ pData, confirmed, onConfirm, onBack }) {
             <tr style={{ background: "#fff8ee" }}>
               <td style={{ ...rowHdr, color: "#888" }}>Gap to close</td>
               {YEAR_LABELS.map(yr => {
-                const gap = allYears[yr].revTotal * nv(targets[yr]) / 100 - allYears[yr].surplus;
+                const net = allYears[yr].surplus - getLoan(pData, yr);
+                const gap = allYears[yr].revTotal * nv(targets[yr]) / 100 - net;
                 return <td key={yr} style={{ ...tdStyle, color: gap > 0 ? "#b83232" : "#2d7d46", fontWeight: 500 }}>{gap > 0 ? fmtK(gap) : "—"}</td>;
               })}
             </tr>
@@ -1808,19 +1821,19 @@ function Step15YearlyPL({ pData, confirmed, onConfirm, onBack }) {
   const initData = () => ({
     2027: {
       revs:  {ft_mba:"2304",ft_msc_prog:"6000",pt_levy:"0",ced_custom:"7506",slep:"413",cabinet:"1925",ced_other:"181",micro_cred:"400",open:"4130",research_dd:"1667",hefce:"1429",residences:"474",other_rev:"998"},
-      costs: {academic_staff:"5283",support_staff:"1715",associates:"596",prog_costs:"4541",ops_overhead:"6844",uni_charge:"8991",loan_repayment:"1500"},
+      costs: {academic_staff:"5283",support_staff:"1715",associates:"596",prog_costs:"4541",ops_overhead:"6844",uni_charge:"8991"},
     },
     2028: {
       revs:  {ft_mba:"2304",ft_msc_prog:"6000",pt_levy:"0",ced_custom:"8580",slep:"0",cabinet:"1925",ced_other:"181",micro_cred:"600",open:"4900",research_dd:"1667",hefce:"1461",residences:"550",other_rev:"998"},
-      costs: {academic_staff:"5283",support_staff:"1715",associates:"680",prog_costs:"4214",ops_overhead:"5907",uni_charge:"8991",loan_repayment:"1500"},
+      costs: {academic_staff:"5283",support_staff:"1715",associates:"680",prog_costs:"4214",ops_overhead:"5907",uni_charge:"8991"},
     },
     2029: {
       revs:  {ft_mba:"2304",ft_msc_prog:"6000",pt_levy:"0",ced_custom:"8963",slep:"0",cabinet:"1925",ced_other:"181",micro_cred:"800",open:"5208",research_dd:"1667",hefce:"1465",residences:"600",other_rev:"998"},
-      costs: {academic_staff:"5788",support_staff:"1715",associates:"680",prog_costs:"4214",ops_overhead:"5907",uni_charge:"8991",loan_repayment:"1500"},
+      costs: {academic_staff:"5788",support_staff:"1715",associates:"680",prog_costs:"4214",ops_overhead:"5907",uni_charge:"8991"},
     },
     2030: {
       revs:  {ft_mba:"2304",ft_msc_prog:"6000",pt_levy:"0",ced_custom:"10000",slep:"0",cabinet:"1925",ced_other:"181",micro_cred:"1000",open:"5180",research_dd:"1667",hefce:"1461",residences:"650",other_rev:"998"},
-      costs: {academic_staff:"6003",support_staff:"1715",associates:"680",prog_costs:"4214",ops_overhead:"5907",uni_charge:"8991",loan_repayment:"1500"},
+      costs: {academic_staff:"6003",support_staff:"1715",associates:"680",prog_costs:"4214",ops_overhead:"5907",uni_charge:"8991"},
     },
   });
 
@@ -1830,17 +1843,18 @@ function Step15YearlyPL({ pData, confirmed, onConfirm, onBack }) {
   const setRev  = (yr, id, v) => setData(d => ({ ...d, [yr]: { ...d[yr], revs:  { ...d[yr].revs,  [id]: v } } }));
   const setCost = (yr, id, v) => setData(d => ({ ...d, [yr]: { ...d[yr], costs: { ...d[yr].costs, [id]: v } } }));
 
-  /* KPIs per year */
+  /* KPIs per year — loan repayment shown separately */
   const kpis = (yr) => {
     const revs      = data[yr]?.revs  || {};
     const costs     = data[yr]?.costs || {};
     const totalRev  = REV_LINES.reduce((s, l) => s + nv(revs[l.id]),  0);
     const totalCost = COST_LINES.reduce((s, l) => s + nv(costs[l.id]), 0);
-    const surplus   = totalRev - totalCost;
+    const loan      = getLoan(pData, yr);
+    const surplus   = totalRev - totalCost - loan;
     const surplusPct = totalRev > 0 ? surplus / totalRev * 100 : 0;
     const tgt       = nv(targets[yr]);
     const gap       = totalRev * tgt / 100 - surplus;
-    return { totalRev, totalCost, surplus, surplusPct, tgt, gap };
+    return { totalRev, totalCost, loan, surplus, surplusPct, tgt, gap };
   };
 
   const surplusColor = v => v >= 0 ? "#2d7d46" : "#b83232";
@@ -1935,10 +1949,17 @@ function Step15YearlyPL({ pData, confirmed, onConfirm, onBack }) {
               </tr>
             ))}
             <tr style={{ borderTop: "2px solid #1a1a1a", background: "#faf8f5" }}>
-              <td style={{ ...rhS, fontWeight: 700 }}>Total costs</td>
+              <td style={{ ...rhS, fontWeight: 700 }}>Total operating costs</td>
               {YEAR_LABELS.map(yr => {
                 const k = kpis(yr);
                 return <td key={yr} style={{ ...roS, fontWeight: 700 }}>{fmtK(k.totalCost)}</td>;
+              })}
+            </tr>
+            <tr style={{ borderBottom: "1px solid #e07030" }}>
+              <td style={{ ...rhS, color: "#e07030", fontStyle: "italic" }}>University loan repayment contribution</td>
+              {YEAR_LABELS.map(yr => {
+                const k = kpis(yr);
+                return <td key={yr} style={{ ...roS, color: "#e07030", fontStyle: "italic" }}>{fmtK(k.loan)}</td>;
               })}
             </tr>
 
