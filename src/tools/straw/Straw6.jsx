@@ -51,18 +51,28 @@ const syncFromSupabase = async () => {
    MBA is NOT separated from award-bearing fee income.
    ════════════════════════════════════════════════════════════════════════ */
 const REV_LINES = [
-  { id:"hefce",        name:"HEFCE Funding – Research & Other",                 q3:1402,  bud:1373,  cagr:1,   kind:"normal" },
-  { id:"award_bearing",name:"Award Bearing Fee Income",                         q3:11700, bud:10810, cagr:-20, kind:"normal" },
+  { id:"hefce",        name:"HEFCE Funding – Research & Other",                 q3:1402,  bud:1373,  cagr:2,   kind:"normal",
+    conf:"High",   basis:"QR / Research England recurrent grant — broadly inflation-linked, ~+2% nominal but ~0% real. Cost weight makes a business school's base ~⅓ of comparable STEM per head: that is a level effect, not a rate. Small and REF-cycle-sensitive — can swing more sharply than the sector around each submission." },
+  { id:"award_bearing",name:"Award Bearing Fee Income",                         q3:11700, bud:10810, cagr:-2,  kind:"normal",
+    conf:"High",   basis:"Taught master's fee income — flat to slightly negative forward. International volumes fell ~10%/yr but uncapped per-head fees have held revenue roughly flat, so this rate reflects revenue, not enrolments. (HESA / CABS.)" },
   { id:"masterships",  name:"Award Bearing Fee Income – Masterships",           q3:4597,  bud:1582,  cagr:0,   kind:"ending", endNote:"Levy / apprenticeship — no new intakes; income ends May 2027." },
-  { id:"open",         name:"Professional Development Fees – Open Programmes",  q3:3159,  bud:3326,  cagr:7,   kind:"normal" },
-  { id:"ced_custom",   name:"CED Customised",                                   q3:5300,  bud:5700,  cagr:7,   kind:"normal" },
+  { id:"open",         name:"Professional Development Fees – Open Programmes",  q3:3159,  bud:3326,  cagr:7,   kind:"normal",
+    conf:"Medium", basis:"Open-enrolment exec ed — UK proxy ~6–9%, below the ~13% global rate (UNICON). Cautious UK figure used. (Global proxy.)" },
+  { id:"ced_custom",   name:"CED Customised",                                   q3:5300,  bud:5700,  cagr:10,  kind:"normal",
+    conf:"Medium", basis:"Customised exec ed — fastest-growing degree-adjacent line, UK ~8–12% vs ~13.5% global. (Global proxy.)" },
   { id:"slep",         name:"CED – Non Award Bearing (SLEP)",                   q3:2746,  bud:713,   cagr:0,   kind:"ending", endNote:"Levy income ends Feb 2027; teach-out only." },
-  { id:"cabinet",      name:"Cabinet Office (PLP)",                             q3:1925,  bud:1812,  cagr:10,  kind:"normal" },
-  { id:"ced_other",    name:"Other customised (BGP, Entrepreneurship, CWoW)",   q3:181,   bud:270,   cagr:0,   kind:"normal" },
-  { id:"micro_cred",   name:"Micro-credentials (new award-bearing exec ed)",    q3:0,     bud:0,     cagr:0,   kind:"new",    target2030:0 },
-  { id:"research_dd",  name:"Research, Design & Development",                    q3:1508,  bud:1229,  cagr:1,   kind:"normal" },
-  { id:"residences",   name:"Residences",                                       q3:617,   bud:607,   cagr:-15, kind:"normal" },
-  { id:"other_rev",    name:"Other income",                                     q3:1000,  bud:790,   cagr:0,   kind:"normal", balancing:true },
+  { id:"cabinet",      name:"Cabinet Office (PLP)",                             q3:1925,  bud:1812,  cagr:8,   kind:"normal",
+    conf:"Medium", basis:"Government customised programmes — placed within the customised exec-ed range (~8–12%). (Proxy / local read.)" },
+  { id:"ced_other",    name:"Other customised (BGP, Entrepreneurship, CWoW)",   q3:181,   bud:270,   cagr:5,   kind:"normal",
+    conf:"Low",    basis:"Small customised tail — modest growth assumed within the customised range. (Local estimate.)" },
+  { id:"micro_cred",   name:"Micro-credentials (new award-bearing exec ed)",    q3:0,     bud:0,     cagr:0,   kind:"new",    target2030:0,
+    conf:"Low–Med", basis:"Nascent UK market; global/European proxy ~12–18% off a very small base. Driven by your 2030 target, not this rate." },
+  { id:"research_dd",  name:"Research, Design & Development",                    q3:1508,  bud:1229,  cagr:2,   kind:"normal",
+    conf:"Med–High", basis:"Research grants & contracts (B&M basis) — ~2–4% nominal forward but ~0–1% real; the headline nominal growth is mostly inflation. Same underlying flat-real story as QR, by a different route. (HESA / CABS.)" },
+  { id:"residences",   name:"Residences",                                       q3:617,   bud:607,   cagr:0,   kind:"normal",
+    conf:null,     basis:"Not covered by the sector research — local assumption, held flat. Edit if you have a basis." },
+  { id:"other_rev",    name:"Other income",                                     q3:1000,  bud:790,   cagr:0,   kind:"normal", balancing:true,
+    conf:null,     basis:"Balancing line — held flat. Local assumption." },
 ];
 
 const COST_LINES = [
@@ -127,10 +137,12 @@ function revLinesFor(m) {
   return REV_LINES.concat(custom);
 }
 
-/* Observed one-year trend Q3 25/26 → Budget 26/27 (on resolved anchors) */
+/* Observed one-year step Q3 25/26 → Budget 26/27. This is a LEVEL change
+   (already banked in the budget), shown for context — NOT a forward rate.     */
 const trendPct = (l, m) => { const { q3, bud } = resolveBase(m?.baseRev, l); return q3 > 0 ? (bud - q3) / q3 * 100 : 0; };
-/* Default blended forward rate = average of observed trend and sector CAGR */
-const defaultBlend = (l, m) => round1((trendPct(l, m) + l.cagr) / 2);
+/* Default forward rate = the sector growth rate (a rate signal). The budget
+   already banks the one-off level reset, so it does not drive this.           */
+const defaultRate = (l) => l.cagr;
 
 /* ── CALC ENGINE — single source of truth ────────────────────────────────── */
 /* Project one revenue line for a year, honouring overrides, postures, blend. */
@@ -152,7 +164,7 @@ function projRev(l, yr, m) {
     if (p.rate === null) { const glide = [0.5, 0.25, 0][steps - 1]; return bud * glide; }
     return bud * Math.pow(1 + p.rate / 100, steps);
   }
-  const rate = nv(m.blend?.[l.id], defaultBlend(l, m));
+  const rate = nv(m.blend?.[l.id], defaultRate(l));
   return bud * Math.pow(1 + rate / 100, steps);
 }
 
@@ -514,7 +526,7 @@ function Entry({ onEnter }) {
       <div className="sl-brand-org">Cranfield University — Faculty of Business and Management</div>
       <div className="sl-overview">
         <p>This model starts from real numbers. The current position is the Q3 2025/26 forecast. The first year ahead is the agreed 2026/27 budget.</p>
-        <p>From 2027/28 onward the figures are estimates only, built from the current trajectory and from sector growth rates drawn from market research. They are based on the observed movement from the 2025/26 forecast to the 2026/27 budget, blended with the sector growth rate for each line, to give a forward rate you can adjust.</p>
+        <p>From 2027/28 onward the figures are estimates only. Each income line carries a forward growth rate drawn from market research on the sector, which you can adjust. The one-off step from the 2025/26 forecast to the 2026/27 budget is already banked in the budget as a level change, so it is shown for context but does not drive the forward rate.</p>
       </div>
       <hr className="sl-rule" />
       <div className="sl-field">
@@ -605,17 +617,19 @@ function StepCurrent({ m, confirmed, onConfirm, onBack }) {
   );
 }
 
-/* ── 3. DO-NOTHING (trend → sector CAGR → blended rate, editable) ─────────── */
+/* ── 3. DO-NOTHING (sector CAGR is the forward rate; level step is context) ── */
+const CONF_COLOR = { "High":"#2d7d46", "Med–High":"#2d7d46", "Medium":"#b87a20", "Low–Med":"#b87a20", "Low":"#b83232" };
 function StepDoNothing({ m, confirmed, onConfirm, onBack }) {
-  const init = () => { const b = {}; REV_LINES.forEach(l => { if (l.kind === "normal") b[l.id] = String(nv(m.blend?.[l.id], defaultBlend(l, m))); }); return b; };
+  const init = () => { const b = {}; REV_LINES.forEach(l => { if (l.kind === "normal") b[l.id] = String(nv(m.blend?.[l.id], defaultRate(l))); }); return b; };
   const [blend, setBlend] = useState(init);
   const liveM = { ...m, blend: Object.fromEntries(Object.entries(blend).map(([k, v]) => [k, nv(v)])), posture: {} };
 
   const doConfirm = () => {
-    const b = {}; REV_LINES.forEach(l => { if (l.kind === "normal") b[l.id] = nv(blend[l.id], defaultBlend(l, m)); });
+    const b = {}; REV_LINES.forEach(l => { if (l.kind === "normal") b[l.id] = nv(blend[l.id], defaultRate(l)); });
     mSave({ blend: b, step3Confirmed: true });
     onConfirm();
   };
+  const resetRates = () => { const b = {}; REV_LINES.forEach(l => { if (l.kind === "normal") b[l.id] = String(defaultRate(l)); }); setBlend(b); };
   const td = { fontFamily: "'IBM Plex Mono',monospace", fontSize: 12, textAlign: "right", padding: "5px 8px" };
 
   return (
@@ -623,23 +637,31 @@ function StepDoNothing({ m, confirmed, onConfirm, onBack }) {
       <BackBtn onClick={onBack} />
       {confirmed && <ConfirmedBanner n={3} />}
       <div className="sl-step-h">Do-nothing trajectory</div>
-      <div className="sl-prompt">If nothing changes. For each income line you can see the observed trend (Q3 25/26 → 26/27 budget) and the sector growth rate from market research. The blended rate is the average of the two — edit it if you disagree. Apprenticeship and SLEP income ends in 2027 regardless.</div>
-      <div style={{ overflowX: "auto", marginBottom: 20 }}>
-        <table className="sl-pl" style={{ minWidth: 560 }}>
+      <div className="sl-prompt">If nothing changes. Each income line carries a forward growth rate drawn from market research on the sector — that is the rate it grows at from the 2026/27 budget onward. The one-off step from the Q3 forecast to the budget is shown for context only: it is a level change, already banked in the budget, not a growth rate. Apprenticeship and SLEP income ends in 2027 regardless.</div>
+
+      <div className="sl-note-box">
+        <div style={{ fontWeight: 600, color: "#1a1a1a", marginBottom: 6 }}>About these growth rates</div>
+        The sector growth rate for each line is a planning mid-point from market research on UK postgraduate business-school revenue, 2024–2030. The rates are nominal and deliberately cautious where only global figures exist. Three things to hold in mind: government-linked income (research funding and grants) is flat in cash and slightly negative in real terms; executive education — open and customised — is the only genuinely growing category, though the UK outlook sits below global rates; and for taught master's, fee income has stayed roughly flat even as international student numbers fell, so the rate reflects revenue, not enrolments. Hover any rate for its basis and confidence. Edit any rate you don't accept.
+      </div>
+
+      <div style={{ overflowX: "auto", marginBottom: 12 }}>
+        <table className="sl-pl" style={{ minWidth: 620 }}>
           <thead><tr>
             <th>Income line</th>
-            <th>Q3 25/26</th><th>Budget 26/27</th><th>Trend</th><th>Sector CAGR</th><th>Blended rate</th>
+            <th>Q3 25/26</th><th>Budget 26/27</th><th>Q3→Budget *</th><th>Sector rate</th><th>Forward rate</th>
           </tr></thead>
           <tbody>
             {REV_LINES.map(l => { const rb = resolveBase(m.baseRev, l); return (
               <tr key={l.id}>
-                <td>{l.name}</td>
+                <td title={l.basis || ""}>{l.name}
+                  {l.conf && <span style={{ marginLeft: 6, fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, color: CONF_COLOR[l.conf] || "#888" }}>{l.conf}</span>}
+                </td>
                 <td style={td}>{fmtK(rb.q3)}</td>
                 <td style={td}>{fmtK(rb.bud)}</td>
-                <td style={{ ...td, color: l.kind === "normal" ? (trendPct(l, m) >= 0 ? "#2d7d46" : "#b83232") : "#aaa" }}>
+                <td style={{ ...td, color: "#aaa" }} title="One-off level change, already banked in the budget — context only, not a growth rate.">
                   {l.kind === "normal" ? fmtPct(trendPct(l, m)) : "—"}
                 </td>
-                <td style={{ ...td, color: "#888" }}>{l.kind === "normal" ? fmtPct(l.cagr) : "—"}</td>
+                <td style={{ ...td, color: "#888" }} title={l.basis || ""}>{(l.kind === "normal") ? fmtPct(l.cagr) : "—"}</td>
                 <td style={td}>
                   {l.kind === "ending" ? <span style={{ color: "#b83232", fontSize: 11 }}>ends 2027 → £0</span>
                     : l.kind === "new" ? <span style={{ color: "#aaa", fontSize: 11 }}>set in Changes</span>
@@ -651,6 +673,13 @@ function StepDoNothing({ m, confirmed, onConfirm, onBack }) {
           </tbody>
         </table>
       </div>
+      <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#999", marginBottom: 4 }}>
+        * Q3→Budget is the one-off movement into the agreed budget — a level change, not a rate. The forward rate defaults to the sector rate and compounds from the 2026/27 budget.
+      </div>
+      <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#999", marginBottom: 16 }}>
+        Cost weight vs growth rate: a business school's research income sits at roughly a third of the per-head level of STEM disciplines, but that is a level effect, not a rate — both grow at about the sector rate, so the smaller base is carried as a level, not a rate haircut. QR can still move more sharply than the sector around each REF, on a small base. Basis: UK postgraduate business-school revenue CAGR benchmark 2024–2030 — HESA, Chartered ABS, UNICON, Research England / UKRI, market-research forecasts; confidence varies by line.
+      </div>
+
       <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, color: "#888", marginBottom: 8 }}>Resulting do-nothing P&L</div>
       <PLTable m={liveM} years={YEARS} compact />
       <div className="sl-kpis">
@@ -659,7 +688,10 @@ function StepDoNothing({ m, confirmed, onConfirm, onBack }) {
             <div className="v" style={{ color: surplusColor(k.net) }}>{k.netPct.toFixed(1)}%</div></div>
         ); })}
       </div>
-      <button className="sl-btn" onClick={doConfirm}>Confirm do-nothing → Who we serve</button>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+        <button className="sl-btn sl-btn-outline" style={{ fontSize: 12, padding: "8px 14px" }} onClick={resetRates}>↺ Reset rates to sector basis</button>
+        <button className="sl-btn" onClick={doConfirm}>Confirm do-nothing → Who we serve</button>
+      </div>
     </div>
   );
 }
