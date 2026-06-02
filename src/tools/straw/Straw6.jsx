@@ -34,6 +34,15 @@ const mSave = (d) => {
 };
 const mGet = () => STORE.model || {};
 
+/* Write-through hook: a step reads a field from the shared model and every edit
+   saves straight to it (no local mirror that can desync across the 3 editors).
+   Returns [liveValue, setValue] where setValue(v) persists immediately.        */
+function useModelField(m, key, fallback, bump) {
+  const cur = m[key] !== undefined ? m[key] : fallback;
+  const set = (v) => { mSave({ [key]: v }); bump(); };
+  return [cur, set];
+}
+
 /* Drop fields whose meaning changed between engine versions. Rate overrides are
    version-namespaced (RATE_KEY) so they need no migration — an old key is simply
    never read. Posture set changed across versions, so clear it on version bump. */
@@ -561,9 +570,14 @@ function PLTable({ m, years, editBase = false, editYears = [], onCell, compact =
               Costs above include inflation at {fmtPct(inflationPct(m))}/yr from 2028.
             </td></tr>
           )}
-          <tr><td style={{ color: "#888", fontSize: 12 }}>Cost of revenue growth ({Math.round(marginalRate(m))}% of growth)</td>
-            {yr(y => { const k = yearKpis(y, m); return k.marginalCost > 0 ? <span style={{ color: "#b87a20" }}>{fmtK(k.marginalCost)}</span> : "—"; })}
+          <tr><td style={{ color: "#888", fontSize: 12 }}>Cost of revenue growth ({Math.round(marginalRate(m))}% of growth above budget)</td>
+            {yr(y => { const k = yearKpis(y, m); return k.marginalCost > 0 ? <span style={{ color: "#b87a20" }}>{fmtK(k.marginalCost)}</span> : "£0"; })}
           </tr>
+          {years.some(y => yearKpis(y, m).revTotal < budgetRevTotal(m) && y >= 2028) && yearKpis(2030, m).marginalCost === 0 && (
+            <tr><td colSpan={years.length + 1} style={{ color: "#999", fontSize: 11, fontStyle: "italic", paddingTop: 2, paddingBottom: 2 }}>
+              No growth cost yet — total revenue is below the 2026/27 budget, so there is no growth above budget to charge. It applies once total revenue exceeds budget.
+            </td></tr>
+          )}
           <tr className="sub"><td>TOTAL OPERATING COSTS</td>{yr(y => fmtK(yearKpis(y, m).operatingCost))}</tr>
           <tr className="sub"><td>OPERATING SURPLUS (contribution)</td>
             {yr(y => { const k = yearKpis(y, m); return <span style={{ color: surplusColor(k.contribution) }}>{fmtK(k.contribution)}</span>; })}
@@ -637,7 +651,9 @@ function Entry({ onEnter }) {
 
 /* ── 1. GOAL ──────────────────────────────────────────────────────────────── */
 function StepGoal({ m, confirmed, onConfirm, onBack }) {
-  const [tgt, setTgt] = useState(nv(m.targetPct, 7.5));
+  const [, force] = useState(0); const bump = () => force(n => n + 1);
+  const tgt = nv(m.targetPct, 7.5);
+  const setTgt = (v) => { mSave({ targetPct: v }); bump(); };
   const desc = (v) => v <= -5 ? "Significant managed deficit" : v < 0 ? "Managed deficit" : v === 0 ? "Break-even"
     : v <= 2.5 ? "Minimal surplus" : v <= 5 ? "Modest surplus" : v <= 7.5 ? "Sustainable surplus" : "Strong surplus";
   const doConfirm = () => { mSave({ targetPct: tgt, step1Confirmed: true }); onConfirm(); };
@@ -660,23 +676,21 @@ function StepGoal({ m, confirmed, onConfirm, onBack }) {
 
 /* ── 2. CURRENT POSITION (full Cranfield P&L, Q3 + Budget — all editable) ──── */
 function StepCurrent({ m, confirmed, onConfirm, onBack }) {
-  const [baseRev, setBaseRev]   = useState(m.baseRev || {});
-  const [baseCost, setBaseCost] = useState(m.baseCost || {});
-  const [baseUni, setBaseUni]   = useState(m.baseUni || {});
-  const [loanByYear, setLoanByYear] = useState(m.loanByYear || {});
-  const liveM = { ...m, baseRev, baseCost, baseUni, loanByYear };
+  const [, force] = useState(0); const bump = () => force(n => n + 1);
+  const liveM = m;
   const k26 = yearKpis(2026, liveM), k27 = yearKpis(2027, liveM);
 
   const onCell = (kind, yr, id, val) => {
     const col = yr === 2026 ? "q3" : "bud";
-    if (kind === "rev")  setBaseRev(o => ({ ...o, [id]: { ...(o[id] || {}), [col]: val } }));
-    else if (kind === "cost") setBaseCost(o => ({ ...o, [id]: { ...(o[id] || {}), [col]: val } }));
-    else if (kind === "uni")  setBaseUni(o => ({ ...o, [col]: val }));
-    else if (kind === "loan") setLoanByYear(o => ({ ...o, [yr]: val }));
+    if (kind === "rev")  mSave({ baseRev:  { ...(m.baseRev  || {}), [id]: { ...((m.baseRev  || {})[id] || {}), [col]: val } } });
+    else if (kind === "cost") mSave({ baseCost: { ...(m.baseCost || {}), [id]: { ...((m.baseCost || {})[id] || {}), [col]: val } } });
+    else if (kind === "uni")  mSave({ baseUni:  { ...(m.baseUni  || {}), [col]: val } });
+    else if (kind === "loan") mSave({ loanByYear: { ...(m.loanByYear || {}), [yr]: val } });
+    bump();
   };
-  const reset = () => { setBaseRev({}); setBaseCost({}); setBaseUni({}); setLoanByYear(o => ({ ...o, 2026: "", 2027: "" })); };
+  const reset = () => { mSave({ baseRev: {}, baseCost: {}, baseUni: {}, loanByYear: { ...(m.loanByYear || {}), 2026: "", 2027: "" } }); bump(); };
 
-  const doConfirm = () => { mSave({ baseRev, baseCost, baseUni, loanByYear, step2Confirmed: true }); onConfirm(); };
+  const doConfirm = () => { mSave({ step2Confirmed: true }); onConfirm(); };
   return (
     <div className="sl-content">
       <BackBtn onClick={onBack} />
@@ -776,15 +790,15 @@ function StepDoNothing({ m, confirmed, onConfirm, onBack }) {
         <div style={{ display: "flex", gap: 20, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
           <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{ fontSize: 13 }}>Cost inflation</span>
-            <NumInput width={56} step={0.5} value={inflVal} onChange={v => setAssumption("inflationPct", v)} /> <span style={{ fontSize: 13, color: "#888" }}>% p.a.</span>
+            <NumInput width={56} step={0.1} value={inflVal} onChange={v => setAssumption("inflationPct", v)} /> <span style={{ fontSize: 13, color: "#888" }}>% p.a.</span>
           </span>
           <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{ fontSize: 13 }}>Cost of revenue growth</span>
-            <NumInput width={56} step={5} value={margVal} onChange={v => setAssumption("marginalCostPct", v)} /> <span style={{ fontSize: 13, color: "#888" }}>% of growth</span>
+            <NumInput width={56} step={0.1} value={margVal} onChange={v => setAssumption("marginalCostPct", v)} /> <span style={{ fontSize: 13, color: "#888" }}>% of growth</span>
           </span>
         </div>
         <div style={{ fontSize: 11, color: "#777", lineHeight: 1.6 }}>
-          The estimate years carry two forward assumptions. Costs rise with <strong>inflation</strong> each year (revenue rates are already nominal, so inflation is applied to costs only — adding it to revenue would double-count). And growth is not free: revenue above the 2026/27 budget level carries additional cost at <strong>{Math.round(nv(margVal, DEFAULT_MARGINAL))}% of the growth</strong> (mainly staff), shown as its own line in the P&L. These same two settings carry through to the Yearly P&L step.
+          The estimate years carry two forward assumptions. Costs rise with <strong>inflation</strong> each year (revenue rates are already nominal, so inflation is applied to costs only — adding it to revenue would double-count). And growth is not free: where <em>total</em> revenue rises above the 2026/27 budget, that excess carries additional cost at <strong>{Math.round(nv(margVal, DEFAULT_MARGINAL))}% of the growth</strong> (mainly staff). On a shrinking trajectory there is no growth above budget, so this shows £0 until your changes push total revenue back above the budget. These settings carry through to the Yearly P&L step.
         </div>
       </div>
 
@@ -806,24 +820,28 @@ function StepDoNothing({ m, confirmed, onConfirm, onBack }) {
 
 /* ── 4. WHO FBAM SERVES ───────────────────────────────────────────────────── */
 function StepWhoServes({ m, confirmed, onConfirm, onBack }) {
-  const customInit = () => (m.customGroups || []);
-  const [custom, setCustom] = useState(customInit);
-  const allGroups = [...PURPOSE_GROUPS, ...custom];
-  const init = () => { const g = {}; allGroups.forEach(k => g[k] = nv(m.purposeGroups?.[k], DEFAULT_GROUP_SCORES[k] || 5)); return g; };
-  const [groups, setGroups] = useState(init);
+  const [, force] = useState(0); const bump = () => force(n => n + 1);
   const [newName, setNewName] = useState("");
+  const custom = m.customGroups || [];
+  const allGroups = [...PURPOSE_GROUPS, ...custom];
+  const groups = {}; allGroups.forEach(k => groups[k] = nv(m.purposeGroups?.[k], DEFAULT_GROUP_SCORES[k] || 5));
   const MAX_HIGH = 3;
   const highCount = Object.values(groups).filter(v => nv(v) >= 8).length;
-  const setScore = (g, n) => { const cur = nv(groups[g]); if (n >= 8 && cur < 8 && highCount >= MAX_HIGH) return; setGroups(p => ({ ...p, [g]: n })); };
+  const setScore = (g, n) => {
+    const cur = nv(groups[g]); if (n >= 8 && cur < 8 && highCount >= MAX_HIGH) return;
+    mSave({ purposeGroups: { ...(m.purposeGroups || {}), [g]: n } }); bump();
+  };
   const addGroup = () => {
     const name = newName.trim();
     if (!name || allGroups.includes(name)) { setNewName(""); return; }
-    setCustom(c => [...c, name]);
-    setGroups(p => ({ ...p, [name]: 5 }));
-    setNewName("");
+    mSave({ customGroups: [...custom, name], purposeGroups: { ...(m.purposeGroups || {}), [name]: 5 } });
+    setNewName(""); bump();
   };
-  const removeGroup = (name) => { setCustom(c => c.filter(x => x !== name)); setGroups(p => { const n = { ...p }; delete n[name]; return n; }); };
-  const doConfirm = () => { mSave({ purposeGroups: groups, customGroups: custom, step4Confirmed: true }); onConfirm(); };
+  const removeGroup = (name) => {
+    const pg = { ...(m.purposeGroups || {}) }; delete pg[name];
+    mSave({ customGroups: custom.filter(x => x !== name), purposeGroups: pg }); bump();
+  };
+  const doConfirm = () => { mSave({ step4Confirmed: true }); onConfirm(); };
 
   const row = (g, removable) => (
     <div key={g} style={{ marginBottom: 14 }}>
@@ -859,9 +877,10 @@ function StepWhoServes({ m, confirmed, onConfirm, onBack }) {
 
 /* ── 5. POSITIONING (tension sliders — default numbers retained) ──────────── */
 function StepPositioning({ m, confirmed, onConfirm, onBack }) {
-  const init = () => { const t = {}; PURPOSE_TENSIONS.forEach(x => t[x.key] = nv(m.purposeTensions?.[x.key], DEFAULT_TENSIONS[x.key])); return t; };
-  const [t, setT] = useState(init);
-  const doConfirm = () => { mSave({ purposeTensions: t, step5Confirmed: true }); onConfirm(); };
+  const [, force] = useState(0); const bump = () => force(n => n + 1);
+  const t = {}; PURPOSE_TENSIONS.forEach(x => t[x.key] = nv(m.purposeTensions?.[x.key], DEFAULT_TENSIONS[x.key]));
+  const setVal = (key, v) => { mSave({ purposeTensions: { ...(m.purposeTensions || {}), [key]: v } }); bump(); };
+  const doConfirm = () => { mSave({ step5Confirmed: true }); onConfirm(); };
   return (
     <div className="sl-content">
       <BackBtn onClick={onBack} />
@@ -874,7 +893,7 @@ function StepPositioning({ m, confirmed, onConfirm, onBack }) {
           <div style={{ display: "flex", justifyContent: "space-between", fontFamily: "'DM Sans',sans-serif", fontSize: 12, color: "#1a1a1a", marginBottom: 4 }}>
             <span>{x.l}</span><span>{x.r}</span>
           </div>
-          <input type="range" min={0} max={100} step={1} value={nv(t[x.key], 50)} onChange={e => setT(p => ({ ...p, [x.key]: parseInt(e.target.value) }))}
+          <input type="range" min={0} max={100} step={1} value={nv(t[x.key], 50)} onChange={e => setVal(x.key, parseInt(e.target.value))}
             style={{ width: "100%", accentColor: "#e07030" }} />
         </div>
       ))}
@@ -885,38 +904,42 @@ function StepPositioning({ m, confirmed, onConfirm, onBack }) {
 
 /* ── 6. CHANGES (macro postures, suggested from §4/§5, + new streams) ─────── */
 function StepChanges({ m, confirmed, onConfirm, onBack }) {
-  const [posture, setPosture] = useState(m.posture || {});
-  const [microTarget, setMicroTarget] = useState(String(nv(m.newTarget?.micro_cred, 0)));
-  const [customRev, setCustomRev] = useState(m.customRev || []);
-  const [customTargets, setCustomTargets] = useState(() => {
-    const t = {}; (m.customRev || []).forEach(c => t[c.id] = String(nv(m.newTarget?.[c.id], 0))); return t;
-  });
+  const [, force] = useState(0); const bump = () => force(n => n + 1);
   const [newName, setNewName] = useState("");
   const [newTgt, setNewTgt] = useState("");
 
-  const newTargetObj = { ...(m.newTarget || {}), micro_cred: nv(microTarget) };
-  customRev.forEach(c => { newTargetObj[c.id] = nv(customTargets[c.id]); });
-  const liveM = { ...m, posture, customRev, newTarget: newTargetObj };
+  const posture = m.posture || {};
+  const customRev = m.customRev || [];
+  const microTarget = String(nv(m.newTarget?.micro_cred, 0));
+  const customTargets = {}; customRev.forEach(c => customTargets[c.id] = String(nv(m.newTarget?.[c.id], 0)));
+  const liveM = m;
 
   const normals = REV_LINES.filter(l => l.kind === "normal");
   const suggestions = {}; normals.forEach(l => suggestions[l.id] = suggestPosture(l, m));
 
-  const setP = (id, pid) => setPosture(p => { const n = { ...p }; if (n[id] === pid) delete n[id]; else n[id] = pid; return n; });
-  const applyAllSuggestions = () => setPosture(p => { const n = { ...p }; normals.forEach(l => { if (suggestions[l.id]) n[l.id] = suggestions[l.id].posture; }); return n; });
+  const setP = (id, pid) => {
+    const n = { ...posture }; if (n[id] === pid) delete n[id]; else n[id] = pid;
+    mSave({ posture: n }); bump();
+  };
+  const applyAllSuggestions = () => {
+    const n = { ...posture }; normals.forEach(l => { if (suggestions[l.id]) n[l.id] = suggestions[l.id].posture; });
+    mSave({ posture: n }); bump();
+  };
+  const setMicroTarget = (v) => { mSave({ newTarget: { ...(m.newTarget || {}), micro_cred: nv(v) } }); bump(); };
+  const setCustomTarget = (id, v) => { mSave({ newTarget: { ...(m.newTarget || {}), [id]: nv(v) } }); bump(); };
 
   const addStream = () => {
     if (!newName.trim()) return;
     const id = "custom_" + Date.now().toString(36);
-    setCustomRev(cs => [...cs, { id, name: newName.trim() }]);
-    setCustomTargets(t => ({ ...t, [id]: newTgt || "0" }));
-    setNewName(""); setNewTgt("");
+    mSave({ customRev: [...customRev, { id, name: newName.trim() }], newTarget: { ...(m.newTarget || {}), [id]: nv(newTgt) } });
+    setNewName(""); setNewTgt(""); bump();
   };
-  const removeStream = (id) => { setCustomRev(cs => cs.filter(c => c.id !== id)); setCustomTargets(t => { const n = { ...t }; delete n[id]; return n; }); };
+  const removeStream = (id) => {
+    const nt = { ...(m.newTarget || {}) }; delete nt[id];
+    mSave({ customRev: customRev.filter(c => c.id !== id), newTarget: nt }); bump();
+  };
 
-  const doConfirm = () => {
-    mSave({ posture, customRev, newTarget: newTargetObj, step6Confirmed: true });
-    onConfirm();
-  };
+  const doConfirm = () => { mSave({ step6Confirmed: true }); onConfirm(); };
 
   const btn = (l, p, suggested) => {
     const active = posture[l.id] === p.id;
@@ -1000,7 +1023,7 @@ function StepChanges({ m, confirmed, onConfirm, onBack }) {
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, color: "#888" }}>2030 £k</span>
-              <NumInput width={80} step={50} value={customTargets[c.id] ?? "0"} onChange={v => setCustomTargets(t => ({ ...t, [c.id]: v }))} min={0} />
+              <NumInput width={80} step={50} value={customTargets[c.id] ?? "0"} onChange={v => setCustomTarget(c.id, v)} min={0} />
               <button onClick={() => removeStream(c.id)} title="Remove stream"
                 style={{ background: "none", border: "1px solid #d8d3cb", borderRadius: 4, cursor: "pointer", padding: "4px 8px", fontSize: 12, color: "#b83232" }}>✕</button>
             </div>
@@ -1030,25 +1053,26 @@ function StepChanges({ m, confirmed, onConfirm, onBack }) {
 
 /* ── 7. YEARLY P&L (full transition table, estimates editable, vs target) ─── */
 function StepYearly({ m, confirmed, onConfirm, onBack }) {
-  const [revOverride, setRevOverride]   = useState(m.revOverride || {});
-  const [costOverride, setCostOverride] = useState(m.costOverride || {});
-  const [loanByYear, setLoanByYear]     = useState(m.loanByYear || {});
-  const [uniByYear, setUniByYear]       = useState(m.uniByYear || {});
-  const [infl, setInfl]   = useState(String(nv(m.inflationPct, DEFAULT_INFLATION)));
-  const [marg, setMarg]   = useState(String(nv(m.marginalCostPct, DEFAULT_MARGINAL)));
+  const [, force7] = useState(0);
+  const bump7 = () => force7(n => n + 1);
 
-  const liveM = { ...m, revOverride, costOverride, loanByYear, uniByYear, inflationPct: nv(infl, DEFAULT_INFLATION), marginalCostPct: nv(marg, DEFAULT_MARGINAL) };
+  const inflVal = m.inflationPct !== undefined ? m.inflationPct : DEFAULT_INFLATION;
+  const margVal = m.marginalCostPct !== undefined ? m.marginalCostPct : DEFAULT_MARGINAL;
+  const setAssumption = (key, val) => { mSave({ [key]: val }); bump7(); };
+
+  const liveM = m;
   const tp = targetPath(liveM);
 
   const onCell = (kind, yr, id, val) => {
-    if (kind === "loan") { setLoanByYear(o => ({ ...o, [yr]: val })); return; }
-    if (kind === "uni")  { setUniByYear(o => ({ ...o, [yr]: val })); return; }
-    const setter = kind === "rev" ? setRevOverride : setCostOverride;
-    setter(o => ({ ...o, [yr]: { ...(o[yr] || {}), [id]: val } }));
+    if (kind === "loan") { mSave({ loanByYear: { ...(m.loanByYear || {}), [yr]: val } }); bump7(); return; }
+    if (kind === "uni")  { mSave({ uniByYear: { ...(m.uniByYear || {}), [yr]: val } }); bump7(); return; }
+    const key = kind === "rev" ? "revOverride" : "costOverride";
+    const cur = m[key] || {};
+    mSave({ [key]: { ...cur, [yr]: { ...(cur[yr] || {}), [id]: val } } }); bump7();
   };
-  const resetEstimates = () => { setRevOverride({}); setCostOverride({}); setUniByYear({}); };
+  const resetEstimates = () => { mSave({ revOverride: {}, costOverride: {}, uniByYear: {} }); bump7(); };
 
-  const doConfirm = () => { mSave({ revOverride, costOverride, loanByYear, uniByYear, inflationPct: nv(infl, DEFAULT_INFLATION), marginalCostPct: nv(marg, DEFAULT_MARGINAL), step7Confirmed: true }); onConfirm(); };
+  const doConfirm = () => { mSave({ step7Confirmed: true }); onConfirm(); };
 
   return (
     <div className="sl-content">
@@ -1062,15 +1086,15 @@ function StepYearly({ m, confirmed, onConfirm, onBack }) {
         <div style={{ display: "flex", gap: 20, flexWrap: "wrap", alignItems: "center" }}>
           <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{ fontSize: 13 }}>Cost inflation</span>
-            <NumInput width={56} step={0.5} value={infl} onChange={setInfl} /> <span style={{ fontSize: 13, color: "#888" }}>% p.a.</span>
+            <NumInput width={56} step={0.1} value={inflVal} onChange={v => setAssumption("inflationPct", v)} /> <span style={{ fontSize: 13, color: "#888" }}>% p.a.</span>
           </span>
           <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{ fontSize: 13 }}>Cost of revenue growth</span>
-            <NumInput width={56} step={5} value={marg} onChange={setMarg} /> <span style={{ fontSize: 13, color: "#888" }}>% of growth</span>
+            <NumInput width={56} step={0.1} value={margVal} onChange={v => setAssumption("marginalCostPct", v)} /> <span style={{ fontSize: 13, color: "#888" }}>% of growth</span>
           </span>
         </div>
         <div style={{ fontSize: 11, color: "#777", marginTop: 8, lineHeight: 1.6 }}>
-          Revenue growth rates are nominal (they already include inflation), so inflation is applied to <strong>costs</strong> only — adding it to revenue would double-count. Revenue above the 2026/27 budget level carries additional cost at {nv(marg, DEFAULT_MARGINAL)}% of the growth (mainly staff), reflecting that growth is not free; shown as a separate line in the P&L below.
+          Revenue growth rates are nominal (they already include inflation), so inflation is applied to <strong>costs</strong> only — adding it to revenue would double-count. Where <em>total</em> revenue rises above the 2026/27 budget, that excess carries additional cost at {Math.round(nv(margVal, DEFAULT_MARGINAL))}% of the growth (mainly staff). On a shrinking trajectory it shows £0 until total revenue exceeds budget.
         </div>
       </div>
 
@@ -1150,11 +1174,11 @@ function ThemeMixSliders({ themeName, totalRev, mix, setMix, locked, setLocked }
 
 /* ── 8. THEME P&L (allocation by editable %; no staff numbers) ────────────── */
 function StepTheme({ m, confirmed, onConfirm, onBack }) {
-  const k30 = yearKpis(2030, m);
-  const initPct = () => { const p = {}; THEME_DATA.forEach(t => p[t.id] = nv(m.themePct?.[t.id], t.defPct)); return p; };
-  const [pct, setPct] = useState(initPct);
-  const [mixes, setMixes] = useState(m.themeMixes || { btg: { ...DEFAULT_MIXES.btg }, psl: { ...DEFAULT_MIXES.psl }, scpss: { ...DEFAULT_MIXES.scpss } });
+  const [, force] = useState(0); const bump = () => force(n => n + 1);
   const [locked, setLockedAll] = useState({ btg: {}, psl: {}, scpss: {} });
+  const k30 = yearKpis(2030, m);
+  const pct = {}; THEME_DATA.forEach(t => pct[t.id] = nv(m.themePct?.[t.id], t.defPct));
+  const mixes = m.themeMixes || { btg: { ...DEFAULT_MIXES.btg }, psl: { ...DEFAULT_MIXES.psl }, scpss: { ...DEFAULT_MIXES.scpss } };
 
   const setPctRebalance = (id, val, idx) => {
     const v = Math.max(0, Math.min(100, nv(val)));
@@ -1165,15 +1189,16 @@ function StepTheme({ m, confirmed, onConfirm, onBack }) {
     if (otherTot > 0) others.forEach(o => { np[o.id] = Math.max(0, Math.round(pct[o.id] - delta * (pct[o.id] / otherTot))); });
     const sum = Object.values(np).reduce((a, b) => a + b, 0);
     np[others[others.length - 1].id] += 100 - sum;
-    setPct(np);
+    mSave({ themePct: np }); bump();
   };
+  const setMix = (id, mix) => { mSave({ themeMixes: { ...mixes, [id]: mix } }); bump(); };
 
   const rev = (id) => k30.revTotal * pct[id] / 100;
   const cost = (id) => k30.operatingCost * pct[id] / 100;
   const totalRev = THEME_DATA.reduce((s, t) => s + rev(t.id), 0);
   const totalCost = THEME_DATA.reduce((s, t) => s + cost(t.id), 0);
 
-  const doConfirm = () => { mSave({ themePct: pct, themeMixes: mixes, step8Confirmed: true }); onConfirm(); };
+  const doConfirm = () => { mSave({ step8Confirmed: true }); onConfirm(); };
 
   return (
     <div className="sl-content">
@@ -1197,7 +1222,7 @@ function StepTheme({ m, confirmed, onConfirm, onBack }) {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, marginBottom: 24 }}>
         {THEME_DATA.map(t => (
           <ThemeMixSliders key={t.id} themeName={t.name} totalRev={rev(t.id)}
-            mix={mixes[t.id]} setMix={mix => setMixes(mm => ({ ...mm, [t.id]: mix }))}
+            mix={mixes[t.id]} setMix={mix => setMix(t.id, mix)}
             locked={locked[t.id]} setLocked={fn => setLockedAll(l => ({ ...l, [t.id]: typeof fn === "function" ? fn(l[t.id]) : fn }))} />
         ))}
       </div>
@@ -1351,7 +1376,7 @@ function Workspace({ name, onExit }) {
   return (
     <div className="sl-shell">
       <div className="sl-header">
-        <div className="sl-header-title">STRAWPERSON — FBaM Financial Scenario · shared model <span style={{ color: "#bbb", fontWeight: 400 }}>· build 6.6</span></div>
+        <div className="sl-header-title">STRAWPERSON — FBaM Financial Scenario · shared model <span style={{ color: "#bbb", fontWeight: 400 }}>· build 6.9</span></div>
         <div className="sl-header-right">{name}{m.lastEditedBy && m.lastEditedBy !== name ? ` · last edit: ${m.lastEditedBy}` : ""} &nbsp;·&nbsp;
           <button style={{ background: "none", border: "none", fontSize: 11, color: "#888", cursor: "pointer", textDecoration: "underline" }} onClick={onExit}>Exit</button>
         </div>
