@@ -167,7 +167,7 @@ const trendPctRaw = (l, m) => { const { q3, bud } = resolveBase(m?.baseRev, l); 
 const trendPct = (l, m) => Math.max(-15, Math.min(15, trendPctRaw(l, m)));
 /* Default forward rate = midpoint of the FBaM trajectory and the sector rate.
    The trajectory captures what FBaM is actually doing; the sector rate captures
-   the market. The midpoint blends the two into the do-nothing forward rate.    */
+   the market. The midpoint blends the two into the forward trajectory rate.    */
 const defaultRate = (l, m) => l.kind === "normal" ? round1((trendPct(l, m) + l.cagr) / 2) : l.cagr;
 
 /* ── CALC ENGINE — single source of truth ────────────────────────────────── */
@@ -201,11 +201,11 @@ function projRev(l, yr, m) {
 
 /* ── Forward assumptions (editable in §7) ─────────────────────────────────── */
 const DEFAULT_INFLATION = 2.5;   /* % p.a. applied to COSTS only — revenue rates are already nominal */
-const DEFAULT_MARGINAL  = 30;    /* p of cost per £1 of revenue ABOVE the budget level */
+const DEFAULT_MARGINAL  = 30;    /* % of revenue growth ABOVE the budget level taken as cost */
 const inflationPct = (m) => nv(m.inflationPct, DEFAULT_INFLATION);
-const marginalPence = (m) => nv(m.marginalCostPct, DEFAULT_MARGINAL);
+const marginalRate = (m) => nv(m.marginalCostPct, DEFAULT_MARGINAL);
 
-/* Project one cost line for a year. Do-nothing holds the REAL cost flat at the
+/* Project one cost line for a year. Trajectory holds the REAL cost flat at the
    budget, then applies inflation forward. Revenue CAGRs are already nominal,
    so inflation is applied to costs only — adding it to revenue would double-
    count. The marginal cost of revenue GROWTH is handled at aggregate level.    */
@@ -239,10 +239,10 @@ function yearKpis(yr, m) {
   const opTotal    = COST_LINES.filter(l => l.group === "operating").reduce((s, l) => s + projCost(l, yr, m), 0);
   const baseCost   = staffTotal + opTotal;       /* budget costs, inflated */
   /* Marginal cost of revenue growth: for every £1 of revenue above the budget
-     level, add (marginal pence) of cost. Applies only to estimate years and
+     level, add (marginal rate %) of cost. Applies only to estimate years and
      only to net growth (a shrinking line carries no marginal cost credit).     */
   const growth     = yr >= 2028 ? Math.max(0, revTotal - budgetRevTotal(m)) : 0;
-  const marginalCost = growth * marginalPence(m) / 100;
+  const marginalCost = growth * marginalRate(m) / 100;
   const operatingCost = baseCost + marginalCost;
   const contribution  = revTotal - operatingCost;
   const uni   = uniFor(yr, m);
@@ -353,8 +353,8 @@ function suggestPosture(l, m) {
   /* Reasons: keep only those that actually fired with non-default weight, plus
      the trajectory, so we don't leak default-tension noise like "grow revenue". */
   const why = reasons.length
-    ? [...reasons.slice(0, 2), `the do-nothing trajectory is ${fmtPct(traj)}/yr`].slice(0, 2).join("; ")
-    : `the do-nothing trajectory is ${fmtPct(traj)}/yr`;
+    ? [...reasons.slice(0, 2), `the trajectory is ${fmtPct(traj)}/yr`].slice(0, 2).join("; ")
+    : `the trajectory is ${fmtPct(traj)}/yr`;
   return { posture, why };
 }
 
@@ -556,7 +556,12 @@ function PLTable({ m, years, editBase = false, editYears = [], onCell, compact =
           ))}
           <tr className="sub"><td>Total Other Operating Costs</td>{yr(y => fmtK(yearKpis(y, m).opTotal))}</tr>
 
-          <tr><td style={{ color: "#888", fontSize: 12 }}>Cost of revenue growth (marginal)</td>
+          {inflationPct(m) !== 0 && (
+            <tr><td colSpan={years.length + 1} style={{ color: "#999", fontSize: 11, fontStyle: "italic", paddingTop: 2, paddingBottom: 2 }}>
+              Costs above include inflation at {fmtPct(inflationPct(m))}/yr from 2028.
+            </td></tr>
+          )}
+          <tr><td style={{ color: "#888", fontSize: 12 }}>Cost of revenue growth ({Math.round(marginalRate(m))}% of growth)</td>
             {yr(y => { const k = yearKpis(y, m); return k.marginalCost > 0 ? <span style={{ color: "#b87a20" }}>{fmtK(k.marginalCost)}</span> : "—"; })}
           </tr>
           <tr className="sub"><td>TOTAL OPERATING COSTS</td>{yr(y => fmtK(yearKpis(y, m).operatingCost))}</tr>
@@ -692,7 +697,7 @@ function StepCurrent({ m, confirmed, onConfirm, onBack }) {
   );
 }
 
-/* ── 3. DO-NOTHING (forward rate = midpoint of FBaM trajectory & sector) ───── */
+/* ── 3. TRAJECTORY (forward rate = midpoint of FBaM trajectory & sector) ───── */
 const CONF_COLOR = { "High":"#2d7d46", "Med–High":"#2d7d46", "Medium":"#b87a20", "Low–Med":"#b87a20", "Low":"#b83232" };
 function StepDoNothing({ m, confirmed, onConfirm, onBack }) {
   const [, force] = useState(0);
@@ -775,11 +780,11 @@ function StepDoNothing({ m, confirmed, onConfirm, onBack }) {
           </span>
           <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{ fontSize: 13 }}>Cost of revenue growth</span>
-            <NumInput width={56} step={5} value={margVal} onChange={v => setAssumption("marginalCostPct", v)} /> <span style={{ fontSize: 13, color: "#888" }}>p per £1</span>
+            <NumInput width={56} step={5} value={margVal} onChange={v => setAssumption("marginalCostPct", v)} /> <span style={{ fontSize: 13, color: "#888" }}>% of growth</span>
           </span>
         </div>
         <div style={{ fontSize: 11, color: "#777", lineHeight: 1.6 }}>
-          The estimate years carry two forward assumptions. Costs rise with <strong>inflation</strong> each year (revenue rates are already nominal, so inflation is applied to costs only — adding it to revenue would double-count). And growth is not free: every £1 of revenue above the 2026/27 budget level carries <strong>{Math.round(nv(margVal, DEFAULT_MARGINAL))}p of additional cost</strong> (mainly staff), shown as its own line in the P&L. These same two settings carry through to the Yearly P&L step.
+          The estimate years carry two forward assumptions. Costs rise with <strong>inflation</strong> each year (revenue rates are already nominal, so inflation is applied to costs only — adding it to revenue would double-count). And growth is not free: revenue above the 2026/27 budget level carries additional cost at <strong>{Math.round(nv(margVal, DEFAULT_MARGINAL))}% of the growth</strong> (mainly staff), shown as its own line in the P&L. These same two settings carry through to the Yearly P&L step.
         </div>
       </div>
 
@@ -930,7 +935,7 @@ function StepChanges({ m, confirmed, onConfirm, onBack }) {
       <BackBtn onClick={onBack} />
       {confirmed && <ConfirmedBanner n={6} />}
       <div className="sl-step-h">Changes</div>
-      <div className="sl-prompt">This is the strategic choice: what do you do with each existing revenue stream — and do you bring in new ones? Each stream carries a suggested posture (marked ◦, in green) drawn from who you chose to serve and how you positioned FBaM. Accept the suggestions or override them. If you choose nothing, the stream follows its do-nothing trajectory.</div>
+      <div className="sl-prompt">This is the strategic choice: what do you do with each existing revenue stream — and do you bring in new ones? Each stream carries a suggested posture (marked ◦, in green) drawn from who you chose to serve and how you positioned FBaM. Accept the suggestions or override them. If you choose nothing, the stream follows its trajectory.</div>
       <div className="sl-note-box">End / Teach-out — wind down to £0 &nbsp;·&nbsp; Managed decline −15%/yr &nbsp;·&nbsp; Maintain — hold at budget &nbsp;·&nbsp; Incremental +5%/yr &nbsp;·&nbsp; Radical +15%/yr. Rates compound from the 2026/27 budget.</div>
       <button className="sl-btn sl-btn-outline" style={{ fontSize: 12, padding: "8px 14px", marginBottom: 16 }} onClick={applyAllSuggestions}>✓ Apply all suggested postures</button>
 
@@ -1061,11 +1066,11 @@ function StepYearly({ m, confirmed, onConfirm, onBack }) {
           </span>
           <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{ fontSize: 13 }}>Cost of revenue growth</span>
-            <NumInput width={56} step={5} value={marg} onChange={setMarg} /> <span style={{ fontSize: 13, color: "#888" }}>p per £1</span>
+            <NumInput width={56} step={5} value={marg} onChange={setMarg} /> <span style={{ fontSize: 13, color: "#888" }}>% of growth</span>
           </span>
         </div>
         <div style={{ fontSize: 11, color: "#777", marginTop: 8, lineHeight: 1.6 }}>
-          Revenue growth rates are nominal (they already include inflation), so inflation is applied to <strong>costs</strong> only — adding it to revenue would double-count. Every £1 of revenue above the 2026/27 budget level carries {nv(marg, DEFAULT_MARGINAL)}p of additional cost (mainly staff), reflecting that growth is not free; shown as a separate line in the P&L below.
+          Revenue growth rates are nominal (they already include inflation), so inflation is applied to <strong>costs</strong> only — adding it to revenue would double-count. Revenue above the 2026/27 budget level carries additional cost at {nv(marg, DEFAULT_MARGINAL)}% of the growth (mainly staff), reflecting that growth is not free; shown as a separate line in the P&L below.
         </div>
       </div>
 
@@ -1238,7 +1243,7 @@ function buildSummaryHtml(m) {
     return r;
   };
   const postureRows = REV_LINES.filter(l => l.kind === "normal").map(l => {
-    const pid = m.posture?.[l.id]; const lab = pid ? POSTURE_BY_ID[pid].label : "Do-nothing";
+    const pid = m.posture?.[l.id]; const lab = pid ? POSTURE_BY_ID[pid].label : "Trajectory";
     return tr([[l.name], [lab, "right"]]);
   }).join("") + tr([["Micro-credentials (new)"], [fmtK(nv(m.newTarget?.micro_cred, 0)) + " by 2030", "right"]]);
   const themeRows = THEME_DATA.map(t => {
@@ -1346,7 +1351,7 @@ function Workspace({ name, onExit }) {
   return (
     <div className="sl-shell">
       <div className="sl-header">
-        <div className="sl-header-title">STRAWPERSON — FBaM Financial Scenario · shared model <span style={{ color: "#bbb", fontWeight: 400 }}>· build 6.5</span></div>
+        <div className="sl-header-title">STRAWPERSON — FBaM Financial Scenario · shared model <span style={{ color: "#bbb", fontWeight: 400 }}>· build 6.6</span></div>
         <div className="sl-header-right">{name}{m.lastEditedBy && m.lastEditedBy !== name ? ` · last edit: ${m.lastEditedBy}` : ""} &nbsp;·&nbsp;
           <button style={{ background: "none", border: "none", fontSize: 11, color: "#888", cursor: "pointer", textDecoration: "underline" }} onClick={onExit}>Exit</button>
         </div>
