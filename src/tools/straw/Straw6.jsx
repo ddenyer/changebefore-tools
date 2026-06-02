@@ -686,7 +686,7 @@ function StepCurrent({ m, confirmed, onConfirm, onBack }) {
       </div>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
         <button className="sl-btn sl-btn-outline" style={{ fontSize: 12, padding: "8px 14px" }} onClick={reset}>↺ Reset to original figures</button>
-        <button className="sl-btn" onClick={doConfirm}>Confirm current position → Do-nothing</button>
+        <button className="sl-btn" onClick={doConfirm}>Confirm current position → Trajectory</button>
       </div>
     </div>
   );
@@ -711,6 +711,9 @@ function StepDoNothing({ m, confirmed, onConfirm, onBack }) {
     return stored !== undefined && stored !== "" ? stored : defaultRate(l, m);
   };
   const resetRates = () => { mSave({ [RATE_KEY]: {} }); bump(); };
+  const setAssumption = (key, val) => { mSave({ [key]: val }); bump(); };
+  const inflVal = m.inflationPct !== undefined ? m.inflationPct : DEFAULT_INFLATION;
+  const margVal = m.marginalCostPct !== undefined ? m.marginalCostPct : DEFAULT_MARGINAL;
   const doConfirm = () => { mSave({ step3Confirmed: true }); onConfirm(); };
   const td = { fontFamily: "'IBM Plex Mono',monospace", fontSize: 12, textAlign: "right", padding: "5px 8px" };
 
@@ -718,7 +721,7 @@ function StepDoNothing({ m, confirmed, onConfirm, onBack }) {
     <div className="sl-content">
       <BackBtn onClick={onBack} />
       {confirmed && <ConfirmedBanner n={3} />}
-      <div className="sl-step-h">Do-nothing trajectory</div>
+      <div className="sl-step-h">Trajectory</div>
       <div className="sl-prompt">If nothing changes. Each income line carries a forward growth rate that is the midpoint of two things: FBaM's own recent trajectory (the move from the Q3 forecast into the 2026/27 budget) and the sector growth rate from market research. The midpoint is the default — edit any rate you don't accept. Apprenticeship and SLEP income ends in 2027 regardless.</div>
 
       <div className="sl-note-box">
@@ -763,7 +766,24 @@ function StepDoNothing({ m, confirmed, onConfirm, onBack }) {
         Cost weight vs growth rate: a business school's research income sits at roughly a third of the per-head level of STEM disciplines, but that is a level effect, not a rate. Basis: UK postgraduate business-school revenue CAGR benchmark 2024–2030 — HESA, Chartered ABS, UNICON, Research England / UKRI, market-research forecasts; confidence varies by line.
       </div>
 
-      <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, color: "#888", marginBottom: 8 }}>Resulting do-nothing P&L</div>
+      <div className="sl-note-box" style={{ marginBottom: 20 }}>
+        <div style={{ fontWeight: 600, color: "#1a1a1a", marginBottom: 8 }}>Inflation and the cost of growth</div>
+        <div style={{ display: "flex", gap: 20, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
+          <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: 13 }}>Cost inflation</span>
+            <NumInput width={56} step={0.5} value={inflVal} onChange={v => setAssumption("inflationPct", v)} /> <span style={{ fontSize: 13, color: "#888" }}>% p.a.</span>
+          </span>
+          <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: 13 }}>Cost of revenue growth</span>
+            <NumInput width={56} step={5} value={margVal} onChange={v => setAssumption("marginalCostPct", v)} /> <span style={{ fontSize: 13, color: "#888" }}>p per £1</span>
+          </span>
+        </div>
+        <div style={{ fontSize: 11, color: "#777", lineHeight: 1.6 }}>
+          The estimate years carry two forward assumptions. Costs rise with <strong>inflation</strong> each year (revenue rates are already nominal, so inflation is applied to costs only — adding it to revenue would double-count). And growth is not free: every £1 of revenue above the 2026/27 budget level carries <strong>{Math.round(nv(margVal, DEFAULT_MARGINAL))}p of additional cost</strong> (mainly staff), shown as its own line in the P&L. These same two settings carry through to the Yearly P&L step.
+        </div>
+      </div>
+
+      <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, color: "#888", marginBottom: 8 }}>Resulting P&L on this trajectory</div>
       <PLTable m={{ ...m, posture: {} }} years={YEARS} compact />
       <div className="sl-kpis">
         {YEARS.map(y => { const k = yearKpis(y, { ...m, posture: {} }); return (
@@ -773,7 +793,7 @@ function StepDoNothing({ m, confirmed, onConfirm, onBack }) {
       </div>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
         <button className="sl-btn sl-btn-outline" style={{ fontSize: 12, padding: "8px 14px" }} onClick={resetRates}>↺ Reset rates to midpoint</button>
-        <button className="sl-btn" onClick={doConfirm}>Confirm do-nothing → Who we serve</button>
+        <button className="sl-btn" onClick={doConfirm}>Confirm rates → Who we serve</button>
       </div>
     </div>
   );
@@ -1293,7 +1313,7 @@ function StepFinalise({ m, onBack }) {
 /* ════════════════════════════════════════════════════════════════════════
    ORCHESTRATOR
    ════════════════════════════════════════════════════════════════════════ */
-const STEP_NAMES = ["1. Goal", "2. Current position", "3. Do-nothing", "4. Who we serve", "5. Positioning", "6. Changes", "7. Yearly P&L", "8. Theme P&L", "9. Finalise"];
+const STEP_NAMES = ["1. Goal", "2. Current position", "3. Trajectory", "4. Who we serve", "5. Positioning", "6. Changes", "7. Yearly P&L", "8. Theme P&L", "9. Finalise"];
 
 function Workspace({ name, onExit }) {
   const [step, setStep] = useState(1);
@@ -1326,7 +1346,7 @@ function Workspace({ name, onExit }) {
   return (
     <div className="sl-shell">
       <div className="sl-header">
-        <div className="sl-header-title">STRAWPERSON — FBaM Financial Scenario · shared model <span style={{ color: "#bbb", fontWeight: 400 }}>· build 6.4</span></div>
+        <div className="sl-header-title">STRAWPERSON — FBaM Financial Scenario · shared model <span style={{ color: "#bbb", fontWeight: 400 }}>· build 6.5</span></div>
         <div className="sl-header-right">{name}{m.lastEditedBy && m.lastEditedBy !== name ? ` · last edit: ${m.lastEditedBy}` : ""} &nbsp;·&nbsp;
           <button style={{ background: "none", border: "none", fontSize: 11, color: "#888", cursor: "pointer", textDecoration: "underline" }} onClick={onExit}>Exit</button>
         </div>
