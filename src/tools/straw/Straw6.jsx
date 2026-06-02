@@ -293,6 +293,95 @@ function targetPath(m) {
 
 const surplusColor = v => v >= 0 ? "#2d7d46" : "#b83232";
 
+/* ── SOLVE TO TARGET ──────────────────────────────────────────────────────────
+   Given the per-year net% targets, find the configuration that hits them by
+   growing the three expandable lines — CED Customised, Open Programmes and
+   Micro-credentials — holding every other line on its trajectory.
+   Solve revTotal for a net% target g, with marginal cost rate c and budget rev B:
+     R = (baseCost − c·B + uni + loan) / (1 − c − g)
+   then distribute the shortfall across the three growth lines.                  */
+const SOLVE_LINES = ["ced_custom", "open", "micro_cred"];
+const MICRO_CAP = 1000;   /* £k ceiling on Micro-credentials (new, ramping line) */
+
+/* Trajectory value of a line ignoring solver/postures/overrides (rate or kind only) */
+function projRevTrajectory(l, yr, m) {
+  const { bud } = resolveBase(m.baseRev, l);
+  const steps = yr - 2027;
+  if (yr === 2027) return bud;
+  if (l.kind === "ending") return 0;
+  if (l.kind === "fixed") return bud;
+  if (l.kind === "new") return 0;
+  const stored = getRateOverrides(m)[l.id];
+  const rate = stored !== undefined && stored !== "" ? nv(stored) : defaultRate(l, m);
+  return bud * Math.pow(1 + rate / 100, steps);
+}
+
+/* §4/§5 strategic strength for each solve line (≥1). Mirrors the suggestion
+   engine's signals for Customised and Open; Micro is a fixed modest bet.        */
+function solveStrength(m) {
+  const t = k => nv(m.purposeTensions?.[k], DEFAULT_TENSIONS[k]);
+  const g = name => nv(m.purposeGroups?.[name], DEFAULT_GROUP_SCORES[name] || 5);
+  const grow = t("profit") <= 40, cut = t("profit") >= 60;
+  const focused = t("breadth") <= 40;
+  const highEnd = t("market") <= 40, mass = t("market") >= 60, postExp = t("experience") <= 40;
+  let custom = 0;
+  custom += g("Organisations commissioning exec ed") >= 8 ? 2 : 0;
+  custom += highEnd ? 1 : 0; custom += grow ? 1 : 0; custom -= cut ? 1 : 0; custom += focused ? 1 : 0;
+  let open = 0;
+  open += g("Exec education delegates") >= 8 ? 2 : 0;
+  open += postExp ? 1 : 0; open += mass ? 1 : 0; open += grow ? 1 : 0; open -= cut ? 1 : 0;
+  return {
+    ced_custom: 1 + Math.max(0, custom) * 0.5,
+    open:       1 + Math.max(0, open) * 0.5,
+    micro_cred: 1.2,
+  };
+}
+
+function solveYear(yr, m, targetPct) {
+  const c = marginalRate(m) / 100;
+  const B = budgetRevTotal(m);
+  const baseCost = COST_LINES.reduce((s, l) => s + projCost(l, yr, m), 0);
+  const uni = uniFor(yr, m), loan = loanFor(yr, m);
+  const g = targetPct / 100;
+  const denom = 1 - c - g;
+  if (denom <= 0) return null;
+  const Rneeded = (baseCost - c * B + uni + loan) / denom;
+  const lines = revLinesFor(m);
+  const baselineOthers = lines.filter(l => !SOLVE_LINES.includes(l.id))
+    .reduce((s, l) => s + projRevTrajectory(l, yr, m), 0);
+  const need = Rneeded - baselineOthers;
+  const strength = solveStrength(m);
+  const wsum = SOLVE_LINES.reduce((s, id) => s + strength[id], 0) || 1;
+  const alloc = {};
+  SOLVE_LINES.forEach(id => alloc[id] = Math.max(0, need * strength[id] / wsum));
+  if (alloc.micro_cred > MICRO_CAP) {
+    const spill = alloc.micro_cred - MICRO_CAP;
+    alloc.micro_cred = MICRO_CAP;
+    alloc.ced_custom += spill;
+  }
+  return { Rneeded, alloc, baselineOthers, need };
+}
+
+/* Build solved revOverride map + required CAGR per solve line. */
+function solvedModel(m) {
+  const tp = targetPath(m);
+  const rev = { ...(m.revOverride || {}) };
+  const cagr = {};
+  [2028, 2029, 2030].forEach(yr => {
+    const sol = solveYear(yr, m, tp[yr]);
+    if (!sol) return;
+    rev[yr] = { ...(rev[yr] || {}) };
+    SOLVE_LINES.forEach(id => { rev[yr][id] = Math.round(sol.alloc[id]); });
+  });
+  SOLVE_LINES.forEach(id => {
+    const l = revLinesFor(m).find(x => x.id === id);
+    const bud = id === "micro_cred" ? 0 : resolveBase(m.baseRev, l).bud;
+    const v2030 = rev[2030]?.[id] || 0;
+    cagr[id] = (bud > 0 && v2030 > 0) ? round1((Math.pow(v2030 / bud, 1 / 3) - 1) * 100) : null;
+  });
+  return { rev, cagr };
+}
+
 /* ── SUGGESTION ENGINE — §4 (who) + §5 (positioning) inform §6 (changes) ──── */
 /* Returns { posture, why } for a revenue line, or null for locked/new lines. */
 function suggestPosture(l, m) {
@@ -1110,15 +1199,21 @@ function StepYearly({ m, confirmed, onConfirm, onBack }) {
     marginalCostPct: m.marginalCostPct !== undefined ? m.marginalCostPct : DEFAULT_MARGINAL,
   });
   const [saved, setSaved] = useState(false);
+  const [solveOn, setSolveOn] = useState(false);
 
   const inflVal = d.inflationPct;
   const margVal = d.marginalCostPct;
   const setAssumption = (key, val) => { setSaved(false); patch({ [key]: val }); };
 
-  const liveM = { ...m, ...d };
-  const tp = targetPath(liveM);
+  /* When the solver is ON, overlay the solved revenue overrides for the three
+     growth lines on top of the user's draft. Cells are read-only in this mode.   */
+  const baseM = { ...m, ...d };
+  const solve = solveOn ? solvedModel(baseM) : null;
+  const liveM = solve ? { ...baseM, revOverride: solve.rev } : baseM;
+  const tp = targetPath(baseM);
 
   const onCell = (kind, yr, id, val) => {
+    if (solveOn) return;                              /* locked while solving */
     setSaved(false);
     if (kind === "loan") { patch({ loanByYear: { ...d.loanByYear, [yr]: val } }); return; }
     if (kind === "uni")  { patch({ uniByYear: { ...d.uniByYear, [yr]: val } }); return; }
@@ -1127,7 +1222,10 @@ function StepYearly({ m, confirmed, onConfirm, onBack }) {
   };
   const resetEstimates = () => { setSaved(false); patch({ revOverride: {}, costOverride: {}, uniByYear: {} }); };
 
-  const commit = () => mSave({ revOverride: d.revOverride, costOverride: d.costOverride, loanByYear: d.loanByYear, uniByYear: d.uniByYear, inflationPct: nv(d.inflationPct, DEFAULT_INFLATION), marginalCostPct: nv(d.marginalCostPct, DEFAULT_MARGINAL), step7Confirmed: true });
+  const commit = () => {
+    const revToSave = solveOn && solve ? solve.rev : d.revOverride;
+    mSave({ revOverride: revToSave, costOverride: d.costOverride, loanByYear: d.loanByYear, uniByYear: d.uniByYear, inflationPct: nv(d.inflationPct, DEFAULT_INFLATION), marginalCostPct: nv(d.marginalCostPct, DEFAULT_MARGINAL), step7Confirmed: true });
+  };
   const onSave = () => { commit(); setSaved(true); };
   const onSaveContinue = () => { commit(); onConfirm(); };
 
@@ -1155,7 +1253,44 @@ function StepYearly({ m, confirmed, onConfirm, onBack }) {
         </div>
       </div>
 
-      <PLTable m={liveM} years={YEARS} editYears={EST_YEARS} onCell={onCell} />
+      {/* ── SOLVE TO TARGET toggle ────────────────────────────────────────── */}
+      <div style={{ border: "2px solid " + (solveOn ? "#e07030" : "#d8d3cb"), borderRadius: 8, padding: 16, marginBottom: 18, background: solveOn ? "#fbf3ec" : "#faf8f5" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+          <div>
+            <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 20, fontWeight: 600, color: "#1a1a1a" }}>Solve to target</div>
+            <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, color: "#777", marginTop: 2 }}>
+              Grows CED Customised, Open Programmes and Micro-credentials (capped £1,000k) to hit {tp[2028]}% / {tp[2029]}% / {tp[2030]}%, by strategic strength from steps 4–5.
+            </div>
+          </div>
+          <button onClick={() => { setSolveOn(s => !s); setSaved(false); }}
+            style={{ flexShrink: 0, padding: "12px 22px", borderRadius: 8, border: "none", cursor: "pointer",
+              fontFamily: "'DM Sans',sans-serif", fontSize: 15, fontWeight: 700, letterSpacing: 0.3,
+              background: solveOn ? "#e07030" : "#1a1a1a", color: "#fff" }}>
+            {solveOn ? "● SOLVING — click to turn off" : "Solve to target ▶"}
+          </button>
+        </div>
+        {solveOn && solve && (
+          <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid #e8d9cc" }}>
+            <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, color: "#b87a20", marginBottom: 8 }}>Required annual growth to hit target</div>
+            <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
+              {[["ced_custom", "CED Customised"], ["open", "Open Programmes"], ["micro_cred", "Micro-credentials"]].map(([id, name]) => (
+                <div key={id}>
+                  <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, color: "#555" }}>{name}</div>
+                  <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 18, fontWeight: 600, color: "#e07030" }}>
+                    {id === "micro_cred" ? "£0 → £" + (solve.rev[2030]?.micro_cred || 0) + "k"
+                      : (solve.cagr[id] !== null ? "+" + solve.cagr[id] + "%/yr" : "—")}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#999", marginTop: 10, fontStyle: "italic" }}>
+              Figures below are read-only while solving. Turn off to return to your own P&L.
+            </div>
+          </div>
+        )}
+      </div>
+
+      <PLTable m={liveM} years={YEARS} editYears={solveOn ? [] : EST_YEARS} onCell={onCell} />
 
       {/* Net % vs target per year */}
       <div style={{ overflowX: "auto", marginBottom: 16 }}>
@@ -1441,7 +1576,7 @@ function Workspace({ name, onExit }) {
   return (
     <div className="sl-shell">
       <div className="sl-header">
-        <div className="sl-header-title">STRAWPERSON — FBaM Financial Scenario · shared model <span style={{ color: "#bbb", fontWeight: 400 }}>· build 6.11</span></div>
+        <div className="sl-header-title">STRAWPERSON — FBaM Financial Scenario · shared model <span style={{ color: "#bbb", fontWeight: 400 }}>· build 6.12</span></div>
         <div className="sl-header-right">{name}{m.lastEditedBy && m.lastEditedBy !== name ? ` · last edit: ${m.lastEditedBy}` : ""} &nbsp;·&nbsp;
           <button style={{ background: "none", border: "none", fontSize: 11, color: "#888", cursor: "pointer", textDecoration: "underline" }} onClick={onExit}>Exit</button>
         </div>
