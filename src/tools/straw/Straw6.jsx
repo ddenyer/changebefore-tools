@@ -202,7 +202,7 @@ function projRev(l, yr, m) {
   const { q3, bud } = resolveBase(m.baseRev, l);
   if (yr === 2026) return q3;
   if (yr === 2027) return bud;                   /* budget anchor (editable in §2) */
-  const ovr = m.revOverride?.[yr]?.[l.id];
+  const ovr = m._ignoreRevOverride ? undefined : m.revOverride?.[yr]?.[l.id];
   if (ovr !== undefined && ovr !== "") return nv(ovr);
   const steps = yr - 2027;                        /* 1,2,3 for 2028,29,30 */
   if (l.kind === "ending") return 0;              /* masterships / SLEP teach out */
@@ -239,7 +239,7 @@ function projCost(l, yr, m) {
   const { q3, bud } = resolveBase(m.baseCost, l);
   if (yr === 2026) return q3;
   if (yr === 2027) return bud;
-  const ovr = m.costOverride?.[yr]?.[l.id];
+  const ovr = m._ignoreRevOverride ? undefined : m.costOverride?.[yr]?.[l.id];
   if (ovr !== undefined && ovr !== "") return nv(ovr);
   const steps = yr - 2027;
   return bud * Math.pow(1 + inflationPct(m) / 100, steps);   /* budget, inflated */
@@ -745,8 +745,10 @@ function StepDoNothing({ m, confirmed, onConfirm, onBack }) {
     marginalCostPct: m.marginalCostPct !== undefined ? m.marginalCostPct : DEFAULT_MARGINAL,
   });
   const [saved, setSaved] = useState(false);
-  /* liveM reflects the local draft so the P&L below updates instantly while typing */
-  const liveM = { ...m, [RATE_KEY]: d.rates, inflationPct: d.inflationPct, marginalCostPct: d.marginalCostPct, posture: {} };
+  /* liveM reflects the local draft so the P&L below updates instantly while typing.
+     _ignoreRevOverride: §3 is the pure-trajectory view — it must NOT apply §7
+     estimate-cell overrides, which belong only to the Yearly P&L step.          */
+  const liveM = { ...m, [RATE_KEY]: d.rates, inflationPct: d.inflationPct, marginalCostPct: d.marginalCostPct, posture: {}, _ignoreRevOverride: true };
 
   const setRate = (id, val) => {
     setSaved(false);
@@ -1439,7 +1441,7 @@ function Workspace({ name, onExit }) {
   return (
     <div className="sl-shell">
       <div className="sl-header">
-        <div className="sl-header-title">STRAWPERSON — FBaM Financial Scenario · shared model <span style={{ color: "#bbb", fontWeight: 400 }}>· build 6.10</span></div>
+        <div className="sl-header-title">STRAWPERSON — FBaM Financial Scenario · shared model <span style={{ color: "#bbb", fontWeight: 400 }}>· build 6.11</span></div>
         <div className="sl-header-right">{name}{m.lastEditedBy && m.lastEditedBy !== name ? ` · last edit: ${m.lastEditedBy}` : ""} &nbsp;·&nbsp;
           <button style={{ background: "none", border: "none", fontSize: 11, color: "#888", cursor: "pointer", textDecoration: "underline" }} onClick={onExit}>Exit</button>
         </div>
