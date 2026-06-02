@@ -120,11 +120,12 @@ const PART_PWD   = "FBAM-straw-03!";
 
 /* ── POSTURES (macro choices for the Changes step) ───────────────────────── */
 const POSTURES = [
-  { id:"end",         label:"End / Teach-out",     rate:null, note:"Wind down to £0" },
-  { id:"decline",     label:"Managed decline",     rate:-15,  note:"−15% / yr" },
-  { id:"maintain",    label:"Maintain",            rate:0,    note:"Hold at budget" },
-  { id:"incremental", label:"Incremental growth",  rate:5,    note:"+5% / yr" },
-  { id:"radical",     label:"Radical growth",      rate:15,   note:"+15% / yr" },
+  { id:"end",         label:"End / Teach-out",       rate:null, note:"Wind down to £0" },
+  { id:"decline",     label:"Managed decline",       rate:-15,  note:"−15% / yr" },
+  { id:"incr_decline",label:"Incremental decline",   rate:-5,   note:"−5% / yr" },
+  { id:"maintain",    label:"Maintain",              rate:0,    note:"Hold at budget" },
+  { id:"incremental", label:"Incremental growth",    rate:5,    note:"+5% / yr" },
+  { id:"radical",     label:"Radical growth",        rate:15,   note:"+15% / yr" },
 ];
 const POSTURE_BY_ID = Object.fromEntries(POSTURES.map(p => [p.id, p]));
 
@@ -150,12 +151,15 @@ function revLinesFor(m) {
   return REV_LINES.concat(custom);
 }
 
-/* Observed one-year step Q3 25/26 → Budget 26/27. This is a LEVEL change
-   (already banked in the budget), shown for context — NOT a forward rate.     */
-const trendPct = (l, m) => { const { q3, bud } = resolveBase(m?.baseRev, l); return q3 > 0 ? (bud - q3) / q3 * 100 : 0; };
-/* Default forward rate = the sector growth rate (a rate signal). The budget
-   already banks the one-off level reset, so it does not drive this.           */
-const defaultRate = (l) => l.cagr;
+/* Observed one-year step Q3 25/26 → Budget 26/27 = the FBaM trajectory rate.
+   Capped to ±15% so a tiny-base line (e.g. a £181k→£270k jump = +49%) cannot
+   dominate the midpoint and produce an implausible forward rate.              */
+const trendPctRaw = (l, m) => { const { q3, bud } = resolveBase(m?.baseRev, l); return q3 > 0 ? (bud - q3) / q3 * 100 : 0; };
+const trendPct = (l, m) => Math.max(-15, Math.min(15, trendPctRaw(l, m)));
+/* Default forward rate = midpoint of the FBaM trajectory and the sector rate.
+   The trajectory captures what FBaM is actually doing; the sector rate captures
+   the market. The midpoint blends the two into the do-nothing forward rate.    */
+const defaultRate = (l, m) => l.kind === "normal" ? round1((trendPct(l, m) + l.cagr) / 2) : l.cagr;
 
 /* ── CALC ENGINE — single source of truth ────────────────────────────────── */
 /* Project one revenue line for a year, honouring overrides, postures, blend. */
@@ -181,7 +185,7 @@ function projRev(l, yr, m) {
      in THIS version's field (rateOverride). The legacy 'blend' field is never
      read — old auto-computed rates cannot leak in.                            */
   const stored = m.rateOverride?.[l.id];
-  const rate = stored !== undefined && stored !== "" ? nv(stored) : defaultRate(l);
+  const rate = stored !== undefined && stored !== "" ? nv(stored) : defaultRate(l, m);
   return bud * Math.pow(1 + rate / 100, steps);
 }
 
@@ -293,13 +297,35 @@ function suggestPosture(l, m) {
     default: break;
   }
 
+  /* Strategic intent (score) is combined with the line's own trajectory: the
+     midpoint forward rate from §3. A line the market/trajectory says is
+     declining cannot be pushed to growth unless strategic intent is strong,
+     and vice versa — so award-bearing (declining) lands at decline, not growth,
+     unless you deliberately prioritise it.                                     */
+  const traj = defaultRate(l, m);           /* the midpoint forward rate, % */
+  const trajScore = traj <= -10 ? -2 : traj < -1 ? -1 : traj <= 1 ? 0 : traj < 8 ? 1 : 2;
+  let combined = score + trajScore;
+
+  /* Trajectory acts as a brake: a line whose own trajectory is clearly
+     declining is not suggested for growth unless strategic intent is strong
+     and deliberate (score >= 4). This stops e.g. award-bearing being proposed
+     for growth when the market and FBaM's own numbers say it is shrinking.     */
+  if (traj < -1 && score < 4) combined = Math.min(combined, -1);
+  if (traj > 8 && score > -3) combined = Math.max(combined, 1);
+
   let posture;
-  if (score >= 3) posture = "radical";
-  else if (score >= 1) posture = "incremental";
-  else if (score === 0) posture = "maintain";
-  else if (score <= -2) posture = "end";
-  else posture = "decline";
-  const why = reasons.length ? reasons.slice(0, 2).join("; ") : "no strong signal from your earlier choices — hold at budget";
+  if (combined >= 3) posture = "radical";
+  else if (combined >= 1) posture = "incremental";
+  else if (combined === 0) posture = "maintain";
+  else if (combined === -1) posture = "incr_decline";
+  else if (combined === -2) posture = "decline";
+  else posture = "end";
+
+  /* Reasons: keep only those that actually fired with non-default weight, plus
+     the trajectory, so we don't leak default-tension noise like "grow revenue". */
+  const why = reasons.length
+    ? [...reasons.slice(0, 2), `the do-nothing trajectory is ${fmtPct(traj)}/yr`].slice(0, 2).join("; ")
+    : `the do-nothing trajectory is ${fmtPct(traj)}/yr`;
   return { posture, why };
 }
 
@@ -314,13 +340,13 @@ const PURPOSE_GROUPS = [
   "FT students (MSc, MBA)","PT students (MSc, MBA)","Exec education delegates",
   "Organisations commissioning exec ed","Research partners and funders","Doctoral students",
   "The university itself","The management and leadership profession","Alumni",
-  "Policymakers / government","Staff",
+  "Policymakers / government","Staff","Feeder partners","Industrial partners",
 ];
 const DEFAULT_GROUP_SCORES = {
   "FT students (MSc, MBA)":6,"PT students (MSc, MBA)":4,"Exec education delegates":8,
   "Organisations commissioning exec ed":9,"Research partners and funders":5,"Doctoral students":4,
   "The university itself":7,"The management and leadership profession":7,"Alumni":9,
-  "Policymakers / government":4,"Staff":7,
+  "Policymakers / government":4,"Staff":7,"Feeder partners":4,"Industrial partners":6,
 };
 const PURPOSE_TENSIONS = [
   { key:"research",   l:"Teaching intensive",  r:"Research intensive",  desc:"Where should FBaM invest most?" },
@@ -332,7 +358,7 @@ const PURPOSE_TENSIONS = [
   { key:"breadth",    l:"Focused depth",       r:"Wide portfolio",      desc:"Many programmes, or fewer done exceptionally?" },
   { key:"staffing",   l:"Flexible staffing",   r:"Fixed staffing",      desc:"Lean on associates, or invest in faculty?" },
 ];
-const DEFAULT_TENSIONS = { research:35, theory:30, experience:43, market:43, geography:50, profit:23, breadth:35, staffing:43 };
+const DEFAULT_TENSIONS = { research:35, theory:15, experience:43, market:43, geography:50, profit:23, breadth:35, staffing:43 };
 
 /* ── THEME DATA (allocation by editable % — no staff numbers) ─────────────── */
 const THEME_DATA = [
@@ -634,32 +660,26 @@ function StepCurrent({ m, confirmed, onConfirm, onBack }) {
   );
 }
 
-/* ── 3. DO-NOTHING (sector CAGR is the forward rate; level step is context) ── */
+/* ── 3. DO-NOTHING (forward rate = midpoint of FBaM trajectory & sector) ───── */
 const CONF_COLOR = { "High":"#2d7d46", "Med–High":"#2d7d46", "Medium":"#b87a20", "Low–Med":"#b87a20", "Low":"#b83232" };
 function StepDoNothing({ m, confirmed, onConfirm, onBack }) {
-  const init = () => {
-    const b = {};
-    REV_LINES.forEach(l => {
-      if (l.kind !== "normal") return;
-      const stored = m.rateOverride?.[l.id];   /* explicit user override only; legacy 'blend' ignored */
-      b[l.id] = String(stored !== undefined && stored !== "" ? nv(stored) : defaultRate(l));
-    });
-    return b;
-  };
-  const [rate, setRate] = useState(init);
-  const liveM = { ...m, rateOverride: Object.fromEntries(Object.entries(rate).map(([k, v]) => [k, nv(v)])), posture: {} };
+  const [, force] = useState(0);
+  const bump = () => force(n => n + 1);
 
-  const doConfirm = () => {
-    const b = {};
-    REV_LINES.forEach(l => {
-      if (l.kind !== "normal") return;
-      const v = nv(rate[l.id], defaultRate(l));
-      if (v !== defaultRate(l)) b[l.id] = v;   /* store only genuine overrides */
-    });
-    mSave({ rateOverride: b, step3Confirmed: true });
-    onConfirm();
+  /* Edits write straight to the shared model so the P&L below always reflects
+     them — no separate local copy that can fall out of sync.                   */
+  const setRate = (id, val) => {
+    const ro = { ...(m.rateOverride || {}) };
+    if (val === "" || val === undefined) delete ro[id]; else ro[id] = val;
+    mSave({ rateOverride: ro });
+    bump();
   };
-  const resetRates = () => { const b = {}; REV_LINES.forEach(l => { if (l.kind === "normal") b[l.id] = String(defaultRate(l)); }); setRate(b); };
+  const rateValue = (l) => {
+    const stored = m.rateOverride?.[l.id];
+    return stored !== undefined && stored !== "" ? stored : defaultRate(l, m);
+  };
+  const resetRates = () => { mSave({ rateOverride: {} }); bump(); };
+  const doConfirm = () => { mSave({ step3Confirmed: true }); onConfirm(); };
   const td = { fontFamily: "'IBM Plex Mono',monospace", fontSize: 12, textAlign: "right", padding: "5px 8px" };
 
   return (
@@ -667,18 +687,18 @@ function StepDoNothing({ m, confirmed, onConfirm, onBack }) {
       <BackBtn onClick={onBack} />
       {confirmed && <ConfirmedBanner n={3} />}
       <div className="sl-step-h">Do-nothing trajectory</div>
-      <div className="sl-prompt">If nothing changes. Each income line carries a forward growth rate drawn from market research on the sector — that is the rate it grows at from the 2026/27 budget onward. The one-off step from the Q3 forecast to the budget is shown for context only: it is a level change, already banked in the budget, not a growth rate. Apprenticeship and SLEP income ends in 2027 regardless.</div>
+      <div className="sl-prompt">If nothing changes. Each income line carries a forward growth rate that is the midpoint of two things: FBaM's own recent trajectory (the move from the Q3 forecast into the 2026/27 budget) and the sector growth rate from market research. The midpoint is the default — edit any rate you don't accept. Apprenticeship and SLEP income ends in 2027 regardless.</div>
 
       <div className="sl-note-box">
         <div style={{ fontWeight: 600, color: "#1a1a1a", marginBottom: 6 }}>About these growth rates</div>
-        The sector growth rate for each line is a planning mid-point from market research on UK postgraduate business-school revenue, 2024–2030. The rates are nominal and deliberately cautious where only global figures exist. Three things to hold in mind: government-linked income (research funding and grants) is flat in cash and slightly negative in real terms; executive education — open and customised — is the only genuinely growing category, though the UK outlook sits below global rates; and for taught master's, fee income has stayed roughly flat even as international student numbers fell, so the rate reflects revenue, not enrolments. Hover any rate for its basis and confidence. Edit any rate you don't accept.
+        The forward rate for each line is the midpoint of FBaM's own trajectory and a sector growth rate drawn from market research on UK postgraduate business-school revenue, 2024–2030. The rates are nominal and deliberately cautious where only global figures exist. Three things to hold in mind: government-linked income (research funding and grants) is flat in cash and slightly negative in real terms; executive education — open and customised — is the only genuinely growing category, though the UK outlook sits below global rates; and for taught master's, fee income has stayed roughly flat even as international student numbers fell, so the rate reflects revenue, not enrolments. Hover any rate for its basis and confidence.
       </div>
 
       <div style={{ overflowX: "auto", marginBottom: 12 }}>
-        <table className="sl-pl" style={{ minWidth: 620 }}>
+        <table className="sl-pl" style={{ minWidth: 660 }}>
           <thead><tr>
             <th>Income line</th>
-            <th>Q3 25/26</th><th>Budget 26/27</th><th>Q3→Budget *</th><th>Sector rate</th><th>Forward rate</th>
+            <th>Q3 25/26</th><th>Budget 26/27</th><th>FBaM trajectory</th><th>Sector rate</th><th>Forward rate (midpoint)</th>
           </tr></thead>
           <tbody>
             {REV_LINES.map(l => { const rb = resolveBase(m.baseRev, l); return (
@@ -688,7 +708,7 @@ function StepDoNothing({ m, confirmed, onConfirm, onBack }) {
                 </td>
                 <td style={td}>{fmtK(rb.q3)}</td>
                 <td style={td}>{fmtK(rb.bud)}</td>
-                <td style={{ ...td, color: "#aaa" }} title="One-off level change, already banked in the budget — context only, not a growth rate.">
+                <td style={{ ...td, color: "#aaa" }} title="FBaM's own recent move from the Q3 forecast into the agreed budget.">
                   {l.kind === "normal" ? fmtPct(trendPct(l, m)) : "—"}
                 </td>
                 <td style={{ ...td, color: "#888" }} title={l.basis || ""}>{(l.kind === "normal") ? fmtPct(l.cagr) : "—"}</td>
@@ -696,7 +716,7 @@ function StepDoNothing({ m, confirmed, onConfirm, onBack }) {
                   {l.kind === "ending" ? <span style={{ color: "#b83232", fontSize: 11 }}>ends 2027 → £0</span>
                     : l.kind === "new" ? <span style={{ color: "#aaa", fontSize: 11 }}>set in Changes</span>
                     : <input type="number" className="sl-num" style={{ width: 64 }} step="0.5"
-                        value={rate[l.id] ?? "0"} onChange={e => setRate(s => ({ ...s, [l.id]: e.target.value }))} />}
+                        value={rateValue(l)} onChange={e => setRate(l.id, e.target.value)} />}
                 </td>
               </tr>
             ); })}
@@ -704,22 +724,22 @@ function StepDoNothing({ m, confirmed, onConfirm, onBack }) {
         </table>
       </div>
       <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#999", marginBottom: 4 }}>
-        * Q3→Budget is the one-off movement into the agreed budget — a level change, not a rate. The forward rate defaults to the sector rate and compounds from the 2026/27 budget.
+        Forward rate = midpoint of FBaM trajectory and sector rate, compounding from the 2026/27 budget. Edits update the P&L below immediately.
       </div>
       <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#999", marginBottom: 16 }}>
-        Cost weight vs growth rate: a business school's research income sits at roughly a third of the per-head level of STEM disciplines, but that is a level effect, not a rate — both grow at about the sector rate, so the smaller base is carried as a level, not a rate haircut. QR can still move more sharply than the sector around each REF, on a small base. Basis: UK postgraduate business-school revenue CAGR benchmark 2024–2030 — HESA, Chartered ABS, UNICON, Research England / UKRI, market-research forecasts; confidence varies by line.
+        Cost weight vs growth rate: a business school's research income sits at roughly a third of the per-head level of STEM disciplines, but that is a level effect, not a rate. Basis: UK postgraduate business-school revenue CAGR benchmark 2024–2030 — HESA, Chartered ABS, UNICON, Research England / UKRI, market-research forecasts; confidence varies by line.
       </div>
 
       <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, color: "#888", marginBottom: 8 }}>Resulting do-nothing P&L</div>
-      <PLTable m={liveM} years={YEARS} compact />
+      <PLTable m={{ ...m, posture: {} }} years={YEARS} compact />
       <div className="sl-kpis">
-        {YEARS.map(y => { const k = yearKpis(y, liveM); return (
+        {YEARS.map(y => { const k = yearKpis(y, { ...m, posture: {} }); return (
           <div className="sl-kpi" key={y}><div className="l">{COL_LABEL[y]}</div>
             <div className="v" style={{ color: surplusColor(k.net) }}>{k.netPct.toFixed(1)}%</div></div>
         ); })}
       </div>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-        <button className="sl-btn sl-btn-outline" style={{ fontSize: 12, padding: "8px 14px" }} onClick={resetRates}>↺ Reset rates to sector basis</button>
+        <button className="sl-btn sl-btn-outline" style={{ fontSize: 12, padding: "8px 14px" }} onClick={resetRates}>↺ Reset rates to midpoint</button>
         <button className="sl-btn" onClick={doConfirm}>Confirm do-nothing → Who we serve</button>
       </div>
     </div>
@@ -728,28 +748,52 @@ function StepDoNothing({ m, confirmed, onConfirm, onBack }) {
 
 /* ── 4. WHO FBAM SERVES ───────────────────────────────────────────────────── */
 function StepWhoServes({ m, confirmed, onConfirm, onBack }) {
-  const init = () => { const g = {}; PURPOSE_GROUPS.forEach(k => g[k] = nv(m.purposeGroups?.[k], DEFAULT_GROUP_SCORES[k] || 5)); return g; };
+  const customInit = () => (m.customGroups || []);
+  const [custom, setCustom] = useState(customInit);
+  const allGroups = [...PURPOSE_GROUPS, ...custom];
+  const init = () => { const g = {}; allGroups.forEach(k => g[k] = nv(m.purposeGroups?.[k], DEFAULT_GROUP_SCORES[k] || 5)); return g; };
   const [groups, setGroups] = useState(init);
+  const [newName, setNewName] = useState("");
   const MAX_HIGH = 3;
   const highCount = Object.values(groups).filter(v => nv(v) >= 8).length;
   const setScore = (g, n) => { const cur = nv(groups[g]); if (n >= 8 && cur < 8 && highCount >= MAX_HIGH) return; setGroups(p => ({ ...p, [g]: n })); };
-  const doConfirm = () => { mSave({ purposeGroups: groups, step4Confirmed: true }); onConfirm(); };
+  const addGroup = () => {
+    const name = newName.trim();
+    if (!name || allGroups.includes(name)) { setNewName(""); return; }
+    setCustom(c => [...c, name]);
+    setGroups(p => ({ ...p, [name]: 5 }));
+    setNewName("");
+  };
+  const removeGroup = (name) => { setCustom(c => c.filter(x => x !== name)); setGroups(p => { const n = { ...p }; delete n[name]; return n; }); };
+  const doConfirm = () => { mSave({ purposeGroups: groups, customGroups: custom, step4Confirmed: true }); onConfirm(); };
+
+  const row = (g, removable) => (
+    <div key={g} style={{ marginBottom: 14 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4, alignItems: "center" }}>
+        <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, color: "#1a1a1a" }}>{g}</span>
+        <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 13, fontWeight: 600, color: nv(groups[g]) >= 8 ? "#e07030" : "#1a1a1a" }}>{nv(groups[g])}</span>
+          {removable && <button onClick={() => removeGroup(g)} title="Remove" style={{ background: "none", border: "1px solid #d8d3cb", borderRadius: 4, cursor: "pointer", padding: "1px 6px", fontSize: 11, color: "#b83232" }}>✕</button>}
+        </span>
+      </div>
+      <input type="range" min={1} max={9} step={1} value={nv(groups[g], 5)} onChange={e => setScore(g, parseInt(e.target.value))}
+        style={{ width: "100%", accentColor: nv(groups[g]) >= 8 ? "#e07030" : "#888" }} />
+    </div>
+  );
+
   return (
     <div className="sl-content">
       <BackBtn onClick={onBack} />
       {confirmed && <ConfirmedBanner n={4} />}
       <div className="sl-step-h">Who should FBaM serve?</div>
       <div className="sl-prompt">Rate each stakeholder group 1–9 by importance to FBaM's future. If everything scores 9, nothing is a priority. A maximum of three groups can score 8 or 9 — use those slots deliberately. ({MAX_HIGH - highCount} high-priority slots left.)</div>
-      {PURPOSE_GROUPS.map(g => (
-        <div key={g} style={{ marginBottom: 14 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-            <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, color: "#1a1a1a" }}>{g}</span>
-            <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 13, fontWeight: 600, color: nv(groups[g]) >= 8 ? "#e07030" : "#1a1a1a" }}>{nv(groups[g])}</span>
-          </div>
-          <input type="range" min={1} max={9} step={1} value={nv(groups[g], 5)} onChange={e => setScore(g, parseInt(e.target.value))}
-            style={{ width: "100%", accentColor: nv(groups[g]) >= 8 ? "#e07030" : "#888" }} />
-        </div>
-      ))}
+      {PURPOSE_GROUPS.map(g => row(g, false))}
+      {custom.map(g => row(g, true))}
+      <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8, marginBottom: 4 }}>
+        <input type="text" className="sl-input" style={{ flex: 1 }} placeholder="Add another stakeholder group…"
+          value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => e.key === "Enter" && addGroup()} />
+        <button className="sl-btn sl-btn-outline" style={{ fontSize: 12, padding: "10px 14px", flexShrink: 0 }} onClick={addGroup}>+ Add</button>
+      </div>
       <button className="sl-btn" style={{ marginTop: 12 }} onClick={doConfirm}>Confirm priorities → Positioning</button>
     </div>
   );
