@@ -177,10 +177,10 @@ function projRev(l, yr, m) {
     if (p.rate === null) { const glide = [0.5, 0.25, 0][steps - 1]; return bud * glide; }
     return bud * Math.pow(1 + p.rate / 100, steps);
   }
-  /* Forward rate: a stored value is honoured ONLY for v2 models (where blend
-     holds genuine user overrides). Pre-v2 'blend' was auto-computed and is
-     ignored, so the sector default always applies until the user edits it.    */
-  const stored = m.engineVersion === ENGINE_VERSION ? m.blend?.[l.id] : undefined;
+  /* Forward rate: sector default unless the user has set an explicit override
+     in THIS version's field (rateOverride). The legacy 'blend' field is never
+     read — old auto-computed rates cannot leak in.                            */
+  const stored = m.rateOverride?.[l.id];
   const rate = stored !== undefined && stored !== "" ? nv(stored) : defaultRate(l);
   return bud * Math.pow(1 + rate / 100, steps);
 }
@@ -641,25 +641,25 @@ function StepDoNothing({ m, confirmed, onConfirm, onBack }) {
     const b = {};
     REV_LINES.forEach(l => {
       if (l.kind !== "normal") return;
-      const stored = m.engineVersion === ENGINE_VERSION ? m.blend?.[l.id] : undefined;   /* ignore pre-v2 auto rates */
+      const stored = m.rateOverride?.[l.id];   /* explicit user override only; legacy 'blend' ignored */
       b[l.id] = String(stored !== undefined && stored !== "" ? nv(stored) : defaultRate(l));
     });
     return b;
   };
-  const [blend, setBlend] = useState(init);
-  const liveM = { ...m, blend: Object.fromEntries(Object.entries(blend).map(([k, v]) => [k, nv(v)])), posture: {} };
+  const [rate, setRate] = useState(init);
+  const liveM = { ...m, rateOverride: Object.fromEntries(Object.entries(rate).map(([k, v]) => [k, nv(v)])), posture: {} };
 
   const doConfirm = () => {
     const b = {};
     REV_LINES.forEach(l => {
       if (l.kind !== "normal") return;
-      const v = nv(blend[l.id], defaultRate(l));
+      const v = nv(rate[l.id], defaultRate(l));
       if (v !== defaultRate(l)) b[l.id] = v;   /* store only genuine overrides */
     });
-    mSave({ blend: b, step3Confirmed: true });
+    mSave({ rateOverride: b, step3Confirmed: true });
     onConfirm();
   };
-  const resetRates = () => { const b = {}; REV_LINES.forEach(l => { if (l.kind === "normal") b[l.id] = String(defaultRate(l)); }); setBlend(b); };
+  const resetRates = () => { const b = {}; REV_LINES.forEach(l => { if (l.kind === "normal") b[l.id] = String(defaultRate(l)); }); setRate(b); };
   const td = { fontFamily: "'IBM Plex Mono',monospace", fontSize: 12, textAlign: "right", padding: "5px 8px" };
 
   return (
@@ -696,7 +696,7 @@ function StepDoNothing({ m, confirmed, onConfirm, onBack }) {
                   {l.kind === "ending" ? <span style={{ color: "#b83232", fontSize: 11 }}>ends 2027 → £0</span>
                     : l.kind === "new" ? <span style={{ color: "#aaa", fontSize: 11 }}>set in Changes</span>
                     : <input type="number" className="sl-num" style={{ width: 64 }} step="0.5"
-                        value={blend[l.id] ?? "0"} onChange={e => setBlend(s => ({ ...s, [l.id]: e.target.value }))} />}
+                        value={rate[l.id] ?? "0"} onChange={e => setRate(s => ({ ...s, [l.id]: e.target.value }))} />}
                 </td>
               </tr>
             ); })}
@@ -1219,7 +1219,7 @@ function Workspace({ name, onExit }) {
   return (
     <div className="sl-shell">
       <div className="sl-header">
-        <div className="sl-header-title">STRAWPERSON — FBaM Financial Scenario · shared model</div>
+        <div className="sl-header-title">STRAWPERSON — FBaM Financial Scenario · shared model <span style={{ color: "#bbb", fontWeight: 400 }}>· build 6.2</span></div>
         <div className="sl-header-right">{name}{m.lastEditedBy && m.lastEditedBy !== name ? ` · last edit: ${m.lastEditedBy}` : ""} &nbsp;·&nbsp;
           <button style={{ background: "none", border: "none", fontSize: 11, color: "#888", cursor: "pointer", textDecoration: "underline" }} onClick={onExit}>Exit</button>
         </div>
