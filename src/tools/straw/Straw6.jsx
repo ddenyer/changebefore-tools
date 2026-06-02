@@ -14,7 +14,7 @@ import { useState, useEffect } from "react";
 const SHARED_KEY = "__shared__";
 const STORE = { model: {}, sessionId: "", myName: "" };
 
-const ENGINE_VERSION = 2;   /* v2: forward rate = sector CAGR (not blended). */
+const ENGINE_VERSION = 3;   /* v3: midpoint forward rate; cabinet fixed; inflation + marginal cost; cleared stale rate/posture maps. */
 
 const mSave = (d) => {
   STORE.model = { ...STORE.model, ...d, engineVersion: ENGINE_VERSION, lastEditedBy: STORE.myName, _updated: Date.now() };
@@ -29,11 +29,13 @@ const mSave = (d) => {
 const mGet = () => STORE.model || {};
 
 /* Drop fields whose meaning changed between engine versions, so a stale saved
-   model can't resurrect superseded auto-defaults (e.g. old blended rates).    */
+   model can't resurrect superseded auto-defaults (e.g. old rates, old postures). */
 const migrateModel = (m) => {
   if (!m) return m;
   if (m.engineVersion !== ENGINE_VERSION) {
-    delete m.blend;            /* legacy: stored blended rates; now sector-default-or-edit */
+    delete m.blend;          /* legacy blended rates */
+    delete m.rateOverride;   /* pre-v3 rates were computed against old CAGRs / no cap — clear so midpoint defaults apply */
+    delete m.posture;        /* posture set changed (added incr_decline; cabinet now fixed) */
     m.engineVersion = ENGINE_VERSION;
   }
   return m;
@@ -74,8 +76,8 @@ const REV_LINES = [
   { id:"ced_custom",   name:"CED Customised",                                   q3:5300,  bud:5700,  cagr:10,  kind:"normal",
     conf:"Medium", basis:"Customised exec ed — fastest-growing degree-adjacent line, UK ~8–12% vs ~13.5% global. (Global proxy.)" },
   { id:"slep",         name:"CED – Non Award Bearing (SLEP)",                   q3:2746,  bud:713,   cagr:0,   kind:"ending", endNote:"Levy income ends Feb 2027; teach-out only." },
-  { id:"cabinet",      name:"Cabinet Office (PLP)",                             q3:1925,  bud:1812,  cagr:8,   kind:"normal",
-    conf:"Medium", basis:"Government customised programmes — placed within the customised exec-ed range (~8–12%). (Proxy / local read.)" },
+  { id:"cabinet",      name:"Cabinet Office (PLP)",                             q3:1925,  bud:1812,  cagr:0,   kind:"fixed",
+    conf:"High",   basis:"Fixed-price government contract (PLP). Not subject to growth — held at the 2026/27 budget value for every subsequent year." },
   { id:"ced_other",    name:"Other customised (BGP, Entrepreneurship, CWoW)",   q3:181,   bud:270,   cagr:5,   kind:"normal",
     conf:"Low",    basis:"Small customised tail — modest growth assumed within the customised range. (Local estimate.)" },
   { id:"micro_cred",   name:"Micro-credentials (new award-bearing exec ed)",    q3:0,     bud:0,     cagr:0,   kind:"new",    target2030:0,
@@ -171,6 +173,7 @@ function projRev(l, yr, m) {
   if (ovr !== undefined && ovr !== "") return nv(ovr);
   const steps = yr - 2027;                        /* 1,2,3 for 2028,29,30 */
   if (l.kind === "ending") return 0;              /* masterships / SLEP teach out */
+  if (l.kind === "fixed") return bud;             /* fixed-price contract — held at budget */
   if (l.kind === "new") {
     const target = nv(m.newTarget?.[l.id], l.target2030 || 0);
     return target * (steps / 3);                  /* linear ramp 2027→2030 */
@@ -189,14 +192,24 @@ function projRev(l, yr, m) {
   return bud * Math.pow(1 + rate / 100, steps);
 }
 
-/* Project one cost line for a year — do-nothing holds flat at budget. */
+/* ── Forward assumptions (editable in §7) ─────────────────────────────────── */
+const DEFAULT_INFLATION = 2.5;   /* % p.a. applied to COSTS only — revenue rates are already nominal */
+const DEFAULT_MARGINAL  = 30;    /* p of cost per £1 of revenue ABOVE the budget level */
+const inflationPct = (m) => nv(m.inflationPct, DEFAULT_INFLATION);
+const marginalPence = (m) => nv(m.marginalCostPct, DEFAULT_MARGINAL);
+
+/* Project one cost line for a year. Do-nothing holds the REAL cost flat at the
+   budget, then applies inflation forward. Revenue CAGRs are already nominal,
+   so inflation is applied to costs only — adding it to revenue would double-
+   count. The marginal cost of revenue GROWTH is handled at aggregate level.    */
 function projCost(l, yr, m) {
   const { q3, bud } = resolveBase(m.baseCost, l);
   if (yr === 2026) return q3;
   if (yr === 2027) return bud;
   const ovr = m.costOverride?.[yr]?.[l.id];
   if (ovr !== undefined && ovr !== "") return nv(ovr);
-  return bud;                                     /* held flat at budget */
+  const steps = yr - 2027;
+  return bud * Math.pow(1 + inflationPct(m) / 100, steps);   /* budget, inflated */
 }
 
 /* Service charge — editable anchors (§2) plus per-estimate-year override (§7) */
@@ -209,19 +222,28 @@ function uniFor(yr, m) {
 }
 const loanFor = (yr, m) => nv(m.loanByYear?.[yr], 0);
 
+/* Budget-year total revenue (the baseline above which growth carries marginal cost) */
+const budgetRevTotal = (m) => revLinesFor(m).reduce((s, l) => s + projRev(l, 2027, m), 0);
+
 /* Whole-year aggregates */
 function yearKpis(yr, m) {
   const revTotal   = revLinesFor(m).reduce((s, l) => s + projRev(l, yr, m), 0);
   const staffTotal = COST_LINES.filter(l => l.group === "staff").reduce((s, l) => s + projCost(l, yr, m), 0);
   const opTotal    = COST_LINES.filter(l => l.group === "operating").reduce((s, l) => s + projCost(l, yr, m), 0);
-  const operatingCost = staffTotal + opTotal;
+  const baseCost   = staffTotal + opTotal;       /* budget costs, inflated */
+  /* Marginal cost of revenue growth: for every £1 of revenue above the budget
+     level, add (marginal pence) of cost. Applies only to estimate years and
+     only to net growth (a shrinking line carries no marginal cost credit).     */
+  const growth     = yr >= 2028 ? Math.max(0, revTotal - budgetRevTotal(m)) : 0;
+  const marginalCost = growth * marginalPence(m) / 100;
+  const operatingCost = baseCost + marginalCost;
   const contribution  = revTotal - operatingCost;
   const uni   = uniFor(yr, m);
   const loan  = loanFor(yr, m);
   const net   = contribution - uni - loan;
   const netPct = revTotal > 0 ? net / revTotal * 100 : 0;
   const contribPct = revTotal > 0 ? contribution / revTotal * 100 : 0;
-  return { revTotal, staffTotal, opTotal, operatingCost, contribution, contribPct, uni, loan, net, netPct };
+  return { revTotal, staffTotal, opTotal, baseCost, marginalCost, operatingCost, contribution, contribPct, uni, loan, net, netPct };
 }
 
 /* Target path: linear from 2027 net% to the 2030 target */
@@ -241,7 +263,7 @@ const surplusColor = v => v >= 0 ? "#2d7d46" : "#b83232";
 /* ── SUGGESTION ENGINE — §4 (who) + §5 (positioning) inform §6 (changes) ──── */
 /* Returns { posture, why } for a revenue line, or null for locked/new lines. */
 function suggestPosture(l, m) {
-  if (l.kind === "ending" || l.kind === "new" || l.custom) return null;
+  if (l.kind === "ending" || l.kind === "new" || l.kind === "fixed" || l.custom) return null;
   const t = k => nv(m.purposeTensions?.[k], DEFAULT_TENSIONS[k]);   /* 0..100 */
   const g = name => nv(m.purposeGroups?.[name], DEFAULT_GROUP_SCORES[name] || 5); /* 1..9 */
   const grow = t("profit") <= 40, cut = t("profit") >= 60;          /* grow revenue vs cut cost */
@@ -358,7 +380,7 @@ const PURPOSE_TENSIONS = [
   { key:"breadth",    l:"Focused depth",       r:"Wide portfolio",      desc:"Many programmes, or fewer done exceptionally?" },
   { key:"staffing",   l:"Flexible staffing",   r:"Fixed staffing",      desc:"Lean on associates, or invest in faculty?" },
 ];
-const DEFAULT_TENSIONS = { research:35, theory:15, experience:43, market:43, geography:50, profit:23, breadth:35, staffing:43 };
+const DEFAULT_TENSIONS = { research:20, theory:11, experience:37, market:42, geography:49, profit:24, breadth:34, staffing:42 };
 
 /* ── THEME DATA (allocation by editable % — no staff numbers) ─────────────── */
 const THEME_DATA = [
@@ -527,6 +549,9 @@ function PLTable({ m, years, editBase = false, editYears = [], onCell, compact =
           ))}
           <tr className="sub"><td>Total Other Operating Costs</td>{yr(y => fmtK(yearKpis(y, m).opTotal))}</tr>
 
+          <tr><td style={{ color: "#888", fontSize: 12 }}>Cost of revenue growth (marginal)</td>
+            {yr(y => { const k = yearKpis(y, m); return k.marginalCost > 0 ? <span style={{ color: "#b87a20" }}>{fmtK(k.marginalCost)}</span> : "—"; })}
+          </tr>
           <tr className="sub"><td>TOTAL OPERATING COSTS</td>{yr(y => fmtK(yearKpis(y, m).operatingCost))}</tr>
           <tr className="sub"><td>OPERATING SURPLUS (contribution)</td>
             {yr(y => { const k = yearKpis(y, m); return <span style={{ color: surplusColor(k.contribution) }}>{fmtK(k.contribution)}</span>; })}
@@ -714,6 +739,7 @@ function StepDoNothing({ m, confirmed, onConfirm, onBack }) {
                 <td style={{ ...td, color: "#888" }} title={l.basis || ""}>{(l.kind === "normal") ? fmtPct(l.cagr) : "—"}</td>
                 <td style={td}>
                   {l.kind === "ending" ? <span style={{ color: "#b83232", fontSize: 11 }}>ends 2027 → £0</span>
+                    : l.kind === "fixed" ? <span style={{ color: "#888", fontSize: 11 }}>fixed → held</span>
                     : l.kind === "new" ? <span style={{ color: "#aaa", fontSize: 11 }}>set in Changes</span>
                     : <input type="number" className="sl-num" style={{ width: 64 }} step="0.5"
                         value={rateValue(l)} onChange={e => setRate(l.id, e.target.value)} />}
@@ -907,6 +933,17 @@ function StepChanges({ m, confirmed, onConfirm, onBack }) {
         </div>
       ))}
 
+      {/* Fixed-price lines — locked, held at budget */}
+      {REV_LINES.filter(l => l.kind === "fixed").map(l => (
+        <div key={l.id} style={{ borderBottom: "1px solid #e8e4de", padding: "12px 0", opacity: 0.7 }}>
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, fontWeight: 500 }}>{l.name}</span>
+            <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#888" }}>Fixed price → held at budget (locked)</span>
+          </div>
+          <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#999", marginTop: 4 }}>{l.basis}</div>
+        </div>
+      ))}
+
       {/* Micro-credentials (built-in new stream) */}
       <div style={{ borderBottom: "1px solid #e8e4de", padding: "12px 0" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -965,8 +1002,10 @@ function StepYearly({ m, confirmed, onConfirm, onBack }) {
   const [costOverride, setCostOverride] = useState(m.costOverride || {});
   const [loanByYear, setLoanByYear]     = useState(m.loanByYear || {});
   const [uniByYear, setUniByYear]       = useState(m.uniByYear || {});
+  const [infl, setInfl]   = useState(String(nv(m.inflationPct, DEFAULT_INFLATION)));
+  const [marg, setMarg]   = useState(String(nv(m.marginalCostPct, DEFAULT_MARGINAL)));
 
-  const liveM = { ...m, revOverride, costOverride, loanByYear, uniByYear };
+  const liveM = { ...m, revOverride, costOverride, loanByYear, uniByYear, inflationPct: nv(infl, DEFAULT_INFLATION), marginalCostPct: nv(marg, DEFAULT_MARGINAL) };
   const tp = targetPath(liveM);
 
   const onCell = (kind, yr, id, val) => {
@@ -977,7 +1016,7 @@ function StepYearly({ m, confirmed, onConfirm, onBack }) {
   };
   const resetEstimates = () => { setRevOverride({}); setCostOverride({}); setUniByYear({}); };
 
-  const doConfirm = () => { mSave({ revOverride, costOverride, loanByYear, uniByYear, step7Confirmed: true }); onConfirm(); };
+  const doConfirm = () => { mSave({ revOverride, costOverride, loanByYear, uniByYear, inflationPct: nv(infl, DEFAULT_INFLATION), marginalCostPct: nv(marg, DEFAULT_MARGINAL), step7Confirmed: true }); onConfirm(); };
 
   return (
     <div className="sl-content">
@@ -985,6 +1024,23 @@ function StepYearly({ m, confirmed, onConfirm, onBack }) {
       {confirmed && <ConfirmedBanner n={7} />}
       <div className="sl-step-h">Yearly P&L — transition to target</div>
       <div className="sl-prompt">The full P&L, year by year, with your changes applied. Q3 25/26 and the 2026/27 budget are locked. The estimate columns reflect your postures — edit any estimate cell directly to override. The target row shows the path to your {nv(m.targetPct, 7.5).toFixed(1)}% goal.</div>
+
+      <div className="sl-note-box">
+        <div style={{ fontWeight: 600, color: "#1a1a1a", marginBottom: 8 }}>Forward assumptions (estimate years only)</div>
+        <div style={{ display: "flex", gap: 20, flexWrap: "wrap", alignItems: "center" }}>
+          <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: 13 }}>Cost inflation</span>
+            <NumInput width={56} step={0.5} value={infl} onChange={setInfl} /> <span style={{ fontSize: 13, color: "#888" }}>% p.a.</span>
+          </span>
+          <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: 13 }}>Cost of revenue growth</span>
+            <NumInput width={56} step={5} value={marg} onChange={setMarg} /> <span style={{ fontSize: 13, color: "#888" }}>p per £1</span>
+          </span>
+        </div>
+        <div style={{ fontSize: 11, color: "#777", marginTop: 8, lineHeight: 1.6 }}>
+          Revenue growth rates are nominal (they already include inflation), so inflation is applied to <strong>costs</strong> only — adding it to revenue would double-count. Every £1 of revenue above the 2026/27 budget level carries {nv(marg, DEFAULT_MARGINAL)}p of additional cost (mainly staff), reflecting that growth is not free; shown as a separate line in the P&L below.
+        </div>
+      </div>
 
       <PLTable m={liveM} years={YEARS} editYears={EST_YEARS} onCell={onCell} />
 
@@ -1263,7 +1319,7 @@ function Workspace({ name, onExit }) {
   return (
     <div className="sl-shell">
       <div className="sl-header">
-        <div className="sl-header-title">STRAWPERSON — FBaM Financial Scenario · shared model <span style={{ color: "#bbb", fontWeight: 400 }}>· build 6.2</span></div>
+        <div className="sl-header-title">STRAWPERSON — FBaM Financial Scenario · shared model <span style={{ color: "#bbb", fontWeight: 400 }}>· build 6.3</span></div>
         <div className="sl-header-right">{name}{m.lastEditedBy && m.lastEditedBy !== name ? ` · last edit: ${m.lastEditedBy}` : ""} &nbsp;·&nbsp;
           <button style={{ background: "none", border: "none", fontSize: 11, color: "#888", cursor: "pointer", textDecoration: "underline" }} onClick={onExit}>Exit</button>
         </div>
