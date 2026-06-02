@@ -34,13 +34,30 @@ const mSave = (d) => {
 };
 const mGet = () => STORE.model || {};
 
-/* Write-through hook: a step reads a field from the shared model and every edit
-   saves straight to it (no local mirror that can desync across the 3 editors).
-   Returns [liveValue, setValue] where setValue(v) persists immediately.        */
-function useModelField(m, key, fallback, bump) {
-  const cur = m[key] !== undefined ? m[key] : fallback;
-  const set = (v) => { mSave({ [key]: v }); bump(); };
-  return [cur, set];
+/* SAVE MODEL (performance + safe concurrent editing):
+   Each step holds a LOCAL draft of the fields it edits — typing is instant,
+   no network, no shared-model churn. Nothing reaches Supabase until the user
+   clicks "Save & continue" (or "Save"), which commits the draft via mSave.
+   useDraft(initialObj) → [draft, patch, replace]. patch(partial) merges;
+   replace(obj) swaps the whole draft (used by Reset).                          */
+function useDraft(init) {
+  const [draft, setDraft] = useState(init);
+  const patch = (partial) => setDraft(d => ({ ...d, ...partial }));
+  const replace = (obj) => setDraft(obj);
+  return [draft, patch, replace];
+}
+
+/* Standard footer: optional "Save" (commit, stay) + primary "Save & continue".
+   commit() persists the draft; advance() calls onConfirm after committing.      */
+function SaveBar({ onSave, onSaveContinue, continueLabel, saved }) {
+  return (
+    <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginTop: 8 }}>
+      <button className="sl-btn sl-btn-outline" style={{ fontSize: 12, padding: "10px 16px" }} onClick={onSave}>
+        {saved ? "Saved ✓" : "Save"}
+      </button>
+      <button className="sl-btn" onClick={onSaveContinue}>{continueLabel}</button>
+    </div>
+  );
 }
 
 /* Drop fields whose meaning changed between engine versions. Rate overrides are
@@ -651,12 +668,14 @@ function Entry({ onEnter }) {
 
 /* ── 1. GOAL ──────────────────────────────────────────────────────────────── */
 function StepGoal({ m, confirmed, onConfirm, onBack }) {
-  const [, force] = useState(0); const bump = () => force(n => n + 1);
-  const tgt = nv(m.targetPct, 7.5);
-  const setTgt = (v) => { mSave({ targetPct: v }); bump(); };
+  const [d, patch] = useDraft({ targetPct: nv(m.targetPct, 7.5) });
+  const [saved, setSaved] = useState(false);
+  const tgt = d.targetPct;
   const desc = (v) => v <= -5 ? "Significant managed deficit" : v < 0 ? "Managed deficit" : v === 0 ? "Break-even"
     : v <= 2.5 ? "Minimal surplus" : v <= 5 ? "Modest surplus" : v <= 7.5 ? "Sustainable surplus" : "Strong surplus";
-  const doConfirm = () => { mSave({ targetPct: tgt, step1Confirmed: true }); onConfirm(); };
+  const commit = () => mSave({ targetPct: tgt, step1Confirmed: true });
+  const onSave = () => { commit(); setSaved(true); };
+  const onSaveContinue = () => { commit(); onConfirm(); };
   return (
     <div className="sl-content">
       <BackBtn onClick={onBack} />
@@ -666,31 +685,36 @@ function StepGoal({ m, confirmed, onConfirm, onBack }) {
       <div className="sl-slider-wrap">
         <div className="sl-slider-val">{tgt >= 0 ? "+" : ""}{tgt.toFixed(1)}%</div>
         <div className="sl-slider-desc">{desc(tgt)} by July 2030</div>
-        <input type="range" className="sl-slider" min="-10" max="10" step="0.5" value={tgt} onChange={e => setTgt(parseFloat(e.target.value))} />
+        <input type="range" className="sl-slider" min="-10" max="10" step="0.5" value={tgt} onChange={e => { patch({ targetPct: parseFloat(e.target.value) }); setSaved(false); }} />
         <div className="sl-slider-range"><span>−10%</span><span>0%</span><span>+10%</span></div>
       </div>
-      <button className="sl-btn" onClick={doConfirm}>Confirm target → Current position</button>
+      <SaveBar onSave={onSave} onSaveContinue={onSaveContinue} continueLabel="Save & continue → Current position" saved={saved} />
     </div>
   );
 }
 
 /* ── 2. CURRENT POSITION (full Cranfield P&L, Q3 + Budget — all editable) ──── */
 function StepCurrent({ m, confirmed, onConfirm, onBack }) {
-  const [, force] = useState(0); const bump = () => force(n => n + 1);
-  const liveM = m;
+  const [d, patch, replace] = useDraft({
+    baseRev: m.baseRev || {}, baseCost: m.baseCost || {}, baseUni: m.baseUni || {}, loanByYear: m.loanByYear || {},
+  });
+  const [saved, setSaved] = useState(false);
+  const liveM = { ...m, ...d };
   const k26 = yearKpis(2026, liveM), k27 = yearKpis(2027, liveM);
 
   const onCell = (kind, yr, id, val) => {
+    setSaved(false);
     const col = yr === 2026 ? "q3" : "bud";
-    if (kind === "rev")  mSave({ baseRev:  { ...(m.baseRev  || {}), [id]: { ...((m.baseRev  || {})[id] || {}), [col]: val } } });
-    else if (kind === "cost") mSave({ baseCost: { ...(m.baseCost || {}), [id]: { ...((m.baseCost || {})[id] || {}), [col]: val } } });
-    else if (kind === "uni")  mSave({ baseUni:  { ...(m.baseUni  || {}), [col]: val } });
-    else if (kind === "loan") mSave({ loanByYear: { ...(m.loanByYear || {}), [yr]: val } });
-    bump();
+    if (kind === "rev")  patch({ baseRev:  { ...d.baseRev,  [id]: { ...(d.baseRev[id]  || {}), [col]: val } } });
+    else if (kind === "cost") patch({ baseCost: { ...d.baseCost, [id]: { ...(d.baseCost[id] || {}), [col]: val } } });
+    else if (kind === "uni")  patch({ baseUni:  { ...d.baseUni,  [col]: val } });
+    else if (kind === "loan") patch({ loanByYear: { ...d.loanByYear, [yr]: val } });
   };
-  const reset = () => { mSave({ baseRev: {}, baseCost: {}, baseUni: {}, loanByYear: { ...(m.loanByYear || {}), 2026: "", 2027: "" } }); bump(); };
+  const reset = () => { setSaved(false); replace({ baseRev: {}, baseCost: {}, baseUni: {}, loanByYear: { ...d.loanByYear, 2026: "", 2027: "" } }); };
 
-  const doConfirm = () => { mSave({ step2Confirmed: true }); onConfirm(); };
+  const commit = () => mSave({ ...d, step2Confirmed: true });
+  const onSave = () => { commit(); setSaved(true); };
+  const onSaveContinue = () => { commit(); onConfirm(); };
   return (
     <div className="sl-content">
       <BackBtn onClick={onBack} />
@@ -703,9 +727,10 @@ function StepCurrent({ m, confirmed, onConfirm, onBack }) {
         <div className="sl-kpi"><div className="l">Net surplus 26/27</div><div className="v" style={{ color: surplusColor(k27.net) }}>{fmtK(k27.net)} ({k27.netPct.toFixed(1)}%)</div></div>
         <div className="sl-kpi"><div className="l">Net surplus Q3 25/26</div><div className="v" style={{ color: surplusColor(k26.net) }}>{fmtK(k26.net)} ({k26.netPct.toFixed(1)}%)</div></div>
       </div>
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
         <button className="sl-btn sl-btn-outline" style={{ fontSize: 12, padding: "8px 14px" }} onClick={reset}>↺ Reset to original figures</button>
-        <button className="sl-btn" onClick={doConfirm}>Confirm current position → Trajectory</button>
+        <button className="sl-btn sl-btn-outline" style={{ fontSize: 12, padding: "10px 16px" }} onClick={onSave}>{saved ? "Saved ✓" : "Save"}</button>
+        <button className="sl-btn" onClick={onSaveContinue}>Save & continue → Trajectory</button>
       </div>
     </div>
   );
@@ -714,26 +739,32 @@ function StepCurrent({ m, confirmed, onConfirm, onBack }) {
 /* ── 3. TRAJECTORY (forward rate = midpoint of FBaM trajectory & sector) ───── */
 const CONF_COLOR = { "High":"#2d7d46", "Med–High":"#2d7d46", "Medium":"#b87a20", "Low–Med":"#b87a20", "Low":"#b83232" };
 function StepDoNothing({ m, confirmed, onConfirm, onBack }) {
-  const [, force] = useState(0);
-  const bump = () => force(n => n + 1);
+  const [d, patch, replace] = useDraft({
+    rates: { ...getRateOverrides(m) },
+    inflationPct: m.inflationPct !== undefined ? m.inflationPct : DEFAULT_INFLATION,
+    marginalCostPct: m.marginalCostPct !== undefined ? m.marginalCostPct : DEFAULT_MARGINAL,
+  });
+  const [saved, setSaved] = useState(false);
+  /* liveM reflects the local draft so the P&L below updates instantly while typing */
+  const liveM = { ...m, [RATE_KEY]: d.rates, inflationPct: d.inflationPct, marginalCostPct: d.marginalCostPct, posture: {} };
 
-  /* Edits write straight to the shared model so the P&L below always reflects
-     them — no separate local copy that can fall out of sync.                   */
   const setRate = (id, val) => {
-    const ro = { ...getRateOverrides(m) };
+    setSaved(false);
+    const ro = { ...d.rates };
     if (val === "" || val === undefined) delete ro[id]; else ro[id] = val;
-    mSave({ [RATE_KEY]: ro });
-    bump();
+    patch({ rates: ro });
   };
   const rateValue = (l) => {
-    const stored = getRateOverrides(m)[l.id];
-    return stored !== undefined && stored !== "" ? stored : defaultRate(l, m);
+    const stored = d.rates[l.id];
+    return stored !== undefined && stored !== "" ? stored : defaultRate(l, liveM);
   };
-  const resetRates = () => { mSave({ [RATE_KEY]: {} }); bump(); };
-  const setAssumption = (key, val) => { mSave({ [key]: val }); bump(); };
-  const inflVal = m.inflationPct !== undefined ? m.inflationPct : DEFAULT_INFLATION;
-  const margVal = m.marginalCostPct !== undefined ? m.marginalCostPct : DEFAULT_MARGINAL;
-  const doConfirm = () => { mSave({ step3Confirmed: true }); onConfirm(); };
+  const resetRates = () => { setSaved(false); patch({ rates: {} }); };
+  const setAssumption = (key, val) => { setSaved(false); patch({ [key]: val }); };
+  const inflVal = d.inflationPct;
+  const margVal = d.marginalCostPct;
+  const commit = () => mSave({ [RATE_KEY]: d.rates, inflationPct: nv(d.inflationPct, DEFAULT_INFLATION), marginalCostPct: nv(d.marginalCostPct, DEFAULT_MARGINAL), step3Confirmed: true });
+  const onSave = () => { commit(); setSaved(true); };
+  const onSaveContinue = () => { commit(); onConfirm(); };
   const td = { fontFamily: "'IBM Plex Mono',monospace", fontSize: 12, textAlign: "right", padding: "5px 8px" };
 
   return (
@@ -803,16 +834,17 @@ function StepDoNothing({ m, confirmed, onConfirm, onBack }) {
       </div>
 
       <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, color: "#888", marginBottom: 8 }}>Resulting P&L on this trajectory</div>
-      <PLTable m={{ ...m, posture: {} }} years={YEARS} compact />
+      <PLTable m={liveM} years={YEARS} compact />
       <div className="sl-kpis">
-        {YEARS.map(y => { const k = yearKpis(y, { ...m, posture: {} }); return (
+        {YEARS.map(y => { const k = yearKpis(y, liveM); return (
           <div className="sl-kpi" key={y}><div className="l">{COL_LABEL[y]}</div>
             <div className="v" style={{ color: surplusColor(k.net) }}>{k.netPct.toFixed(1)}%</div></div>
         ); })}
       </div>
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
         <button className="sl-btn sl-btn-outline" style={{ fontSize: 12, padding: "8px 14px" }} onClick={resetRates}>↺ Reset rates to midpoint</button>
-        <button className="sl-btn" onClick={doConfirm}>Confirm rates → Who we serve</button>
+        <button className="sl-btn sl-btn-outline" style={{ fontSize: 12, padding: "10px 16px" }} onClick={onSave}>{saved ? "Saved ✓" : "Save"}</button>
+        <button className="sl-btn" onClick={onSaveContinue}>Save & continue → Who we serve</button>
       </div>
     </div>
   );
@@ -820,28 +852,31 @@ function StepDoNothing({ m, confirmed, onConfirm, onBack }) {
 
 /* ── 4. WHO FBAM SERVES ───────────────────────────────────────────────────── */
 function StepWhoServes({ m, confirmed, onConfirm, onBack }) {
-  const [, force] = useState(0); const bump = () => force(n => n + 1);
+  const [d, patch] = useDraft({ purposeGroups: { ...(m.purposeGroups || {}) }, customGroups: m.customGroups || [] });
+  const [saved, setSaved] = useState(false);
   const [newName, setNewName] = useState("");
-  const custom = m.customGroups || [];
+  const custom = d.customGroups;
   const allGroups = [...PURPOSE_GROUPS, ...custom];
-  const groups = {}; allGroups.forEach(k => groups[k] = nv(m.purposeGroups?.[k], DEFAULT_GROUP_SCORES[k] || 5));
+  const groups = {}; allGroups.forEach(k => groups[k] = nv(d.purposeGroups?.[k], DEFAULT_GROUP_SCORES[k] || 5));
   const MAX_HIGH = 3;
   const highCount = Object.values(groups).filter(v => nv(v) >= 8).length;
   const setScore = (g, n) => {
     const cur = nv(groups[g]); if (n >= 8 && cur < 8 && highCount >= MAX_HIGH) return;
-    mSave({ purposeGroups: { ...(m.purposeGroups || {}), [g]: n } }); bump();
+    setSaved(false); patch({ purposeGroups: { ...d.purposeGroups, [g]: n } });
   };
   const addGroup = () => {
     const name = newName.trim();
     if (!name || allGroups.includes(name)) { setNewName(""); return; }
-    mSave({ customGroups: [...custom, name], purposeGroups: { ...(m.purposeGroups || {}), [name]: 5 } });
-    setNewName(""); bump();
+    setSaved(false); patch({ customGroups: [...custom, name], purposeGroups: { ...d.purposeGroups, [name]: 5 } });
+    setNewName("");
   };
   const removeGroup = (name) => {
-    const pg = { ...(m.purposeGroups || {}) }; delete pg[name];
-    mSave({ customGroups: custom.filter(x => x !== name), purposeGroups: pg }); bump();
+    const pg = { ...d.purposeGroups }; delete pg[name];
+    setSaved(false); patch({ customGroups: custom.filter(x => x !== name), purposeGroups: pg });
   };
-  const doConfirm = () => { mSave({ step4Confirmed: true }); onConfirm(); };
+  const commit = () => mSave({ purposeGroups: d.purposeGroups, customGroups: d.customGroups, step4Confirmed: true });
+  const onSave = () => { commit(); setSaved(true); };
+  const onSaveContinue = () => { commit(); onConfirm(); };
 
   const row = (g, removable) => (
     <div key={g} style={{ marginBottom: 14 }}>
@@ -870,17 +905,20 @@ function StepWhoServes({ m, confirmed, onConfirm, onBack }) {
           value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => e.key === "Enter" && addGroup()} />
         <button className="sl-btn sl-btn-outline" style={{ fontSize: 12, padding: "10px 14px", flexShrink: 0 }} onClick={addGroup}>+ Add</button>
       </div>
-      <button className="sl-btn" style={{ marginTop: 12 }} onClick={doConfirm}>Confirm priorities → Positioning</button>
+      <SaveBar onSave={onSave} onSaveContinue={onSaveContinue} continueLabel="Save & continue → Positioning" saved={saved} />
     </div>
   );
 }
 
 /* ── 5. POSITIONING (tension sliders — default numbers retained) ──────────── */
 function StepPositioning({ m, confirmed, onConfirm, onBack }) {
-  const [, force] = useState(0); const bump = () => force(n => n + 1);
-  const t = {}; PURPOSE_TENSIONS.forEach(x => t[x.key] = nv(m.purposeTensions?.[x.key], DEFAULT_TENSIONS[x.key]));
-  const setVal = (key, v) => { mSave({ purposeTensions: { ...(m.purposeTensions || {}), [key]: v } }); bump(); };
-  const doConfirm = () => { mSave({ step5Confirmed: true }); onConfirm(); };
+  const [d, patch] = useDraft({ purposeTensions: { ...(m.purposeTensions || {}) } });
+  const [saved, setSaved] = useState(false);
+  const t = {}; PURPOSE_TENSIONS.forEach(x => t[x.key] = nv(d.purposeTensions?.[x.key], DEFAULT_TENSIONS[x.key]));
+  const setVal = (key, v) => { setSaved(false); patch({ purposeTensions: { ...d.purposeTensions, [key]: v } }); };
+  const commit = () => mSave({ purposeTensions: d.purposeTensions, step5Confirmed: true });
+  const onSave = () => { commit(); setSaved(true); };
+  const onSaveContinue = () => { commit(); onConfirm(); };
   return (
     <div className="sl-content">
       <BackBtn onClick={onBack} />
@@ -897,49 +935,59 @@ function StepPositioning({ m, confirmed, onConfirm, onBack }) {
             style={{ width: "100%", accentColor: "#e07030" }} />
         </div>
       ))}
-      <button className="sl-btn" onClick={doConfirm}>Confirm positioning → Changes</button>
+      <SaveBar onSave={onSave} onSaveContinue={onSaveContinue} continueLabel="Save & continue → Changes" saved={saved} />
     </div>
   );
 }
 
 /* ── 6. CHANGES (macro postures, suggested from §4/§5, + new streams) ─────── */
 function StepChanges({ m, confirmed, onConfirm, onBack }) {
-  const [, force] = useState(0); const bump = () => force(n => n + 1);
+  const [d, patch] = useDraft({
+    posture: { ...(m.posture || {}) },
+    customRev: m.customRev || [],
+    newTarget: { ...(m.newTarget || {}) },
+  });
+  const [saved, setSaved] = useState(false);
   const [newName, setNewName] = useState("");
   const [newTgt, setNewTgt] = useState("");
 
-  const posture = m.posture || {};
-  const customRev = m.customRev || [];
-  const microTarget = String(nv(m.newTarget?.micro_cred, 0));
-  const customTargets = {}; customRev.forEach(c => customTargets[c.id] = String(nv(m.newTarget?.[c.id], 0)));
-  const liveM = m;
+  const posture = d.posture;
+  const customRev = d.customRev;
+  const microTarget = String(nv(d.newTarget?.micro_cred, 0));
+  const customTargets = {}; customRev.forEach(c => customTargets[c.id] = String(nv(d.newTarget?.[c.id], 0)));
+  const liveM = { ...m, posture: d.posture, customRev: d.customRev, newTarget: d.newTarget };
 
   const normals = REV_LINES.filter(l => l.kind === "normal");
-  const suggestions = {}; normals.forEach(l => suggestions[l.id] = suggestPosture(l, m));
+  const suggestions = {}; normals.forEach(l => suggestions[l.id] = suggestPosture(l, liveM));
 
   const setP = (id, pid) => {
+    setSaved(false);
     const n = { ...posture }; if (n[id] === pid) delete n[id]; else n[id] = pid;
-    mSave({ posture: n }); bump();
+    patch({ posture: n });
   };
   const applyAllSuggestions = () => {
+    setSaved(false);
     const n = { ...posture }; normals.forEach(l => { if (suggestions[l.id]) n[l.id] = suggestions[l.id].posture; });
-    mSave({ posture: n }); bump();
+    patch({ posture: n });
   };
-  const setMicroTarget = (v) => { mSave({ newTarget: { ...(m.newTarget || {}), micro_cred: nv(v) } }); bump(); };
-  const setCustomTarget = (id, v) => { mSave({ newTarget: { ...(m.newTarget || {}), [id]: nv(v) } }); bump(); };
+  const setMicroTarget = (v) => { setSaved(false); patch({ newTarget: { ...d.newTarget, micro_cred: nv(v) } }); };
+  const setCustomTarget = (id, v) => { setSaved(false); patch({ newTarget: { ...d.newTarget, [id]: nv(v) } }); };
 
   const addStream = () => {
     if (!newName.trim()) return;
     const id = "custom_" + Date.now().toString(36);
-    mSave({ customRev: [...customRev, { id, name: newName.trim() }], newTarget: { ...(m.newTarget || {}), [id]: nv(newTgt) } });
-    setNewName(""); setNewTgt(""); bump();
+    setSaved(false);
+    patch({ customRev: [...customRev, { id, name: newName.trim() }], newTarget: { ...d.newTarget, [id]: nv(newTgt) } });
+    setNewName(""); setNewTgt("");
   };
   const removeStream = (id) => {
-    const nt = { ...(m.newTarget || {}) }; delete nt[id];
-    mSave({ customRev: customRev.filter(c => c.id !== id), newTarget: nt }); bump();
+    const nt = { ...d.newTarget }; delete nt[id];
+    setSaved(false); patch({ customRev: customRev.filter(c => c.id !== id), newTarget: nt });
   };
 
-  const doConfirm = () => { mSave({ step6Confirmed: true }); onConfirm(); };
+  const commit = () => mSave({ posture: d.posture, customRev: d.customRev, newTarget: d.newTarget, step6Confirmed: true });
+  const onSave = () => { commit(); setSaved(true); };
+  const onSaveContinue = () => { commit(); onConfirm(); };
 
   const btn = (l, p, suggested) => {
     const active = posture[l.id] === p.id;
@@ -1046,33 +1094,40 @@ function StepChanges({ m, confirmed, onConfirm, onBack }) {
             <div className="v" style={{ color: surplusColor(k.net) }}>{k.netPct.toFixed(1)}%</div></div>
         ); })}
       </div>
-      <button className="sl-btn" onClick={doConfirm}>Confirm changes → Yearly P&L</button>
+      <SaveBar onSave={onSave} onSaveContinue={onSaveContinue} continueLabel="Save & continue → Yearly P&L" saved={saved} />
     </div>
   );
 }
 
 /* ── 7. YEARLY P&L (full transition table, estimates editable, vs target) ─── */
 function StepYearly({ m, confirmed, onConfirm, onBack }) {
-  const [, force7] = useState(0);
-  const bump7 = () => force7(n => n + 1);
+  const [d, patch, replace] = useDraft({
+    revOverride: m.revOverride || {}, costOverride: m.costOverride || {},
+    loanByYear: m.loanByYear || {}, uniByYear: m.uniByYear || {},
+    inflationPct: m.inflationPct !== undefined ? m.inflationPct : DEFAULT_INFLATION,
+    marginalCostPct: m.marginalCostPct !== undefined ? m.marginalCostPct : DEFAULT_MARGINAL,
+  });
+  const [saved, setSaved] = useState(false);
 
-  const inflVal = m.inflationPct !== undefined ? m.inflationPct : DEFAULT_INFLATION;
-  const margVal = m.marginalCostPct !== undefined ? m.marginalCostPct : DEFAULT_MARGINAL;
-  const setAssumption = (key, val) => { mSave({ [key]: val }); bump7(); };
+  const inflVal = d.inflationPct;
+  const margVal = d.marginalCostPct;
+  const setAssumption = (key, val) => { setSaved(false); patch({ [key]: val }); };
 
-  const liveM = m;
+  const liveM = { ...m, ...d };
   const tp = targetPath(liveM);
 
   const onCell = (kind, yr, id, val) => {
-    if (kind === "loan") { mSave({ loanByYear: { ...(m.loanByYear || {}), [yr]: val } }); bump7(); return; }
-    if (kind === "uni")  { mSave({ uniByYear: { ...(m.uniByYear || {}), [yr]: val } }); bump7(); return; }
+    setSaved(false);
+    if (kind === "loan") { patch({ loanByYear: { ...d.loanByYear, [yr]: val } }); return; }
+    if (kind === "uni")  { patch({ uniByYear: { ...d.uniByYear, [yr]: val } }); return; }
     const key = kind === "rev" ? "revOverride" : "costOverride";
-    const cur = m[key] || {};
-    mSave({ [key]: { ...cur, [yr]: { ...(cur[yr] || {}), [id]: val } } }); bump7();
+    patch({ [key]: { ...d[key], [yr]: { ...(d[key][yr] || {}), [id]: val } } });
   };
-  const resetEstimates = () => { mSave({ revOverride: {}, costOverride: {}, uniByYear: {} }); bump7(); };
+  const resetEstimates = () => { setSaved(false); patch({ revOverride: {}, costOverride: {}, uniByYear: {} }); };
 
-  const doConfirm = () => { mSave({ step7Confirmed: true }); onConfirm(); };
+  const commit = () => mSave({ revOverride: d.revOverride, costOverride: d.costOverride, loanByYear: d.loanByYear, uniByYear: d.uniByYear, inflationPct: nv(d.inflationPct, DEFAULT_INFLATION), marginalCostPct: nv(d.marginalCostPct, DEFAULT_MARGINAL), step7Confirmed: true });
+  const onSave = () => { commit(); setSaved(true); };
+  const onSaveContinue = () => { commit(); onConfirm(); };
 
   return (
     <div className="sl-content">
@@ -1122,9 +1177,10 @@ function StepYearly({ m, confirmed, onConfirm, onBack }) {
         </table>
       </div>
 
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
         <button className="sl-btn sl-btn-outline" style={{ fontSize: 12, padding: "8px 14px" }} onClick={resetEstimates}>↺ Reset estimate overrides</button>
-        <button className="sl-btn" onClick={doConfirm}>Confirm P&L → Theme P&L</button>
+        <button className="sl-btn sl-btn-outline" style={{ fontSize: 12, padding: "10px 16px" }} onClick={onSave}>{saved ? "Saved ✓" : "Save"}</button>
+        <button className="sl-btn" onClick={onSaveContinue}>Save & continue → Theme P&L</button>
       </div>
     </div>
   );
@@ -1174,13 +1230,18 @@ function ThemeMixSliders({ themeName, totalRev, mix, setMix, locked, setLocked }
 
 /* ── 8. THEME P&L (allocation by editable %; no staff numbers) ────────────── */
 function StepTheme({ m, confirmed, onConfirm, onBack }) {
-  const [, force] = useState(0); const bump = () => force(n => n + 1);
   const [locked, setLockedAll] = useState({ btg: {}, psl: {}, scpss: {} });
+  const [d, patch] = useDraft({
+    themePct: { ...(m.themePct || {}) },
+    themeMixes: m.themeMixes || { btg: { ...DEFAULT_MIXES.btg }, psl: { ...DEFAULT_MIXES.psl }, scpss: { ...DEFAULT_MIXES.scpss } },
+  });
+  const [saved, setSaved] = useState(false);
   const k30 = yearKpis(2030, m);
-  const pct = {}; THEME_DATA.forEach(t => pct[t.id] = nv(m.themePct?.[t.id], t.defPct));
-  const mixes = m.themeMixes || { btg: { ...DEFAULT_MIXES.btg }, psl: { ...DEFAULT_MIXES.psl }, scpss: { ...DEFAULT_MIXES.scpss } };
+  const pct = {}; THEME_DATA.forEach(t => pct[t.id] = nv(d.themePct?.[t.id], t.defPct));
+  const mixes = d.themeMixes;
 
   const setPctRebalance = (id, val, idx) => {
+    setSaved(false);
     const v = Math.max(0, Math.min(100, nv(val)));
     const others = THEME_DATA.filter((_, i) => i !== idx);
     const otherTot = others.reduce((s, o) => s + pct[o.id], 0);
@@ -1189,16 +1250,18 @@ function StepTheme({ m, confirmed, onConfirm, onBack }) {
     if (otherTot > 0) others.forEach(o => { np[o.id] = Math.max(0, Math.round(pct[o.id] - delta * (pct[o.id] / otherTot))); });
     const sum = Object.values(np).reduce((a, b) => a + b, 0);
     np[others[others.length - 1].id] += 100 - sum;
-    mSave({ themePct: np }); bump();
+    patch({ themePct: np });
   };
-  const setMix = (id, mix) => { mSave({ themeMixes: { ...mixes, [id]: mix } }); bump(); };
+  const setMix = (id, mix) => { setSaved(false); patch({ themeMixes: { ...mixes, [id]: mix } }); };
 
   const rev = (id) => k30.revTotal * pct[id] / 100;
   const cost = (id) => k30.operatingCost * pct[id] / 100;
   const totalRev = THEME_DATA.reduce((s, t) => s + rev(t.id), 0);
   const totalCost = THEME_DATA.reduce((s, t) => s + cost(t.id), 0);
 
-  const doConfirm = () => { mSave({ step8Confirmed: true }); onConfirm(); };
+  const commit = () => mSave({ themePct: d.themePct, themeMixes: d.themeMixes, step8Confirmed: true });
+  const onSave = () => { commit(); setSaved(true); };
+  const onSaveContinue = () => { commit(); onConfirm(); };
 
   return (
     <div className="sl-content">
@@ -1238,7 +1301,7 @@ function StepTheme({ m, confirmed, onConfirm, onBack }) {
         </table>
       </div>
       <div className="sl-note-box">Contribution is before the University service charge ({fmtK(k30.uni)}) and loan repayment, which are carried at school level.</div>
-      <button className="sl-btn" onClick={doConfirm}>Confirm themes → Finalise</button>
+      <SaveBar onSave={onSave} onSaveContinue={onSaveContinue} continueLabel="Save & continue → Finalise" saved={saved} />
     </div>
   );
 }
@@ -1376,7 +1439,7 @@ function Workspace({ name, onExit }) {
   return (
     <div className="sl-shell">
       <div className="sl-header">
-        <div className="sl-header-title">STRAWPERSON — FBaM Financial Scenario · shared model <span style={{ color: "#bbb", fontWeight: 400 }}>· build 6.9</span></div>
+        <div className="sl-header-title">STRAWPERSON — FBaM Financial Scenario · shared model <span style={{ color: "#bbb", fontWeight: 400 }}>· build 6.10</span></div>
         <div className="sl-header-right">{name}{m.lastEditedBy && m.lastEditedBy !== name ? ` · last edit: ${m.lastEditedBy}` : ""} &nbsp;·&nbsp;
           <button style={{ background: "none", border: "none", fontSize: 11, color: "#888", cursor: "pointer", textDecoration: "underline" }} onClick={onExit}>Exit</button>
         </div>
