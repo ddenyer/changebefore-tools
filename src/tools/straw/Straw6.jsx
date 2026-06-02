@@ -1076,7 +1076,11 @@ function StepChanges({ m, confirmed, onConfirm, onBack }) {
   const customRev = d.customRev;
   const microTarget = String(nv(d.newTarget?.micro_cred, 0));
   const customTargets = {}; customRev.forEach(c => customTargets[c.id] = String(nv(d.newTarget?.[c.id], 0)));
-  const liveM = { ...m, posture: d.posture, customRev: d.customRev, newTarget: d.newTarget };
+  /* §6 shows the trajectory + postures + new streams only. It must NOT apply §7
+     estimate-cell overrides (revOverride/costOverride) — those belong to the
+     Yearly P&L step. _ignoreRevOverride keeps a stray §7 cell from corrupting
+     the net% shown here (the −40% bug).                                         */
+  const liveM = { ...m, posture: d.posture, customRev: d.customRev, newTarget: d.newTarget, _ignoreRevOverride: true };
 
   const normals = REV_LINES.filter(l => l.kind === "normal");
   const suggestions = {}; normals.forEach(l => suggestions[l.id] = suggestPosture(l, liveM));
@@ -1293,7 +1297,23 @@ function StepYearly({ m, confirmed, onConfirm, onBack }) {
               Grows CED Customised and Open Programmes (Open held to 60% of Customised), plus Micro-credentials ramping to £1,000k, to meet {tp[2028]}% / {tp[2029]}% / {tp[2030]}% exactly.
             </div>
           </div>
-          <button onClick={() => { setSolveOn(s => !s); setSaved(false); }}
+          <button onClick={() => {
+              setSolveOn(s => {
+                if (s) {
+                  /* turning OFF: strip the solver's growth-line overrides so the
+                     table returns to the true trajectory, not stale solved values */
+                  const cleaned = {};
+                  Object.keys(d.revOverride || {}).forEach(yr => {
+                    const row = { ...d.revOverride[yr] };
+                    SOLVE_LINES.forEach(id => delete row[id]);
+                    if (Object.keys(row).length) cleaned[yr] = row;
+                  });
+                  patch({ revOverride: cleaned });
+                }
+                return !s;
+              });
+              setSaved(false);
+            }}
             style={{ flexShrink: 0, padding: "12px 22px", borderRadius: 8, border: "none", cursor: "pointer",
               fontFamily: "'DM Sans',sans-serif", fontSize: 15, fontWeight: 700, letterSpacing: 0.3,
               background: solveOn ? "#e07030" : "#1a1a1a", color: "#fff" }}>
@@ -1607,7 +1627,7 @@ function Workspace({ name, onExit }) {
   return (
     <div className="sl-shell">
       <div className="sl-header">
-        <div className="sl-header-title">STRAWPERSON — FBaM Financial Scenario · shared model <span style={{ color: "#bbb", fontWeight: 400 }}>· build 6.16</span></div>
+        <div className="sl-header-title">STRAWPERSON — FBaM Financial Scenario · shared model <span style={{ color: "#bbb", fontWeight: 400 }}>· build 6.17</span></div>
         <div className="sl-header-right">{name}{m.lastEditedBy && m.lastEditedBy !== name ? ` · last edit: ${m.lastEditedBy}` : ""} &nbsp;·&nbsp;
           <button style={{ background: "none", border: "none", fontSize: 11, color: "#888", cursor: "pointer", textDecoration: "underline" }} onClick={onExit}>Exit</button>
         </div>
