@@ -14,8 +14,10 @@ import { useState, useEffect } from "react";
 const SHARED_KEY = "__shared__";
 const STORE = { model: {}, sessionId: "", myName: "" };
 
+const ENGINE_VERSION = 2;   /* v2: forward rate = sector CAGR (not blended). */
+
 const mSave = (d) => {
-  STORE.model = { ...STORE.model, ...d, lastEditedBy: STORE.myName, _updated: Date.now() };
+  STORE.model = { ...STORE.model, ...d, engineVersion: ENGINE_VERSION, lastEditedBy: STORE.myName, _updated: Date.now() };
   if (STORE.sessionId) {
     fetch("/api/sl-save", {
       method: "POST",
@@ -25,6 +27,17 @@ const mSave = (d) => {
   }
 };
 const mGet = () => STORE.model || {};
+
+/* Drop fields whose meaning changed between engine versions, so a stale saved
+   model can't resurrect superseded auto-defaults (e.g. old blended rates).    */
+const migrateModel = (m) => {
+  if (!m) return m;
+  if (m.engineVersion !== ENGINE_VERSION) {
+    delete m.blend;            /* legacy: stored blended rates; now sector-default-or-edit */
+    m.engineVersion = ENGINE_VERSION;
+  }
+  return m;
+};
 
 const syncFromSupabase = async () => {
   if (!STORE.sessionId) return;
@@ -36,7 +49,7 @@ const syncFromSupabase = async () => {
     if (shared && !shared._wiped) {
       // last-write-wins: only adopt remote if it is newer than local
       if (!(STORE.model._updated) || nv(shared._updated) >= nv(STORE.model._updated)) {
-        STORE.model = shared;
+        STORE.model = migrateModel(shared);
       }
     }
   } catch (e) {}
@@ -164,7 +177,11 @@ function projRev(l, yr, m) {
     if (p.rate === null) { const glide = [0.5, 0.25, 0][steps - 1]; return bud * glide; }
     return bud * Math.pow(1 + p.rate / 100, steps);
   }
-  const rate = nv(m.blend?.[l.id], defaultRate(l));
+  /* Forward rate: a stored value is honoured ONLY for v2 models (where blend
+     holds genuine user overrides). Pre-v2 'blend' was auto-computed and is
+     ignored, so the sector default always applies until the user edits it.    */
+  const stored = m.engineVersion === ENGINE_VERSION ? m.blend?.[l.id] : undefined;
+  const rate = stored !== undefined && stored !== "" ? nv(stored) : defaultRate(l);
   return bud * Math.pow(1 + rate / 100, steps);
 }
 
@@ -620,12 +637,25 @@ function StepCurrent({ m, confirmed, onConfirm, onBack }) {
 /* ── 3. DO-NOTHING (sector CAGR is the forward rate; level step is context) ── */
 const CONF_COLOR = { "High":"#2d7d46", "Med–High":"#2d7d46", "Medium":"#b87a20", "Low–Med":"#b87a20", "Low":"#b83232" };
 function StepDoNothing({ m, confirmed, onConfirm, onBack }) {
-  const init = () => { const b = {}; REV_LINES.forEach(l => { if (l.kind === "normal") b[l.id] = String(nv(m.blend?.[l.id], defaultRate(l))); }); return b; };
+  const init = () => {
+    const b = {};
+    REV_LINES.forEach(l => {
+      if (l.kind !== "normal") return;
+      const stored = m.engineVersion === ENGINE_VERSION ? m.blend?.[l.id] : undefined;   /* ignore pre-v2 auto rates */
+      b[l.id] = String(stored !== undefined && stored !== "" ? nv(stored) : defaultRate(l));
+    });
+    return b;
+  };
   const [blend, setBlend] = useState(init);
   const liveM = { ...m, blend: Object.fromEntries(Object.entries(blend).map(([k, v]) => [k, nv(v)])), posture: {} };
 
   const doConfirm = () => {
-    const b = {}; REV_LINES.forEach(l => { if (l.kind === "normal") b[l.id] = nv(blend[l.id], defaultRate(l)); });
+    const b = {};
+    REV_LINES.forEach(l => {
+      if (l.kind !== "normal") return;
+      const v = nv(blend[l.id], defaultRate(l));
+      if (v !== defaultRate(l)) b[l.id] = v;   /* store only genuine overrides */
+    });
     mSave({ blend: b, step3Confirmed: true });
     onConfirm();
   };
