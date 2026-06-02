@@ -301,7 +301,6 @@ const surplusColor = v => v >= 0 ? "#2d7d46" : "#b83232";
      R = (baseCost − c·B + uni + loan) / (1 − c − g)
    then distribute the shortfall across the three growth lines.                  */
 const SOLVE_LINES = ["ced_custom", "open", "micro_cred"];
-const MICRO_CAP = 1000;   /* £k ceiling on Micro-credentials (new, ramping line) */
 
 /* Trajectory value of a line ignoring solver/postures/overrides (rate or kind only) */
 function projRevTrajectory(l, yr, m) {
@@ -337,6 +336,10 @@ function solveStrength(m) {
   };
 }
 
+/* Micro-credentials ramp toward the £1,000k ceiling: 300 / 600 / 1000. Fixed
+   input (not solved) — it is a deliberate new-business build, not a residual.   */
+const MICRO_RAMP = { 2028: 300, 2029: 600, 2030: 1000 };
+
 function solveYear(yr, m, targetPct) {
   const c = marginalRate(m) / 100;
   const B = budgetRevTotal(m);
@@ -349,17 +352,26 @@ function solveYear(yr, m, targetPct) {
   const lines = revLinesFor(m);
   const baselineOthers = lines.filter(l => !SOLVE_LINES.includes(l.id))
     .reduce((s, l) => s + projRevTrajectory(l, yr, m), 0);
-  const need = Rneeded - baselineOthers;
+
+  /* Micro is a fixed ramp; it supplies a known amount, so the remaining need is
+     split between the two uncapped lines (Customised, Open) by strategic strength.
+     This makes the total meet the target exactly — no overshoot from capping.    */
+  const micro = MICRO_RAMP[yr] || 0;
+  const remain = Rneeded - baselineOthers - micro;        /* Customised + Open must supply this */
   const strength = solveStrength(m);
-  const wsum = SOLVE_LINES.reduce((s, id) => s + strength[id], 0) || 1;
-  const alloc = {};
-  SOLVE_LINES.forEach(id => alloc[id] = Math.max(0, need * strength[id] / wsum));
-  if (alloc.micro_cred > MICRO_CAP) {
-    const spill = alloc.micro_cred - MICRO_CAP;
-    alloc.micro_cred = MICRO_CAP;
-    alloc.ced_custom += spill;
+  const wsum = strength.ced_custom + strength.open || 1;
+  let custom = Math.max(0, remain * strength.ced_custom / wsum);
+  let open   = Math.max(0, remain * strength.open / wsum);
+  /* Open has less headroom than Customised — cap it at 60% of Customised, pushing
+     the excess onto Customised. Keep custom + open = remain so the total still
+     meets the target exactly: if open > 0.6·custom, set open = 0.6·(remain/1.6).  */
+  const OPEN_MAX_RATIO = 0.6;
+  if (open > OPEN_MAX_RATIO * custom && remain > 0) {
+    custom = remain / (1 + OPEN_MAX_RATIO);
+    open   = remain - custom;                             /* = 0.6·custom */
   }
-  return { Rneeded, alloc, baselineOthers, need };
+  const alloc = { micro_cred: micro, ced_custom: custom, open: open };
+  return { Rneeded, alloc, baselineOthers, remain };
 }
 
 /* Build solved revOverride map + required CAGR per solve line. */
@@ -1213,7 +1225,11 @@ function StepYearly({ m, confirmed, onConfirm, onBack }) {
   const tp = targetPath(baseM);
 
   const onCell = (kind, yr, id, val) => {
-    if (solveOn) return;                              /* locked while solving */
+    /* While solving: the three growth lines are recomputed every render, so any
+       attempt to edit them is overwritten — effectively locked. But service
+       charge (uni) and loan ARE inputs to the solve, so editing them is allowed
+       and triggers a live re-solve.                                             */
+    if (solveOn && kind === "rev" && SOLVE_LINES.includes(id)) return;
     setSaved(false);
     if (kind === "loan") { patch({ loanByYear: { ...d.loanByYear, [yr]: val } }); return; }
     if (kind === "uni")  { patch({ uniByYear: { ...d.uniByYear, [yr]: val } }); return; }
@@ -1283,14 +1299,14 @@ function StepYearly({ m, confirmed, onConfirm, onBack }) {
                 </div>
               ))}
             </div>
-            <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#999", marginTop: 10, fontStyle: "italic" }}>
-              Figures below are read-only while solving. Turn off to return to your own P&L.
+            <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#999", marginTop: 10, fontStyle: "italic", lineHeight: 1.6 }}>
+              The three growth lines are set by the solver and can't be edited here. You <em>can</em> still edit the service charge and loan rows below — change either and the solver recalculates immediately to keep hitting the target. Turn off to return to your own P&L.
             </div>
           </div>
         )}
       </div>
 
-      <PLTable m={liveM} years={YEARS} editYears={solveOn ? [] : EST_YEARS} onCell={onCell} />
+      <PLTable m={liveM} years={YEARS} editYears={EST_YEARS} onCell={onCell} />
 
       {/* Net % vs target per year */}
       <div style={{ overflowX: "auto", marginBottom: 16 }}>
@@ -1576,7 +1592,7 @@ function Workspace({ name, onExit }) {
   return (
     <div className="sl-shell">
       <div className="sl-header">
-        <div className="sl-header-title">STRAWPERSON — FBaM Financial Scenario · shared model <span style={{ color: "#bbb", fontWeight: 400 }}>· build 6.12</span></div>
+        <div className="sl-header-title">STRAWPERSON — FBaM Financial Scenario · shared model <span style={{ color: "#bbb", fontWeight: 400 }}>· build 6.14</span></div>
         <div className="sl-header-right">{name}{m.lastEditedBy && m.lastEditedBy !== name ? ` · last edit: ${m.lastEditedBy}` : ""} &nbsp;·&nbsp;
           <button style={{ background: "none", border: "none", fontSize: 11, color: "#888", cursor: "pointer", textDecoration: "underline" }} onClick={onExit}>Exit</button>
         </div>
