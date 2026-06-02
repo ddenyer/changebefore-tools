@@ -618,9 +618,22 @@ function NumInput({ value, onChange, min, step = 1, width = 90 }) {
 /* years: year keys to show. editBase: make the Q3+Budget anchor cells editable
    (§2). editYears: estimate years whose cells are editable (§7).
    onCell(kind,yr,id,val): kind = "rev" | "cost" | "uni" | "loan".              */
-function PLTable({ m, years, editBase = false, editYears = [], onCell, compact = false }) {
+function PLTable({ m, years, editBase = false, editYears = [], onCell, compact = false, showCagr = false }) {
   const isBaseYr = (yr) => yr === 2026 || yr === 2027;
   const baseCol  = (yr) => yr === 2026 ? "q3" : "bud";
+
+  /* CAGR 2027 budget → 2030, shown in a right-hand column when showCagr is set.
+     Returns a formatted string; handles zero/negative bases gracefully.          */
+  const cagrCell = (v2027, v2030) => {
+    if (!showCagr) return null;
+    let label;
+    if (v2027 <= 0 && v2030 <= 0) label = "—";
+    else if (v2027 <= 0) label = "new";                       /* grew from nothing */
+    else if (v2030 <= 0) label = "→ 0";                       /* wound down */
+    else label = (v2030 >= v2027 ? "+" : "") + round1((Math.pow(v2030 / v2027, 1 / 3) - 1) * 100) + "%";
+    const col = label === "—" || label === "new" ? "#aaa" : label.startsWith("-") || label === "→ 0" ? "#b83232" : "#2d7d46";
+    return <td className="mono" style={{ color: col, fontSize: 12 }}>{label}</td>;
+  };
 
   const cell = (kind, l, yr) => {
     const val = kind === "rev" ? projRev(l, yr, m) : projCost(l, yr, m);
@@ -660,51 +673,56 @@ function PLTable({ m, years, editBase = false, editYears = [], onCell, compact =
         <thead><tr>
           <th>Line (£k)</th>
           {years.map(y => <th key={y}>{COL_LABEL[y]}{IS_ACTUAL[y] ? "" : " *"}</th>)}
+          {showCagr && <th title="Compound annual growth rate, 2026/27 budget → 2029/30">CAGR 27→30</th>}
         </tr></thead>
         <tbody>
-          <tr><td className="grp" colSpan={years.length + 1}>Income</td></tr>
+          <tr><td className="grp" colSpan={years.length + 1 + (showCagr ? 1 : 0)}>Income</td></tr>
           {revLines.map(l => (
             <tr key={l.id}>
               <td>{l.name}{l.kind === "ending" ? " ⟶ 0" : ""}{l.custom ? " (new)" : ""}</td>
               {years.map(y => cell("rev", l, y))}
+              {cagrCell(projRev(l, 2027, m), projRev(l, 2030, m))}
             </tr>
           ))}
-          <tr className="sub"><td>TOTAL INCOME</td>{yr(y => fmtK(yearKpis(y, m).revTotal))}</tr>
+          <tr className="sub"><td>TOTAL INCOME</td>{yr(y => fmtK(yearKpis(y, m).revTotal))}{cagrCell(yearKpis(2027, m).revTotal, yearKpis(2030, m).revTotal)}</tr>
 
-          <tr><td className="grp" colSpan={years.length + 1}>Staff costs</td></tr>
+          <tr><td className="grp" colSpan={years.length + 1 + (showCagr ? 1 : 0)}>Staff costs</td></tr>
           {COST_LINES.filter(l => l.group === "staff").map(l => (
-            <tr key={l.id}><td>{l.name}</td>{years.map(y => cell("cost", l, y))}</tr>
+            <tr key={l.id}><td>{l.name}</td>{years.map(y => cell("cost", l, y))}{cagrCell(projCost(l, 2027, m), projCost(l, 2030, m))}</tr>
           ))}
-          <tr className="sub"><td>Total Staff Costs</td>{yr(y => fmtK(yearKpis(y, m).staffTotal))}</tr>
+          <tr className="sub"><td>Total Staff Costs</td>{yr(y => fmtK(yearKpis(y, m).staffTotal))}{cagrCell(yearKpis(2027, m).staffTotal, yearKpis(2030, m).staffTotal)}</tr>
 
-          <tr><td className="grp" colSpan={years.length + 1}>Other operating costs</td></tr>
+          <tr><td className="grp" colSpan={years.length + 1 + (showCagr ? 1 : 0)}>Other operating costs</td></tr>
           {COST_LINES.filter(l => l.group === "operating").map(l => (
-            <tr key={l.id}><td>{l.name}</td>{years.map(y => cell("cost", l, y))}</tr>
+            <tr key={l.id}><td>{l.name}</td>{years.map(y => cell("cost", l, y))}{cagrCell(projCost(l, 2027, m), projCost(l, 2030, m))}</tr>
           ))}
-          <tr className="sub"><td>Total Other Operating Costs</td>{yr(y => fmtK(yearKpis(y, m).opTotal))}</tr>
+          <tr className="sub"><td>Total Other Operating Costs</td>{yr(y => fmtK(yearKpis(y, m).opTotal))}{cagrCell(yearKpis(2027, m).opTotal, yearKpis(2030, m).opTotal)}</tr>
 
           {inflationPct(m) !== 0 && (
-            <tr><td colSpan={years.length + 1} style={{ color: "#999", fontSize: 11, fontStyle: "italic", paddingTop: 2, paddingBottom: 2 }}>
+            <tr><td colSpan={years.length + 1 + (showCagr ? 1 : 0)} style={{ color: "#999", fontSize: 11, fontStyle: "italic", paddingTop: 2, paddingBottom: 2 }}>
               Costs above include inflation at {fmtPct(inflationPct(m))}/yr from 2028.
             </td></tr>
           )}
           <tr><td style={{ color: "#888", fontSize: 12 }}>Cost of revenue growth ({Math.round(marginalRate(m))}% of growth above budget)</td>
             {yr(y => { const k = yearKpis(y, m); return k.marginalCost > 0 ? <span style={{ color: "#b87a20" }}>{fmtK(k.marginalCost)}</span> : "£0"; })}
+            {showCagr && <td />}
           </tr>
           {years.some(y => yearKpis(y, m).revTotal < budgetRevTotal(m) && y >= 2028) && yearKpis(2030, m).marginalCost === 0 && (
-            <tr><td colSpan={years.length + 1} style={{ color: "#999", fontSize: 11, fontStyle: "italic", paddingTop: 2, paddingBottom: 2 }}>
+            <tr><td colSpan={years.length + 1 + (showCagr ? 1 : 0)} style={{ color: "#999", fontSize: 11, fontStyle: "italic", paddingTop: 2, paddingBottom: 2 }}>
               No growth cost yet — total revenue is below the 2026/27 budget, so there is no growth above budget to charge. It applies once total revenue exceeds budget.
             </td></tr>
           )}
-          <tr className="sub"><td>TOTAL OPERATING COSTS</td>{yr(y => fmtK(yearKpis(y, m).operatingCost))}</tr>
+          <tr className="sub"><td>TOTAL OPERATING COSTS</td>{yr(y => fmtK(yearKpis(y, m).operatingCost))}{cagrCell(yearKpis(2027, m).operatingCost, yearKpis(2030, m).operatingCost)}</tr>
           <tr className="sub"><td>OPERATING SURPLUS (contribution)</td>
             {yr(y => { const k = yearKpis(y, m); return <span style={{ color: surplusColor(k.contribution) }}>{fmtK(k.contribution)}</span>; })}
+            {cagrCell(yearKpis(2027, m).contribution, yearKpis(2030, m).contribution)}
           </tr>
 
-          <tr className="below"><td>less University service charge (TRAC)</td>{years.map(y => uniLoanCell("uni", y))}</tr>
-          <tr className="below"><td>less University loan repayment</td>{years.map(y => uniLoanCell("loan", y))}</tr>
+          <tr className="below"><td>less University service charge (TRAC)</td>{years.map(y => uniLoanCell("uni", y))}{showCagr && <td />}</tr>
+          <tr className="below"><td>less University loan repayment</td>{years.map(y => uniLoanCell("loan", y))}{showCagr && <td />}</tr>
           <tr className="net"><td>NET SURPLUS</td>
             {yr(y => { const k = yearKpis(y, m); return `${fmtK(k.net)}  (${k.netPct.toFixed(1)}%)`; })}
+            {cagrCell(yearKpis(2027, m).net, yearKpis(2030, m).net)}
           </tr>
         </tbody>
       </table>
@@ -1211,25 +1229,15 @@ function StepYearly({ m, confirmed, onConfirm, onBack }) {
     marginalCostPct: m.marginalCostPct !== undefined ? m.marginalCostPct : DEFAULT_MARGINAL,
   });
   const [saved, setSaved] = useState(false);
-  const [solveOn, setSolveOn] = useState(false);
 
   const inflVal = d.inflationPct;
   const margVal = d.marginalCostPct;
   const setAssumption = (key, val) => { setSaved(false); patch({ [key]: val }); };
 
-  /* When the solver is ON, overlay the solved revenue overrides for the three
-     growth lines on top of the user's draft. Cells are read-only in this mode.   */
-  const baseM = { ...m, ...d };
-  const solve = solveOn ? solvedModel(baseM) : null;
-  const liveM = solve ? { ...baseM, revOverride: solve.rev } : baseM;
-  const tp = targetPath(baseM);
+  const liveM = { ...m, ...d };
+  const tp = targetPath(liveM);
 
   const onCell = (kind, yr, id, val) => {
-    /* While solving: the three growth lines are recomputed every render, so any
-       attempt to edit them is overwritten — effectively locked. But service
-       charge (uni) and loan ARE inputs to the solve, so editing them is allowed
-       and triggers a live re-solve.                                             */
-    if (solveOn && kind === "rev" && SOLVE_LINES.includes(id)) return;
     setSaved(false);
     if (kind === "loan") { patch({ loanByYear: { ...d.loanByYear, [yr]: val } }); return; }
     if (kind === "uni")  { patch({ uniByYear: { ...d.uniByYear, [yr]: val } }); return; }
@@ -1238,10 +1246,7 @@ function StepYearly({ m, confirmed, onConfirm, onBack }) {
   };
   const resetEstimates = () => { setSaved(false); patch({ revOverride: {}, costOverride: {}, uniByYear: {} }); };
 
-  const commit = () => {
-    const revToSave = solveOn && solve ? solve.rev : d.revOverride;
-    mSave({ revOverride: revToSave, costOverride: d.costOverride, loanByYear: d.loanByYear, uniByYear: d.uniByYear, inflationPct: nv(d.inflationPct, DEFAULT_INFLATION), marginalCostPct: nv(d.marginalCostPct, DEFAULT_MARGINAL), step7Confirmed: true });
-  };
+  const commit = () => mSave({ revOverride: d.revOverride, costOverride: d.costOverride, loanByYear: d.loanByYear, uniByYear: d.uniByYear, inflationPct: nv(d.inflationPct, DEFAULT_INFLATION), marginalCostPct: nv(d.marginalCostPct, DEFAULT_MARGINAL), step7Confirmed: true });
   const onSave = () => { commit(); setSaved(true); };
   const onSaveContinue = () => { commit(); onConfirm(); };
 
@@ -1269,44 +1274,7 @@ function StepYearly({ m, confirmed, onConfirm, onBack }) {
         </div>
       </div>
 
-      {/* ── SOLVE TO TARGET toggle ────────────────────────────────────────── */}
-      <div style={{ border: "2px solid " + (solveOn ? "#e07030" : "#d8d3cb"), borderRadius: 8, padding: 16, marginBottom: 18, background: solveOn ? "#fbf3ec" : "#faf8f5" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
-          <div>
-            <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 20, fontWeight: 600, color: "#1a1a1a" }}>Solve to target</div>
-            <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, color: "#777", marginTop: 2 }}>
-              Grows CED Customised, Open Programmes and Micro-credentials (capped £1,000k) to hit {tp[2028]}% / {tp[2029]}% / {tp[2030]}%, by strategic strength from steps 4–5.
-            </div>
-          </div>
-          <button onClick={() => { setSolveOn(s => !s); setSaved(false); }}
-            style={{ flexShrink: 0, padding: "12px 22px", borderRadius: 8, border: "none", cursor: "pointer",
-              fontFamily: "'DM Sans',sans-serif", fontSize: 15, fontWeight: 700, letterSpacing: 0.3,
-              background: solveOn ? "#e07030" : "#1a1a1a", color: "#fff" }}>
-            {solveOn ? "● SOLVING — click to turn off" : "Solve to target ▶"}
-          </button>
-        </div>
-        {solveOn && solve && (
-          <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid #e8d9cc" }}>
-            <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, color: "#b87a20", marginBottom: 8 }}>Required annual growth to hit target</div>
-            <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
-              {[["ced_custom", "CED Customised"], ["open", "Open Programmes"], ["micro_cred", "Micro-credentials"]].map(([id, name]) => (
-                <div key={id}>
-                  <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, color: "#555" }}>{name}</div>
-                  <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 18, fontWeight: 600, color: "#e07030" }}>
-                    {id === "micro_cred" ? "£0 → £" + (solve.rev[2030]?.micro_cred || 0) + "k"
-                      : (solve.cagr[id] !== null ? "+" + solve.cagr[id] + "%/yr" : "—")}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#999", marginTop: 10, fontStyle: "italic", lineHeight: 1.6 }}>
-              The three growth lines are set by the solver and can't be edited here. You <em>can</em> still edit the service charge and loan rows below — change either and the solver recalculates immediately to keep hitting the target. Turn off to return to your own P&L.
-            </div>
-          </div>
-        )}
-      </div>
-
-      <PLTable m={liveM} years={YEARS} editYears={EST_YEARS} onCell={onCell} />
+      <PLTable m={liveM} years={YEARS} editYears={EST_YEARS} onCell={onCell} showCagr />
 
       {/* Net % vs target per year */}
       <div style={{ overflowX: "auto", marginBottom: 16 }}>
@@ -1592,7 +1560,7 @@ function Workspace({ name, onExit }) {
   return (
     <div className="sl-shell">
       <div className="sl-header">
-        <div className="sl-header-title">STRAWPERSON — FBaM Financial Scenario · shared model <span style={{ color: "#bbb", fontWeight: 400 }}>· build 6.14</span></div>
+        <div className="sl-header-title">STRAWPERSON — FBaM Financial Scenario · shared model <span style={{ color: "#bbb", fontWeight: 400 }}>· build 6.15</span></div>
         <div className="sl-header-right">{name}{m.lastEditedBy && m.lastEditedBy !== name ? ` · last edit: ${m.lastEditedBy}` : ""} &nbsp;·&nbsp;
           <button style={{ background: "none", border: "none", fontSize: 11, color: "#888", cursor: "pointer", textDecoration: "underline" }} onClick={onExit}>Exit</button>
         </div>
