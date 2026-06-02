@@ -14,7 +14,13 @@ import { useState, useEffect } from "react";
 const SHARED_KEY = "__shared__";
 const STORE = { model: {}, sessionId: "", myName: "" };
 
-const ENGINE_VERSION = 3;   /* v3: midpoint forward rate; cabinet fixed; inflation + marginal cost; cleared stale rate/posture maps. */
+const ENGINE_VERSION = 4;   /* v4: rate overrides namespaced by version (rateOverride_v4) so stale overrides are structurally unreadable. */
+
+/* Rate overrides live under a version-stamped key. A newer engine literally
+   cannot read an older engine's overrides — no migration timing, no timestamp
+   guard, no possibility of a stale rate leaking into the forward column.       */
+const RATE_KEY = "rateOverride_v" + ENGINE_VERSION;
+const getRateOverrides = (m) => m?.[RATE_KEY] || {};
 
 const mSave = (d) => {
   STORE.model = { ...STORE.model, ...d, engineVersion: ENGINE_VERSION, lastEditedBy: STORE.myName, _updated: Date.now() };
@@ -28,14 +34,15 @@ const mSave = (d) => {
 };
 const mGet = () => STORE.model || {};
 
-/* Drop fields whose meaning changed between engine versions, so a stale saved
-   model can't resurrect superseded auto-defaults (e.g. old rates, old postures). */
+/* Drop fields whose meaning changed between engine versions. Rate overrides are
+   version-namespaced (RATE_KEY) so they need no migration — an old key is simply
+   never read. Posture set changed across versions, so clear it on version bump. */
 const migrateModel = (m) => {
   if (!m) return m;
   if (m.engineVersion !== ENGINE_VERSION) {
-    delete m.blend;          /* legacy blended rates */
-    delete m.rateOverride;   /* pre-v3 rates were computed against old CAGRs / no cap — clear so midpoint defaults apply */
-    delete m.posture;        /* posture set changed (added incr_decline; cabinet now fixed) */
+    delete m.blend;
+    delete m.rateOverride;     /* legacy un-namespaced rates — dead, remove for tidiness */
+    delete m.posture;          /* posture set changed (incr_decline added; cabinet fixed) */
     m.engineVersion = ENGINE_VERSION;
   }
   return m;
@@ -187,7 +194,7 @@ function projRev(l, yr, m) {
   /* Forward rate: sector default unless the user has set an explicit override
      in THIS version's field (rateOverride). The legacy 'blend' field is never
      read — old auto-computed rates cannot leak in.                            */
-  const stored = m.rateOverride?.[l.id];
+  const stored = getRateOverrides(m)[l.id];
   const rate = stored !== undefined && stored !== "" ? nv(stored) : defaultRate(l, m);
   return bud * Math.pow(1 + rate / 100, steps);
 }
@@ -694,16 +701,16 @@ function StepDoNothing({ m, confirmed, onConfirm, onBack }) {
   /* Edits write straight to the shared model so the P&L below always reflects
      them — no separate local copy that can fall out of sync.                   */
   const setRate = (id, val) => {
-    const ro = { ...(m.rateOverride || {}) };
+    const ro = { ...getRateOverrides(m) };
     if (val === "" || val === undefined) delete ro[id]; else ro[id] = val;
-    mSave({ rateOverride: ro });
+    mSave({ [RATE_KEY]: ro });
     bump();
   };
   const rateValue = (l) => {
-    const stored = m.rateOverride?.[l.id];
+    const stored = getRateOverrides(m)[l.id];
     return stored !== undefined && stored !== "" ? stored : defaultRate(l, m);
   };
-  const resetRates = () => { mSave({ rateOverride: {} }); bump(); };
+  const resetRates = () => { mSave({ [RATE_KEY]: {} }); bump(); };
   const doConfirm = () => { mSave({ step3Confirmed: true }); onConfirm(); };
   const td = { fontFamily: "'IBM Plex Mono',monospace", fontSize: 12, textAlign: "right", padding: "5px 8px" };
 
@@ -1319,7 +1326,7 @@ function Workspace({ name, onExit }) {
   return (
     <div className="sl-shell">
       <div className="sl-header">
-        <div className="sl-header-title">STRAWPERSON — FBaM Financial Scenario · shared model <span style={{ color: "#bbb", fontWeight: 400 }}>· build 6.3</span></div>
+        <div className="sl-header-title">STRAWPERSON — FBaM Financial Scenario · shared model <span style={{ color: "#bbb", fontWeight: 400 }}>· build 6.4</span></div>
         <div className="sl-header-right">{name}{m.lastEditedBy && m.lastEditedBy !== name ? ` · last edit: ${m.lastEditedBy}` : ""} &nbsp;·&nbsp;
           <button style={{ background: "none", border: "none", fontSize: 11, color: "#888", cursor: "pointer", textDecoration: "underline" }} onClick={onExit}>Exit</button>
         </div>
