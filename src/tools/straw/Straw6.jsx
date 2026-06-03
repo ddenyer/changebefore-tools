@@ -336,9 +336,15 @@ function solveStrength(m) {
   };
 }
 
-/* Micro-credentials ramp toward the £1,000k ceiling: 300 / 600 / 1000. Fixed
-   input (not solved) — it is a deliberate new-business build, not a residual.   */
+/* Micro-credentials default ramp — 300 / 600 / 1000. This is only the DEFAULT;
+   the group can edit Micro in any estimate year and Customised + Open re-solve
+   around whatever value they set.                                               */
 const MICRO_RAMP = { 2028: 300, 2029: 600, 2030: 1000 };
+/* User-set Micro value for a year, falling back to the default ramp. */
+function microFor(yr, m) {
+  const v = m.microByYear?.[yr];
+  return (v !== undefined && v !== "") ? nv(v) : (MICRO_RAMP[yr] || 0);
+}
 
 function solveYear(yr, m, targetPct) {
   const c = marginalRate(m) / 100;
@@ -353,10 +359,11 @@ function solveYear(yr, m, targetPct) {
   const baselineOthers = lines.filter(l => !SOLVE_LINES.includes(l.id))
     .reduce((s, l) => s + projRevTrajectory(l, yr, m), 0);
 
-  /* Micro is a fixed ramp; it supplies a known amount, so the remaining need is
-     split between the two uncapped lines (Customised, Open) by strategic strength.
-     This makes the total meet the target exactly — no overshoot from capping.    */
-  const micro = MICRO_RAMP[yr] || 0;
+  /* Micro-credentials is a user input — the group sets it (defaults to the
+     300/600/1000 ramp). Whatever it is, it supplies a known amount and the
+     remaining need is split between Customised and Open, so the total still
+     meets the target exactly.                                                    */
+  const micro = microFor(yr, m);
   const remain = Rneeded - baselineOthers - micro;        /* Customised + Open must supply this */
   const strength = solveStrength(m);
   const wsum = strength.ced_custom + strength.open || 1;
@@ -1265,7 +1272,7 @@ function StepYearly({ m, confirmed, onConfirm, onBack }) {
   };
   const [d, patch] = useDraft({
     revOverride: cleanRevOverride(), costOverride: m.costOverride || {},
-    loanByYear: m.loanByYear || {}, uniByYear: m.uniByYear || {},
+    loanByYear: m.loanByYear || {}, uniByYear: m.uniByYear || {}, microByYear: m.microByYear || {},
     inflationPct: m.inflationPct !== undefined ? m.inflationPct : DEFAULT_INFLATION,
     marginalCostPct: m.marginalCostPct !== undefined ? m.marginalCostPct : DEFAULT_MARGINAL,
   });
@@ -1292,16 +1299,24 @@ function StepYearly({ m, confirmed, onConfirm, onBack }) {
     setSaved(false);
     if (kind === "loan") { patch({ loanByYear: { ...d.loanByYear, [yr]: val } }); return; }
     if (kind === "uni")  { patch({ uniByYear: { ...d.uniByYear, [yr]: val } }); return; }
-    if (kind === "rev" && SOLVE_LINES.includes(id)) return;   /* growth lines are solver-controlled */
+    if (kind === "rev" && id === "micro_cred") {
+      /* Micro is a user input — set it; Customised & Open re-solve around it. */
+      patch({ microByYear: { ...d.microByYear, [yr]: val } }); return;
+    }
+    if (kind === "rev" && SOLVE_LINES.includes(id)) return;   /* Customised/Open are solver-controlled */
     const key = kind === "rev" ? "revOverride" : "costOverride";
     patch({ [key]: { ...d[key], [yr]: { ...(d[key][yr] || {}), [id]: val } } });
   };
-  const resetEstimates = () => { setSaved(false); patch({ revOverride: {}, costOverride: {}, uniByYear: {} }); };
+  const resetEstimates = () => { setSaved(false); patch({ revOverride: {}, costOverride: {}, uniByYear: {}, microByYear: {} }); };
 
-  /* Save only NON-growth overrides — never persist solved growth-line values, so
-     a reopened session always re-solves fresh and can never overshoot.           */
+  /* Save the SOLVED growth-line values into revOverride so every downstream view
+     (Theme P&L, printed/emailed summary) shows the on-target solved figures —
+     they read the saved model directly and don't re-run the solver. §7 itself
+     strips these on open (cleanRevOverride) and re-solves fresh, so a reopened
+     session with changed assumptions can't overshoot: the saved snapshot is only
+     ever the last solve, never an override that fights a new solve.              */
   const commit = () => mSave({
-    revOverride: d.revOverride, costOverride: d.costOverride, loanByYear: d.loanByYear, uniByYear: d.uniByYear,
+    revOverride: solvedRev, costOverride: d.costOverride, loanByYear: d.loanByYear, uniByYear: d.uniByYear, microByYear: d.microByYear,
     inflationPct: nv(d.inflationPct, DEFAULT_INFLATION), marginalCostPct: nv(d.marginalCostPct, DEFAULT_MARGINAL),
     manualGrowth: undefined, step7Confirmed: true,
   });
@@ -1620,7 +1635,7 @@ function Workspace({ name, onExit }) {
   return (
     <div className="sl-shell">
       <div className="sl-header">
-        <div className="sl-header-title">STRAWPERSON — FBaM Financial Scenario · shared model <span style={{ color: "#bbb", fontWeight: 400 }}>· build 6.21</span></div>
+        <div className="sl-header-title">STRAWPERSON — FBaM Financial Scenario · shared model <span style={{ color: "#bbb", fontWeight: 400 }}>· build 6.22</span></div>
         <div className="sl-header-right">{name}{m.lastEditedBy && m.lastEditedBy !== name ? ` · last edit: ${m.lastEditedBy}` : ""} &nbsp;·&nbsp;
           <button style={{ background: "none", border: "none", fontSize: 11, color: "#888", cursor: "pointer", textDecoration: "underline" }} onClick={onExit}>Exit</button>
         </div>
