@@ -618,7 +618,7 @@ function NumInput({ value, onChange, min, step = 1, width = 90 }) {
 /* years: year keys to show. editBase: make the Q3+Budget anchor cells editable
    (§2). editYears: estimate years whose cells are editable (§7).
    onCell(kind,yr,id,val): kind = "rev" | "cost" | "uni" | "loan".              */
-function PLTable({ m, years, editBase = false, editYears = [], onCell, compact = false, showCagr = false }) {
+function PLTable({ m, years, editBase = false, editYears = [], onCell, compact = false, showCagr = false, targetRows = null }) {
   const isBaseYr = (yr) => yr === 2026 || yr === 2027;
   const baseCol  = (yr) => yr === 2026 ? "q3" : "bud";
 
@@ -724,6 +724,30 @@ function PLTable({ m, years, editBase = false, editYears = [], onCell, compact =
             {yr(y => { const k = yearKpis(y, m); return `${fmtK(k.net)}  (${k.netPct.toFixed(1)}%)`; })}
             {cagrCell(yearKpis(2027, m).net, yearKpis(2030, m).net)}
           </tr>
+          {targetRows && (() => {
+            const tp = targetRows;   /* targetPath object passed in */
+            return (<>
+              <tr><td colSpan={years.length + 1 + (showCagr ? 1 : 0)} style={{ height: 6, border: "none", background: "transparent" }} /></tr>
+              <tr><td style={{ fontWeight: 700 }}>Net surplus %</td>
+                {years.map(y => { const k = yearKpis(y, m); return <td key={y} className="mono" style={{ color: surplusColor(k.net) }}>{k.netPct.toFixed(1)}%</td>; })}
+                {showCagr && <td />}
+              </tr>
+              <tr><td style={{ fontWeight: 700 }}>Target path</td>
+                {years.map(y => y === 2026
+                  ? <td key={y} className="mono" style={{ color: "#aaa" }}>—</td>
+                  : <td key={y} className="mono" style={{ color: "#e07030" }}>{tp[y].toFixed(1)}%</td>)}
+                {showCagr && <td />}
+              </tr>
+              <tr><td style={{ fontWeight: 700 }}>Gap to target</td>
+                {years.map(y => {
+                  if (y === 2026) return <td key={y} className="mono" style={{ color: "#aaa" }}>—</td>;
+                  const k = yearKpis(y, m); const gapK = k.revTotal * tp[y] / 100 - k.net;
+                  return <td key={y} className="mono" style={{ color: gapK <= 0 ? "#2d7d46" : "#b83232" }}>{gapK <= 0 ? "met ✓" : fmtK(gapK)}</td>;
+                })}
+                {showCagr && <td />}
+              </tr>
+            </>);
+          })()}
         </tbody>
       </table>
       <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#999" }}>
@@ -1226,12 +1250,10 @@ function StepChanges({ m, confirmed, onConfirm, onBack }) {
 
 /* ── 7. YEARLY P&L (opens pre-solved; fully editable; re-solves on assumptions) */
 function StepYearly({ m, confirmed, onConfirm, onBack }) {
-  /* Strip any saved growth-line overrides on load: the solver fills those fresh
-     every time the step opens, so stale values from an earlier build (or an
-     earlier solve) can never override the live solve and cause an overshoot.
-     Non-growth-line overrides (manual edits to other revenue/cost lines) are
-     kept. manualGrowth always starts empty — manual growth-cell edits live only
-     for the current editing session, never resurrected from a saved model.      */
+  /* Keep only NON-growth-line overrides from the saved model. The three growth
+     lines are ALWAYS solved fresh from the current assumptions — never frozen,
+     never read from saved data. This is what guarantees the P&L always meets the
+     target exactly: there is no stored value that can override the live solve.   */
   const cleanRevOverride = () => {
     const src = m.revOverride || {}; const out = {};
     Object.keys(src).forEach(yr => {
@@ -1246,7 +1268,6 @@ function StepYearly({ m, confirmed, onConfirm, onBack }) {
     loanByYear: m.loanByYear || {}, uniByYear: m.uniByYear || {},
     inflationPct: m.inflationPct !== undefined ? m.inflationPct : DEFAULT_INFLATION,
     marginalCostPct: m.marginalCostPct !== undefined ? m.marginalCostPct : DEFAULT_MARGINAL,
-    manualGrowth: {},
   });
   const [saved, setSaved] = useState(false);
 
@@ -1254,19 +1275,15 @@ function StepYearly({ m, confirmed, onConfirm, onBack }) {
   const margVal = d.marginalCostPct;
   const setAssumption = (key, val) => { setSaved(false); patch({ [key]: val }); };
 
-  /* The displayed P&L is always "solved to target" for the three growth lines,
-     EXCEPT any growth cell the user has manually edited (held to their value).
-     Re-solving happens automatically because solvedModel reads the current
-     assumptions (service charge, loan, inflation) from the draft each render.    */
+  /* The three growth lines are ALWAYS the live solve — no freezing. Re-solves
+     automatically whenever any assumption (service charge, loan, inflation,
+     marginal cost) changes, because solvedModel reads them from the draft.        */
   const baseM = { ...m, ...d };
   const solve = solvedModel(baseM);
   const solvedRev = { ...d.revOverride };
   [2028, 2029, 2030].forEach(yr => {
     solvedRev[yr] = { ...(solvedRev[yr] || {}) };
-    SOLVE_LINES.forEach(id => {
-      const manual = d.manualGrowth?.[yr]?.[id];
-      solvedRev[yr][id] = (manual !== undefined && manual !== "") ? manual : (solve.rev[yr]?.[id] ?? 0);
-    });
+    SOLVE_LINES.forEach(id => { solvedRev[yr][id] = solve.rev[yr]?.[id] ?? 0; });
   });
   const liveM = { ...baseM, revOverride: solvedRev };
   const tp = targetPath(baseM);
@@ -1275,21 +1292,18 @@ function StepYearly({ m, confirmed, onConfirm, onBack }) {
     setSaved(false);
     if (kind === "loan") { patch({ loanByYear: { ...d.loanByYear, [yr]: val } }); return; }
     if (kind === "uni")  { patch({ uniByYear: { ...d.uniByYear, [yr]: val } }); return; }
-    if (kind === "rev" && SOLVE_LINES.includes(id)) {
-      /* user is overriding a solver-filled growth cell → freeze it to their value */
-      patch({ manualGrowth: { ...d.manualGrowth, [yr]: { ...(d.manualGrowth?.[yr] || {}), [id]: val } } });
-      return;
-    }
+    if (kind === "rev" && SOLVE_LINES.includes(id)) return;   /* growth lines are solver-controlled */
     const key = kind === "rev" ? "revOverride" : "costOverride";
     patch({ [key]: { ...d[key], [yr]: { ...(d[key][yr] || {}), [id]: val } } });
   };
-  /* Reset: clear manual growth edits AND any cell overrides → back to a clean solve */
-  const resetEstimates = () => { setSaved(false); patch({ revOverride: {}, costOverride: {}, uniByYear: {}, manualGrowth: {} }); };
+  const resetEstimates = () => { setSaved(false); patch({ revOverride: {}, costOverride: {}, uniByYear: {} }); };
 
+  /* Save only NON-growth overrides — never persist solved growth-line values, so
+     a reopened session always re-solves fresh and can never overshoot.           */
   const commit = () => mSave({
-    revOverride: solvedRev, costOverride: d.costOverride, loanByYear: d.loanByYear, uniByYear: d.uniByYear,
+    revOverride: d.revOverride, costOverride: d.costOverride, loanByYear: d.loanByYear, uniByYear: d.uniByYear,
     inflationPct: nv(d.inflationPct, DEFAULT_INFLATION), marginalCostPct: nv(d.marginalCostPct, DEFAULT_MARGINAL),
-    manualGrowth: d.manualGrowth, step7Confirmed: true,
+    manualGrowth: undefined, step7Confirmed: true,
   });
   const onSave = () => { commit(); setSaved(true); };
   const onSaveContinue = () => { commit(); onConfirm(); };
@@ -1342,34 +1356,7 @@ function StepYearly({ m, confirmed, onConfirm, onBack }) {
         </div>
       </div>
 
-      <PLTable m={liveM} years={YEARS} editYears={EST_YEARS} onCell={onCell} showCagr />
-
-      {/* Net % vs target per year — column structure matches the P&L above:
-          label + 5 year columns + a trailing spacer for the CAGR column.        */}
-      <div style={{ overflowX: "auto", marginBottom: 16 }}>
-        <table className="sl-pl" style={{ minWidth: 660 }}>
-          <tbody>
-            <tr><td style={{ fontWeight: 600 }}>Net surplus %</td>
-              {YEARS.map(y => { const k = yearKpis(y, liveM); return <td key={y} className="mono" style={{ color: surplusColor(k.net) }}>{k.netPct.toFixed(1)}%</td>; })}
-              <td />
-            </tr>
-            <tr><td style={{ fontWeight: 600 }}>Target path</td>
-              {YEARS.map(y => y === 2026
-                ? <td key={y} className="mono" style={{ color: "#aaa" }}>—</td>
-                : <td key={y} className="mono" style={{ color: "#e07030" }}>{tp[y].toFixed(1)}%</td>)}
-              <td />
-            </tr>
-            <tr><td style={{ fontWeight: 600 }}>Gap to target</td>
-              {YEARS.map(y => {
-                if (y === 2026) return <td key={y} className="mono" style={{ color: "#aaa" }}>—</td>;
-                const k = yearKpis(y, liveM); const gapK = k.revTotal * tp[y] / 100 - k.net;
-                return <td key={y} className="mono" style={{ color: gapK <= 0 ? "#2d7d46" : "#b83232" }}>{gapK <= 0 ? "met ✓" : fmtK(gapK)}</td>;
-              })}
-              <td />
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      <PLTable m={liveM} years={YEARS} editYears={EST_YEARS} onCell={onCell} showCagr targetRows={tp} />
 
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
         <button className="sl-btn sl-btn-outline" style={{ fontSize: 12, padding: "8px 14px" }} onClick={resetEstimates}>↺ Reset estimate overrides</button>
@@ -1633,7 +1620,7 @@ function Workspace({ name, onExit }) {
   return (
     <div className="sl-shell">
       <div className="sl-header">
-        <div className="sl-header-title">STRAWPERSON — FBaM Financial Scenario · shared model <span style={{ color: "#bbb", fontWeight: 400 }}>· build 6.20</span></div>
+        <div className="sl-header-title">STRAWPERSON — FBaM Financial Scenario · shared model <span style={{ color: "#bbb", fontWeight: 400 }}>· build 6.21</span></div>
         <div className="sl-header-right">{name}{m.lastEditedBy && m.lastEditedBy !== name ? ` · last edit: ${m.lastEditedBy}` : ""} &nbsp;·&nbsp;
           <button style={{ background: "none", border: "none", fontSize: 11, color: "#888", cursor: "pointer", textDecoration: "underline" }} onClick={onExit}>Exit</button>
         </div>
