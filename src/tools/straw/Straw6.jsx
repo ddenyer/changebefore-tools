@@ -1226,14 +1226,27 @@ function StepChanges({ m, confirmed, onConfirm, onBack }) {
 
 /* ── 7. YEARLY P&L (opens pre-solved; fully editable; re-solves on assumptions) */
 function StepYearly({ m, confirmed, onConfirm, onBack }) {
+  /* Strip any saved growth-line overrides on load: the solver fills those fresh
+     every time the step opens, so stale values from an earlier build (or an
+     earlier solve) can never override the live solve and cause an overshoot.
+     Non-growth-line overrides (manual edits to other revenue/cost lines) are
+     kept. manualGrowth always starts empty — manual growth-cell edits live only
+     for the current editing session, never resurrected from a saved model.      */
+  const cleanRevOverride = () => {
+    const src = m.revOverride || {}; const out = {};
+    Object.keys(src).forEach(yr => {
+      const row = { ...src[yr] };
+      SOLVE_LINES.forEach(id => delete row[id]);
+      if (Object.keys(row).length) out[yr] = row;
+    });
+    return out;
+  };
   const [d, patch] = useDraft({
-    revOverride: m.revOverride || {}, costOverride: m.costOverride || {},
+    revOverride: cleanRevOverride(), costOverride: m.costOverride || {},
     loanByYear: m.loanByYear || {}, uniByYear: m.uniByYear || {},
     inflationPct: m.inflationPct !== undefined ? m.inflationPct : DEFAULT_INFLATION,
     marginalCostPct: m.marginalCostPct !== undefined ? m.marginalCostPct : DEFAULT_MARGINAL,
-    /* growth-line cells the user has manually typed — these are frozen to the
-       user's value; everything else re-solves when assumptions change.          */
-    manualGrowth: m.manualGrowth || {},
+    manualGrowth: {},
   });
   const [saved, setSaved] = useState(false);
 
@@ -1331,23 +1344,28 @@ function StepYearly({ m, confirmed, onConfirm, onBack }) {
 
       <PLTable m={liveM} years={YEARS} editYears={EST_YEARS} onCell={onCell} showCagr />
 
-      {/* Net % vs target per year */}
+      {/* Net % vs target per year — column structure matches the P&L above:
+          label + 5 year columns + a trailing spacer for the CAGR column.        */}
       <div style={{ overflowX: "auto", marginBottom: 16 }}>
-        <table className="sl-pl" style={{ minWidth: 560 }}>
+        <table className="sl-pl" style={{ minWidth: 660 }}>
           <tbody>
             <tr><td style={{ fontWeight: 600 }}>Net surplus %</td>
               {YEARS.map(y => { const k = yearKpis(y, liveM); return <td key={y} className="mono" style={{ color: surplusColor(k.net) }}>{k.netPct.toFixed(1)}%</td>; })}
+              <td />
             </tr>
             <tr><td style={{ fontWeight: 600 }}>Target path</td>
-              <td className="mono" style={{ color: "#aaa" }}>—</td>
-              {[2027, 2028, 2029, 2030].map(y => <td key={y} className="mono" style={{ color: "#e07030" }}>{tp[y].toFixed(1)}%</td>)}
+              {YEARS.map(y => y === 2026
+                ? <td key={y} className="mono" style={{ color: "#aaa" }}>—</td>
+                : <td key={y} className="mono" style={{ color: "#e07030" }}>{tp[y].toFixed(1)}%</td>)}
+              <td />
             </tr>
             <tr><td style={{ fontWeight: 600 }}>Gap to target</td>
-              <td className="mono" style={{ color: "#aaa" }}>—</td>
-              {[2027, 2028, 2029, 2030].map(y => {
+              {YEARS.map(y => {
+                if (y === 2026) return <td key={y} className="mono" style={{ color: "#aaa" }}>—</td>;
                 const k = yearKpis(y, liveM); const gapK = k.revTotal * tp[y] / 100 - k.net;
                 return <td key={y} className="mono" style={{ color: gapK <= 0 ? "#2d7d46" : "#b83232" }}>{gapK <= 0 ? "met ✓" : fmtK(gapK)}</td>;
               })}
+              <td />
             </tr>
           </tbody>
         </table>
@@ -1615,7 +1633,7 @@ function Workspace({ name, onExit }) {
   return (
     <div className="sl-shell">
       <div className="sl-header">
-        <div className="sl-header-title">STRAWPERSON — FBaM Financial Scenario · shared model <span style={{ color: "#bbb", fontWeight: 400 }}>· build 6.18</span></div>
+        <div className="sl-header-title">STRAWPERSON — FBaM Financial Scenario · shared model <span style={{ color: "#bbb", fontWeight: 400 }}>· build 6.20</span></div>
         <div className="sl-header-right">{name}{m.lastEditedBy && m.lastEditedBy !== name ? ` · last edit: ${m.lastEditedBy}` : ""} &nbsp;·&nbsp;
           <button style={{ background: "none", border: "none", fontSize: 11, color: "#888", cursor: "pointer", textDecoration: "underline" }} onClick={onExit}>Exit</button>
         </div>
