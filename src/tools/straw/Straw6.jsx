@@ -1224,43 +1224,60 @@ function StepChanges({ m, confirmed, onConfirm, onBack }) {
   );
 }
 
-/* ── 7. YEARLY P&L (full transition table, estimates editable, vs target) ─── */
+/* ── 7. YEARLY P&L (opens pre-solved; fully editable; re-solves on assumptions) */
 function StepYearly({ m, confirmed, onConfirm, onBack }) {
-  const [d, patch, replace] = useDraft({
+  const [d, patch] = useDraft({
     revOverride: m.revOverride || {}, costOverride: m.costOverride || {},
     loanByYear: m.loanByYear || {}, uniByYear: m.uniByYear || {},
     inflationPct: m.inflationPct !== undefined ? m.inflationPct : DEFAULT_INFLATION,
     marginalCostPct: m.marginalCostPct !== undefined ? m.marginalCostPct : DEFAULT_MARGINAL,
+    /* growth-line cells the user has manually typed — these are frozen to the
+       user's value; everything else re-solves when assumptions change.          */
+    manualGrowth: m.manualGrowth || {},
   });
   const [saved, setSaved] = useState(false);
-  const [solveOn, setSolveOn] = useState(false);
 
   const inflVal = d.inflationPct;
   const margVal = d.marginalCostPct;
   const setAssumption = (key, val) => { setSaved(false); patch({ [key]: val }); };
 
-  /* Solver ON: overlay the solved growth-line overrides. Service charge & loan
-     stay editable (they feed the solve); the three growth lines are recomputed
-     each render so they're effectively locked. Meets target exactly.            */
+  /* The displayed P&L is always "solved to target" for the three growth lines,
+     EXCEPT any growth cell the user has manually edited (held to their value).
+     Re-solving happens automatically because solvedModel reads the current
+     assumptions (service charge, loan, inflation) from the draft each render.    */
   const baseM = { ...m, ...d };
-  const solve = solveOn ? solvedModel(baseM) : null;
-  const liveM = solve ? { ...baseM, revOverride: solve.rev } : baseM;
+  const solve = solvedModel(baseM);
+  const solvedRev = { ...d.revOverride };
+  [2028, 2029, 2030].forEach(yr => {
+    solvedRev[yr] = { ...(solvedRev[yr] || {}) };
+    SOLVE_LINES.forEach(id => {
+      const manual = d.manualGrowth?.[yr]?.[id];
+      solvedRev[yr][id] = (manual !== undefined && manual !== "") ? manual : (solve.rev[yr]?.[id] ?? 0);
+    });
+  });
+  const liveM = { ...baseM, revOverride: solvedRev };
   const tp = targetPath(baseM);
 
   const onCell = (kind, yr, id, val) => {
-    if (solveOn && kind === "rev" && SOLVE_LINES.includes(id)) return;   /* locked while solving */
     setSaved(false);
     if (kind === "loan") { patch({ loanByYear: { ...d.loanByYear, [yr]: val } }); return; }
     if (kind === "uni")  { patch({ uniByYear: { ...d.uniByYear, [yr]: val } }); return; }
+    if (kind === "rev" && SOLVE_LINES.includes(id)) {
+      /* user is overriding a solver-filled growth cell → freeze it to their value */
+      patch({ manualGrowth: { ...d.manualGrowth, [yr]: { ...(d.manualGrowth?.[yr] || {}), [id]: val } } });
+      return;
+    }
     const key = kind === "rev" ? "revOverride" : "costOverride";
     patch({ [key]: { ...d[key], [yr]: { ...(d[key][yr] || {}), [id]: val } } });
   };
-  const resetEstimates = () => { setSaved(false); patch({ revOverride: {}, costOverride: {}, uniByYear: {} }); };
+  /* Reset: clear manual growth edits AND any cell overrides → back to a clean solve */
+  const resetEstimates = () => { setSaved(false); patch({ revOverride: {}, costOverride: {}, uniByYear: {}, manualGrowth: {} }); };
 
-  const commit = () => {
-    const revToSave = solveOn && solve ? solve.rev : d.revOverride;
-    mSave({ revOverride: revToSave, costOverride: d.costOverride, loanByYear: d.loanByYear, uniByYear: d.uniByYear, inflationPct: nv(d.inflationPct, DEFAULT_INFLATION), marginalCostPct: nv(d.marginalCostPct, DEFAULT_MARGINAL), step7Confirmed: true });
-  };
+  const commit = () => mSave({
+    revOverride: solvedRev, costOverride: d.costOverride, loanByYear: d.loanByYear, uniByYear: d.uniByYear,
+    inflationPct: nv(d.inflationPct, DEFAULT_INFLATION), marginalCostPct: nv(d.marginalCostPct, DEFAULT_MARGINAL),
+    manualGrowth: d.manualGrowth, step7Confirmed: true,
+  });
   const onSave = () => { commit(); setSaved(true); };
   const onSaveContinue = () => { commit(); onConfirm(); };
 
@@ -1288,57 +1305,28 @@ function StepYearly({ m, confirmed, onConfirm, onBack }) {
         </div>
       </div>
 
-      {/* ── SOLVE TO TARGET toggle ────────────────────────────────────────── */}
-      <div style={{ border: "2px solid " + (solveOn ? "#e07030" : "#d8d3cb"), borderRadius: 8, padding: 16, marginBottom: 18, background: solveOn ? "#fbf3ec" : "#faf8f5" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
-          <div>
-            <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 20, fontWeight: 600, color: "#1a1a1a" }}>Solve to target</div>
-            <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, color: "#777", marginTop: 2 }}>
-              Grows CED Customised and Open Programmes (Open held to 60% of Customised), plus Micro-credentials ramping to £1,000k, to meet {tp[2028]}% / {tp[2029]}% / {tp[2030]}% exactly.
-            </div>
-          </div>
-          <button onClick={() => {
-              setSolveOn(s => {
-                if (s) {
-                  /* turning OFF: strip the solver's growth-line overrides so the
-                     table returns to the true trajectory, not stale solved values */
-                  const cleaned = {};
-                  Object.keys(d.revOverride || {}).forEach(yr => {
-                    const row = { ...d.revOverride[yr] };
-                    SOLVE_LINES.forEach(id => delete row[id]);
-                    if (Object.keys(row).length) cleaned[yr] = row;
-                  });
-                  patch({ revOverride: cleaned });
-                }
-                return !s;
-              });
-              setSaved(false);
-            }}
-            style={{ flexShrink: 0, padding: "12px 22px", borderRadius: 8, border: "none", cursor: "pointer",
-              fontFamily: "'DM Sans',sans-serif", fontSize: 15, fontWeight: 700, letterSpacing: 0.3,
-              background: solveOn ? "#e07030" : "#1a1a1a", color: "#fff" }}>
-            {solveOn ? "● SOLVING — click to turn off" : "Solve to target ▶"}
-          </button>
+      {/* ── SOLVED TO TARGET (automatic; no button) ───────────────────────── */}
+      <div style={{ border: "1px solid #e8d9cc", borderRadius: 8, padding: 16, marginBottom: 18, background: "#fbf3ec" }}>
+        <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 20, fontWeight: 600, color: "#1a1a1a" }}>Solved to hit your target</div>
+        <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, color: "#777", marginTop: 2, marginBottom: 10 }}>
+          CED Customised and Open Programmes (Open held to 60% of Customised) plus Micro-credentials (ramping to £1,000k) are set to meet {tp[2028]}% / {tp[2029]}% / {tp[2030]}%. Edit any cell to override; change the service charge, loan or inflation and the growth lines re-solve automatically.
         </div>
-        {solveOn && solve && (
-          <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid #e8d9cc" }}>
-            <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, color: "#b87a20", marginBottom: 8 }}>Required annual growth to meet target</div>
-            <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
-              {[["ced_custom", "CED Customised"], ["open", "Open Programmes"], ["micro_cred", "Micro-credentials"]].map(([id, name]) => (
-                <div key={id}>
-                  <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, color: "#555" }}>{name}</div>
-                  <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 18, fontWeight: 600, color: "#e07030" }}>
-                    {id === "micro_cred" ? "£0 → £" + (solve.rev[2030]?.micro_cred || 0) + "k"
-                      : (solve.cagr[id] !== null ? "+" + solve.cagr[id] + "%/yr" : "—")}
-                  </div>
+        <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, color: "#b87a20", marginBottom: 8 }}>Required annual growth</div>
+        <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
+          {[["ced_custom", "CED Customised"], ["open", "Open Programmes"], ["micro_cred", "Micro-credentials"]].map(([id, name]) => {
+            const v2027 = projRev(revLinesFor(liveM).find(l => l.id === id) || {}, 2027, liveM);
+            const v2030 = nv(solvedRev[2030]?.[id], 0);
+            const cg = (id === "micro_cred") ? null : (v2027 > 0 && v2030 > 0 ? round1((Math.pow(v2030 / v2027, 1/3) - 1) * 100) : null);
+            return (
+              <div key={id}>
+                <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, color: "#555" }}>{name}</div>
+                <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 18, fontWeight: 600, color: "#e07030" }}>
+                  {id === "micro_cred" ? "£0 → £" + Math.round(v2030) + "k" : (cg !== null ? (cg >= 0 ? "+" : "") + cg + "%/yr" : "—")}
                 </div>
-              ))}
-            </div>
-            <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#999", marginTop: 10, fontStyle: "italic", lineHeight: 1.6 }}>
-              The three growth lines are set by the solver. You can still edit the service charge and loan rows below — change either and the solver recalculates to keep meeting the target. Turn off to return to your own P&L.
-            </div>
-          </div>
-        )}
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       <PLTable m={liveM} years={YEARS} editYears={EST_YEARS} onCell={onCell} showCagr />
@@ -1627,7 +1615,7 @@ function Workspace({ name, onExit }) {
   return (
     <div className="sl-shell">
       <div className="sl-header">
-        <div className="sl-header-title">STRAWPERSON — FBaM Financial Scenario · shared model <span style={{ color: "#bbb", fontWeight: 400 }}>· build 6.17</span></div>
+        <div className="sl-header-title">STRAWPERSON — FBaM Financial Scenario · shared model <span style={{ color: "#bbb", fontWeight: 400 }}>· build 6.18</span></div>
         <div className="sl-header-right">{name}{m.lastEditedBy && m.lastEditedBy !== name ? ` · last edit: ${m.lastEditedBy}` : ""} &nbsp;·&nbsp;
           <button style={{ background: "none", border: "none", fontSize: 11, color: "#888", cursor: "pointer", textDecoration: "underline" }} onClick={onExit}>Exit</button>
         </div>
