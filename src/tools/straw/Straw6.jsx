@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import * as XLSX from "xlsx";
 
 /* ════════════════════════════════════════════════════════════════════════
    STRAWPERSON — FBaM Financial Scenario Tool  (Straw6)
@@ -1551,6 +1552,190 @@ ${H2("6. Positioning")}${tbl([["Dimension"], ["Position"]], tensionRows)}
 </div>`;
 }
 
+/* ── EXCEL EXPORT (Build A: live P&L, growth lines as solved snapshot) ────────
+   Strategy: an "Assumptions" sheet holds the editable drivers (inflation,
+   marginal cost, per-year service charge and loan). The "Yearly P&L" sheet
+   references those cells with real formulas, so changing an assumption in Excel
+   recalculates contribution, operating surplus and net surplus live. Income and
+   cost lines are written with formulas where they derive from a rule (cost =
+   budget compounded by inflation; marginal cost = rate × growth above budget),
+   and growth/revenue lines as the solved values (the solver is a snapshot).     */
+function exportWorkbook(m) {
+  const wb = XLSX.utils.book_new();
+  const EST = [2028, 2029, 2030];
+  const allYears = YEARS;                       // [2026,2027,2028,2029,2030]
+  const colLetter = (i) => String.fromCharCode(66 + i);   // B, C, D, E, F for year cols
+  const yrCol = {}; allYears.forEach((y, i) => yrCol[y] = colLetter(i));
+
+  /* ---- Assumptions sheet ---- */
+  const infl = nv(m.inflationPct, DEFAULT_INFLATION);
+  const marg = nv(m.marginalCostPct, DEFAULT_MARGINAL);
+  const budgetRev = budgetRevTotal(m);
+  const aoaA = [
+    ["FBaM Scenario — Assumptions", "", ""],
+    ["Editable drivers. Changing these recalculates the Yearly P&L sheet.", "", ""],
+    [],
+    ["Driver", "Value", "Unit"],
+    ["Cost inflation (per year, from 2028)", infl, "%"],
+    ["Marginal cost of revenue growth", marg, "% of growth above budget"],
+    ["2026/27 total revenue (budget)", Math.round(budgetRev), "£k  (reference)"],
+    [],
+    ["Service charge (TRAC) by year", "", ""],
+    ...allYears.map(y => [COL_LABEL[y], Math.round(uniFor(y, m)), "£k"]),
+    [],
+    ["Loan repayment by year", "", ""],
+    ...allYears.map(y => [COL_LABEL[y], Math.round(loanFor(y, m)), "£k"]),
+  ];
+  const wsA = XLSX.utils.aoa_to_sheet(aoaA);
+  wsA["!cols"] = [{ wch: 40 }, { wch: 14 }, { wch: 26 }];
+  XLSX.utils.book_append_sheet(wb, wsA, "Assumptions");
+  // named cell refs on Assumptions for formulas
+  const INFL = "Assumptions!$B$5", MARG = "Assumptions!$B$6", BUDREV = "Assumptions!$B$7";
+  const uniRow0 = 10;   // first service-charge value row (1-indexed): header at row9, values 10..14
+  const loanRow0 = uniRow0 + allYears.length + 2;   // after blank + header
+  const uniRef = {}, loanRef = {};
+  allYears.forEach((y, i) => { uniRef[y] = `Assumptions!$B$${uniRow0 + i}`; loanRef[y] = `Assumptions!$B$${loanRow0 + i}`; });
+
+  /* ---- Yearly P&L sheet (live formulas) ---- */
+  const rows = [];
+  rows.push(["FBaM Scenario — Yearly P&L (£k)"]);
+  rows.push(["Estimate years 2027/28–2029/30 marked *. Net surplus, contribution and totals are live formulas."]);
+  rows.push([]);
+  rows.push(["Line (£k)", ...allYears.map(y => COL_LABEL[y] + (IS_ACTUAL[y] ? "" : " *"))]);
+  const rIdx = () => rows.length;             // next row is rows.length+1 in 1-indexed sheet terms
+
+  // INCOME
+  rows.push(["INCOME"]);
+  const revRowOf = {};
+  revLinesFor(m).forEach(l => {
+    revRowOf[l.id] = rows.length + 1;         // 1-indexed sheet row
+    rows.push([l.name + (l.custom ? " (new)" : ""), ...allYears.map(y => Math.round(projRev(l, y, m)))]);
+  });
+  const incomeRows = revLinesFor(m).map(l => revRowOf[l.id]);
+  const totalIncomeRow = rows.length + 1;
+  rows.push(["Total income", ...allYears.map(y => ({ f: incomeRows.map(r => `${yrCol[y]}${r}`).join("+") }))]);
+
+  // STAFF
+  rows.push(["STAFF COSTS"]);
+  const staffRows = [];
+  COST_LINES.filter(l => l.group === "staff").forEach(l => {
+    const { bud } = resolveBase(m.baseCost, l);
+    staffRows.push(rows.length + 1);
+    rows.push([l.name, ...allYears.map(y => {
+      if (y === 2026) return Math.round(resolveBase(m.baseCost, l).q3);
+      if (y === 2027) return Math.round(bud);
+      const n = y - 2027;
+      return { f: `${yrCol[2027]}${rows.length + 1}*(1+${INFL}/100)^${n}` };
+    })]);
+  });
+  const totalStaffRow = rows.length + 1;
+  rows.push(["Total staff costs", ...allYears.map(y => ({ f: staffRows.map(r => `${yrCol[y]}${r}`).join("+") }))]);
+
+  // OPERATING
+  rows.push(["OTHER OPERATING COSTS"]);
+  const opRows = [];
+  COST_LINES.filter(l => l.group === "operating").forEach(l => {
+    const { bud } = resolveBase(m.baseCost, l);
+    opRows.push(rows.length + 1);
+    rows.push([l.name, ...allYears.map(y => {
+      if (y === 2026) return Math.round(resolveBase(m.baseCost, l).q3);
+      if (y === 2027) return Math.round(bud);
+      const n = y - 2027;
+      return { f: `${yrCol[2027]}${rows.length + 1}*(1+${INFL}/100)^${n}` };
+    })]);
+  });
+  const totalOpRow = rows.length + 1;
+  rows.push(["Total other operating costs", ...allYears.map(y => ({ f: opRows.map(r => `${yrCol[y]}${r}`).join("+") }))]);
+
+  // Marginal cost of growth = marg% × max(0, totalIncome − budgetRev)
+  const margRow = rows.length + 1;
+  rows.push(["Cost of revenue growth", ...allYears.map(y => {
+    if (y === 2026 || y === 2027) return 0;
+    return { f: `MAX(0,${yrCol[y]}${totalIncomeRow}-${BUDREV})*${MARG}/100` };
+  })]);
+
+  // Total operating cost = staff + op + marginal
+  const totalCostRow = rows.length + 1;
+  rows.push(["TOTAL OPERATING COSTS", ...allYears.map(y => ({ f: `${yrCol[y]}${totalStaffRow}+${yrCol[y]}${totalOpRow}+${yrCol[y]}${margRow}` }))]);
+
+  // Contribution = income − total operating cost
+  const contribRow = rows.length + 1;
+  rows.push(["OPERATING SURPLUS (contribution)", ...allYears.map(y => ({ f: `${yrCol[y]}${totalIncomeRow}-${yrCol[y]}${totalCostRow}` }))]);
+
+  // less service charge / loan (reference Assumptions)
+  const uniPLRow = rows.length + 1;
+  rows.push(["less University service charge", ...allYears.map(y => ({ f: `${uniRef[y]}` }))]);
+  const loanPLRow = rows.length + 1;
+  rows.push(["less University loan repayment", ...allYears.map(y => ({ f: `${loanRef[y]}` }))]);
+
+  // Net surplus = contribution − service charge − loan
+  const netRow = rows.length + 1;
+  rows.push(["NET SURPLUS", ...allYears.map(y => ({ f: `${yrCol[y]}${contribRow}-${yrCol[y]}${uniPLRow}-${yrCol[y]}${loanPLRow}` }))]);
+  // Net surplus %
+  const netPctRow = rows.length + 1;
+  rows.push(["Net surplus %", ...allYears.map(y => ({ f: `${yrCol[y]}${netRow}/${yrCol[y]}${totalIncomeRow}*100` }))]);
+  // Target path
+  const tp = targetPath(m);
+  rows.push(["Target path %", ...allYears.map(y => (y === 2026 ? "" : Number(tp[y].toFixed(1))))]);
+
+  const wsP = XLSX.utils.aoa_to_sheet(rows);
+  wsP["!cols"] = [{ wch: 36 }, ...allYears.map(() => ({ wch: 12 }))];
+  XLSX.utils.book_append_sheet(wb, wsP, "Yearly P&L");
+
+  /* ---- Current position sheet (Q3 + budget, static) ---- */
+  const cur = [["FBaM — Current position (£k)"], [], ["Line", "Q3 25/26", "Budget 26/27"]];
+  cur.push(["INCOME"]);
+  REV_LINES.forEach(l => { const b = resolveBase(m.baseRev, l); cur.push([l.name, Math.round(b.q3), Math.round(b.bud)]); });
+  cur.push(["Total income", Math.round(yearKpis(2026, m).revTotal), Math.round(yearKpis(2027, m).revTotal)]);
+  cur.push(["STAFF COSTS"]);
+  COST_LINES.filter(l => l.group === "staff").forEach(l => { const b = resolveBase(m.baseCost, l); cur.push([l.name, Math.round(b.q3), Math.round(b.bud)]); });
+  cur.push(["OTHER OPERATING COSTS"]);
+  COST_LINES.filter(l => l.group === "operating").forEach(l => { const b = resolveBase(m.baseCost, l); cur.push([l.name, Math.round(b.q3), Math.round(b.bud)]); });
+  cur.push(["Total operating costs", Math.round(yearKpis(2026, m).operatingCost), Math.round(yearKpis(2027, m).operatingCost)]);
+  cur.push(["Contribution", Math.round(yearKpis(2026, m).contribution), Math.round(yearKpis(2027, m).contribution)]);
+  cur.push(["less service charge", Math.round(uniFor(2026, m)), Math.round(uniFor(2027, m))]);
+  cur.push(["Net surplus", Math.round(yearKpis(2026, m).net), Math.round(yearKpis(2027, m).net)]);
+  const wsC = XLSX.utils.aoa_to_sheet(cur); wsC["!cols"] = [{ wch: 36 }, { wch: 14 }, { wch: 14 }];
+  XLSX.utils.book_append_sheet(wb, wsC, "Current position");
+
+  /* ---- Theme P&L sheet (2030, static) ---- */
+  const k30 = yearKpis(2030, m);
+  const th = [["FBaM — Theme P&L (July 2030, £k)"], [], ["Theme", "% of activity", "Revenue", "Op. cost", "Contribution"]];
+  THEME_DATA.forEach(t => { const pc = nv(m.themePct?.[t.id], t.defPct); const r = k30.revTotal * pc / 100, c = k30.operatingCost * pc / 100; th.push([t.name, pc, Math.round(r), Math.round(c), Math.round(r - c)]); });
+  const wsT = XLSX.utils.aoa_to_sheet(th); wsT["!cols"] = [{ wch: 30 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 13 }];
+  XLSX.utils.book_append_sheet(wb, wsT, "Theme P&L");
+
+  /* ---- Summary sheet (first tab) ---- */
+  const tgt = nv(m.targetPct, 7.5);
+  const sm = [
+    ["FBaM FINANCIAL SCENARIO — SUMMARY"],
+    [`Session: ${STORE.sessionId || "—"}`, "", `Exported: ${new Date().toLocaleDateString("en-GB")}`],
+    ["This workbook is live: the Yearly P&L recalculates from the Assumptions tab.", ""],
+    ["The growth lines are the solved snapshot — they do not re-solve in Excel.", ""],
+    [],
+    ["Target net surplus by 2030", Number(tgt.toFixed(1)), "%"],
+    [],
+    ["", "2027/28", "2028/29", "2029/30"],
+    ["Net surplus %", ...EST.map(y => Number(yearKpis(y, m).netPct.toFixed(1)))],
+    ["Target path %", ...EST.map(y => Number(tp[y].toFixed(1)))],
+    ["Net surplus £k", ...EST.map(y => Math.round(yearKpis(y, m).net))],
+    [],
+    ["Required growth (CAGR 2026/27 → 2029/30)", "", ""],
+    ["CED Customised", Number((Math.pow(projRev(REV_LINES.find(l => l.id === "ced_custom"), 2030, m) / resolveBase(m.baseRev, REV_LINES.find(l => l.id === "ced_custom")).bud, 1 / 3) * 100 - 100).toFixed(1)), "% / yr"],
+    ["Open Programmes", Number((Math.pow(projRev(REV_LINES.find(l => l.id === "open"), 2030, m) / resolveBase(m.baseRev, REV_LINES.find(l => l.id === "open")).bud, 1 / 3) * 100 - 100).toFixed(1)), "% / yr"],
+    ["Micro-credentials", "£0 → £" + Math.round(projRev(REV_LINES.find(l => l.id === "micro_cred"), 2030, m)) + "k", ""],
+  ];
+  const wsS = XLSX.utils.aoa_to_sheet(sm); wsS["!cols"] = [{ wch: 42 }, { wch: 12 }, { wch: 12 }, { wch: 12 }];
+  // prepend so Summary is first
+  wb.SheetNames.unshift(wb.SheetNames.pop()); // moves last appended? no-op safeguard
+  XLSX.utils.book_append_sheet(wb, wsS, "Summary");
+  // reorder: Summary first
+  wb.SheetNames = ["Summary", "Yearly P&L", "Assumptions", "Current position", "Theme P&L"].filter(n => wb.SheetNames.includes(n));
+
+  const fname = `FBaM_scenario_${(STORE.sessionId || "model")}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+  XLSX.writeFile(wb, fname);
+}
+
 function StepFinalise({ m, onBack }) {
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
@@ -1586,6 +1771,10 @@ function StepFinalise({ m, onBack }) {
       <PLTable m={m} years={YEARS} />
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 16, marginBottom: 24 }}>
         <button className="sl-btn" onClick={printAll}>Print / save as PDF</button>
+        <button className="sl-btn sl-btn-outline" onClick={() => exportWorkbook(m)}>Export to Excel</button>
+      </div>
+      <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#999", marginTop: -14, marginBottom: 16 }}>
+        The Excel workbook is live: the Yearly P&L recalculates from the Assumptions tab (inflation, marginal cost, service charge, loan). The growth lines are the solved snapshot and do not re-solve in Excel.
       </div>
       <div className="sl-note-box">
         <div style={{ marginBottom: 8, fontWeight: 600, color: "#1a1a1a" }}>Email a copy to yourself</div>
@@ -1635,7 +1824,7 @@ function Workspace({ name, onExit }) {
   return (
     <div className="sl-shell">
       <div className="sl-header">
-        <div className="sl-header-title">STRAWPERSON — FBaM Financial Scenario · shared model <span style={{ color: "#bbb", fontWeight: 400 }}>· build 6.22</span></div>
+        <div className="sl-header-title">STRAWPERSON — FBaM Financial Scenario · shared model <span style={{ color: "#bbb", fontWeight: 400 }}>· build 6.23</span></div>
         <div className="sl-header-right">{name}{m.lastEditedBy && m.lastEditedBy !== name ? ` · last edit: ${m.lastEditedBy}` : ""} &nbsp;·&nbsp;
           <button style={{ background: "none", border: "none", fontSize: 11, color: "#888", cursor: "pointer", textDecoration: "underline" }} onClick={onExit}>Exit</button>
         </div>
