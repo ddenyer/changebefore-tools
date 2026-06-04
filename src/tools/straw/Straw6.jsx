@@ -1560,111 +1560,140 @@ ${H2("6. Positioning")}${tbl([["Dimension"], ["Position"]], tensionRows)}
    budget compounded by inflation; marginal cost = rate × growth above budget),
    and growth/revenue lines as the solved values (the solver is a snapshot).     */
 function exportWorkbook(m) {
-  /* Dependency-free Excel export. Emits a SpreadsheetML 2003 workbook (a single
-     .xls XML file Excel and LibreOffice open natively as a multi-sheet book).
-     Values are written directly (a faithful static snapshot of the scenario) —
-     no external library, so it builds with no package changes.                  */
+  /* Dependency-free Excel export — SpreadsheetML 2003 (.xls XML), nine tabs in
+     step order mirroring the tool. Static snapshot of the scenario; opens in
+     Excel and any spreadsheet app. No external library.                         */
   const yrs = YEARS;
   const esc = (t) => String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   const cS = (t) => `<Cell><Data ss:Type="String">${esc(t)}</Data></Cell>`;
   const cN = (v) => `<Cell><Data ss:Type="Number">${v}</Data></Cell>`;
-  const row = (cells) => `<Row>${cells.join("")}</Row>`;
+  const rw = (cells) => `<Row>${cells.join("")}</Row>`;
   const sheet = (name, rows, cols) => `<Worksheet ss:Name="${esc(name)}"><Table>${(cols || []).map(w => `<Column ss:Width="${w}"/>`).join("")}${rows.join("")}</Table></Worksheet>`;
   const tp = targetPath(m);
+  const blank = () => rw([cS("")]);
 
-  /* ---- Summary ---- */
-  const tgt = nv(m.targetPct, 7.5), EST = [2028, 2029, 2030];
+  /* full P&L block as rows, for a given model (used by Current, Trajectory, Yearly) */
+  const plBlock = (mm, years, title) => {
+    const out = [];
+    out.push(rw([cS("Line (£k)"), ...years.map(y => cS(COL_LABEL[y] + (IS_ACTUAL[y] ? "" : " *")))]));
+    out.push(rw([cS("INCOME")]));
+    revLinesFor(mm).forEach(l => out.push(rw([cS(l.name + (l.custom ? " (new)" : ""))].concat(years.map(y => cN(Math.round(projRev(l, y, mm))))))));
+    out.push(rw([cS("Total income")].concat(years.map(y => cN(Math.round(yearKpis(y, mm).revTotal))))));
+    out.push(rw([cS("STAFF COSTS")]));
+    COST_LINES.filter(l => l.group === "staff").forEach(l => out.push(rw([cS(l.name)].concat(years.map(y => cN(Math.round(projCost(l, y, mm))))))));
+    out.push(rw([cS("Total staff costs")].concat(years.map(y => cN(Math.round(yearKpis(y, mm).staffTotal))))));
+    out.push(rw([cS("OTHER OPERATING COSTS")]));
+    COST_LINES.filter(l => l.group === "operating").forEach(l => out.push(rw([cS(l.name)].concat(years.map(y => cN(Math.round(projCost(l, y, mm))))))));
+    out.push(rw([cS("Total other operating costs")].concat(years.map(y => cN(Math.round(yearKpis(y, mm).opTotal))))));
+    if (years.some(y => y >= 2028)) out.push(rw([cS("Cost of revenue growth")].concat(years.map(y => cN(Math.round(yearKpis(y, mm).marginalCost))))));
+    out.push(rw([cS("TOTAL OPERATING COSTS")].concat(years.map(y => cN(Math.round(yearKpis(y, mm).operatingCost))))));
+    out.push(rw([cS("OPERATING SURPLUS (contribution)")].concat(years.map(y => cN(Math.round(yearKpis(y, mm).contribution))))));
+    out.push(rw([cS("less University service charge")].concat(years.map(y => cN(Math.round(uniFor(y, mm)))))));
+    out.push(rw([cS("less University loan repayment")].concat(years.map(y => cN(Math.round(loanFor(y, mm)))))));
+    out.push(rw([cS("NET SURPLUS")].concat(years.map(y => cN(Math.round(yearKpis(y, mm).net))))));
+    out.push(rw([cS("Net surplus %")].concat(years.map(y => cN(Number(yearKpis(y, mm).netPct.toFixed(1)))))));
+    return out;
+  };
+
+  /* ---- 1. Goal ---- */
+  const tgt = nv(m.targetPct, 7.5);
+  const s1 = [
+    rw([cS("STEP 1 — GOAL")]), blank(),
+    rw([cS("Net operating surplus target by July 2030"), cN(Number(tgt.toFixed(1))), cS("%")]), blank(),
+    rw([cS("Target path"), cS("2027/28"), cS("2028/29"), cS("2029/30")]),
+    rw([cS("Net surplus % target"), cN(Number(tp[2028].toFixed(1))), cN(Number(tp[2029].toFixed(1))), cN(Number(tp[2030].toFixed(1)))]),
+  ];
+
+  /* ---- 2. Current position ---- */
+  const s2 = [rw([cS("STEP 2 — CURRENT POSITION (£k)")]), blank()].concat(plBlock(m, [2026, 2027]));
+
+  /* ---- 3. Trajectory: rates + assumptions + resulting P&L ---- */
+  const ro = getRateOverrides(m);
+  const s3 = [rw([cS("STEP 3 — TRAJECTORY")]), blank(),
+    rw([cS("Forward growth rate per income line (midpoint of FBaM trend and sector)")]),
+    rw([cS("Income line"), cS("Rate % / yr"), cS("Basis")])];
+  REV_LINES.forEach(l => {
+    if (l.kind === "ending") { s3.push(rw([cS(l.name), cS("ends → 0"), cS("winding down")])); return; }
+    if (l.kind === "fixed")  { s3.push(rw([cS(l.name), cN(0), cS("fixed price")])); return; }
+    if (l.kind === "new")    { s3.push(rw([cS(l.name), cS("set in Step 6"), cS("new stream")])); return; }
+    const stored = ro[l.id];
+    const rate = (stored !== undefined && stored !== "") ? nv(stored) : defaultRate(l, m);
+    s3.push(rw([cS(l.name), cN(Number(rate.toFixed(1))), cS(stored !== undefined && stored !== "" ? "edited" : "midpoint default")]));
+  });
+  s3.push(blank());
+  s3.push(rw([cS("Cost inflation (per year, from 2028)"), cN(nv(m.inflationPct, DEFAULT_INFLATION)), cS("%")]));
+  s3.push(rw([cS("Cost of revenue growth"), cN(nv(m.marginalCostPct, DEFAULT_MARGINAL)), cS("% of growth above budget")]));
+  s3.push(blank());
+  s3.push(rw([cS("Resulting P&L on this trajectory")]));
+  /* trajectory-only P&L: ignore §6 postures and §7 overrides */
+  const trajM = { ...m, posture: {}, _ignoreRevOverride: true };
+  plBlock(trajM, yrs).forEach(r => s3.push(r));
+
+  /* ---- 4. Who we serve ---- */
+  const s4 = [rw([cS("STEP 4 — WHO WE SERVE")]), blank(),
+    rw([cS("Stakeholder group"), cS("Importance (1–9)")])];
+  const customG = m.customGroups || [];
+  [...PURPOSE_GROUPS, ...customG].forEach(g => s4.push(rw([cS(g), cN(nv(m.purposeGroups?.[g], DEFAULT_GROUP_SCORES[g] || 5))])));
+
+  /* ---- 5. Positioning ---- */
+  const s5 = [rw([cS("STEP 5 — POSITIONING")]), blank(),
+    rw([cS("Dimension"), cS("Left"), cS("Right"), cS("Position (0=left, 100=right)")])];
+  PURPOSE_TENSIONS.forEach(x => s5.push(rw([cS(x.desc), cS(x.l), cS(x.r), cN(nv(m.purposeTensions?.[x.key], DEFAULT_TENSIONS[x.key]))])));
+
+  /* ---- 6. Changes: posture per line + new streams ---- */
+  const s6 = [rw([cS("STEP 6 — CHANGES")]), blank(),
+    rw([cS("Income line"), cS("Posture")])];
+  REV_LINES.filter(l => l.kind === "normal").forEach(l => {
+    const pid = m.posture?.[l.id]; const lab = pid ? POSTURE_BY_ID[pid].label : "Trajectory (no change)";
+    s6.push(rw([cS(l.name), cS(lab)]));
+  });
+  s6.push(blank());
+  s6.push(rw([cS("New / target streams")]));
+  s6.push(rw([cS("Micro-credentials target by 2030"), cN(Math.round(projRev(REV_LINES.find(l => l.id === "micro_cred"), 2030, m))), cS("£k")]));
+  (m.customRev || []).forEach(c => s6.push(rw([cS(c.name + " (new)"), cN(Math.round(nv(m.newTarget?.[c.id], 0))), cS("£k by 2030")])));
+
+  /* ---- 7. Yearly P&L ---- */
+  const s7 = [rw([cS("STEP 7 — YEARLY P&L (£k)")]), blank()].concat(plBlock(m, yrs));
+  s7.push(rw([cS("Target path %")].concat(yrs.map(y => (y === 2026 ? cS("") : cN(Number(tp[y].toFixed(1))))))));
+
+  /* ---- 8. Theme P&L ---- */
+  const k30 = yearKpis(2030, m);
+  const s8 = [rw([cS("STEP 8 — THEME P&L (July 2030, £k)")]), blank(),
+    rw([cS("Theme"), cS("% of activity"), cS("Revenue"), cS("Op. cost"), cS("Contribution")])];
+  THEME_DATA.forEach(t => { const pc = nv(m.themePct?.[t.id], t.defPct); const r = k30.revTotal * pc / 100, c = k30.operatingCost * pc / 100; s8.push(rw([cS(t.name), cN(pc), cN(Math.round(r)), cN(Math.round(c)), cN(Math.round(r - c))])); });
+
+  /* ---- 9. Finalise / Summary ---- */
   const ccL = REV_LINES.find(l => l.id === "ced_custom"), opL = REV_LINES.find(l => l.id === "open"), mcL = REV_LINES.find(l => l.id === "micro_cred");
   const cagr = (l) => { const b = resolveBase(m.baseRev, l).bud, v = projRev(l, 2030, m); return (b > 0 && v > 0) ? Number((Math.pow(v / b, 1 / 3) * 100 - 100).toFixed(1)) : null; };
-  const sm = [];
-  sm.push(row([cS("FBaM FINANCIAL SCENARIO — SUMMARY")]));
-  sm.push(row([cS(`Session: ${STORE.sessionId || "—"}`), cS(""), cS(`Exported: ${new Date().toLocaleDateString("en-GB")}`)]));
-  sm.push(row([cS("Snapshot of the scenario as solved. Figures subject to confirmation by the Finance Director.")]));
-  sm.push(row([cS("")]));
-  sm.push(row([cS("Target net surplus by 2030"), cN(Number(tgt.toFixed(1))), cS("%")]));
-  sm.push(row([cS("")]));
-  sm.push(row([cS(""), cS("2027/28"), cS("2028/29"), cS("2029/30")]));
-  sm.push(row([cS("Net surplus %"), ...EST.map(y => cN(Number(yearKpis(y, m).netPct.toFixed(1))))]));
-  sm.push(row([cS("Target path %"), ...EST.map(y => cN(Number(tp[y].toFixed(1))))]));
-  sm.push(row([cS("Net surplus £k"), ...EST.map(y => cN(Math.round(yearKpis(y, m).net)))]));
-  sm.push(row([cS("")]));
-  sm.push(row([cS("Required growth (CAGR 2026/27 → 2029/30)")]));
-  sm.push(row([cS("CED Customised"), cagr(ccL) !== null ? cN(cagr(ccL)) : cS("—"), cS("% / yr")]));
-  sm.push(row([cS("Open Programmes"), cagr(opL) !== null ? cN(cagr(opL)) : cS("—"), cS("% / yr")]));
-  sm.push(row([cS("Micro-credentials"), cS("£0 → £" + Math.round(projRev(mcL, 2030, m)) + "k")]));
+  const EST = [2028, 2029, 2030];
+  const s9 = [
+    rw([cS("STEP 9 — SUMMARY")]),
+    rw([cS(`Session: ${STORE.sessionId || "—"}`), cS(""), cS(`Exported: ${new Date().toLocaleDateString("en-GB")}`)]),
+    rw([cS("Figures subject to confirmation by the Finance Director.")]), blank(),
+    rw([cS("Target net surplus by 2030"), cN(Number(tgt.toFixed(1))), cS("%")]), blank(),
+    rw([cS(""), cS("2027/28"), cS("2028/29"), cS("2029/30")]),
+    rw([cS("Net surplus %")].concat(EST.map(y => cN(Number(yearKpis(y, m).netPct.toFixed(1)))))),
+    rw([cS("Target path %")].concat(EST.map(y => cN(Number(tp[y].toFixed(1)))))),
+    rw([cS("Net surplus £k")].concat(EST.map(y => cN(Math.round(yearKpis(y, m).net))))), blank(),
+    rw([cS("Required growth (CAGR 2026/27 → 2029/30)")]),
+    rw([cS("CED Customised"), cagr(ccL) !== null ? cN(cagr(ccL)) : cS("—"), cS("% / yr")]),
+    rw([cS("Open Programmes"), cagr(opL) !== null ? cN(cagr(opL)) : cS("—"), cS("% / yr")]),
+    rw([cS("Micro-credentials"), cS("£0 → £" + Math.round(projRev(mcL, 2030, m)) + "k")]),
+  ];
 
-  /* ---- Yearly P&L (values) ---- */
-  const pl = [];
-  pl.push(row([cS("FBaM Scenario — Yearly P&L (£k)")]));
-  pl.push(row([cS("Estimate years 2027/28–2029/30 marked *.")]));
-  pl.push(row([cS("")]));
-  pl.push(row([cS("Line (£k)"), ...yrs.map(y => cS(COL_LABEL[y] + (IS_ACTUAL[y] ? "" : " *")))]));
-  pl.push(row([cS("INCOME")]));
-  revLinesFor(m).forEach(l => pl.push(row([cS(l.name + (l.custom ? " (new)" : "")), ...yrs.map(y => cN(Math.round(projRev(l, y, m))))])));
-  pl.push(row([cS("Total income"), ...yrs.map(y => cN(Math.round(yearKpis(y, m).revTotal)))]));
-  pl.push(row([cS("STAFF COSTS")]));
-  COST_LINES.filter(l => l.group === "staff").forEach(l => pl.push(row([cS(l.name), ...yrs.map(y => cN(Math.round(projCost(l, y, m))))])));
-  pl.push(row([cS("Total staff costs"), ...yrs.map(y => cN(Math.round(yearKpis(y, m).staffTotal)))]));
-  pl.push(row([cS("OTHER OPERATING COSTS")]));
-  COST_LINES.filter(l => l.group === "operating").forEach(l => pl.push(row([cS(l.name), ...yrs.map(y => cN(Math.round(projCost(l, y, m))))])));
-  pl.push(row([cS("Total other operating costs"), ...yrs.map(y => cN(Math.round(yearKpis(y, m).opTotal)))]));
-  pl.push(row([cS("Cost of revenue growth"), ...yrs.map(y => cN(Math.round(yearKpis(y, m).marginalCost)))]));
-  pl.push(row([cS("TOTAL OPERATING COSTS"), ...yrs.map(y => cN(Math.round(yearKpis(y, m).operatingCost)))]));
-  pl.push(row([cS("OPERATING SURPLUS (contribution)"), ...yrs.map(y => cN(Math.round(yearKpis(y, m).contribution)))]));
-  pl.push(row([cS("less University service charge"), ...yrs.map(y => cN(Math.round(uniFor(y, m))))]));
-  pl.push(row([cS("less University loan repayment"), ...yrs.map(y => cN(Math.round(loanFor(y, m))))]));
-  pl.push(row([cS("NET SURPLUS"), ...yrs.map(y => cN(Math.round(yearKpis(y, m).net)))]));
-  pl.push(row([cS("Net surplus %"), ...yrs.map(y => cN(Number(yearKpis(y, m).netPct.toFixed(1))))]));
-  pl.push(row([cS("Target path %"), ...yrs.map(y => (y === 2026 ? cS("") : cN(Number(tp[y].toFixed(1)))))]));
-
-  /* ---- Assumptions (values) ---- */
-  const as = [];
-  as.push(row([cS("FBaM Scenario — Assumptions")]));
-  as.push(row([cS("")]));
-  as.push(row([cS("Driver"), cS("Value"), cS("Unit")]));
-  as.push(row([cS("Cost inflation (per year, from 2028)"), cN(nv(m.inflationPct, DEFAULT_INFLATION)), cS("%")]));
-  as.push(row([cS("Marginal cost of revenue growth"), cN(nv(m.marginalCostPct, DEFAULT_MARGINAL)), cS("% of growth above budget")]));
-  as.push(row([cS("2026/27 total revenue (budget)"), cN(Math.round(budgetRevTotal(m))), cS("£k")]));
-  as.push(row([cS("")]));
-  as.push(row([cS("Service charge (TRAC) by year")]));
-  yrs.forEach(y => as.push(row([cS(COL_LABEL[y]), cN(Math.round(uniFor(y, m))), cS("£k")])));
-  as.push(row([cS("")]));
-  as.push(row([cS("Loan repayment by year")]));
-  yrs.forEach(y => as.push(row([cS(COL_LABEL[y]), cN(Math.round(loanFor(y, m))), cS("£k")])));
-
-  /* ---- Current position ---- */
-  const cu = [];
-  cu.push(row([cS("FBaM — Current position (£k)")]));
-  cu.push(row([cS("")]));
-  cu.push(row([cS("Line"), cS("Q3 25/26"), cS("Budget 26/27")]));
-  cu.push(row([cS("INCOME")]));
-  REV_LINES.forEach(l => { const b = resolveBase(m.baseRev, l); cu.push(row([cS(l.name), cN(Math.round(b.q3)), cN(Math.round(b.bud))])); });
-  cu.push(row([cS("Total income"), cN(Math.round(yearKpis(2026, m).revTotal)), cN(Math.round(yearKpis(2027, m).revTotal))]));
-  cu.push(row([cS("STAFF COSTS")]));
-  COST_LINES.filter(l => l.group === "staff").forEach(l => { const b = resolveBase(m.baseCost, l); cu.push(row([cS(l.name), cN(Math.round(b.q3)), cN(Math.round(b.bud))])); });
-  cu.push(row([cS("OTHER OPERATING COSTS")]));
-  COST_LINES.filter(l => l.group === "operating").forEach(l => { const b = resolveBase(m.baseCost, l); cu.push(row([cS(l.name), cN(Math.round(b.q3)), cN(Math.round(b.bud))])); });
-  cu.push(row([cS("Total operating costs"), cN(Math.round(yearKpis(2026, m).operatingCost)), cN(Math.round(yearKpis(2027, m).operatingCost))]));
-  cu.push(row([cS("Contribution"), cN(Math.round(yearKpis(2026, m).contribution)), cN(Math.round(yearKpis(2027, m).contribution))]));
-  cu.push(row([cS("less service charge"), cN(Math.round(uniFor(2026, m))), cN(Math.round(uniFor(2027, m)))]));
-  cu.push(row([cS("Net surplus"), cN(Math.round(yearKpis(2026, m).net)), cN(Math.round(yearKpis(2027, m).net))]));
-
-  /* ---- Theme P&L ---- */
-  const k30 = yearKpis(2030, m);
-  const th = [];
-  th.push(row([cS("FBaM — Theme P&L (July 2030, £k)")]));
-  th.push(row([cS("")]));
-  th.push(row([cS("Theme"), cS("% of activity"), cS("Revenue"), cS("Op. cost"), cS("Contribution")]));
-  THEME_DATA.forEach(t => { const pc = nv(m.themePct?.[t.id], t.defPct); const r = k30.revTotal * pc / 100, c = k30.operatingCost * pc / 100; th.push(row([cS(t.name), cN(pc), cN(Math.round(r)), cN(Math.round(c)), cN(Math.round(r - c))])); });
-
+  const wPL = [230, 90, 90, 90, 90, 95];
   const xml =
     '<?xml version="1.0"?>\n<?mso-application progid="Excel.Sheet"?>\n' +
     '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">' +
-    sheet("Summary", sm, [260, 90, 90, 90]) +
-    sheet("Yearly P&L", pl, [230, 90, 90, 90, 90, 95]) +
-    sheet("Assumptions", as, [260, 90, 180]) +
-    sheet("Current position", cu, [240, 100, 100]) +
-    sheet("Theme P&L", th, [210, 95, 90, 90, 95]) +
+    sheet("1. Goal", s1, [320, 90, 80]) +
+    sheet("2. Current position", s2, [240, 100, 100]) +
+    sheet("3. Trajectory", s3, wPL) +
+    sheet("4. Who we serve", s4, [300, 120]) +
+    sheet("5. Positioning", s5, [300, 130, 130, 130]) +
+    sheet("6. Changes", s6, [300, 200, 90]) +
+    sheet("7. Yearly P&L", s7, wPL) +
+    sheet("8. Theme P&L", s8, [210, 95, 90, 90, 95]) +
+    sheet("9. Summary", s9, [260, 90, 90, 90]) +
     '</Workbook>';
 
   const blob = new Blob([xml], { type: "application/vnd.ms-excel" });
@@ -1714,7 +1743,7 @@ function StepFinalise({ m, onBack }) {
         <button className="sl-btn sl-btn-outline" onClick={() => exportWorkbook(m)}>Export to Excel</button>
       </div>
       <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#999", marginTop: -14, marginBottom: 16 }}>
-        The Excel export is a snapshot of the scenario across five tabs (Summary, Yearly P&L, Assumptions, Current position, Theme P&L). It opens in Excel or any spreadsheet app.
+        The Excel export is a snapshot of the whole scenario as nine tabs, one per step (Goal through Summary). It opens in Excel or any spreadsheet app.
       </div>
       <div className="sl-note-box">
         <div style={{ marginBottom: 8, fontWeight: 600, color: "#1a1a1a" }}>Email a copy to yourself</div>
@@ -1764,7 +1793,7 @@ function Workspace({ name, onExit }) {
   return (
     <div className="sl-shell">
       <div className="sl-header">
-        <div className="sl-header-title">STRAWPERSON — FBaM Financial Scenario · shared model <span style={{ color: "#bbb", fontWeight: 400 }}>· build 6.24</span></div>
+        <div className="sl-header-title">STRAWPERSON — FBaM Financial Scenario · shared model <span style={{ color: "#bbb", fontWeight: 400 }}>· build 6.25</span></div>
         <div className="sl-header-right">{name}{m.lastEditedBy && m.lastEditedBy !== name ? ` · last edit: ${m.lastEditedBy}` : ""} &nbsp;·&nbsp;
           <button style={{ background: "none", border: "none", fontSize: 11, color: "#888", cursor: "pointer", textDecoration: "underline" }} onClick={onExit}>Exit</button>
         </div>
