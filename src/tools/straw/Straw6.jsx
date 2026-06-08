@@ -141,6 +141,15 @@ const COST_LINES = [
 /* Below-the-line items that convert the operating (contribution) surplus into
    the fully-loaded net result. Service charge held flat; loan editable. */
 const UNI_CHARGE = { id:"uni_charge", name:"University service charge (TRAC)", q3:8991, bud:8991 };
+/* Management-charge reduction confirmed by the Finance Director (Sarah Tose):
+   apprenticeship completing reduces the charge by £98k in 2026/27 and by £589k
+   from 2027/28; a one-off 5% saving applies to the remainder. These are the
+   DEFAULTS — the service-charge cells remain fully editable, and an explicit
+   edit overrides the default for that year.
+     2026/27: (8991 − 98) × 0.95 = 8448
+     2027/28+: (8991 − 589) × 0.95 = 7982
+   2025/26 (Q3 actual) is historical and unchanged at 8991.                      */
+const DEFAULT_UNI_BY_YEAR = { 2026: 8991, 2027: 8448, 2028: 7982, 2029: 7982, 2030: 7982 };
 const LOAN        = { id:"loan",       name:"University loan repayment",        q3:0,    bud:0    };
 
 const STAFF_IDS     = COST_LINES.filter(l => l.group === "staff").map(l => l.id);
@@ -250,8 +259,9 @@ function uniFor(yr, m) {
   const ov = m.uniByYear?.[yr];
   if (ov !== undefined && ov !== "") return nv(ov);
   const o = m.baseUni || {};
-  if (yr === 2026) return o.q3 !== undefined && o.q3 !== "" ? nv(o.q3) : UNI_CHARGE.q3;
-  return o.bud !== undefined && o.bud !== "" ? nv(o.bud) : UNI_CHARGE.bud;
+  if (yr === 2026) return o.q3 !== undefined && o.q3 !== "" ? nv(o.q3) : DEFAULT_UNI_BY_YEAR[2026];
+  if (o.bud !== undefined && o.bud !== "") return nv(o.bud);
+  return DEFAULT_UNI_BY_YEAR[yr] !== undefined ? DEFAULT_UNI_BY_YEAR[yr] : UNI_CHARGE.bud;
 }
 const loanFor = (yr, m) => nv(m.loanByYear?.[yr], 0);
 
@@ -369,10 +379,13 @@ function solveYear(yr, m, targetPct) {
   const wsum = strength.ced_custom + strength.open || 1;
   let custom = Math.max(0, remain * strength.ced_custom / wsum);
   let open   = Math.max(0, remain * strength.open / wsum);
-  /* Open has less headroom than Customised — cap it at 60% of Customised, pushing
-     the excess onto Customised. Keep custom + open = remain so the total still
-     meets the target exactly: if open > 0.6·custom, set open = 0.6·(remain/1.6).  */
-  const OPEN_MAX_RATIO = 0.6;
+  /* Open is harder to scale than Customised (open-enrolment depends on filling
+     cohorts you don't control), so Customised carries the larger share of growth.
+     Cap Open at 50% of Customised, pushing the excess onto Customised. Keep
+     custom + open = remain so the total still meets the target exactly. At this
+     cap, with the FD's lower service charge, Customised lands ~20%/yr and Open
+     ~14%/yr — Customised the dominant engine, Open lower as the tougher line.    */
+  const OPEN_MAX_RATIO = 0.5;
   if (open > OPEN_MAX_RATIO * custom && remain > 0) {
     custom = remain / (1 + OPEN_MAX_RATIO);
     open   = remain - custom;                             /* = 0.6·custom */
@@ -759,6 +772,9 @@ function PLTable({ m, years, editBase = false, editYears = [], onCell, compact =
       </table>
       <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#999" }}>
         {editBase ? "Every figure here is editable — correct any line or the service charge if the numbers have moved." : "Columns marked * are estimates."}
+      </div>
+      <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#999", marginTop: 4 }}>
+        Service charge reflects the management-charge reduction confirmed by the Finance Director: apprenticeship completing reduces it by £98k in 2026/27 and £589k from 2027/28, with a 5% saving on the remainder (£8,448k in 2026/27, £7,982k thereafter, from £8,991k). The cells remain editable.
       </div>
     </div>
   );
@@ -1351,7 +1367,7 @@ function StepYearly({ m, confirmed, onConfirm, onBack }) {
       <div style={{ border: "1px solid #e8d9cc", borderRadius: 8, padding: 16, marginBottom: 18, background: "#fbf3ec" }}>
         <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 20, fontWeight: 600, color: "#1a1a1a" }}>Solved to hit your target</div>
         <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, color: "#777", marginTop: 2, marginBottom: 10 }}>
-          CED Customised and Open Programmes (Open held to 60% of Customised) plus Micro-credentials (ramping to £1,000k) are set to meet {tp[2028]}% / {tp[2029]}% / {tp[2030]}%. Edit any cell to override; change the service charge, loan or inflation and the growth lines re-solve automatically.
+          CED Customised and Open Programmes (Open held to 50% of Customised, as the harder line to scale) plus Micro-credentials (ramping to £1,000k) are set to meet {tp[2028]}% / {tp[2029]}% / {tp[2030]}%. Edit any cell to override; change the service charge, loan or inflation and the growth lines re-solve automatically.
         </div>
         <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, color: "#b87a20", marginBottom: 8 }}>Required annual growth</div>
         <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
@@ -1793,7 +1809,7 @@ function Workspace({ name, onExit }) {
   return (
     <div className="sl-shell">
       <div className="sl-header">
-        <div className="sl-header-title">STRAWPERSON — FBaM Financial Scenario · shared model <span style={{ color: "#bbb", fontWeight: 400 }}>· build 6.25</span></div>
+        <div className="sl-header-title">STRAWPERSON — FBaM Financial Scenario · shared model <span style={{ color: "#bbb", fontWeight: 400 }}>· build 6.27</span></div>
         <div className="sl-header-right">{name}{m.lastEditedBy && m.lastEditedBy !== name ? ` · last edit: ${m.lastEditedBy}` : ""} &nbsp;·&nbsp;
           <button style={{ background: "none", border: "none", fontSize: 11, color: "#888", cursor: "pointer", textDecoration: "underline" }} onClick={onExit}>Exit</button>
         </div>
