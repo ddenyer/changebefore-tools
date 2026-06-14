@@ -141,15 +141,18 @@ const COST_LINES = [
 /* Below-the-line items that convert the operating (contribution) surplus into
    the fully-loaded net result. Service charge held flat; loan editable. */
 const UNI_CHARGE = { id:"uni_charge", name:"University service charge (TRAC)", q3:8991, bud:8991 };
-/* Management-charge reduction confirmed by the Finance Director (Sarah Tose):
-   apprenticeship completing reduces the charge by £98k in 2026/27 and by £589k
-   from 2027/28; a one-off 5% saving applies to the remainder. These are the
-   DEFAULTS — the service-charge cells remain fully editable, and an explicit
-   edit overrides the default for that year.
-     2026/27: (8991 − 98) × 0.95 = 8448
-     2027/28+: (8991 − 589) × 0.95 = 7982
-   2025/26 (Q3 actual) is historical and unchanged at 8991.                      */
-const DEFAULT_UNI_BY_YEAR = { 2026: 8991, 2027: 8448, 2028: 7982, 2029: 7982, 2030: 7982 };
+/* Management charge — FBaM forecast (provisional), recalculated and confirmed by
+   the Finance Director (Sarah Tose). The "Adjusted management charge" is the sum
+   of three components per year — core Management Charge, Building Savings due to
+   relocation, and the remaining Apprenticeship charge (inflation at 3.5% already
+   included). These are the DEFAULTS — the service-charge cells remain fully
+   editable, and an explicit edit overrides the default for that year.
+     25/26 (Q3): 3,601 + 3,237 + 589 = 7,427
+     26/27:      3,727 + 1,195 + 508 = 5,430
+     27/28:      3,857 + 1,237 + 150 = 5,245
+     28/29:      3,992 + 1,281 + 155 = 5,428
+     29/30:      4,132 + 1,325 +   0 = 5,458                                       */
+const DEFAULT_UNI_BY_YEAR = { 2026: 7427, 2027: 5430, 2028: 5245, 2029: 5428, 2030: 5458 };
 const LOAN        = { id:"loan",       name:"University loan repayment",        q3:0,    bud:0    };
 
 const STAFF_IDS     = COST_LINES.filter(l => l.group === "staff").map(l => l.id);
@@ -263,7 +266,17 @@ function uniFor(yr, m) {
   if (o.bud !== undefined && o.bud !== "") return nv(o.bud);
   return DEFAULT_UNI_BY_YEAR[yr] !== undefined ? DEFAULT_UNI_BY_YEAR[yr] : UNI_CHARGE.bud;
 }
-const loanFor = (yr, m) => nv(m.loanByYear?.[yr], 0);
+/* FBaM's contribution to University loan repayment — staggered to rise with
+   profitability: lighter while the portfolio rebalances, heavier as exec-ed
+   growth matures. £1.5m / £2m / £2.5m across the estimate years (£6m total;
+   none in the Q3/budget base years). DEFAULT — the loan cells remain editable,
+   and an explicit edit overrides the default for that year.                     */
+const DEFAULT_LOAN_BY_YEAR = { 2026: 0, 2027: 0, 2028: 1500, 2029: 2000, 2030: 2500 };
+const loanFor = (yr, m) => {
+  const ov = m.loanByYear?.[yr];
+  if (ov !== undefined && ov !== "") return nv(ov);
+  return DEFAULT_LOAN_BY_YEAR[yr] !== undefined ? DEFAULT_LOAN_BY_YEAR[yr] : 0;
+};
 
 /* Budget-year total revenue (the baseline above which growth carries marginal cost) */
 const budgetRevTotal = (m) => revLinesFor(m).reduce((s, l) => s + projRev(l, 2027, m), 0);
@@ -774,7 +787,7 @@ function PLTable({ m, years, editBase = false, editYears = [], onCell, compact =
         {editBase ? "Every figure here is editable — correct any line or the service charge if the numbers have moved." : "Columns marked * are estimates."}
       </div>
       <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#999", marginTop: 4 }}>
-        Service charge reflects the management-charge reduction confirmed by the Finance Director: apprenticeship completing reduces it by £98k in 2026/27 and £589k from 2027/28, with a 5% saving on the remainder (£8,448k in 2026/27, £7,982k thereafter, from £8,991k). The cells remain editable.
+        Service charge reflects the management charge confirmed by the Finance Director (FBaM forecast, provisional): the adjusted charge — core management charge plus building savings from relocation, less the reducing apprenticeship element — is £5,430k in 2026/27, then £5,245k / £5,428k / £5,458k across the estimate years (£7,427k in the Q3 position). The cells remain editable.
       </div>
     </div>
   );
@@ -1809,7 +1822,7 @@ function Workspace({ name, onExit }) {
   return (
     <div className="sl-shell">
       <div className="sl-header">
-        <div className="sl-header-title">STRAWPERSON — FBaM Financial Scenario · shared model <span style={{ color: "#bbb", fontWeight: 400 }}>· build 6.27</span></div>
+        <div className="sl-header-title">STRAWPERSON — FBaM Financial Scenario · shared model <span style={{ color: "#bbb", fontWeight: 400 }}>· build 6.29</span></div>
         <div className="sl-header-right">{name}{m.lastEditedBy && m.lastEditedBy !== name ? ` · last edit: ${m.lastEditedBy}` : ""} &nbsp;·&nbsp;
           <button style={{ background: "none", border: "none", fontSize: 11, color: "#888", cursor: "pointer", textDecoration: "underline" }} onClick={onExit}>Exit</button>
         </div>
