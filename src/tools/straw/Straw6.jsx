@@ -826,13 +826,6 @@ function PLTable({ m, years, editBase = false, editYears = [], onCell, compact =
             {yr(y => { const k = yearKpis(y, m); return `${fmtK(k.net)}  (${k.netPct.toFixed(1)}%)`; })}
             {cagrCell(yearKpis(2027, m).net, yearKpis(2030, m).net)}
           </tr>
-          <tr className="below"><td>less University loan repayment</td>{years.map(y => uniLoanCell("loan", y))}{showCagr && <td />}</tr>
-          <tr className="below" style={{ fontWeight: 700 }}>
-            <td>Surplus after loan repayment</td>
-            {yr(y => { const k = yearKpis(y, m); const neg = k.netAfterLoan < 0;
-              return <span style={{ color: neg ? "#b83232" : "#1a1a1a" }}>{`${fmtK(k.netAfterLoan)}  (${k.netAfterLoanPct.toFixed(1)}%)`}{neg ? "  ⚠" : ""}</span>; })}
-            {showCagr && <td />}
-          </tr>
           {targetRows && (() => {
             const tp = targetRows;   /* targetPath object passed in */
             return (<>
@@ -853,6 +846,13 @@ function PLTable({ m, years, editBase = false, editYears = [], onCell, compact =
                   const k = yearKpis(y, m); const gapK = k.revTotal * tp[y] / 100 - k.net;
                   return <td key={y} className="mono" style={{ color: gapK <= 0 ? "#2d7d46" : "#b83232" }}>{gapK <= 0 ? "met ✓" : fmtK(gapK)}</td>;
                 })}
+                {showCagr && <td />}
+              </tr>
+              <tr><td colSpan={years.length + 1 + (showCagr ? 1 : 0)} style={{ height: 10, border: "none", background: "transparent" }} /></tr>
+              <tr className="below"><td>less University loan repayment</td>{years.map(y => uniLoanCell("loan", y))}{showCagr && <td />}</tr>
+              <tr className="net"><td>Surplus after loan repayment</td>
+                {yr(y => { const k = yearKpis(y, m); const neg = k.netAfterLoan < 0;
+                  return <span style={{ color: neg ? "#b83232" : "#fff" }}>{`${fmtK(k.netAfterLoan)}  (${k.netAfterLoanPct.toFixed(1)}%)`}{neg ? "  ⚠" : ""}</span>; })}
                 {showCagr && <td />}
               </tr>
             </>);
@@ -1955,7 +1955,7 @@ function Workspace({ name, onExit }) {
   return (
     <div className="sl-shell">
       <div className="sl-header">
-        <div className="sl-header-title">STRAWPERSON — FBaM Financial Scenario · shared model <span style={{ color: "#bbb", fontWeight: 400 }}>· build 6.32</span></div>
+        <div className="sl-header-title">STRAWPERSON — FBaM Financial Scenario · shared model <span style={{ color: "#bbb", fontWeight: 400 }}>· build 6.33</span></div>
         <div className="sl-header-right">{name}{m.lastEditedBy && m.lastEditedBy !== name ? ` · last edit: ${m.lastEditedBy}` : ""} &nbsp;·&nbsp;
           <button style={{ background: "none", border: "none", fontSize: 11, color: "#888", cursor: "pointer", textDecoration: "underline" }} onClick={onExit}>Exit</button>
         </div>
