@@ -296,25 +296,68 @@ function yearKpis(yr, m) {
   const contribution  = revTotal - operatingCost;
   const uni   = uniFor(yr, m);
   const loan  = loanFor(yr, m);
-  const net   = contribution - uni - loan;
+  /* NET SURPLUS is measured BEFORE the loan repayment — this is the line the
+     7.5% target applies to. The loan is a separate call on that surplus and is
+     deducted below, giving the surplus after loan repayment.                     */
+  const net   = contribution - uni;
   const netPct = revTotal > 0 ? net / revTotal * 100 : 0;
+  const netAfterLoan = net - loan;
+  const netAfterLoanPct = revTotal > 0 ? netAfterLoan / revTotal * 100 : 0;
   const contribPct = revTotal > 0 ? contribution / revTotal * 100 : 0;
-  return { revTotal, staffTotal, opTotal, baseCost, marginalCost, operatingCost, contribution, contribPct, uni, loan, net, netPct };
+  return { revTotal, staffTotal, opTotal, baseCost, marginalCost, operatingCost, contribution, contribPct, uni, loan, net, netPct, netAfterLoan, netAfterLoanPct };
 }
 
 /* Target path: linear from 2027 net% to the 2030 target */
 function targetPath(m) {
   const tgt = nv(m.targetPct, 7.5);
-  const k27 = yearKpis(2027, m).netPct;
+  /* The target is the pre-loan net surplus the plan aims to hold. Earlier this
+     interpolated from the budget-year surplus down to the target, but with the
+     reduced management charge the budget year already sits well above target, so
+     a descending path would ask the surplus to FALL. Instead the target is a
+     flat floor across the estimate years: the solver holds the pre-loan surplus
+     at the target each year (the loan is then deducted below this line).         */
   return {
-    2027: round1(k27),
-    2028: round1(k27 + (tgt - k27) * (1 / 3)),
-    2029: round1(k27 + (tgt - k27) * (2 / 3)),
+    2027: round1(yearKpis(2027, m).netPct),
+    2028: round1(tgt),
+    2029: round1(tgt),
     2030: round1(tgt),
   };
 }
 
 const surplusColor = v => v >= 0 ? "#2d7d46" : "#b83232";
+
+/* What Customised and Open would need to be to hold the target AFTER the loan
+   as well (not just on the pre-loan operating surplus). Returns, per estimate
+   year, the after-loan required values and the extra over the pre-loan plan,
+   plus the 2030 CAGRs. Used for the "additional growth to service the loan"
+   panel shown below the P&L.                                                     */
+function loanGrowthRequirement(m) {
+  const tp = targetPath(m);
+  const pre = solvedModel(m);
+  const c = marginalRate(m) / 100, B = budgetRevTotal(m);
+  const out = { years: {}, cagr: {} };
+  [2028, 2029, 2030].forEach(yr => {
+    const baseCost = COST_LINES.reduce((s, l) => s + projCost(l, yr, m), 0);
+    const uni = uniFor(yr, m), loan = loanFor(yr, m), g = tp[yr] / 100;
+    let R = (baseCost - c * B + uni + loan) / (1 - c - g);
+    if (R <= B) R = (baseCost + uni + loan) / (1 - g);
+    const baselineOthers = revLinesFor(m).filter(l => !SOLVE_LINES.includes(l.id))
+      .reduce((s, l) => s + projRevTrajectory(l, yr, m), 0);
+    const micro = microFor(yr, m);
+    const remain = Math.max(0, R - baselineOthers - micro);
+    const custom = remain / 1.5, open = remain - custom;       /* same 50% cap split */
+    out.years[yr] = {
+      custom, open,
+      extraCustom: custom - (pre.rev[yr]?.ced_custom || 0),
+      extraOpen: open - (pre.rev[yr]?.open || 0),
+    };
+  });
+  const cBud = 5700, oBud = 3326;
+  const c30 = out.years[2030].custom, o30 = out.years[2030].open;
+  out.cagr.custom = (cBud > 0 && c30 > 0) ? round1((Math.pow(c30 / cBud, 1 / 3) - 1) * 100) : null;
+  out.cagr.open   = (oBud > 0 && o30 > 0) ? round1((Math.pow(o30 / oBud, 1 / 3) - 1) * 100) : null;
+  return out;
+}
 
 /* ── SOLVE TO TARGET ──────────────────────────────────────────────────────────
    Given the per-year net% targets, find the configuration that hits them by
@@ -379,11 +422,24 @@ function solveYear(yr, m, targetPct) {
   const c = marginalRate(m) / 100;
   const B = budgetRevTotal(m);
   const baseCost = COST_LINES.reduce((s, l) => s + projCost(l, yr, m), 0);
-  const uni = uniFor(yr, m), loan = loanFor(yr, m);
+  const uni = uniFor(yr, m);
   const g = targetPct / 100;
   const denom = 1 - c - g;
   if (denom <= 0) return null;
-  const Rneeded = (baseCost - c * B + uni + loan) / denom;
+  /* The 7.5% target applies to the surplus BEFORE the loan repayment, so the
+     loan is NOT included here — the solver grows revenue to hit target on the
+     pre-loan net surplus; the loan is deducted below that line.
+
+     Marginal cost only applies to revenue ABOVE the budget baseline B (yearKpis
+     clamps it at zero below B). The algebraic Rneeded assumes the marginal term
+     applies, which is only valid when Rneeded ≥ B. Compute that first; if it
+     lands at or below B, there is no growth above budget, so recompute Rneeded
+     with NO marginal cost — net = R − baseCost − uni = g·R → R = (baseCost+uni)/(1−g).
+     This keeps the solver and the P&L in agreement either side of the baseline. */
+  let Rneeded = (baseCost - c * B + uni) / denom;
+  if (Rneeded <= B) {
+    Rneeded = (baseCost + uni) / (1 - g);
+  }
   const lines = revLinesFor(m);
   const baselineOthers = lines.filter(l => !SOLVE_LINES.includes(l.id))
     .reduce((s, l) => s + projRevTrajectory(l, yr, m), 0);
@@ -665,7 +721,7 @@ function NumInput({ value, onChange, min, step = 1, width = 90 }) {
 /* years: year keys to show. editBase: make the Q3+Budget anchor cells editable
    (§2). editYears: estimate years whose cells are editable (§7).
    onCell(kind,yr,id,val): kind = "rev" | "cost" | "uni" | "loan".              */
-function PLTable({ m, years, editBase = false, editYears = [], onCell, compact = false, showCagr = false, targetRows = null }) {
+function PLTable({ m, years, editBase = false, editYears = [], onCell, compact = false, showCagr = false, targetRows = null, loanPanel = false }) {
   const isBaseYr = (yr) => yr === 2026 || yr === 2027;
   const baseCol  = (yr) => yr === 2026 ? "q3" : "bud";
 
@@ -766,10 +822,16 @@ function PLTable({ m, years, editBase = false, editYears = [], onCell, compact =
           </tr>
 
           <tr className="below"><td>less University service charge (TRAC)</td>{years.map(y => uniLoanCell("uni", y))}{showCagr && <td />}</tr>
-          <tr className="below"><td>less University loan repayment</td>{years.map(y => uniLoanCell("loan", y))}{showCagr && <td />}</tr>
           <tr className="net"><td>NET SURPLUS</td>
             {yr(y => { const k = yearKpis(y, m); return `${fmtK(k.net)}  (${k.netPct.toFixed(1)}%)`; })}
             {cagrCell(yearKpis(2027, m).net, yearKpis(2030, m).net)}
+          </tr>
+          <tr className="below"><td>less University loan repayment</td>{years.map(y => uniLoanCell("loan", y))}{showCagr && <td />}</tr>
+          <tr className="below" style={{ fontWeight: 700 }}>
+            <td>Surplus after loan repayment</td>
+            {yr(y => { const k = yearKpis(y, m); const neg = k.netAfterLoan < 0;
+              return <span style={{ color: neg ? "#b83232" : "#1a1a1a" }}>{`${fmtK(k.netAfterLoan)}  (${k.netAfterLoanPct.toFixed(1)}%)`}{neg ? "  ⚠" : ""}</span>; })}
+            {showCagr && <td />}
           </tr>
           {targetRows && (() => {
             const tp = targetRows;   /* targetPath object passed in */
@@ -803,6 +865,54 @@ function PLTable({ m, years, editBase = false, editYears = [], onCell, compact =
       <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#999", marginTop: 4 }}>
         Service charge reflects the management charge confirmed by the Finance Director (FBaM forecast, provisional): the adjusted charge — core management charge plus building savings from relocation, less the reducing apprenticeship element — is £5,430k in 2026/27, then £5,245k / £5,428k / £5,458k across the estimate years (£7,427k in the Q3 position). The cells remain editable.
       </div>
+      {loanPanel && (() => {
+        const lg = loanGrowthRequirement(m);
+        const anyLoan = [2028, 2029, 2030].some(y => loanFor(y, m) > 0);
+        if (!anyLoan) return null;
+        return (
+          <div style={{ marginTop: 18, padding: "14px 16px", background: "#faf6f1", borderLeft: "3px solid #e07030", borderRadius: 4 }}>
+            <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 18, fontWeight: 600, color: "#1a1a1a", marginBottom: 4 }}>
+              Additional growth to service the loan
+            </div>
+            <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12.5, color: "#444", marginBottom: 12, lineHeight: 1.5 }}>
+              The plan above delivers the {nv(m.targetPct, 7.5)}% target on the operating surplus, before loan repayments. Holding {nv(m.targetPct, 7.5)}% <em>after</em> the loan as well would require this further growth in the two main income lines:
+            </div>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "'IBM Plex Mono',monospace", fontSize: 13 }}>
+              <thead>
+                <tr style={{ borderBottom: "1px solid #ddd", textAlign: "right" }}>
+                  <th style={{ textAlign: "left", padding: "4px 8px", fontWeight: 600 }}>£k</th>
+                  <th style={{ padding: "4px 8px", fontWeight: 600 }}>Est 27/28</th>
+                  <th style={{ padding: "4px 8px", fontWeight: 600 }}>Est 28/29</th>
+                  <th style={{ padding: "4px 8px", fontWeight: 600 }}>Est 29/30</th>
+                  <th style={{ padding: "4px 8px", fontWeight: 600 }}>CAGR</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style={{ textAlign: "left", padding: "4px 8px" }}>CED Customised (with loan)</td>
+                  {[2028, 2029, 2030].map(y => <td key={y} style={{ textAlign: "right", padding: "4px 8px" }}>{fmtK(lg.years[y].custom)}</td>)}
+                  <td style={{ textAlign: "right", padding: "4px 8px", color: "#e07030", fontWeight: 600 }}>{lg.cagr.custom != null ? "+" + lg.cagr.custom + "%" : "—"}</td>
+                </tr>
+                <tr>
+                  <td style={{ textAlign: "left", padding: "4px 8px", color: "#888" }}>— extra over operating plan</td>
+                  {[2028, 2029, 2030].map(y => <td key={y} style={{ textAlign: "right", padding: "4px 8px", color: "#888" }}>+{fmtK(lg.years[y].extraCustom)}</td>)}
+                  <td />
+                </tr>
+                <tr>
+                  <td style={{ textAlign: "left", padding: "4px 8px" }}>Open Programmes (with loan)</td>
+                  {[2028, 2029, 2030].map(y => <td key={y} style={{ textAlign: "right", padding: "4px 8px" }}>{fmtK(lg.years[y].open)}</td>)}
+                  <td style={{ textAlign: "right", padding: "4px 8px", color: "#e07030", fontWeight: 600 }}>{lg.cagr.open != null ? "+" + lg.cagr.open + "%" : "—"}</td>
+                </tr>
+                <tr>
+                  <td style={{ textAlign: "left", padding: "4px 8px", color: "#888" }}>— extra over operating plan</td>
+                  {[2028, 2029, 2030].map(y => <td key={y} style={{ textAlign: "right", padding: "4px 8px", color: "#888" }}>+{fmtK(lg.years[y].extraOpen)}</td>)}
+                  <td />
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -1423,7 +1533,7 @@ function StepYearly({ m, confirmed, onConfirm, onBack }) {
         </div>
       </div>
 
-      <PLTable m={liveM} years={YEARS} editYears={EST_YEARS} onCell={onCell} showCagr targetRows={tp} />
+      <PLTable m={liveM} years={YEARS} editYears={EST_YEARS} onCell={onCell} showCagr targetRows={tp} loanPanel />
 
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
         <button className="sl-btn sl-btn-outline" style={{ fontSize: 12, padding: "8px 14px" }} onClick={resetEstimates}>↺ Reset estimate overrides</button>
@@ -1845,7 +1955,7 @@ function Workspace({ name, onExit }) {
   return (
     <div className="sl-shell">
       <div className="sl-header">
-        <div className="sl-header-title">STRAWPERSON — FBaM Financial Scenario · shared model <span style={{ color: "#bbb", fontWeight: 400 }}>· build 6.30</span></div>
+        <div className="sl-header-title">STRAWPERSON — FBaM Financial Scenario · shared model <span style={{ color: "#bbb", fontWeight: 400 }}>· build 6.32</span></div>
         <div className="sl-header-right">{name}{m.lastEditedBy && m.lastEditedBy !== name ? ` · last edit: ${m.lastEditedBy}` : ""} &nbsp;·&nbsp;
           <button style={{ background: "none", border: "none", fontSize: 11, color: "#888", cursor: "pointer", textDecoration: "underline" }} onClick={onExit}>Exit</button>
         </div>
