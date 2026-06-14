@@ -368,6 +368,12 @@ function microFor(yr, m) {
   const v = m.microByYear?.[yr];
   return (v !== undefined && v !== "") ? nv(v) : (MICRO_RAMP[yr] || 0);
 }
+/* Customised and Open are normally solved, but the user may PIN either to a
+   chosen value (customByYear / openByYear). A pinned line is treated as a known
+   input and the remaining lines solve around it to still meet target. Returns
+   null when not pinned (so the solver allocates it).                            */
+function customPin(yr, m) { const v = m.customByYear?.[yr]; return (v !== undefined && v !== "") ? nv(v) : null; }
+function openPin(yr, m)   { const v = m.openByYear?.[yr];   return (v !== undefined && v !== "") ? nv(v) : null; }
 
 function solveYear(yr, m, targetPct) {
   const c = marginalRate(m) / 100;
@@ -382,26 +388,34 @@ function solveYear(yr, m, targetPct) {
   const baselineOthers = lines.filter(l => !SOLVE_LINES.includes(l.id))
     .reduce((s, l) => s + projRevTrajectory(l, yr, m), 0);
 
-  /* Micro-credentials is a user input — the group sets it (defaults to the
-     300/600/1000 ramp). Whatever it is, it supplies a known amount and the
-     remaining need is split between Customised and Open, so the total still
-     meets the target exactly.                                                    */
   const micro = microFor(yr, m);
-  const remain = Rneeded - baselineOthers - micro;        /* Customised + Open must supply this */
-  const strength = solveStrength(m);
-  const wsum = strength.ced_custom + strength.open || 1;
-  let custom = Math.max(0, remain * strength.ced_custom / wsum);
-  let open   = Math.max(0, remain * strength.open / wsum);
-  /* Open is harder to scale than Customised (open-enrolment depends on filling
-     cohorts you don't control), so Customised carries the larger share of growth.
-     Cap Open at 50% of Customised, pushing the excess onto Customised. Keep
-     custom + open = remain so the total still meets the target exactly. At this
-     cap, with the FD's lower service charge, Customised lands ~20%/yr and Open
-     ~14%/yr — Customised the dominant engine, Open lower as the tougher line.    */
-  const OPEN_MAX_RATIO = 0.5;
-  if (open > OPEN_MAX_RATIO * custom && remain > 0) {
-    custom = remain / (1 + OPEN_MAX_RATIO);
-    open   = remain - custom;                             /* = 0.6·custom */
+  const cPin = customPin(yr, m), oPin = openPin(yr, m);
+
+  /* Any line the user has pinned is a known amount; only the UNPINNED lines among
+     {Customised, Open} solve to fill the remaining need, so the total still meets
+     target when at least one is free. If BOTH are pinned, the surplus simply
+     lands where those values put it (the user has taken full manual control).    */
+  const knownPinned = (cPin || 0) + (oPin || 0);
+  const remain = Rneeded - baselineOthers - micro - knownPinned;
+
+  let custom, open;
+  if (cPin !== null && oPin !== null) {
+    custom = cPin; open = oPin;                       /* both pinned: surplus moves off target */
+  } else if (cPin !== null) {
+    custom = cPin; open = Math.max(0, remain);        /* Customised pinned, Open absorbs */
+  } else if (oPin !== null) {
+    open = oPin; custom = Math.max(0, remain);        /* Open pinned, Customised absorbs */
+  } else {
+    /* neither pinned: split by strategic strength, then cap Open at 50% of Customised */
+    const strength = solveStrength(m);
+    const wsum = strength.ced_custom + strength.open || 1;
+    custom = Math.max(0, remain * strength.ced_custom / wsum);
+    open   = Math.max(0, remain * strength.open / wsum);
+    const OPEN_MAX_RATIO = 0.5;
+    if (open > OPEN_MAX_RATIO * custom && remain > 0) {
+      custom = remain / (1 + OPEN_MAX_RATIO);
+      open   = remain - custom;
+    }
   }
   const alloc = { micro_cred: micro, ced_custom: custom, open: open };
   return { Rneeded, alloc, baselineOthers, remain };
@@ -1302,6 +1316,7 @@ function StepYearly({ m, confirmed, onConfirm, onBack }) {
   const [d, patch] = useDraft({
     revOverride: cleanRevOverride(), costOverride: m.costOverride || {},
     loanByYear: m.loanByYear || {}, uniByYear: m.uniByYear || {}, microByYear: m.microByYear || {},
+    customByYear: m.customByYear || {}, openByYear: m.openByYear || {},
     inflationPct: m.inflationPct !== undefined ? m.inflationPct : DEFAULT_INFLATION,
     marginalCostPct: m.marginalCostPct !== undefined ? m.marginalCostPct : DEFAULT_MARGINAL,
   });
@@ -1332,11 +1347,18 @@ function StepYearly({ m, confirmed, onConfirm, onBack }) {
       /* Micro is a user input — set it; Customised & Open re-solve around it. */
       patch({ microByYear: { ...d.microByYear, [yr]: val } }); return;
     }
-    if (kind === "rev" && SOLVE_LINES.includes(id)) return;   /* Customised/Open are solver-controlled */
+    if (kind === "rev" && id === "ced_custom") {
+      /* Pin Customised — Open re-solves around it to still meet target. */
+      patch({ customByYear: { ...d.customByYear, [yr]: val } }); return;
+    }
+    if (kind === "rev" && id === "open") {
+      /* Pin Open — Customised re-solves around it to still meet target. */
+      patch({ openByYear: { ...d.openByYear, [yr]: val } }); return;
+    }
     const key = kind === "rev" ? "revOverride" : "costOverride";
     patch({ [key]: { ...d[key], [yr]: { ...(d[key][yr] || {}), [id]: val } } });
   };
-  const resetEstimates = () => { setSaved(false); patch({ revOverride: {}, costOverride: {}, uniByYear: {}, microByYear: {} }); };
+  const resetEstimates = () => { setSaved(false); patch({ revOverride: {}, costOverride: {}, uniByYear: {}, microByYear: {}, customByYear: {}, openByYear: {} }); };
 
   /* Save the SOLVED growth-line values into revOverride so every downstream view
      (Theme P&L, printed/emailed summary) shows the on-target solved figures —
@@ -1346,6 +1368,7 @@ function StepYearly({ m, confirmed, onConfirm, onBack }) {
      ever the last solve, never an override that fights a new solve.              */
   const commit = () => mSave({
     revOverride: solvedRev, costOverride: d.costOverride, loanByYear: d.loanByYear, uniByYear: d.uniByYear, microByYear: d.microByYear,
+    customByYear: d.customByYear, openByYear: d.openByYear,
     inflationPct: nv(d.inflationPct, DEFAULT_INFLATION), marginalCostPct: nv(d.marginalCostPct, DEFAULT_MARGINAL),
     manualGrowth: undefined, step7Confirmed: true,
   });
@@ -1822,7 +1845,7 @@ function Workspace({ name, onExit }) {
   return (
     <div className="sl-shell">
       <div className="sl-header">
-        <div className="sl-header-title">STRAWPERSON — FBaM Financial Scenario · shared model <span style={{ color: "#bbb", fontWeight: 400 }}>· build 6.29</span></div>
+        <div className="sl-header-title">STRAWPERSON — FBaM Financial Scenario · shared model <span style={{ color: "#bbb", fontWeight: 400 }}>· build 6.30</span></div>
         <div className="sl-header-right">{name}{m.lastEditedBy && m.lastEditedBy !== name ? ` · last edit: ${m.lastEditedBy}` : ""} &nbsp;·&nbsp;
           <button style={{ background: "none", border: "none", fontSize: 11, color: "#888", cursor: "pointer", textDecoration: "underline" }} onClick={onExit}>Exit</button>
         </div>
