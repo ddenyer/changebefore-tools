@@ -7,6 +7,7 @@
     { "source": "/pace2", "destination": "/pace2.html" },
     { "source": "/engagement", "destination": "/engagement.html" },
     { "source": "/resilience-is", "destination": "/resilience-is.html" },
+    { "source": "/collab", "destination": "/collab.html" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
