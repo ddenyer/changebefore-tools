@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Collaboration &amp; Trust</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<style>
+  :root{
+    --cb-bg:#f0ede8; --cb-text:#1a1a1a; --cb-accent:#e07030; --cb-dark:#1a1a1a;
+    --cb-line:#d9d4cc; --cb-soft:#e7e2da; --cb-muted:#6a655d;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--cb-bg);color:var(--cb-text);
+    font-family:'DM Sans',sans-serif;font-size:17px;line-height:1.5;-webkit-font-smoothing:antialiased}
+  .cb-wrap{max-width:760px;margin:0 auto;padding:0 18px 80px}
+  h1,h2{font-family:'Cormorant Garamond',serif;font-weight:400;line-height:1.1;margin:0}
+  h1{font-size:34px;margin:6px 0 4px}
+  h2{font-size:26px;margin:4px 0}
+  p{margin:8px 0}
+  .cb-muted{color:var(--cb-muted)}
+  .cb-small{font-size:14px}
+  .cb-tiny{font-size:12.5px}
+  .cb-btn{display:inline-flex;align-items:center;justify-content:center;min-height:44px;
+    padding:0 22px;background:var(--cb-accent);color:#fff;border:none;border-radius:4px;
+    font-family:'DM Sans',sans-serif;font-size:16px;font-weight:600;cursor:pointer}
+  .cb-btn:disabled{opacity:.4;cursor:not-allowed}
+  .cb-btn.ghost{background:transparent;color:var(--cb-text);border:1px solid var(--cb-line)}
+  .cb-btn.small{min-height:38px;padding:0 16px;font-size:14px}
+  .cb-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .cb-bar{position:sticky;top:0;z-index:30;background:var(--cb-bg);border-bottom:1px solid var(--cb-line);
+    padding:10px 0;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .cb-you{font-size:13px;font-weight:600}
+  .cb-you span{color:var(--cb-muted);font-weight:500}
+  .cb-help{width:30px;height:30px;border-radius:50%;border:1px solid var(--cb-line);background:transparent;
+    font-weight:600;cursor:pointer;flex:0 0 auto}
+  .cb-prog{height:4px;background:var(--cb-soft);border-radius:3px;overflow:hidden;margin:0 0 16px}
+  .cb-prog>div{height:4px;background:var(--cb-accent);transition:width .25s}
+  .cb-card{background:#fff;border:1px solid var(--cb-line);border-radius:8px;padding:14px;margin:10px 0}
+  .cb-fnrow{border:1px solid var(--cb-line);border-radius:8px;padding:12px;margin:8px 0;background:#fff}
+  .cb-fnname{font-weight:600}
+  .cb-sn{color:var(--cb-muted);font-size:13px;font-weight:500;margin-left:6px}
+  .cb-desc{color:var(--cb-muted);font-size:13.5px;margin-top:2px}
+  .cb-link{background:none;border:none;color:var(--cb-accent);font-size:13px;cursor:pointer;padding:4px 0;font-weight:600}
+  .cb-chip{display:block;width:100%;text-align:left;padding:11px 13px;margin:7px 0;border:1px solid var(--cb-line);
+    border-radius:6px;background:#fff;cursor:pointer;font-size:15.5px;font-family:inherit;color:var(--cb-text)}
+  .cb-chip.on{border-color:var(--cb-accent);background:#fbeee5;box-shadow:inset 0 0 0 1px var(--cb-accent)}
+  .cb-chip:disabled{opacity:.45;cursor:not-allowed}
+  .cb-seg{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+  .cb-seg button{min-width:46px;min-height:42px;border:1px solid var(--cb-line);background:#fff;border-radius:6px;
+    cursor:pointer;font-family:inherit;font-size:15px;font-weight:600;color:var(--cb-text)}
+  .cb-seg button.on{background:var(--cb-accent);border-color:var(--cb-accent);color:#fff}
+  .cb-input{width:100%;padding:11px 13px;border:1px solid var(--cb-line);border-radius:6px;font-size:16px;font-family:inherit;background:#fff}
+  .cb-count{font-size:13px;color:var(--cb-muted)}
+  .cb-foot{position:fixed;left:0;right:0;bottom:0;background:var(--cb-bg);border-top:1px solid var(--cb-line);
+    padding:12px 18px;display:flex;justify-content:space-between;align-items:center;gap:10px;z-index:25}
+  .cb-foot .cb-wrap2{max-width:760px;margin:0 auto;width:100%;display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .cb-modal{position:fixed;inset:0;background:rgba(26,26,26,.55);z-index:50;display:flex;align-items:flex-end;justify-content:center}
+  .cb-sheet{background:var(--cb-bg);width:100%;max-width:760px;max-height:82vh;overflow:auto;border-radius:12px 12px 0 0;padding:18px}
+  .cb-tag{display:inline-block;font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--cb-muted)}
+  .cb-err{background:#fbe6e0;border:1px solid #e7a78f;color:#8a2a10;padding:10px 12px;border-radius:6px;font-size:14px;margin:10px 0}
+  .cb-ok{background:#e7f0e7;border:1px solid #9ec19e;padding:10px 12px;border-radius:6px;font-size:14px;margin:10px 0}
+  .cb-center{text-align:center}
+  .cb-spacer{height:70px}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+
+/* ---------------- Content ---------------- */
+const FUNCTIONS = [
+  { id:'S5', name:'Strategy & Governance', remit:`Organisational purpose, direction and legitimacy. Setting priorities, resolving strategic trade-offs, establishing governance and executive coordination, and stewarding the organisation's public positioning, regulatory posture and reputation. Holding accountability for coherence across the whole system in relation to its environment.` },
+  { id:'S4', name:'Data, Analytics & Insight', remit:`Environmental scanning, performance intelligence, forecasting and organisational learning. Generating insight into demand, trends, external change, context and user experience to inform strategic and operational decisions.` },
+  { id:'S3', name:'Performance, Risk & Assurance', remit:`Organisational regulation and stewardship. Setting standards, monitoring performance, managing risk, providing assurance, and ensuring resources, controls and accountabilities protect outcomes and the organisation's licence to operate.` },
+  { id:'S2', name:'Operations Planning & Coordination', remit:`Translating strategic intent into integrated plans. Coordinating interdependencies, sequencing work, managing handovers and stabilising operational flow across services, including cross-organisational partnerships and coordinated communication across the system.` },
+  { id:'S1', name:'Frontline Service Delivery', remit:`Delivery of core services where users and partners directly experience the organisation. Managing demand, operational realities, service quality, relationships and real-time problem solving. Creating value, trust and insight through everyday interaction.` },
+];
+const FN = {}; FUNCTIONS.forEach(f=>FN[f.id]=f);
+const ORDER = ['S5','S4','S3','S2','S1'];
+
+const PRIORITIES = {
+  S5:[`Setting clear direction and purpose`,`Resolving strategic trade-offs and priorities`,`Protecting legitimacy and licence to operate`,`Stewarding reputation and external positioning`,`Holding the whole system coherent`,`Governance and executive coordination`],
+  S4:[`Scanning the environment for change and risk`,`Forecasting demand and future conditions`,`Generating actionable insight for decisions`,`Understanding user experience and context`,`Driving organisational learning`,`Providing honest performance intelligence`],
+  S3:[`Setting and upholding standards`,`Managing and mitigating risk`,`Providing assurance and control`,`Protecting outcomes and licence to operate`,`Holding clear accountability`,`Stewarding resources responsibly`],
+  S2:[`Translating strategy into integrated plans`,`Coordinating interdependencies across services`,`Managing handovers and sequencing work`,`Stabilising operational flow`,`Sustaining partnerships across the system`,`Keeping communication coordinated`],
+  S1:[`Delivering core services to standard`,`Managing demand and operational reality`,`Protecting service quality`,`Solving problems in real time`,`Building trust through everyday interaction`,`Surfacing what's really happening on the ground`],
+};
+const NEEDS = {
+  S5:[`Clear, stable direction we can plan against`,`A decision when trade-offs are escalated, not endless deferral`,`Backing when we make hard or unpopular calls`,`Protection of our remit and resources against competing demands`,`A public position that matches what actually happens inside`,`A clear purpose we can align our work to`],
+  S4:[`Timely data when we need it, not weeks late`,`Early warning of emerging trends and risks`,`Insight we can act on, not just dashboards`,`Honest analysis, including the inconvenient findings`,`A clear read of demand and what's coming`,`The user reality, not just internal numbers`],
+  S3:[`Proportionate controls, not bureaucracy that blocks delivery`,`Risks flagged early, before they bite`,`Assurance that protects us, not just polices us`,`Clear, consistent accountability — who owns what`,`The resources and authority to do our job safely`,`Support under pressure, not scrutiny after the fact`],
+  S2:[`Clean handovers between us and other services`,`Plans that join up — no clashes or gaps`,`Coordination when our work depends on others`,`Stable, predictable flow, not constant rescheduling`,`One coordinated message across the system`,`Help resolving conflicts between competing demands`],
+  S1:[`The unvarnished picture of what's happening on the ground`,`Early warning when something's going wrong`,`Delivery to the standard we've promised`,`What users and partners actually experience`,`Problems surfaced early, not absorbed until they blow up`,`Real-time problem-solving when things go wrong`],
+};
+const LEVELS = ['Disconnected','Contained','Informed','Consulted','Partnered','System-owned'];
+const CELL = {
+  S5:[`Leadership operates in isolation, protecting strategic space. Information is filtered, challenge is discouraged, and engagement is used to manage perception rather than shape decisions.`,`Strategy is developed within a small senior circle. Interaction with others is limited to cascades, governance forums and escalation.`,`Strategy teams share plans and performance information, and seek views, but problem-framing and trade-offs remain internally owned.`,`Strategic issues are explored jointly with other functions, with shared discussion of risks, options and implications.`,`Strategy and governance are co-shaped with operational, insight and assurance leaders around shared system outcomes.`,`Strategy emerges through persistent system-level forums where authority, evidence and accountability are organised around end-to-end performance.`],
+  S4:[`Insight is controlled and politicised. Data that challenges dominant narratives is downplayed, delayed or withheld.`,`Insight teams work in technical silos, producing outputs that primarily serve their own reporting agendas.`,`Insight teams respond to requests, sharing data and analysis, but rarely shaping questions or collective interpretation.`,`Insight teams work with others to frame questions, interpret findings and explore implications.`,`Insight is co-produced across functions and actively shapes decisions, design and adaptation.`,`Sensing and learning are embedded capabilities, with shared ownership of foresight, feedback and experimentation.`],
+  S3:[`Assurance is defensive and isolating. Information is used to protect positions, shift blame or avoid scrutiny.`,`Assurance operates as a policing function, engaging late and reinforcing separation from delivery.`,`Assurance provides structured challenge and advice, influencing plans and reviews but remaining largely episodic.`,`Risk and assurance work with other functions to anticipate issues and strengthen performance.`,`Assurance is part of cross-system problem-solving, shaping controls, priorities and trade-offs.`,`Risk ownership, control and learning are system properties embedded across everyday work.`],
+  S2:[`Functions plan independently, building local workarounds. Coordination only occurs through crisis management.`,`Planning is function-by-function, with handovers, escalation routes and informal negotiation compensating for weak integration.`,`Plans and dependencies are shared, and coordination forums exist, but integration remains partial.`,`Functions work together to align plans, manage interdependencies and adjust delivery.`,`End-to-end services and flows are co-designed and actively orchestrated.`,`Coordination is an embedded system capability enabling continuous reconfiguration.`],
+  S1:[`Frontline teams work defensively, creating local fixes, withholding issues and absorbing system failures. Others work around them.`,`Frontline teams optimise within their remit, escalating what they cannot solve and relying on workarounds.`,`Frontline teams provide data, feedback and ideas, and receive guidance and support.`,`Frontline leaders work with planners, insight and assurance to jointly improve services.`,`Frontline experience continuously shapes system decisions and redesign.`,`Frontline teams operate with system-level awareness and shared data, using delegated authority to improve services and resolve cross-boundary issues in ways that strengthen whole-system outcomes.`],
+};
+const TRUST = [
+  { id:'credibility', label:'Credibility', q:`Can you trust what they say? Their knowledge, and their honesty.` },
+  { id:'reliability', label:'Reliability', q:`Can you trust what they do? Consistency, and delivery.` },
+  { id:'intimacy',    label:'Intimacy',    q:`Is it safe to be candid with them? To raise problems, disagree, admit fault.` },
+  { id:'stewardship', label:'Stewardship', q:`Under pressure, do they act for the whole system, or just themselves? (Higher = for the whole.)` },
+];
+const BUDGET = 6;
+const LS_KEY = 'cb_collab_v1';
+
+/* ---------------- Helpers ---------------- */
+async function api(path, body){
+  const r = await fetch('/api/'+path, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+  return r.json();
+}
+async function saveWithRetry(payload){
+  const delays=[0,508,2010];
+  for(let a=0;a<3;a++){
+    try{
+      const r=await fetch('/api/collab-save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      if(r.ok) return true;
+    }catch(e){}
+    await new Promise(res=>setTimeout(res,delays[a]));
+  }
+  alert("We couldn't save right now. Please check your connection and try again.");
+  return false;
+}
+function otherFns(myId){ return ORDER.filter(id=>id!==myId); }
+
+/* ---------------- Small components ---------------- */
+function TopBar({ myId, onHelp }){
+  const f = FN[myId];
+  return (
+    <div className="cb-bar">
+      <div className="cb-you">You are: {f? f.name : '—'} {f && <span>· {myId}</span>}</div>
+      <button className="cb-help" onClick={onHelp} aria-label="Function glossary">?</button>
+    </div>
+  );
+}
+function Progress({ pct }){ return <div className="cb-prog"><div style={{width:pct+'%'}}/></div>; }
+function FnRow({ id, children }){
+  const [open,setOpen]=useState(false); const f=FN[id];
+  return (
+    <div className="cb-fnrow">
+      <div><span className="cb-fnname">{f.name}</span><span className="cb-sn">{id}</span></div>
+      <button className="cb-link" onClick={()=>setOpen(o=>!o)}>{open?'Hide':'What this function does'}</button>
+      {open && <div className="cb-desc">{f.remit}</div>}
+      {children}
+    </div>
+  );
+}
+function Glossary({ onClose }){
+  return (
+    <div className="cb-modal" onClick={onClose}>
+      <div className="cb-sheet" onClick={e=>e.stopPropagation()}>
+        <div className="cb-row" style={{justifyContent:'space-between'}}>
+          <h2>The five functions</h2><button className="cb-btn ghost small" onClick={onClose}>Close</button>
+        </div>
+        {ORDER.map(id=>(
+          <div key={id} style={{margin:'12px 0'}}>
+            <div><span className="cb-fnname">{FN[id].name}</span><span className="cb-sn">{id}</span></div>
+            <div className="cb-desc">{FN[id].remit}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+function Foot({ left, right }){
+  return (
+    <div className="cb-foot"><div className="cb-wrap2">
+      <div>{left}</div><div>{right}</div>
+    </div></div>
+  );
+}
+
+/* ---------------- Participant screens ---------------- */
+function Join({ onValidated, onFacilitator }){
+  const [code,setCode]=useState(''); const [err,setErr]=useState(''); const [busy,setBusy]=useState(false);
+  async function go(){
+    setErr(''); setBusy(true);
+    const r=await api('collab-session-validate',{code});
+    setBusy(false);
+    if(!r || !r.ok){ setErr(r && r.reason==='closed' ? 'That session is closed.' : "We couldn't find that session code."); return; }
+    onValidated(r);
+  }
+  return (
+    <div className="cb-wrap">
+      <div className="cb-spacer" style={{height:40}}/>
+      <span className="cb-tag">Collaboration &amp; Trust</span>
+      <h1>Join the workshop</h1>
+      <p className="cb-muted">Enter the session code your facilitator gave you.</p>
+      <input className="cb-input" placeholder="Session code" value={code}
+        onChange={e=>setCode(e.target.value.toUpperCase())} onKeyDown={e=>e.key==='Enter'&&go()} />
+      {err && <div className="cb-err">{err}</div>}
+      <div style={{marginTop:14}}><button className="cb-btn" disabled={!code||busy} onClick={go}>{busy?'Checking…':'Continue'}</button></div>
+      <div style={{marginTop:40}}><button className="cb-link" onClick={onFacilitator}>I'm the facilitator</button></div>
+    </div>
+  );
+}
+
+function PickFunction({ code, systemName, claimed, onClaimed }){
+  const [sel,setSel]=useState(''); const [busy,setBusy]=useState(false); const [err,setErr]=useState(''); const [taken,setTaken]=useState(claimed||[]);
+  async function go(){
+    setErr(''); setBusy(true);
+    const r=await api('collab-claim',{code,fn:sel});
+    setBusy(false);
+    if(r && r.taken){ setErr('That function was just taken. Pick another.'); setTaken(t=>t.includes(sel)?t:[...t,sel]); setSel(''); return; }
+    if(!r || !r.ok){ setErr('Could not claim that function. Try again.'); return; }
+    onClaimed(sel);
+  }
+  return (
+    <div className="cb-wrap">
+      <div className="cb-spacer" style={{height:40}}/>
+      <span className="cb-tag">{systemName}</span>
+      <h1>Which function are you?</h1>
+      <p className="cb-muted">Pick the function your group has been given. Greyed-out ones are already taken.</p>
+      {ORDER.map(id=>{
+        const isTaken=taken.includes(id);
+        return (
+          <button key={id} className={'cb-chip'+(sel===id?' on':'')} disabled={isTaken}
+            onClick={()=>setSel(id)}>
+            <span className="cb-fnname">{FN[id].name}</span><span className="cb-sn">{id}</span>
+            {isTaken && <span className="cb-sn"> — taken</span>}
+          </button>
+        );
+      })}
+      {err && <div className="cb-err">{err}</div>}
+      <div style={{marginTop:14}}><button className="cb-btn" disabled={!sel||busy} onClick={go}>{busy?'…':'Confirm'}</button></div>
+    </div>
+  );
+}
+
+function Priorities({ myId, value, onBack, onNext }){
+  const menu=PRIORITIES[myId];
+  const [picked,setPicked]=useState(value&&value.length?value:[]);
+  const [custom,setCustom]=useState('');
+  function toggle(t){
+    setPicked(p=> p.includes(t)? p.filter(x=>x!==t) : (p.length>=3? p : [...p,t]));
+  }
+  function addCustom(){ const t=custom.trim(); if(t && picked.length<3 && !picked.includes(t)){ setPicked(p=>[...p,t]); setCustom(''); } }
+  const all=[...menu, ...picked.filter(p=>!menu.includes(p))];
+  return (
+    <div className="cb-wrap">
+      <span className="cb-tag">Part 1 · Your function</span>
+      <h2>Your top three priorities</h2>
+      <p className="cb-muted">As {FN[myId].name}, what matters most? Pick three.</p>
+      {all.map(t=>(
+        <button key={t} className={'cb-chip'+(picked.includes(t)?' on':'')}
+          disabled={!picked.includes(t)&&picked.length>=3} onClick={()=>toggle(t)}>{t}</button>
+      ))}
+      <div className="cb-row" style={{marginTop:8}}>
+        <input className="cb-input" style={{flex:1}} placeholder="Add your own…" value={custom}
+          onChange={e=>setCustom(e.target.value)} onKeyDown={e=>e.key==='Enter'&&addCustom()} />
+        <button className="cb-btn ghost small" disabled={!custom.trim()||picked.length>=3} onClick={addCustom}>Add</button>
+      </div>
+      <div className="cb-spacer"/>
+      <Foot left={<button className="cb-btn ghost" onClick={onBack}>Back</button>}
+        right={<span className="cb-row"><span className="cb-count">{picked.length}/3</span>
+          <button className="cb-btn" disabled={picked.length!==3} onClick={()=>onNext(picked)}>Next</button></span>} />
+    </div>
+  );
+}
+
+function Needs({ myId, value, onBack, onNext }){
+  const [picked,setPicked]=useState(value&&value.length?value:[]); // [{target,need}]
+  const [customs,setCustoms]=useState({});
+  const used=picked.length;
+  function has(target,need){ return picked.some(p=>p.target===target&&p.need===need); }
+  function toggle(target,need){
+    setPicked(p=>{
+      if(p.some(x=>x.target===target&&x.need===need)) return p.filter(x=>!(x.target===target&&x.need===need));
+      if(p.length>=BUDGET) return p;
+      return [...p,{target,need}];
+    });
+  }
+  function addCustom(target){
+    const t=(customs[target]||'').trim();
+    if(t && used<BUDGET && !has(target,t)){ setPicked(p=>[...p,{target,need:t}]); setCustoms(c=>({...c,[target]:''})); }
+  }
+  return (
+    <div className="cb-wrap">
+      <span className="cb-tag">Part 1 · Your needs</span>
+      <h2>What you most need from the others</h2>
+      <p className="cb-muted">Across all the other functions, pick up to {BUDGET} — spend them where you most depend. It's fine to need nothing from a function.</p>
+      {otherFns(myId).map(target=>{
+        const menu=NEEDS[target];
+        const extras=picked.filter(p=>p.target===target&&!menu.includes(p.need)).map(p=>p.need);
+        return (
+          <div key={target} className="cb-card">
+            <div><span className="cb-fnname">{FN[target].name}</span><span className="cb-sn">{target}</span></div>
+            {[...menu,...extras].map(need=>(
+              <button key={need} className={'cb-chip'+(has(target,need)?' on':'')}
+                disabled={!has(target,need)&&used>=BUDGET} onClick={()=>toggle(target,need)}>{need}</button>
+            ))}
+            <div className="cb-row" style={{marginTop:6}}>
+              <input className="cb-input" style={{flex:1}} placeholder="Add your own…" value={customs[target]||''}
+                onChange={e=>setCustoms(c=>({...c,[target]:e.target.value}))} onKeyDown={e=>e.key==='Enter'&&addCustom(target)} />
+              <button className="cb-btn ghost small" disabled={!(customs[target]||'').trim()||used>=BUDGET} onClick={()=>addCustom(target)}>Add</button>
+            </div>
+          </div>
+        );
+      })}
+      <div className="cb-spacer"/>
+      <Foot left={<button className="cb-btn ghost" onClick={onBack}>Back</button>}
+        right={<span className="cb-row"><span className="cb-count">{used}/{BUDGET} used</span>
+          <button className="cb-btn" disabled={used===0} onClick={()=>onNext(picked)}>Next</button></span>} />
+    </div>
+  );
+}
+
+function Collaboration({ myId, value, onBack, onNext }){
+  const [val,setVal]=useState(value||{});
+  const [open,setOpen]=useState(null); // {target}
+  const targets=otherFns(myId);
+  const done = targets.every(t=> val[t]!==undefined);
+  return (
+    <div className="cb-wrap">
+      <span className="cb-tag">Part 2 · Collaboration</span>
+      <h2>How does each collaborate with you?</h2>
+      <p className="cb-muted">From where you sit, choose the level that fits each function. Tap a level to see what it means for them.</p>
+      {targets.map(t=>(
+        <div key={t} className="cb-card">
+          <div><span className="cb-fnname">{FN[t].name}</span><span className="cb-sn">{t}</span></div>
+          <div className="cb-seg">
+            {LEVELS.map((lv,i)=>(
+              <button key={i} className={(val[t]===i?'on':'')} onClick={()=>{ setVal(v=>({...v,[t]:i})); setOpen({target:t,level:i}); }}>{i}</button>
+            ))}
+          </div>
+          <div className="cb-tiny cb-muted" style={{marginTop:4}}>0 {LEVELS[0]} · 5 {LEVELS[5]}</div>
+          {open && open.target===t && val[t]!==undefined &&
+            <div className="cb-desc" style={{marginTop:8}}><b>{val[t]} {LEVELS[val[t]]}.</b> {CELL[t][val[t]]}</div>}
+        </div>
+      ))}
+      <div className="cb-spacer"/>
+      <Foot left={<button className="cb-btn ghost" onClick={onBack}>Back</button>}
+        right={<button className="cb-btn" disabled={!done} onClick={()=>onNext(val)}>Next</button>} />
+    </div>
+  );
+}
+
+function Trust({ myId, value, onBack, onSubmit }){
+  const [val,setVal]=useState(value||{});
+  const [page,setPage]=useState(0);
+  const comp=TRUST[page]; const targets=otherFns(myId);
+  function set(t,score){ setVal(v=>({...v,[t]:{...(v[t]||{}),[comp.id]:score}})); }
+  const pageDone = targets.every(t=> val[t] && val[t][comp.id]!==undefined);
+  function next(){ if(page<TRUST.length-1) setPage(p=>p+1); else onSubmit(val); }
+  function back(){ if(page>0) setPage(p=>p-1); else onBack(); }
+  return (
+    <div className="cb-wrap">
+      <span className="cb-tag">Part 3 · Trust · Component {page+1} of {TRUST.length}</span>
+      <h2>{comp.label}</h2>
+      <p className="cb-muted">{comp.q}</p>
+      {targets.map(t=>(
+        <div key={t} className="cb-card">
+          <div><span className="cb-fnname">{FN[t].name}</span><span className="cb-sn">{t}</span></div>
+          <div className="cb-seg">
+            {[1,2,3,4,5].map(n=>(
+              <button key={n} className={((val[t]&&val[t][comp.id])===n?'on':'')} onClick={()=>set(t,n)}>{n}</button>
+            ))}
+          </div>
+          <div className="cb-tiny cb-muted" style={{marginTop:4}}>1 not at all · 5 completely</div>
+        </div>
+      ))}
+      <div className="cb-spacer"/>
+      <Foot left={<button className="cb-btn ghost" onClick={back}>Back</button>}
+        right={<button className="cb-btn" disabled={!pageDone} onClick={next}>{page<TRUST.length-1?'Next':'Submit'}</button>} />
+    </div>
+  );
+}
+
+function Submitted({ systemName }){
+  return (
+    <div className="cb-wrap cb-center">
+      <div className="cb-spacer" style={{height:70}}/>
+      <h1>Your group's ratings are in</h1>
+      <p className="cb-muted">{systemName}</p>
+      <p>Sit tight — your facilitator will bring everyone together for the reveal.</p>
+    </div>
+  );
+}
+
+/* ---------------- Facilitator ---------------- */
+function Facilitator({ onBack }){
+  const [pw,setPw]=useState(''); const [sys,setSys]=useState(''); const [busy,setBusy]=useState(false);
+  const [err,setErr]=useState(''); const [code,setCode]=useState(''); const [prog,setProg]=useState(null);
+  async function create(){
+    setErr(''); setBusy(true);
+    const r=await api('collab-session-create',{systemName:sys,adminPassword:pw});
+    setBusy(false);
+    if(!r || !r.ok){ setErr(r && r.error==='Not authorised' ? 'Wrong facilitator password.' : 'Could not create session.'); return; }
+    setCode(r.code);
+  }
+  useEffect(()=>{
+    if(!code) return;
+    let live=true;
+    async function poll(){ const r=await api('collab-progress',{code,adminPassword:pw}); if(live&&r&&r.ok) setProg(r); }
+    poll(); const id=setInterval(poll,5000); return ()=>{ live=false; clearInterval(id); };
+  },[code,pw]);
+
+  if(code){
+    const subs=(prog&&prog.submissions)||[];
+    const byFn={}; subs.forEach(s=>byFn[s.function]=s);
+    const submittedCount=subs.filter(s=>s.submitted).length;
+    return (
+      <div className="cb-wrap">
+        <div className="cb-spacer" style={{height:36}}/>
+        <span className="cb-tag">{sys}</span>
+        <h1>Session code</h1>
+        <div className="cb-card cb-center"><div style={{fontSize:42,letterSpacing:6,fontWeight:600}}>{code.slice(0,4)+'-'+code.slice(4)}</div>
+          <div className="cb-muted cb-small">Share with each group. They enter it, then pick their function.</div></div>
+        <h2 style={{marginTop:16}}>Progress</h2>
+        <div className="cb-card">
+          <div className="cb-row" style={{justifyContent:'space-between'}}><b>{submittedCount} of 5 groups submitted</b>
+            <span className="cb-count">{subs.length} joined</span></div>
+          {ORDER.map(id=>{
+            const s=byFn[id];
+            const state= !s? 'not joined' : (s.submitted? 'submitted' : 'in progress');
+            return (<div key={id} className="cb-row" style={{justifyContent:'space-between',padding:'6px 0',borderTop:'1px solid var(--cb-line)'}}>
+              <span><span className="cb-fnname">{FN[id].name}</span><span className="cb-sn">{id}</span></span>
+              <span className="cb-tiny cb-muted">{state}</span></div>);
+          })}
+        </div>
+        <div className="cb-ok">Reveal dashboard — the divergence ranking, the collaboration × trust map, priority-alignment and the rest — arrives in the next build. Data is being captured now.</div>
+        <button className="cb-btn ghost" onClick={onBack}>Back</button>
+        <div className="cb-spacer" style={{height:30}}/>
+      </div>
+    );
+  }
+  return (
+    <div className="cb-wrap">
+      <div className="cb-spacer" style={{height:40}}/>
+      <span className="cb-tag">Facilitator</span>
+      <h1>Create a session</h1>
+      <input className="cb-input" placeholder="Facilitator password" type="password" value={pw} onChange={e=>setPw(e.target.value)} />
+      <div style={{height:10}}/>
+      <input className="cb-input" placeholder="System name (e.g. Network Rail)" value={sys} onChange={e=>setSys(e.target.value)} />
+      {err && <div className="cb-err">{err}</div>}
+      <div className="cb-row" style={{marginTop:14}}>
+        <button className="cb-btn" disabled={!pw||!sys.trim()||busy} onClick={create}>{busy?'…':'Create session'}</button>
+        <button className="cb-btn ghost" onClick={onBack}>Back</button>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Root ---------------- */
+function App(){
+  const [mode,setMode]=useState('participant');
+  const [screen,setScreen]=useState('join');
+  const [code,setCode]=useState('');
+  const [systemName,setSystemName]=useState('');
+  const [claimed,setClaimed]=useState([]);
+  const [myId,setMyId]=useState('');
+  const [priorities,setPriorities]=useState([]);
+  const [needs,setNeeds]=useState([]);
+  const [collab,setCollab]=useState({});
+  const [trust,setTrust]=useState({});
+  const [showGloss,setShowGloss]=useState(false);
+  const [resume,setResume]=useState(null);
+  const [booted,setBooted]=useState(false);
+
+  // boot: look for saved identity and offer resume
+  useEffect(()=>{
+    let saved=null; try{ saved=JSON.parse(localStorage.getItem(LS_KEY)||'null'); }catch(e){}
+    if(saved && saved.code && saved.fn){ setResume(saved); }
+    setBooted(true);
+  },[]);
+
+  function persist(step){ try{ localStorage.setItem(LS_KEY, JSON.stringify({ code, fn:myId, step })); }catch(e){} }
+
+  async function doResume(){
+    const r=await api('collab-session-validate',{code:resume.code});
+    if(!r||!r.ok){ localStorage.removeItem(LS_KEY); setResume(null); return; }
+    const sub=await api('collab-load',{code:resume.code,fn:resume.fn});
+    if(!sub||!sub.ok){ localStorage.removeItem(LS_KEY); setResume(null); return; }
+    const s=sub.submission;
+    setCode(resume.code); setSystemName(r.systemName); setMyId(resume.fn);
+    setPriorities(s.priorities||[]); setNeeds(s.needs||[]); setCollab(s.collaboration||{}); setTrust(s.trust||{});
+    setResume(null);
+    setScreen(s.submitted? 'submitted' : (resume.step||'p1priorities'));
+  }
+  function freshStart(){ localStorage.removeItem(LS_KEY); setResume(null); }
+
+  async function save(patch){ await saveWithRetry({ code, fn:myId, patch }); }
+
+  // screen handlers
+  function onValidated(r){ setCode(r.code); setSystemName(r.systemName); setClaimed(r.claimed||[]); setScreen('pickfn'); }
+  function onClaimed(fn){ setMyId(fn); try{ localStorage.setItem(LS_KEY, JSON.stringify({code,fn,step:'p1priorities'})); }catch(e){} setScreen('p1priorities'); }
+
+  if(!booted) return null;
+
+  if(resume){
+    return (
+      <div className="cb-wrap"><div className="cb-spacer" style={{height:60}}/>
+        <h1>Welcome back</h1>
+        <p className="cb-muted">You have a session in progress for code {resume.code} ({FN[resume.fn]?FN[resume.fn].name:resume.fn}).</p>
+        <div className="cb-row" style={{marginTop:12}}>
+          <button className="cb-btn" onClick={doResume}>Continue</button>
+          <button className="cb-btn ghost" onClick={freshStart}>Start fresh</button>
+        </div>
+      </div>
+    );
+  }
+
+  if(mode==='facilitator') return <Facilitator onBack={()=>{ setMode('participant'); setScreen('join'); }} />;
+
+  const showBar = ['p1priorities','p1needs','p2collab','p3trust'].includes(screen);
+  const pcts={ p1priorities:20, p1needs:40, p2collab:60, p3trust:85 };
+
+  return (
+    <div>
+      {showBar && <div className="cb-wrap" style={{paddingBottom:0}}><TopBar myId={myId} onHelp={()=>setShowGloss(true)} /><Progress pct={pcts[screen]||0} /></div>}
+      {showGloss && <Glossary onClose={()=>setShowGloss(false)} />}
+
+      {screen==='join' && <Join onValidated={onValidated} onFacilitator={()=>setMode('facilitator')} />}
+      {screen==='pickfn' && <PickFunction code={code} systemName={systemName} claimed={claimed} onClaimed={onClaimed} />}
+      {screen==='p1priorities' && <Priorities myId={myId} value={priorities}
+        onBack={()=>setScreen('pickfn')}
+        onNext={async v=>{ setPriorities(v); await save({priorities:v}); persist('p1needs'); setScreen('p1needs'); }} />}
+      {screen==='p1needs' && <Needs myId={myId} value={needs}
+        onBack={()=>setScreen('p1priorities')}
+        onNext={async v=>{ setNeeds(v); await save({needs:v}); persist('p2collab'); setScreen('p2collab'); }} />}
+      {screen==='p2collab' && <Collaboration myId={myId} value={collab}
+        onBack={()=>setScreen('p1needs')}
+        onNext={async v=>{ setCollab(v); await save({collaboration:v}); persist('p3trust'); setScreen('p3trust'); }} />}
+      {screen==='p3trust' && <Trust myId={myId} value={trust}
+        onBack={()=>setScreen('p2collab')}
+        onSubmit={async v=>{ setTrust(v); await save({trust:v, submitted:true}); persist('submitted'); setScreen('submitted'); }} />}
+      {screen==='submitted' && <Submitted systemName={systemName} />}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
