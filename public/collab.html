@@ -90,6 +90,72 @@
   .cb-center{text-align:center}
   .cb-spacer{height:70px}
   .cb-divide{border-top:1px solid var(--cb-line);margin:14px 0}
+
+  /* ===== reveal (ordered walkthrough) ===== */
+  .cbr{max-width:860px;margin:0 auto;padding:0 20px 90px}
+  .cbr-top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 0;position:sticky;top:0;background:var(--cb-bg);border-bottom:1px solid var(--cb-line);z-index:20;margin-bottom:14px}
+  .cbr-top .l b{font-size:15px}
+  .cbr-top .l span{color:var(--cb-muted);font-size:12.5px;margin-left:8px}
+  .cbr-step{margin:40px 0 0}
+  .cbr-stepn{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:var(--cb-dark);color:#fff;font-size:13px;font-weight:600;margin-right:10px;vertical-align:2px;font-family:'DM Sans',sans-serif}
+  .cbr-h2{font-family:'Cormorant Garamond',serif;font-weight:400;font-size:27px;margin:0;display:inline}
+  .cbr-cap2{color:var(--cb-muted);font-size:14px;margin:6px 0 14px}
+  .cbr-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+  .cbr-card{background:#fff;border:1px solid var(--cb-line);border-radius:9px;padding:14px 15px}
+  .cbr-card h3{font-size:15.5px;font-weight:600;margin:0 0 9px}
+  .cbr-li{font-size:14px;line-height:1.5;margin:6px 0;display:flex;gap:7px}
+  .cbr-li .b{color:var(--cb-accent);flex:0 0 auto}
+  .cbr-nd{font-size:14px;line-height:1.45;margin:7px 0}
+  .cbr-nd .req{color:var(--cb-muted);font-size:12px;display:block;margin-bottom:1px;text-transform:uppercase;letter-spacing:.3px;font-weight:600}
+  .cbr-empty{color:var(--cb-muted);font-size:13px}
+  .cbr-comp{margin:20px 0 0}
+  .cbr-comph{font-size:16px;font-weight:600;margin:0 0 1px}
+  .cbr-compg{color:var(--cb-muted);font-size:13px;margin:0 0 10px}
+  .cbr-mx2{border-collapse:separate;border-spacing:3px;width:100%;table-layout:fixed}
+  .cbr-mx2 th{font-size:12.5px;font-weight:600;color:var(--cb-muted);padding:4px 2px;text-align:center;vertical-align:bottom}
+  .cbr-corner{text-align:left !important;font-size:10.5px;text-transform:uppercase;letter-spacing:.3px;line-height:1.2}
+  .cbr-rh{font-size:13px;font-weight:600;text-align:right;padding-right:8px;width:84px}
+  .cbr-cell{text-align:center;border-radius:6px;font-size:18px;font-weight:600;padding:12px 2px;font-variant-numeric:tabular-nums}
+  .cbr-diag{background:repeating-linear-gradient(45deg,var(--cb-soft),var(--cb-soft) 4px,transparent 4px,transparent 8px);border-radius:6px}
+  .cbr-leg2{display:flex;align-items:center;gap:9px;margin-top:9px;font-size:12px;color:var(--cb-muted)}
+  .cbr-scale{height:11px;width:150px;border-radius:6px;background:linear-gradient(90deg,rgb(201,143,136),rgb(231,226,218),rgb(143,174,147))}
+  .cbr-eqbox{background:var(--cb-dark);color:var(--cb-bg);border-radius:12px;padding:26px 22px;margin:24px 0 0;text-align:center}
+  .cbr-eqlabel{font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:#c9b9a8;margin-bottom:14px}
+  .cbr-eq{display:inline-flex;align-items:center;gap:18px}
+  .cbr-eq .lhs{font-family:'Cormorant Garamond',serif;font-size:34px}
+  .cbr-eq .frac{display:inline-flex;flex-direction:column;text-align:center}
+  .cbr-eq .num{font-size:17px;font-weight:500;padding:0 14px 8px}
+  .cbr-eq .den{font-size:17px;font-weight:500;padding:8px 14px 0;border-top:2px solid var(--cb-bg)}
+  .cbr-eqnote{font-size:14px;color:#d9cfc3;max-width:620px;margin:18px auto 0;line-height:1.55}
+  .cbr-eqnote b{color:#fff;font-weight:600}
+  .cbr-panel2{background:#fff;border:1px solid var(--cb-line);border-radius:10px;padding:16px;font-size:14px;color:var(--cb-muted)}
+  @media(max-width:520px){.cbr-eq .lhs{font-size:26px}.cbr-eq .num,.cbr-eq .den{font-size:14px}}
+
+
+  /* needs tabs prominent */
+  .cb-tabs.big{padding:6px;gap:7px}
+  .cb-tabs.big .cb-tab{padding:12px 2px;font-size:14px}
+  .cb-tabs.big .cb-tab.active{font-weight:600}
+  /* collaboration horizontal picker */
+  .cb-hpick{display:flex;gap:5px;margin:12px 0 10px}
+  .cb-hpick button{flex:1;border:1px solid var(--cb-line);background:#fff;border-radius:8px;padding:9px 2px 7px;cursor:pointer;font-family:inherit;display:flex;flex-direction:column;align-items:center;gap:3px;color:var(--cb-text)}
+  .cb-hpick button .n{font-size:18px;font-weight:600;line-height:1}
+  .cb-hpick button .w{font-size:9px;color:var(--cb-muted);line-height:1.12;text-align:center}
+  .cb-hpick button.on{background:var(--cb-accent);border-color:var(--cb-accent);color:#fff}
+  .cb-hpick button.on .w{color:#fff}
+  .cb-hdesc{background:#fff;border:1px solid var(--cb-line);border-radius:8px;padding:13px 14px;min-height:80px}
+  .cb-hdesc.empty{color:var(--cb-muted);display:flex;align-items:center;font-size:14px}
+  .cb-hdesc .hw{font-weight:600;margin-bottom:5px}
+  .cb-hdesc .hd{font-size:14px;line-height:1.5;color:var(--cb-text)}
+  /* collaboration summary matrix */
+  .cb-cmx{margin:12px 0 0}
+  .cb-cmx .row{display:flex;align-items:center;gap:11px;padding:8px 0;cursor:pointer;border-top:1px solid var(--cb-line)}
+  .cb-cmx .row:first-child{border-top:none}
+  .cb-cmx .nm{flex:1;font-size:15px;font-weight:500}
+  .cb-cmx .cell{width:44px;height:40px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:600;flex:0 0 auto}
+  .cb-cmx .lw{width:104px;font-size:12.5px;color:var(--cb-muted);flex:0 0 auto;text-align:right}
+  /* system-not-department reminder */
+  .cb-sysnote{font-size:11.5px;color:var(--cb-muted);margin-top:2px;line-height:1.3}
 </style>
 </head>
 <body>
@@ -184,7 +250,10 @@ function TopBar({ myId, onHelp }){
   const f = FN[myId];
   return (
     <div className="cb-bar">
-      <div className="cb-you">You are: {f? f.name : '—'} {f && <span>· {myId}</span>}</div>
+      <div>
+        <div className="cb-you">You are: {f? f.name : '—'} {f && <span>· {myId}</span>}</div>
+        <div className="cb-sysnote">A function of the system, not a department — those who do it may be spread across teams and roles.</div>
+      </div>
       <button className="cb-help" onClick={onHelp} aria-label="Function glossary">?</button>
     </div>
   );
@@ -268,6 +337,7 @@ function Intro({ systemName, onBegin, onBack }){
       <h1>Before you start</h1>
       <p>You're part of one system made of five functions. This activity looks at how well those functions
         collaborate — and how far they trust each other — seen from each function's point of view.</p>
+      <p className="cb-muted">These are functions of the system, not departments — the people who carry them out may be spread across many teams and roles.</p>
       <div className="cb-divide"/>
       <h2>How it works</h2>
       <p className="cb-muted">Your group takes one function. You'll set your priorities, say what you most need
@@ -367,12 +437,13 @@ function Priorities({ myId, value, onBack, onNext }){
 
 function Needs({ myId, value, onBack, onNext }){
   const targets=otherFns(myId);
-  const [active,setActive]=useState(targets[0]);
-  const [picked,setPicked]=useState(value&&value.length?value:[]); // [{target,need}]
+  const [picked,setPicked]=useState(value&&value.length?value:[]);
   const [customs,setCustoms]=useState({});
+  const [idx,setIdx]=useState(0);
+  const active=targets[idx];
+  const last=idx===targets.length-1;
   const countFor=t=>picked.filter(p=>p.target===t).length;
   const has=(t,n)=>picked.some(p=>p.target===t&&p.need===n);
-  const total=picked.length;
   function toggle(t,n){
     setPicked(p=>{
       if(p.some(x=>x.target===t&&x.need===n)) return p.filter(x=>!(x.target===t&&x.need===n));
@@ -384,25 +455,27 @@ function Needs({ myId, value, onBack, onNext }){
     const v=(customs[t]||'').trim();
     if(v && countFor(t)<NEED_CAP && !has(t,v)){ setPicked(p=>[...p,{target:t,need:v}]); setCustoms(c=>({...c,[t]:''})); }
   }
+  function next(){ if(!last) setIdx(i=>i+1); else onNext(picked); }
+  function back(){ if(idx>0) setIdx(i=>i-1); else onBack(); }
   const f=FN[active]; const full=countFor(active)>=NEED_CAP;
   const menu=NEEDS[active];
   const extras=picked.filter(p=>p.target===active&&!menu.includes(p.need)).map(p=>p.need);
   return (
     <div className="cb-wrap">
-      <span className="cb-tag">Part 1 · Your needs</span>
+      <span className="cb-tag">Part 1 · Your needs · {idx+1} of {targets.length}</span>
       <h2>What you most need from the others</h2>
-      <p className="cb-muted">For each function, choose up to two — the things you most depend on them for.</p>
-      <div className="cb-tabs">
-        {targets.map(t=>{
+      <p className="cb-muted">Go through all four. For each, choose up to two things you most depend on them for — or none, if you genuinely don't. Use Next, or tap a function above.</p>
+      <div className="cb-tabs big">
+        {targets.map((t,i)=>{
           const c=countFor(t);
           return (
-            <button key={t} className={'cb-tab'+(active===t?' active':'')} onClick={()=>setActive(t)}>
+            <button key={t} className={'cb-tab'+(i===idx?' active':'')} onClick={()=>setIdx(i)}>
               {SHORT[t]}{c>0 && <span className={'cb-badge'+(c>=NEED_CAP?' full':'')}>{c}</span>}
             </button>
           );
         })}
       </div>
-      <div><span className="cb-fnname">{f.name}</span><span className="cb-sn">{active}</span></div>
+      <FnHeader id={active} />
       <div className="cb-count" style={{marginTop:3}}>Choose up to {NEED_CAP} · <b>{countFor(active)} of {NEED_CAP}</b> chosen</div>
       {[...menu,...extras].map(need=>(
         <button key={need} className={'cb-chip'+(has(active,need)?' on':'')}
@@ -415,9 +488,8 @@ function Needs({ myId, value, onBack, onNext }){
         <button className="cb-btn ghost small" disabled={!(customs[active]||'').trim()||full} onClick={()=>addCustom(active)}>Add</button>
       </div>
       <div className="cb-spacer"/>
-      <Foot left={<button className="cb-btn ghost" onClick={onBack}>Back</button>}
-        right={<span className="cb-row"><span className="cb-count">{total} chosen</span>
-          <button className="cb-btn" disabled={total===0} onClick={()=>onNext(picked)}>Next</button></span>} />
+      <Foot left={<button className="cb-btn ghost" onClick={back}>Back</button>}
+        right={<button className="cb-btn" onClick={next}>{last?'Next: Collaboration':'Next'}</button>} />
     </div>
   );
 }
@@ -426,26 +498,58 @@ function Collaboration({ myId, value, onBack, onNext }){
   const targets=otherFns(myId);
   const [val,setVal]=useState(value||{});
   const [idx,setIdx]=useState(0);
-  const t=targets[idx];
-  const chosen=val[t];
+  const summary=idx===targets.length;
+  const t=summary? null : targets[idx];
+  const chosen=t? val[t] : undefined;
   function pick(i){ setVal(v=>({...v,[t]:i})); }
-  function next(){ if(idx<targets.length-1) setIdx(i=>i+1); else onNext(val); }
+  function next(){ if(idx<targets.length) setIdx(i=>i+1); else onNext(val); }
   function back(){ if(idx>0) setIdx(i=>i-1); else onBack(); }
+
+  if(summary){
+    return (
+      <div className="cb-wrap">
+        <span className="cb-tag">Part 2 · Collaboration · summary</span>
+        <h2>How you see each function collaborating</h2>
+        <p className="cb-muted">Your four choices, from where you sit as {FN[myId].name}. Tap any row to change it before moving on.</p>
+        <div className="cb-cmx">
+          {targets.map((tt,i)=>{
+            const lvl=val[tt];
+            return (
+              <div key={tt} className="row" onClick={()=>setIdx(i)}>
+                <span className="nm">{FN[tt].name}<span className="cb-sn">{tt}</span></span>
+                <span className="cell" style={{background: lvl===undefined?'var(--cb-soft)':heatRGB(lvl/5), color: lvl===undefined?'var(--cb-muted)':'#1a1a1a'}}>{lvl===undefined?'–':lvl}</span>
+                <span className="lw">{lvl===undefined?'not set':LEVELS[lvl]}</span>
+              </div>
+            );
+          })}
+        </div>
+        <div className="cb-spacer"/>
+        <Foot left={<button className="cb-btn ghost" onClick={back}>Back</button>}
+          right={<button className="cb-btn" onClick={()=>onNext(val)}>Next: Trust</button>} />
+      </div>
+    );
+  }
+
   return (
     <div className="cb-wrap">
       <span className="cb-tag">Part 2 · Collaboration · {idx+1} of {targets.length}</span>
-      <h2>How does {SHORT[t]} collaborate with you?</h2>
-      <p className="cb-muted">From where you sit as {FN[myId].name}, choose the level that best fits {FN[t].name}.</p>
+      <h2>How {SHORT[t]} collaborates with you</h2>
+      <p className="cb-muted">Pick the one level that best describes it, from where you sit as {FN[myId].name}. Tap a level to read what it means.</p>
       <FnHeader id={t} />
-      {LEVELS.map((lv,i)=>(
-        <button key={i} className={'cb-level'+(chosen===i?' on':'')} onClick={()=>pick(i)}>
-          <div className="lvtitle"><span className="num">{i}</span>{lv}</div>
-          <div className="lvdesc">{CELL[t][i]}</div>
-        </button>
-      ))}
+      <div className="cb-hpick">
+        {LEVELS.map((lv,i)=>(
+          <button key={i} className={chosen===i?'on':''} onClick={()=>pick(i)}>
+            <span className="n">{i}</span><span className="w">{lv}</span>
+          </button>
+        ))}
+      </div>
+      <div className={'cb-hdesc'+(chosen===undefined?' empty':'')}>
+        {chosen===undefined? 'Pick a level above to see what it means.'
+          : <div><div className="hw">{chosen} · {LEVELS[chosen]}</div><div className="hd">{CELL[t][chosen]}</div></div>}
+      </div>
       <div className="cb-spacer"/>
       <Foot left={<button className="cb-btn ghost" onClick={back}>Back</button>}
-        right={<button className="cb-btn" disabled={chosen===undefined} onClick={next}>{idx<targets.length-1?'Next':'Next: Trust'}</button>} />
+        right={<button className="cb-btn" disabled={chosen===undefined} onClick={next}>Next</button>} />
     </div>
   );
 }
@@ -548,7 +652,7 @@ function Submitted({ systemName, onEdit }){
       <div className="cb-spacer" style={{height:60}}/>
       <h1>Your group's ratings are in</h1>
       <p className="cb-muted">{systemName}</p>
-      <p>Sit tight — your facilitator will bring everyone together for the reveal.</p>
+      <p>Sit tight — your facilitator will bring everyone together to share the results.</p>
       <div style={{marginTop:18}}><button className="cb-btn ghost" onClick={onEdit}>Edit our answers</button></div>
     </div>
   );
@@ -558,7 +662,7 @@ function Submitted({ systemName, onEdit }){
 function Facilitator({ onBack }){
   const [pw,setPw]=useState(''); const [sys,setSys]=useState(''); const [busy,setBusy]=useState(false);
   const [err,setErr]=useState(''); const [code,setCode]=useState(''); const [prog,setProg]=useState(null);
-  const [resetting,setResetting]=useState('');
+  const [resetting,setResetting]=useState(''); const [showReveal,setShowReveal]=useState(false);
   async function create(){
     setErr(''); setBusy(true);
     const r=await api('collab-session-create',{systemName:sys,adminPassword:pw});
@@ -589,6 +693,7 @@ function Facilitator({ onBack }){
     const subs=(prog&&prog.submissions)||[];
     const byFn={}; subs.forEach(s=>byFn[s.function]=s);
     const submittedCount=subs.filter(s=>s.submitted).length;
+    if(showReveal) return <Reveal sys={sys} subs={subs} submittedTotal={submittedCount} onClose={()=>setShowReveal(false)} />;
     return (
       <div className="cb-wrap">
         <div className="cb-spacer" style={{height:36}}/>
@@ -611,7 +716,10 @@ function Facilitator({ onBack }){
           })}
           <div className="cb-tiny cb-muted" style={{marginTop:8}}>Reset frees a stuck or wrongly-claimed function so a group can pick it again.</div>
         </div>
-        <div className="cb-ok">Reveal dashboard — the divergence ranking, the collaboration × trust map, priority-alignment and the rest — arrives in the next build. Data is being captured now.</div>
+        <div style={{marginTop:16}}>
+          <button className="cb-btn" disabled={submittedCount<1} onClick={()=>setShowReveal(true)}>Share the results</button>
+          <div className="cb-tiny cb-muted" style={{marginTop:6}}>Walks the room back through priorities, needs, collaboration and trust. Best with all five in.</div>
+        </div>
         <button className="cb-btn ghost" onClick={onBack}>Back</button>
         <div className="cb-spacer" style={{height:30}}/>
       </div>
@@ -629,6 +737,111 @@ function Facilitator({ onBack }){
       <div className="cb-row" style={{marginTop:14}}>
         <button className="cb-btn" disabled={!pw||!sys.trim()||busy} onClick={create}>{busy?'…':'Create session'}</button>
         <button className="cb-btn ghost" onClick={onBack}>Back</button>
+      </div>
+    </div>
+  );
+}
+
+
+/* ---------------- Reveal (ordered walkthrough) ---------------- */
+function heatRGB(r){
+  const L=(a,b,t)=>Math.round(a+(b-a)*t); let c;
+  if(r<0.5){ const t=r/0.5; c=[L(201,231,t),L(143,226,t),L(136,218,t)]; }
+  else { const t=(r-0.5)/0.5; c=[L(231,143,t),L(226,174,t),L(218,147,t)]; }
+  return 'rgb('+c[0]+','+c[1]+','+c[2]+')';
+}
+function RLeg(){ return <div className="cbr-leg2"><span>weak</span><span className="cbr-scale"/><span>strong</span></div>; }
+function RMatrix({ present, get, norm, fmt }){
+  return (
+    <table className="cbr-mx2">
+      <thead><tr><th className="cbr-corner">rates &rarr;<br/>&darr; of</th>
+        {present.map(b=><th key={b}>{SHORT[b]}</th>)}</tr></thead>
+      <tbody>
+        {present.map(a=>(
+          <tr key={a}><td className="cbr-rh">{SHORT[a]}</td>
+            {present.map(b=>{
+              if(a===b) return <td key={b} className="cbr-diag"></td>;
+              const v=get(a,b);
+              if(v==null) return <td key={b} className="cbr-cell" style={{background:'transparent',color:'var(--cb-muted)'}}>&ndash;</td>;
+              return <td key={b} className="cbr-cell" style={{background:heatRGB(norm(v))}}>{fmt(v)}</td>;
+            })}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function Reveal({ sys, subs, submittedTotal, onClose }){
+  const done=(subs||[]).filter(s=>s.submitted);
+  const present=ORDER.filter(id=>done.some(s=>s.function===id));
+  const row=id=>done.find(s=>s.function===id);
+  const cAB=(a,b)=>{ const s=row(a); const v=s&&s.collaboration?s.collaboration[b]:undefined; return typeof v==='number'?v:null; };
+  const compAB=(a,b,cid)=>{ const s=row(a); const o=s&&s.trust?s.trust[b]:null; return o&&typeof o[cid]==='number'?o[cid]:null; };
+  const needsTo=t=>{ const out=[]; present.forEach(a=>{ if(a===t) return; const s=row(a); (s&&Array.isArray(s.needs)?s.needs:[]).filter(n=>n.target===t).forEach(n=>out.push({from:a,need:n.need})); }); return out; };
+
+  if(present.length<2){
+    return (<div className="cbr">
+      <div className="cbr-top"><div className="l"><b>{sys||'Reveal'}</b><span>{submittedTotal||0} of 5 submitted</span></div>
+        <button className="cb-btn ghost small" onClick={onClose}>Close</button></div>
+      <div className="cbr-panel2">Waiting for groups &mdash; this needs at least two functions in before there&rsquo;s anything to show.</div>
+    </div>);
+  }
+
+  return (
+    <div className="cbr">
+      <div className="cbr-top">
+        <div className="l"><b>{sys||'System'}</b><span>{submittedTotal||0} of 5 submitted</span></div>
+        <button className="cb-btn ghost small" onClick={onClose}>Close</button>
+      </div>
+      <h1 style={{marginBottom:2}}>Sharing the results</h1>
+      <p className="cb-muted" style={{margin:'0 0 6px'}}>Walking back through it in the order you did it.</p>
+
+      <div className="cbr-step"><div><span className="cbr-stepn">1</span><h2 className="cbr-h2">Priorities</h2></div>
+        <div className="cbr-cap2">What each function said matters most to them.</div>
+        <div className="cbr-cards">
+          {present.map(id=>(
+            <div key={id} className="cbr-card"><h3>{SHORT[id]}<span className="cb-sn">{id}</span></h3>
+              {((row(id).priorities)||[]).map((p,i)=><div key={i} className="cbr-li"><span className="b">&bull;</span><span>{p}</span></div>)}
+              {(!row(id).priorities||row(id).priorities.length===0) && <div className="cbr-empty">None declared</div>}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="cbr-step"><div><span className="cbr-stepn">2</span><h2 className="cbr-h2">Needs</h2></div>
+        <div className="cbr-cap2">What the rest of the system most needs from each function.</div>
+        <div className="cbr-cards">
+          {present.map(t=>{ const items=needsTo(t); return (
+            <div key={t} className="cbr-card"><h3>From {SHORT[t]}<span className="cb-sn">{t}</span></h3>
+              {items.length? items.map((it,i)=><div key={i} className="cbr-nd"><span className="req">{SHORT[it.from]}</span>{it.need}</div>)
+                : <div className="cbr-empty">No needs pointed here.</div>}
+            </div>); })}
+        </div>
+      </div>
+
+      <div className="cbr-step"><div><span className="cbr-stepn">3</span><h2 className="cbr-h2">Collaboration</h2></div>
+        <div className="cbr-cap2">How each function rates the others&rsquo; collaboration with them. 0 Disconnected &rarr; 5 System-owned. Compare a cell with its mirror to see disagreement.</div>
+        <RMatrix present={present} get={cAB} norm={v=>v/5} fmt={v=>v} /><RLeg/>
+      </div>
+
+      <div className="cbr-step"><div><span className="cbr-stepn">4</span><h2 className="cbr-h2">Trust</h2></div>
+        <div className="cbr-cap2">Four components, each 1&ndash;5, higher is better. One at a time &mdash; then how they combine.</div>
+        {TRUST.map(c=>(
+          <div key={c.id} className="cbr-comp">
+            <div className="cbr-comph">{c.label}</div>
+            <div className="cbr-compg">{c.q}</div>
+            <RMatrix present={present} get={(a,b)=>compAB(a,b,c.id)} norm={v=>(v-1)/4} fmt={v=>v} /><RLeg/>
+          </div>
+        ))}
+        <div className="cbr-eqbox">
+          <div className="cbr-eqlabel">The Maister trust equation</div>
+          <div className="cbr-eq">
+            <span className="lhs">Trust&nbsp;=</span>
+            <span className="frac"><span className="num">Credibility + Reliability + Intimacy</span><span className="den">Self-orientation</span></span>
+          </div>
+          <div className="cbr-eqnote">The first three build trust. <b>Self-orientation</b> divides it &mdash; the more someone acts for themselves, the less you trust them, however credible or reliable they are. You rated its flip side, <b>Stewardship</b>: acting for the whole system. High stewardship, low self-orientation.</div>
+        </div>
       </div>
     </div>
   );
