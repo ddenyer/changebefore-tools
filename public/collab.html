@@ -666,12 +666,29 @@ function Facilitator({ onBack }){
   const [pw,setPw]=useState(''); const [sys,setSys]=useState(''); const [busy,setBusy]=useState(false);
   const [err,setErr]=useState(''); const [code,setCode]=useState(''); const [prog,setProg]=useState(null);
   const [resetting,setResetting]=useState(''); const [showReveal,setShowReveal]=useState(false);
+  const [joinCode,setJoinCode]=useState('');
   async function create(){
     setErr(''); setBusy(true);
     const r=await api('collab-session-create',{systemName:sys,adminPassword:pw});
     setBusy(false);
     if(!r || !r.ok){ setErr(r && r.error==='Not authorised' ? 'Wrong facilitator password.' : 'Could not create session.'); return; }
+    try{ localStorage.setItem('cb_collab_fac', JSON.stringify({ code:r.code, sys })); }catch(e){}
     setCode(r.code);
+  }
+  useEffect(()=>{ try{ const s=JSON.parse(localStorage.getItem('cb_collab_fac')||'null'); if(s&&s.code) setJoinCode(s.code); }catch(e){} },[]);
+  async function rejoin(){
+    setErr(''); setBusy(true);
+    const c=joinCode.replace(/[^A-Za-z0-9]/g,'').toUpperCase();
+    const r=await api('collab-progress',{code:c,adminPassword:pw});
+    setBusy(false);
+    if(!r || !r.ok){
+      setErr(r && r.error==='Not authorised' ? 'Wrong facilitator password.'
+        : (r && r.reason==='not_found') ? 'No session found with that code.'
+        : 'Could not rejoin — check the code and try again.');
+      return;
+    }
+    try{ localStorage.setItem('cb_collab_fac', JSON.stringify({ code:c, sys:r.session.system_name })); }catch(e){}
+    setSys(r.session.system_name); setProg(r); setCode(c);
   }
   useEffect(()=>{
     if(!code) return;
@@ -732,15 +749,22 @@ function Facilitator({ onBack }){
     <div className="cb-wrap">
       <div className="cb-spacer" style={{height:40}}/>
       <span className="cb-tag">Facilitator</span>
-      <h1>Create a session</h1>
+      <h1>Facilitator</h1>
       <input className="cb-input" placeholder="Facilitator password" type="password" value={pw} onChange={e=>setPw(e.target.value)} />
-      <div style={{height:10}}/>
-      <input className="cb-input" placeholder="System name (e.g. Network Rail)" value={sys} onChange={e=>setSys(e.target.value)} />
       {err && <div className="cb-err">{err}</div>}
-      <div className="cb-row" style={{marginTop:14}}>
-        <button className="cb-btn" disabled={!pw||!sys.trim()||busy} onClick={create}>{busy?'…':'Create session'}</button>
-        <button className="cb-btn ghost" onClick={onBack}>Back</button>
-      </div>
+
+      <div className="cb-divide"/>
+      <h2>Create a session</h2>
+      <input className="cb-input" placeholder="System name (e.g. Network Rail)" value={sys} onChange={e=>setSys(e.target.value)} />
+      <div style={{marginTop:12}}><button className="cb-btn" disabled={!pw||!sys.trim()||busy} onClick={create}>{busy?'…':'Create session'}</button></div>
+
+      <div className="cb-divide"/>
+      <h2>Rejoin a session</h2>
+      <p className="cb-muted cb-small">Got logged out, or back on another device? Enter the session code to pick up where you left off.</p>
+      <input className="cb-input" placeholder="Session code" value={joinCode} onChange={e=>setJoinCode(e.target.value.toUpperCase())} onKeyDown={e=>e.key==='Enter'&&pw&&joinCode.trim()&&rejoin()} />
+      <div style={{marginTop:12}}><button className="cb-btn" disabled={!pw||!joinCode.trim()||busy} onClick={rejoin}>{busy?'…':'Rejoin session'}</button></div>
+
+      <div style={{marginTop:26}}><button className="cb-btn ghost" onClick={onBack}>Back</button></div>
     </div>
   );
 }
