@@ -717,7 +717,7 @@ function Facilitator({ onBack }){
           <div className="cb-tiny cb-muted" style={{marginTop:8}}>Reset frees a stuck or wrongly-claimed function so a group can pick it again.</div>
         </div>
         <div style={{marginTop:16}}>
-          <button className="cb-btn" disabled={submittedCount<1} onClick={()=>setShowReveal(true)}>Share the results</button>
+          <button className="cb-btn" onClick={()=>setShowReveal(true)}>Share the results</button>
           <div className="cb-tiny cb-muted" style={{marginTop:6}}>Walks the room back through priorities, needs, collaboration and trust. Best with all five in.</div>
         </div>
         <button className="cb-btn ghost" onClick={onBack}>Back</button>
@@ -904,6 +904,7 @@ function App(){
           <button className="cb-btn" onClick={doResume}>Continue</button>
           <button className="cb-btn ghost" onClick={freshStart}>Start fresh</button>
         </div>
+        <div style={{marginTop:28}}><button className="cb-link" onClick={()=>{ setResume(null); setMode('facilitator'); }}>I'm the facilitator</button></div>
       </div>
     );
   }
