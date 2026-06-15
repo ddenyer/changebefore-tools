@@ -13,12 +13,12 @@
 <style>
   :root{
     --cb-bg:#f0ede8; --cb-text:#1a1a1a; --cb-accent:#e07030; --cb-dark:#1a1a1a;
-    --cb-line:#d9d4cc; --cb-soft:#e7e2da; --cb-muted:#6a655d;
+    --cb-line:#d9d4cc; --cb-soft:#e7e2da; --cb-muted:#6a655d; --cb-tint:#fbeee5;
   }
   *{box-sizing:border-box}
   html,body{margin:0;padding:0;background:var(--cb-bg);color:var(--cb-text);
     font-family:'DM Sans',sans-serif;font-size:17px;line-height:1.5;-webkit-font-smoothing:antialiased}
-  .cb-wrap{max-width:760px;margin:0 auto;padding:0 18px 80px}
+  .cb-wrap{max-width:760px;margin:0 auto;padding:0 18px 90px}
   h1,h2{font-family:'Cormorant Garamond',serif;font-weight:400;line-height:1.1;margin:0}
   h1{font-size:34px;margin:6px 0 4px}
   h2{font-size:26px;margin:4px 0}
@@ -42,23 +42,45 @@
   .cb-prog{height:4px;background:var(--cb-soft);border-radius:3px;overflow:hidden;margin:0 0 16px}
   .cb-prog>div{height:4px;background:var(--cb-accent);transition:width .25s}
   .cb-card{background:#fff;border:1px solid var(--cb-line);border-radius:8px;padding:14px;margin:10px 0}
-  .cb-fnrow{border:1px solid var(--cb-line);border-radius:8px;padding:12px;margin:8px 0;background:#fff}
+  .cb-headcard{background:#fff;border:1px solid var(--cb-line);border-radius:8px;padding:13px 14px;margin:6px 0 14px}
   .cb-fnname{font-weight:600}
   .cb-sn{color:var(--cb-muted);font-size:13px;font-weight:500;margin-left:6px}
-  .cb-desc{color:var(--cb-muted);font-size:13.5px;margin-top:2px}
+  .cb-desc{color:var(--cb-muted);font-size:13.5px;margin-top:2px;line-height:1.45}
+  .cb-roles{font-size:13px;color:var(--cb-muted);margin-top:6px}
+  .cb-roles b{color:var(--cb-text);font-weight:600}
   .cb-link{background:none;border:none;color:var(--cb-accent);font-size:13px;cursor:pointer;padding:4px 0;font-weight:600}
-  .cb-chip{display:block;width:100%;text-align:left;padding:11px 13px;margin:7px 0;border:1px solid var(--cb-line);
-    border-radius:6px;background:#fff;cursor:pointer;font-size:15.5px;font-family:inherit;color:var(--cb-text)}
-  .cb-chip.on{border-color:var(--cb-accent);background:#fbeee5;box-shadow:inset 0 0 0 1px var(--cb-accent)}
+  .cb-chip{display:block;width:100%;text-align:left;padding:12px 13px;margin:8px 0;border:1px solid var(--cb-line);
+    border-radius:7px;background:#fff;cursor:pointer;font-size:15.5px;font-family:inherit;color:var(--cb-text)}
+  .cb-chip.on{border-color:var(--cb-accent);background:var(--cb-tint);box-shadow:inset 0 0 0 1px var(--cb-accent)}
   .cb-chip:disabled{opacity:.45;cursor:not-allowed}
-  .cb-seg{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
-  .cb-seg button{min-width:46px;min-height:42px;border:1px solid var(--cb-line);background:#fff;border-radius:6px;
-    cursor:pointer;font-family:inherit;font-size:15px;font-weight:600;color:var(--cb-text)}
-  .cb-seg button.on{background:var(--cb-accent);border-color:var(--cb-accent);color:#fff}
+  .cb-chk{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:5px;
+    border:1.5px solid var(--cb-line);background:#fff;color:#fff;font-size:12px;margin-right:9px;vertical-align:-4px}
+  .cb-chip.on .cb-chk{background:var(--cb-accent);border-color:var(--cb-accent)}
+  /* tabs (needs) */
+  .cb-tabs{display:flex;gap:6px;background:var(--cb-soft);padding:5px;border-radius:10px;margin:10px 0 12px}
+  .cb-tab{flex:1;border:none;background:transparent;border-radius:7px;padding:9px 2px;cursor:pointer;
+    font-family:inherit;font-size:13px;font-weight:600;color:var(--cb-muted);position:relative}
+  .cb-tab.active{background:#fff;color:var(--cb-text);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+  .cb-tab .cb-badge{position:absolute;top:-5px;right:3px;background:var(--cb-accent);color:#fff;font-size:10px;
+    font-weight:700;min-width:16px;height:16px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;padding:0 4px}
+  .cb-tab .cb-badge.full{background:var(--cb-dark)}
+  /* level cards (collaboration) */
+  .cb-level{display:block;width:100%;text-align:left;padding:12px 14px;margin:8px 0;border:1px solid var(--cb-line);
+    border-radius:8px;background:#fff;cursor:pointer;font-family:inherit;color:var(--cb-text)}
+  .cb-level.on{border-color:var(--cb-accent);background:var(--cb-tint);box-shadow:inset 0 0 0 1px var(--cb-accent)}
+  .cb-level .lvtitle{font-weight:600;font-size:15px;margin-bottom:3px}
+  .cb-level .lvtitle .num{color:var(--cb-muted);margin-right:7px}
+  .cb-level .lvdesc{font-size:13.5px;line-height:1.42;color:var(--cb-muted)}
+  .cb-level.on .lvdesc{color:var(--cb-text)}
+  /* 1-5 scale (trust) */
+  .cb-scale{display:flex;gap:6px;margin-top:9px}
+  .cb-scale button{flex:1;min-height:46px;border:1px solid var(--cb-line);background:#fff;border-radius:6px;
+    cursor:pointer;font-family:inherit;font-size:16px;font-weight:600;color:var(--cb-text)}
+  .cb-scale button.on{background:var(--cb-accent);border-color:var(--cb-accent);color:#fff}
   .cb-input{width:100%;padding:11px 13px;border:1px solid var(--cb-line);border-radius:6px;font-size:16px;font-family:inherit;background:#fff}
   .cb-count{font-size:13px;color:var(--cb-muted)}
   .cb-foot{position:fixed;left:0;right:0;bottom:0;background:var(--cb-bg);border-top:1px solid var(--cb-line);
-    padding:12px 18px;display:flex;justify-content:space-between;align-items:center;gap:10px;z-index:25}
+    padding:12px 18px;z-index:25}
   .cb-foot .cb-wrap2{max-width:760px;margin:0 auto;width:100%;display:flex;justify-content:space-between;align-items:center;gap:10px}
   .cb-modal{position:fixed;inset:0;background:rgba(26,26,26,.55);z-index:50;display:flex;align-items:flex-end;justify-content:center}
   .cb-sheet{background:var(--cb-bg);width:100%;max-width:760px;max-height:82vh;overflow:auto;border-radius:12px 12px 0 0;padding:18px}
@@ -67,6 +89,7 @@
   .cb-ok{background:#e7f0e7;border:1px solid #9ec19e;padding:10px 12px;border-radius:6px;font-size:14px;margin:10px 0}
   .cb-center{text-align:center}
   .cb-spacer{height:70px}
+  .cb-divide{border-top:1px solid var(--cb-line);margin:14px 0}
 </style>
 </head>
 <body>
@@ -76,14 +99,25 @@ const { useState, useEffect, useRef } = React;
 
 /* ---------------- Content ---------------- */
 const FUNCTIONS = [
-  { id:'S5', name:'Strategy & Governance', remit:`Organisational purpose, direction and legitimacy. Setting priorities, resolving strategic trade-offs, establishing governance and executive coordination, and stewarding the organisation's public positioning, regulatory posture and reputation. Holding accountability for coherence across the whole system in relation to its environment.` },
-  { id:'S4', name:'Data, Analytics & Insight', remit:`Environmental scanning, performance intelligence, forecasting and organisational learning. Generating insight into demand, trends, external change, context and user experience to inform strategic and operational decisions.` },
-  { id:'S3', name:'Performance, Risk & Assurance', remit:`Organisational regulation and stewardship. Setting standards, monitoring performance, managing risk, providing assurance, and ensuring resources, controls and accountabilities protect outcomes and the organisation's licence to operate.` },
-  { id:'S2', name:'Operations Planning & Coordination', remit:`Translating strategic intent into integrated plans. Coordinating interdependencies, sequencing work, managing handovers and stabilising operational flow across services, including cross-organisational partnerships and coordinated communication across the system.` },
-  { id:'S1', name:'Frontline Service Delivery', remit:`Delivery of core services where users and partners directly experience the organisation. Managing demand, operational realities, service quality, relationships and real-time problem solving. Creating value, trust and insight through everyday interaction.` },
+  { id:'S5', name:'Strategy & Governance', tag:'sets direction, priorities and governance',
+    roles:`executives, directors, board members, strategy and governance leads`,
+    remit:`Organisational purpose, direction and legitimacy. Setting priorities, resolving strategic trade-offs, establishing governance and executive coordination, and stewarding the organisation's public positioning, regulatory posture and reputation. Holding accountability for coherence across the whole system in relation to its environment.` },
+  { id:'S4', name:'Data, Analytics & Insight', tag:'turns data into insight and foresight',
+    roles:`analysts, performance and insight teams, forecasters, researchers`,
+    remit:`Environmental scanning, performance intelligence, forecasting and organisational learning. Generating insight into demand, trends, external change, context and user experience to inform strategic and operational decisions.` },
+  { id:'S3', name:'Performance, Risk & Assurance', tag:'sets standards, manages risk, gives assurance',
+    roles:`risk, audit, compliance, safety and quality assurance roles`,
+    remit:`Organisational regulation and stewardship. Setting standards, monitoring performance, managing risk, providing assurance, and ensuring resources, controls and accountabilities protect outcomes and the organisation's licence to operate.` },
+  { id:'S2', name:'Operations Planning & Coordination', tag:'plans, coordinates and sequences the work',
+    roles:`planners, schedulers, programme and PMO roles, coordinators`,
+    remit:`Translating strategic intent into integrated plans. Coordinating interdependencies, sequencing work, managing handovers and stabilising operational flow across services, including cross-organisational partnerships and coordinated communication across the system.` },
+  { id:'S1', name:'Frontline Service Delivery', tag:'delivers services where users experience them',
+    roles:`frontline and service-delivery teams, operators, customer-facing roles`,
+    remit:`Delivery of core services where users and partners directly experience the organisation. Managing demand, operational realities, service quality, relationships and real-time problem solving. Creating value, trust and insight through everyday interaction.` },
 ];
 const FN = {}; FUNCTIONS.forEach(f=>FN[f.id]=f);
 const ORDER = ['S5','S4','S3','S2','S1'];
+const SHORT = { S5:'Strategy', S4:'Insight', S3:'Risk', S2:'Operations', S1:'Frontline' };
 
 const PRIORITIES = {
   S5:[`Setting clear direction and purpose`,`Resolving strategic trade-offs and priorities`,`Protecting legitimacy and licence to operate`,`Stewarding reputation and external positioning`,`Holding the whole system coherent`,`Governance and executive coordination`],
@@ -92,13 +126,17 @@ const PRIORITIES = {
   S2:[`Translating strategy into integrated plans`,`Coordinating interdependencies across services`,`Managing handovers and sequencing work`,`Stabilising operational flow`,`Sustaining partnerships across the system`,`Keeping communication coordinated`],
   S1:[`Delivering core services to standard`,`Managing demand and operational reality`,`Protecting service quality`,`Solving problems in real time`,`Building trust through everyday interaction`,`Surfacing what's really happening on the ground`],
 };
+
+/* 8 seeded needs per target (2 per requester, mixed/unlabelled) */
 const NEEDS = {
-  S5:[`Clear, stable direction we can plan against`,`A decision when trade-offs are escalated, not endless deferral`,`Backing when we make hard or unpopular calls`,`Protection of our remit and resources against competing demands`,`A public position that matches what actually happens inside`,`A clear purpose we can align our work to`],
-  S4:[`Timely data when we need it, not weeks late`,`Early warning of emerging trends and risks`,`Insight we can act on, not just dashboards`,`Honest analysis, including the inconvenient findings`,`A clear read of demand and what's coming`,`The user reality, not just internal numbers`],
-  S3:[`Proportionate controls, not bureaucracy that blocks delivery`,`Risks flagged early, before they bite`,`Assurance that protects us, not just polices us`,`Clear, consistent accountability — who owns what`,`The resources and authority to do our job safely`,`Support under pressure, not scrutiny after the fact`],
-  S2:[`Clean handovers between us and other services`,`Plans that join up — no clashes or gaps`,`Coordination when our work depends on others`,`Stable, predictable flow, not constant rescheduling`,`One coordinated message across the system`,`Help resolving conflicts between competing demands`],
-  S1:[`The unvarnished picture of what's happening on the ground`,`Early warning when something's going wrong`,`Delivery to the standard we've promised`,`What users and partners actually experience`,`Problems surfaced early, not absorbed until they blow up`,`Real-time problem-solving when things go wrong`],
+  S5:[`Clear, stable direction we can plan and deliver against`,`A clear, owned statement of risk appetite`,`Timely decisions when priorities conflict`,`Clarity on the questions that matter most to leadership`,`Backing when we make difficult calls at the front line`,`Stable priorities we can plan and sequence around`,`Strategic decisions that actually use our evidence`,`Visible backing when we enforce standards`],
+  S4:[`Insight that informs our strategic choices`,`Accurate demand forecasts we can plan around`,`The user picture that helps us serve better`,`Reliable data to monitor performance and risk`,`Early warning of external change and emerging trends`,`Insight we can act on, not just dashboards`,`Quick updates when the demand picture changes`,`Evidence that backs our assurance judgements`],
+  S3:[`Confidence the organisation is in control`,`Controls that protect us without blocking delivery`,`Support when we're under pressure, not just scrutiny`,`Clarity on the standards and thresholds to measure against`,`Risks surfaced early enough to act on`,`Assurance that protects us, not catches us out`,`Clear accountability so we know who owns what`,`Action taken when our analysis flags a problem`],
+  S2:[`Strategy turned into plans that actually deliver`,`Clean handovers between us and other teams`,`Plans that build in risk and controls from the start`,`Our forecasts built into how work is sequenced`,`Coordinated execution across the whole system`,`Stable, predictable flow, not constant rescheduling`,`Visibility of the dependencies that could fail`,`A clear plan we can align our analysis to`],
+  S1:[`The unfiltered reality of what's happening on the ground`,`Early flags when something operational is going wrong`,`Problems surfaced early, not absorbed until they escalate`,`Honest feedback and data we can learn from`,`Strategy delivered where it meets users`,`What users are really experiencing`,`Standards followed where it counts`,`Honest feedback on whether plans actually work in practice`],
 };
+const NEED_CAP = 2; // max picks per target
+
 const LEVELS = ['Disconnected','Contained','Informed','Consulted','Partnered','System-owned'];
 const CELL = {
   S5:[`Leadership operates in isolation, protecting strategic space. Information is filtered, challenge is discouraged, and engagement is used to manage perception rather than shape decisions.`,`Strategy is developed within a small senior circle. Interaction with others is limited to cascades, governance forums and escalation.`,`Strategy teams share plans and performance information, and seek views, but problem-framing and trade-offs remain internally owned.`,`Strategic issues are explored jointly with other functions, with shared discussion of risks, options and implications.`,`Strategy and governance are co-shaped with operational, insight and assurance leaders around shared system outcomes.`,`Strategy emerges through persistent system-level forums where authority, evidence and accountability are organised around end-to-end performance.`],
@@ -109,20 +147,26 @@ const CELL = {
 };
 const TRUST = [
   { id:'credibility', label:'Credibility', q:`Can you trust what they say? Their knowledge, and their honesty.` },
-  { id:'reliability', label:'Reliability', q:`Can you trust what they do? Consistency, and delivery.` },
+  { id:'reliability', label:'Reliability', q:`Can you trust what they do? Their consistency, and delivery.` },
   { id:'intimacy',    label:'Intimacy',    q:`Is it safe to be candid with them? To raise problems, disagree, admit fault.` },
   { id:'stewardship', label:'Stewardship', q:`Under pressure, do they act for the whole system, or just themselves? (Higher = for the whole.)` },
 ];
-const BUDGET = 6;
 const LS_KEY = 'cb_collab_v1';
 
 /* ---------------- Helpers ---------------- */
 async function api(path, body){
-  const r = await fetch('/api/'+path, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
-  return r.json();
+  try{
+    const r = await fetch('/api/'+path, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+    let j = {};
+    try{ j = await r.json(); }catch(e){ j = {}; }
+    if(!r.ok) return Object.assign({ ok:false, httpError:r.status }, j);
+    return j;
+  }catch(e){
+    return { ok:false, netError:true };
+  }
 }
 async function saveWithRetry(payload){
-  const delays=[0,508,2010];
+  const delays=[0,500,2000];
   for(let a=0;a<3;a++){
     try{
       const r=await fetch('/api/collab-save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
@@ -146,14 +190,12 @@ function TopBar({ myId, onHelp }){
   );
 }
 function Progress({ pct }){ return <div className="cb-prog"><div style={{width:pct+'%'}}/></div>; }
-function FnRow({ id, children }){
-  const [open,setOpen]=useState(false); const f=FN[id];
+function Expand({ title, children }){
+  const [open,setOpen]=useState(false);
   return (
-    <div className="cb-fnrow">
-      <div><span className="cb-fnname">{f.name}</span><span className="cb-sn">{id}</span></div>
-      <button className="cb-link" onClick={()=>setOpen(o=>!o)}>{open?'Hide':'What this function does'}</button>
-      {open && <div className="cb-desc">{f.remit}</div>}
-      {children}
+    <div className="cb-expand">
+      <button className="cb-link" onClick={()=>setOpen(o=>!o)}>{open?'Hide':title}</button>
+      {open && <div className="cb-desc" style={{marginTop:4}}>{children}</div>}
     </div>
   );
 }
@@ -175,10 +217,16 @@ function Glossary({ onClose }){
   );
 }
 function Foot({ left, right }){
+  return (<div className="cb-foot"><div className="cb-wrap2"><div>{left}</div><div>{right}</div></div></div>);
+}
+function FnHeader({ id }){
+  const f=FN[id];
   return (
-    <div className="cb-foot"><div className="cb-wrap2">
-      <div>{left}</div><div>{right}</div>
-    </div></div>
+    <div className="cb-headcard">
+      <div><span className="cb-fnname">{f.name}</span><span className="cb-sn">{id}</span></div>
+      <div className="cb-desc">{f.remit}</div>
+      <div className="cb-roles">Think like these people: <b>{f.roles}</b></div>
+    </div>
   );
 }
 
@@ -189,7 +237,12 @@ function Join({ onValidated, onFacilitator }){
     setErr(''); setBusy(true);
     const r=await api('collab-session-validate',{code});
     setBusy(false);
-    if(!r || !r.ok){ setErr(r && r.reason==='closed' ? 'That session is closed.' : "We couldn't find that session code."); return; }
+    if(!r || !r.ok){
+      setErr(r && r.reason==='closed' ? 'That session is closed.'
+        : (r && r.netError) ? 'Connection problem — please try again.'
+        : "We couldn't find that session code.");
+      return;
+    }
     onValidated(r);
   }
   return (
@@ -207,10 +260,48 @@ function Join({ onValidated, onFacilitator }){
   );
 }
 
-function PickFunction({ code, systemName, claimed, onClaimed }){
-  const [sel,setSel]=useState(''); const [busy,setBusy]=useState(false); const [err,setErr]=useState(''); const [taken,setTaken]=useState(claimed||[]);
+function Intro({ systemName, onBegin, onBack }){
+  return (
+    <div className="cb-wrap">
+      <div className="cb-spacer" style={{height:32}}/>
+      <span className="cb-tag">{systemName}</span>
+      <h1>Before you start</h1>
+      <p>You're part of one system made of five functions. This activity looks at how well those functions
+        collaborate — and how far they trust each other — seen from each function's point of view.</p>
+      <div className="cb-divide"/>
+      <h2>How it works</h2>
+      <p className="cb-muted">Your group takes one function. You'll set your priorities, say what you most need
+        from the others, then rate how each of the other functions collaborates with you and how far you trust them.
+        It takes about 15 minutes. One person enters your group's agreed view.</p>
+      <div className="cb-divide"/>
+      <h2>The five functions</h2>
+      {ORDER.map(id=>(
+        <div key={id} style={{margin:'10px 0'}}>
+          <div><span className="cb-fnname">{FN[id].name}</span><span className="cb-sn">{id}</span></div>
+          <div className="cb-desc">{FN[id].tag}</div>
+        </div>
+      ))}
+      <Expand title="Why these five? (the system view)">
+        Every organisation, whatever its sector, has to set direction (S5), make sense of its environment (S4),
+        keep itself in control (S3), coordinate its work (S2) and deliver to users (S1). These five are a way of
+        seeing the whole organisation as one system. They only create value when they work together — which is
+        exactly what this activity examines. (The frame is drawn from the Viable System Model.)
+      </Expand>
+      <div className="cb-spacer"/>
+      <Foot left={<button className="cb-btn ghost" onClick={onBack}>Back</button>}
+        right={<button className="cb-btn" onClick={onBegin}>Begin</button>} />
+    </div>
+  );
+}
+
+function PickFunction({ code, systemName, claimed, current, onClaimed, onBack }){
+  const [sel,setSel]=useState(current||''); const [busy,setBusy]=useState(false); const [err,setErr]=useState('');
+  const [taken,setTaken]=useState(claimed||[]);
   async function go(){
-    setErr(''); setBusy(true);
+    setErr('');
+    if(sel===current){ onClaimed(sel); return; }
+    setBusy(true);
+    if(current){ await api('collab-release',{code,fn:current}); }
     const r=await api('collab-claim',{code,fn:sel});
     setBusy(false);
     if(r && r.taken){ setErr('That function was just taken. Pick another.'); setTaken(t=>t.includes(sel)?t:[...t,sel]); setSel(''); return; }
@@ -219,22 +310,26 @@ function PickFunction({ code, systemName, claimed, onClaimed }){
   }
   return (
     <div className="cb-wrap">
-      <div className="cb-spacer" style={{height:40}}/>
+      <div className="cb-spacer" style={{height:32}}/>
       <span className="cb-tag">{systemName}</span>
       <h1>Which function are you?</h1>
-      <p className="cb-muted">Pick the function your group has been given. Greyed-out ones are already taken.</p>
+      <p className="cb-muted">Pick the function your group has been given. You'll answer as this function —
+        thinking like the people who do this work. Greyed-out functions are already taken.</p>
       {ORDER.map(id=>{
-        const isTaken=taken.includes(id);
+        const isMine = id===current;
+        const isTaken = taken.includes(id) && !isMine;
         return (
-          <button key={id} className={'cb-chip'+(sel===id?' on':'')} disabled={isTaken}
-            onClick={()=>setSel(id)}>
+          <button key={id} className={'cb-chip'+(sel===id?' on':'')} disabled={isTaken} onClick={()=>setSel(id)}>
             <span className="cb-fnname">{FN[id].name}</span><span className="cb-sn">{id}</span>
+            {isMine && <span className="cb-sn"> — yours</span>}
             {isTaken && <span className="cb-sn"> — taken</span>}
           </button>
         );
       })}
       {err && <div className="cb-err">{err}</div>}
-      <div style={{marginTop:14}}><button className="cb-btn" disabled={!sel||busy} onClick={go}>{busy?'…':'Confirm'}</button></div>
+      <div className="cb-spacer"/>
+      <Foot left={<button className="cb-btn ghost" onClick={onBack}>Back</button>}
+        right={<button className="cb-btn" disabled={!sel||busy} onClick={go}>{busy?'…':'Confirm'}</button>} />
     </div>
   );
 }
@@ -243,9 +338,7 @@ function Priorities({ myId, value, onBack, onNext }){
   const menu=PRIORITIES[myId];
   const [picked,setPicked]=useState(value&&value.length?value:[]);
   const [custom,setCustom]=useState('');
-  function toggle(t){
-    setPicked(p=> p.includes(t)? p.filter(x=>x!==t) : (p.length>=3? p : [...p,t]));
-  }
+  function toggle(t){ setPicked(p=> p.includes(t)? p.filter(x=>x!==t) : (p.length>=3? p : [...p,t])); }
   function addCustom(){ const t=custom.trim(); if(t && picked.length<3 && !picked.includes(t)){ setPicked(p=>[...p,t]); setCustom(''); } }
   const all=[...menu, ...picked.filter(p=>!menu.includes(p))];
   return (
@@ -253,9 +346,11 @@ function Priorities({ myId, value, onBack, onNext }){
       <span className="cb-tag">Part 1 · Your function</span>
       <h2>Your top three priorities</h2>
       <p className="cb-muted">As {FN[myId].name}, what matters most? Pick three.</p>
+      <FnHeader id={myId} />
       {all.map(t=>(
         <button key={t} className={'cb-chip'+(picked.includes(t)?' on':'')}
-          disabled={!picked.includes(t)&&picked.length>=3} onClick={()=>toggle(t)}>{t}</button>
+          disabled={!picked.includes(t)&&picked.length>=3} onClick={()=>toggle(t)}>
+          <span className="cb-chk">{picked.includes(t)?'✓':''}</span>{t}</button>
       ))}
       <div className="cb-row" style={{marginTop:8}}>
         <input className="cb-input" style={{flex:1}} placeholder="Add your own…" value={custom}
@@ -271,99 +366,109 @@ function Priorities({ myId, value, onBack, onNext }){
 }
 
 function Needs({ myId, value, onBack, onNext }){
+  const targets=otherFns(myId);
+  const [active,setActive]=useState(targets[0]);
   const [picked,setPicked]=useState(value&&value.length?value:[]); // [{target,need}]
   const [customs,setCustoms]=useState({});
-  const used=picked.length;
-  function has(target,need){ return picked.some(p=>p.target===target&&p.need===need); }
-  function toggle(target,need){
+  const countFor=t=>picked.filter(p=>p.target===t).length;
+  const has=(t,n)=>picked.some(p=>p.target===t&&p.need===n);
+  const total=picked.length;
+  function toggle(t,n){
     setPicked(p=>{
-      if(p.some(x=>x.target===target&&x.need===need)) return p.filter(x=>!(x.target===target&&x.need===need));
-      if(p.length>=BUDGET) return p;
-      return [...p,{target,need}];
+      if(p.some(x=>x.target===t&&x.need===n)) return p.filter(x=>!(x.target===t&&x.need===n));
+      if(p.filter(x=>x.target===t).length>=NEED_CAP) return p;
+      return [...p,{target:t,need:n}];
     });
   }
-  function addCustom(target){
-    const t=(customs[target]||'').trim();
-    if(t && used<BUDGET && !has(target,t)){ setPicked(p=>[...p,{target,need:t}]); setCustoms(c=>({...c,[target]:''})); }
+  function addCustom(t){
+    const v=(customs[t]||'').trim();
+    if(v && countFor(t)<NEED_CAP && !has(t,v)){ setPicked(p=>[...p,{target:t,need:v}]); setCustoms(c=>({...c,[t]:''})); }
   }
+  const f=FN[active]; const full=countFor(active)>=NEED_CAP;
+  const menu=NEEDS[active];
+  const extras=picked.filter(p=>p.target===active&&!menu.includes(p.need)).map(p=>p.need);
   return (
     <div className="cb-wrap">
       <span className="cb-tag">Part 1 · Your needs</span>
       <h2>What you most need from the others</h2>
-      <p className="cb-muted">Across all the other functions, pick up to {BUDGET} — spend them where you most depend. It's fine to need nothing from a function.</p>
-      {otherFns(myId).map(target=>{
-        const menu=NEEDS[target];
-        const extras=picked.filter(p=>p.target===target&&!menu.includes(p.need)).map(p=>p.need);
-        return (
-          <div key={target} className="cb-card">
-            <div><span className="cb-fnname">{FN[target].name}</span><span className="cb-sn">{target}</span></div>
-            {[...menu,...extras].map(need=>(
-              <button key={need} className={'cb-chip'+(has(target,need)?' on':'')}
-                disabled={!has(target,need)&&used>=BUDGET} onClick={()=>toggle(target,need)}>{need}</button>
-            ))}
-            <div className="cb-row" style={{marginTop:6}}>
-              <input className="cb-input" style={{flex:1}} placeholder="Add your own…" value={customs[target]||''}
-                onChange={e=>setCustoms(c=>({...c,[target]:e.target.value}))} onKeyDown={e=>e.key==='Enter'&&addCustom(target)} />
-              <button className="cb-btn ghost small" disabled={!(customs[target]||'').trim()||used>=BUDGET} onClick={()=>addCustom(target)}>Add</button>
-            </div>
-          </div>
-        );
-      })}
+      <p className="cb-muted">For each function, choose up to two — the things you most depend on them for.</p>
+      <div className="cb-tabs">
+        {targets.map(t=>{
+          const c=countFor(t);
+          return (
+            <button key={t} className={'cb-tab'+(active===t?' active':'')} onClick={()=>setActive(t)}>
+              {SHORT[t]}{c>0 && <span className={'cb-badge'+(c>=NEED_CAP?' full':'')}>{c}</span>}
+            </button>
+          );
+        })}
+      </div>
+      <div><span className="cb-fnname">{f.name}</span><span className="cb-sn">{active}</span></div>
+      <div className="cb-count" style={{marginTop:3}}>Choose up to {NEED_CAP} · <b>{countFor(active)} of {NEED_CAP}</b> chosen</div>
+      {[...menu,...extras].map(need=>(
+        <button key={need} className={'cb-chip'+(has(active,need)?' on':'')}
+          disabled={!has(active,need)&&full} onClick={()=>toggle(active,need)}>
+          <span className="cb-chk">{has(active,need)?'✓':''}</span>{need}</button>
+      ))}
+      <div className="cb-row" style={{marginTop:6}}>
+        <input className="cb-input" style={{flex:1}} placeholder="Add your own…" value={customs[active]||''}
+          onChange={e=>setCustoms(c=>({...c,[active]:e.target.value}))} onKeyDown={e=>e.key==='Enter'&&addCustom(active)} />
+        <button className="cb-btn ghost small" disabled={!(customs[active]||'').trim()||full} onClick={()=>addCustom(active)}>Add</button>
+      </div>
       <div className="cb-spacer"/>
       <Foot left={<button className="cb-btn ghost" onClick={onBack}>Back</button>}
-        right={<span className="cb-row"><span className="cb-count">{used}/{BUDGET} used</span>
-          <button className="cb-btn" disabled={used===0} onClick={()=>onNext(picked)}>Next</button></span>} />
+        right={<span className="cb-row"><span className="cb-count">{total} chosen</span>
+          <button className="cb-btn" disabled={total===0} onClick={()=>onNext(picked)}>Next</button></span>} />
     </div>
   );
 }
 
 function Collaboration({ myId, value, onBack, onNext }){
-  const [val,setVal]=useState(value||{});
-  const [open,setOpen]=useState(null); // {target}
   const targets=otherFns(myId);
-  const done = targets.every(t=> val[t]!==undefined);
+  const [val,setVal]=useState(value||{});
+  const [idx,setIdx]=useState(0);
+  const t=targets[idx];
+  const chosen=val[t];
+  function pick(i){ setVal(v=>({...v,[t]:i})); }
+  function next(){ if(idx<targets.length-1) setIdx(i=>i+1); else onNext(val); }
+  function back(){ if(idx>0) setIdx(i=>i-1); else onBack(); }
   return (
     <div className="cb-wrap">
-      <span className="cb-tag">Part 2 · Collaboration</span>
-      <h2>How does each collaborate with you?</h2>
-      <p className="cb-muted">From where you sit, choose the level that fits each function. Tap a level to see what it means for them.</p>
-      {targets.map(t=>(
-        <div key={t} className="cb-card">
-          <div><span className="cb-fnname">{FN[t].name}</span><span className="cb-sn">{t}</span></div>
-          <div className="cb-seg">
-            {LEVELS.map((lv,i)=>(
-              <button key={i} className={(val[t]===i?'on':'')} onClick={()=>{ setVal(v=>({...v,[t]:i})); setOpen({target:t,level:i}); }}>{i}</button>
-            ))}
-          </div>
-          <div className="cb-tiny cb-muted" style={{marginTop:4}}>0 {LEVELS[0]} · 5 {LEVELS[5]}</div>
-          {open && open.target===t && val[t]!==undefined &&
-            <div className="cb-desc" style={{marginTop:8}}><b>{val[t]} {LEVELS[val[t]]}.</b> {CELL[t][val[t]]}</div>}
-        </div>
+      <span className="cb-tag">Part 2 · Collaboration · {idx+1} of {targets.length}</span>
+      <h2>How does {SHORT[t]} collaborate with you?</h2>
+      <p className="cb-muted">From where you sit as {FN[myId].name}, choose the level that best fits {FN[t].name}.</p>
+      <FnHeader id={t} />
+      {LEVELS.map((lv,i)=>(
+        <button key={i} className={'cb-level'+(chosen===i?' on':'')} onClick={()=>pick(i)}>
+          <div className="lvtitle"><span className="num">{i}</span>{lv}</div>
+          <div className="lvdesc">{CELL[t][i]}</div>
+        </button>
       ))}
       <div className="cb-spacer"/>
-      <Foot left={<button className="cb-btn ghost" onClick={onBack}>Back</button>}
-        right={<button className="cb-btn" disabled={!done} onClick={()=>onNext(val)}>Next</button>} />
+      <Foot left={<button className="cb-btn ghost" onClick={back}>Back</button>}
+        right={<button className="cb-btn" disabled={chosen===undefined} onClick={next}>{idx<targets.length-1?'Next':'Next: Trust'}</button>} />
     </div>
   );
 }
 
-function Trust({ myId, value, onBack, onSubmit }){
+function Trust({ myId, value, onBack, onDone }){
+  const targets=otherFns(myId);
   const [val,setVal]=useState(value||{});
   const [page,setPage]=useState(0);
-  const comp=TRUST[page]; const targets=otherFns(myId);
+  const comp=TRUST[page];
   function set(t,score){ setVal(v=>({...v,[t]:{...(v[t]||{}),[comp.id]:score}})); }
   const pageDone = targets.every(t=> val[t] && val[t][comp.id]!==undefined);
-  function next(){ if(page<TRUST.length-1) setPage(p=>p+1); else onSubmit(val); }
+  function next(){ if(page<TRUST.length-1) setPage(p=>p+1); else onDone(val); }
   function back(){ if(page>0) setPage(p=>p-1); else onBack(); }
   return (
     <div className="cb-wrap">
-      <span className="cb-tag">Part 3 · Trust · Component {page+1} of {TRUST.length}</span>
+      <span className="cb-tag">Part 3 · Trust · {page+1} of {TRUST.length}</span>
       <h2>{comp.label}</h2>
       <p className="cb-muted">{comp.q}</p>
+      <p className="cb-tiny cb-muted">Rate each of the other functions from where you sit as {FN[myId].name}.</p>
       {targets.map(t=>(
         <div key={t} className="cb-card">
           <div><span className="cb-fnname">{FN[t].name}</span><span className="cb-sn">{t}</span></div>
-          <div className="cb-seg">
+          <div className="cb-scale">
             {[1,2,3,4,5].map(n=>(
               <button key={n} className={((val[t]&&val[t][comp.id])===n?'on':'')} onClick={()=>set(t,n)}>{n}</button>
             ))}
@@ -373,18 +478,78 @@ function Trust({ myId, value, onBack, onSubmit }){
       ))}
       <div className="cb-spacer"/>
       <Foot left={<button className="cb-btn ghost" onClick={back}>Back</button>}
-        right={<button className="cb-btn" disabled={!pageDone} onClick={next}>{page<TRUST.length-1?'Next':'Submit'}</button>} />
+        right={<button className="cb-btn" disabled={!pageDone} onClick={next}>{page<TRUST.length-1?'Next':'Review'}</button>} />
     </div>
   );
 }
 
-function Submitted({ systemName }){
+function Review({ myId, priorities, needs, collab, trust, onEdit, onBack, onSubmit }){
+  const targets=otherFns(myId);
+  const [busy,setBusy]=useState(false);
+  async function submit(){ setBusy(true); await onSubmit(); }
+  return (
+    <div className="cb-wrap">
+      <span className="cb-tag">Review</span>
+      <h2>Check your group's answers</h2>
+      <p className="cb-muted">You can change anything before you submit — and after.</p>
+
+      <div className="cb-card">
+        <div className="cb-row" style={{justifyContent:'space-between'}}><b>Your priorities</b>
+          <button className="cb-link" onClick={()=>onEdit('p1priorities')}>Edit</button></div>
+        {priorities.length? priorities.map((p,i)=><div key={i} className="cb-small">• {p}</div>)
+          : <div className="cb-tiny cb-muted">None set</div>}
+      </div>
+
+      <div className="cb-card">
+        <div className="cb-row" style={{justifyContent:'space-between'}}><b>What you need from others</b>
+          <button className="cb-link" onClick={()=>onEdit('p1needs')}>Edit</button></div>
+        {targets.map(t=>{
+          const items=needs.filter(n=>n.target===t);
+          if(!items.length) return null;
+          return (<div key={t} style={{marginTop:6}}>
+            <div className="cb-tiny" style={{fontWeight:600,color:'var(--cb-muted)'}}>{SHORT[t]}</div>
+            {items.map((n,i)=><div key={i} className="cb-small">• {n.need}</div>)}
+          </div>);
+        })}
+      </div>
+
+      <div className="cb-card">
+        <div className="cb-row" style={{justifyContent:'space-between'}}><b>Collaboration</b>
+          <button className="cb-link" onClick={()=>onEdit('p2collab')}>Edit</button></div>
+        {targets.map(t=>(
+          <div key={t} className="cb-small cb-row" style={{justifyContent:'space-between'}}>
+            <span>{SHORT[t]}</span>
+            <span className="cb-muted">{collab[t]!==undefined? collab[t]+' '+LEVELS[collab[t]] : '—'}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="cb-card">
+        <div className="cb-row" style={{justifyContent:'space-between'}}><b>Trust</b>
+          <button className="cb-link" onClick={()=>onEdit('p3trust')}>Edit</button></div>
+        {targets.map(t=>{
+          const tv=trust[t]||{};
+          const txt=TRUST.map(c=> c.label[0]+(tv[c.id]||'–')).join('  ');
+          return (<div key={t} className="cb-small cb-row" style={{justifyContent:'space-between'}}>
+            <span>{SHORT[t]}</span><span className="cb-muted cb-tiny">{txt}</span></div>);
+        })}
+      </div>
+
+      <div className="cb-spacer"/>
+      <Foot left={<button className="cb-btn ghost" onClick={onBack}>Back</button>}
+        right={<button className="cb-btn" disabled={busy} onClick={submit}>{busy?'Submitting…':'Submit'}</button>} />
+    </div>
+  );
+}
+
+function Submitted({ systemName, onEdit }){
   return (
     <div className="cb-wrap cb-center">
-      <div className="cb-spacer" style={{height:70}}/>
+      <div className="cb-spacer" style={{height:60}}/>
       <h1>Your group's ratings are in</h1>
       <p className="cb-muted">{systemName}</p>
       <p>Sit tight — your facilitator will bring everyone together for the reveal.</p>
+      <div style={{marginTop:18}}><button className="cb-btn ghost" onClick={onEdit}>Edit our answers</button></div>
     </div>
   );
 }
@@ -393,6 +558,7 @@ function Submitted({ systemName }){
 function Facilitator({ onBack }){
   const [pw,setPw]=useState(''); const [sys,setSys]=useState(''); const [busy,setBusy]=useState(false);
   const [err,setErr]=useState(''); const [code,setCode]=useState(''); const [prog,setProg]=useState(null);
+  const [resetting,setResetting]=useState('');
   async function create(){
     setErr(''); setBusy(true);
     const r=await api('collab-session-create',{systemName:sys,adminPassword:pw});
@@ -406,6 +572,18 @@ function Facilitator({ onBack }){
     async function poll(){ const r=await api('collab-progress',{code,adminPassword:pw}); if(live&&r&&r.ok) setProg(r); }
     poll(); const id=setInterval(poll,5000); return ()=>{ live=false; clearInterval(id); };
   },[code,pw]);
+
+  async function resetFn(id){
+    const s=(prog&&prog.submissions||[]).find(x=>x.function===id);
+    const warn = s && s.submitted
+      ? `${FN[id].name} has already SUBMITTED. Resetting will delete their answers and free the slot. Continue?`
+      : `Reset ${FN[id].name}? This frees the slot so a group can claim it again.`;
+    if(!window.confirm(warn)) return;
+    setResetting(id);
+    await api('collab-release',{code,fn:id,adminPassword:pw});
+    const r=await api('collab-progress',{code,adminPassword:pw}); if(r&&r.ok) setProg(r);
+    setResetting('');
+  }
 
   if(code){
     const subs=(prog&&prog.submissions)||[];
@@ -425,10 +603,13 @@ function Facilitator({ onBack }){
           {ORDER.map(id=>{
             const s=byFn[id];
             const state= !s? 'not joined' : (s.submitted? 'submitted' : 'in progress');
-            return (<div key={id} className="cb-row" style={{justifyContent:'space-between',padding:'6px 0',borderTop:'1px solid var(--cb-line)'}}>
-              <span><span className="cb-fnname">{FN[id].name}</span><span className="cb-sn">{id}</span></span>
-              <span className="cb-tiny cb-muted">{state}</span></div>);
+            return (<div key={id} className="cb-row" style={{justifyContent:'space-between',padding:'8px 0',borderTop:'1px solid var(--cb-line)'}}>
+              <span><span className="cb-fnname">{FN[id].name}</span><span className="cb-sn">{id}</span>
+                <span className="cb-tiny cb-muted"> · {state}</span></span>
+              <button className="cb-link" disabled={!s||resetting===id} onClick={()=>resetFn(id)}>
+                {resetting===id?'…':'Reset'}</button></div>);
           })}
+          <div className="cb-tiny cb-muted" style={{marginTop:8}}>Reset frees a stuck or wrongly-claimed function so a group can pick it again.</div>
         </div>
         <div className="cb-ok">Reveal dashboard — the divergence ranking, the collaboration × trust map, priority-alignment and the rest — arrives in the next build. Data is being captured now.</div>
         <button className="cb-btn ghost" onClick={onBack}>Back</button>
@@ -465,11 +646,11 @@ function App(){
   const [needs,setNeeds]=useState([]);
   const [collab,setCollab]=useState({});
   const [trust,setTrust]=useState({});
+  const [editing,setEditing]=useState(false);
   const [showGloss,setShowGloss]=useState(false);
   const [resume,setResume]=useState(null);
   const [booted,setBooted]=useState(false);
 
-  // boot: look for saved identity and offer resume
   useEffect(()=>{
     let saved=null; try{ saved=JSON.parse(localStorage.getItem(LS_KEY)||'null'); }catch(e){}
     if(saved && saved.code && saved.fn){ setResume(saved); }
@@ -477,6 +658,7 @@ function App(){
   },[]);
 
   function persist(step){ try{ localStorage.setItem(LS_KEY, JSON.stringify({ code, fn:myId, step })); }catch(e){} }
+  async function save(patch){ await saveWithRetry({ code, fn:myId, patch }); }
 
   async function doResume(){
     const r=await api('collab-session-validate',{code:resume.code});
@@ -491,11 +673,12 @@ function App(){
   }
   function freshStart(){ localStorage.removeItem(LS_KEY); setResume(null); }
 
-  async function save(patch){ await saveWithRetry({ code, fn:myId, patch }); }
-
-  // screen handlers
-  function onValidated(r){ setCode(r.code); setSystemName(r.systemName); setClaimed(r.claimed||[]); setScreen('pickfn'); }
+  function onValidated(r){ setCode(r.code); setSystemName(r.systemName); setClaimed(r.claimed||[]); setScreen('intro'); }
   function onClaimed(fn){ setMyId(fn); try{ localStorage.setItem(LS_KEY, JSON.stringify({code,fn,step:'p1priorities'})); }catch(e){} setScreen('p1priorities'); }
+
+  // route to review when editing, else to the given next screen
+  function go(next){ if(editing){ setEditing(false); persist('review'); setScreen('review'); } else { persist(next); setScreen(next); } }
+  function startEdit(target){ setEditing(true); setScreen(target); }
 
   if(!booted) return null;
 
@@ -514,8 +697,8 @@ function App(){
 
   if(mode==='facilitator') return <Facilitator onBack={()=>{ setMode('participant'); setScreen('join'); }} />;
 
-  const showBar = ['p1priorities','p1needs','p2collab','p3trust'].includes(screen);
-  const pcts={ p1priorities:20, p1needs:40, p2collab:60, p3trust:85 };
+  const showBar = ['p1priorities','p1needs','p2collab','p3trust','review'].includes(screen);
+  const pcts={ p1priorities:15, p1needs:35, p2collab:60, p3trust:82, review:96 };
 
   return (
     <div>
@@ -523,20 +706,30 @@ function App(){
       {showGloss && <Glossary onClose={()=>setShowGloss(false)} />}
 
       {screen==='join' && <Join onValidated={onValidated} onFacilitator={()=>setMode('facilitator')} />}
-      {screen==='pickfn' && <PickFunction code={code} systemName={systemName} claimed={claimed} onClaimed={onClaimed} />}
+      {screen==='intro' && <Intro systemName={systemName} onBegin={()=>setScreen('pickfn')} onBack={()=>setScreen('join')} />}
+      {screen==='pickfn' && <PickFunction code={code} systemName={systemName} claimed={claimed} current={myId} onClaimed={onClaimed} onBack={()=>setScreen('intro')} />}
+
       {screen==='p1priorities' && <Priorities myId={myId} value={priorities}
-        onBack={()=>setScreen('pickfn')}
-        onNext={async v=>{ setPriorities(v); await save({priorities:v}); persist('p1needs'); setScreen('p1needs'); }} />}
+        onBack={()=> editing? go() : setScreen('pickfn')}
+        onNext={async v=>{ setPriorities(v); await save({priorities:v}); go('p1needs'); }} />}
+
       {screen==='p1needs' && <Needs myId={myId} value={needs}
-        onBack={()=>setScreen('p1priorities')}
-        onNext={async v=>{ setNeeds(v); await save({needs:v}); persist('p2collab'); setScreen('p2collab'); }} />}
+        onBack={()=> editing? go() : setScreen('p1priorities')}
+        onNext={async v=>{ setNeeds(v); await save({needs:v}); go('p2collab'); }} />}
+
       {screen==='p2collab' && <Collaboration myId={myId} value={collab}
-        onBack={()=>setScreen('p1needs')}
-        onNext={async v=>{ setCollab(v); await save({collaboration:v}); persist('p3trust'); setScreen('p3trust'); }} />}
+        onBack={()=> editing? go() : setScreen('p1needs')}
+        onNext={async v=>{ setCollab(v); await save({collaboration:v}); go('p3trust'); }} />}
+
       {screen==='p3trust' && <Trust myId={myId} value={trust}
-        onBack={()=>setScreen('p2collab')}
-        onSubmit={async v=>{ setTrust(v); await save({trust:v, submitted:true}); persist('submitted'); setScreen('submitted'); }} />}
-      {screen==='submitted' && <Submitted systemName={systemName} />}
+        onBack={()=> editing? go() : setScreen('p2collab')}
+        onDone={async v=>{ setTrust(v); await save({trust:v}); setEditing(false); persist('review'); setScreen('review'); }} />}
+
+      {screen==='review' && <Review myId={myId} priorities={priorities} needs={needs} collab={collab} trust={trust}
+        onEdit={startEdit} onBack={()=>setScreen('p3trust')}
+        onSubmit={async ()=>{ await save({submitted:true}); persist('submitted'); setScreen('submitted'); }} />}
+
+      {screen==='submitted' && <Submitted systemName={systemName} onEdit={()=>setScreen('review')} />}
     </div>
   );
 }
