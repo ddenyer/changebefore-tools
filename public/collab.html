@@ -156,6 +156,9 @@
   .cb-cmx .lw{width:104px;font-size:12.5px;color:var(--cb-muted);flex:0 0 auto;text-align:right}
   /* system-not-department reminder */
   .cb-sysnote{font-size:11.5px;color:var(--cb-muted);margin-top:2px;line-height:1.3}
+  .cbr-mtag{display:inline-block;font-size:10px;font-weight:600;color:#fff;background:var(--cb-accent);border-radius:9px;padding:1px 8px;margin-left:8px;vertical-align:1px;white-space:nowrap}
+  .cbr-li.match,.cbr-nd.match{background:var(--cb-tint);border-radius:6px;padding:3px 7px}
+  .cbr-pick{display:inline-block;font-size:11px;color:var(--cb-accent);font-weight:600;margin-left:8px}
 </style>
 </head>
 <body>
@@ -405,32 +408,32 @@ function PickFunction({ code, systemName, claimed, current, onClaimed, onBack })
 }
 
 function Priorities({ myId, value, onBack, onNext }){
-  const menu=PRIORITIES[myId];
+  const menu=NEEDS[myId];
   const [picked,setPicked]=useState(value&&value.length?value:[]);
   const [custom,setCustom]=useState('');
-  function toggle(t){ setPicked(p=> p.includes(t)? p.filter(x=>x!==t) : (p.length>=3? p : [...p,t])); }
-  function addCustom(){ const t=custom.trim(); if(t && picked.length<3 && !picked.includes(t)){ setPicked(p=>[...p,t]); setCustom(''); } }
+  function toggle(t){ setPicked(p=> p.includes(t)? p.filter(x=>x!==t) : (p.length>=2? p : [...p,t])); }
+  function addCustom(){ const t=custom.trim(); if(t && picked.length<2 && !picked.includes(t)){ setPicked(p=>[...p,t]); setCustom(''); } }
   const all=[...menu, ...picked.filter(p=>!menu.includes(p))];
   return (
     <div className="cb-wrap">
       <span className="cb-tag">Part 1 · Your function</span>
-      <h2>Your top three priorities</h2>
-      <p className="cb-muted">As {FN[myId].name}, what matters most? Pick three.</p>
+      <h2>Your top two priorities</h2>
+      <p className="cb-muted">As {FN[myId].name}, pick the two things you most need to get right for the rest of the system.</p>
       <FnHeader id={myId} />
       {all.map(t=>(
         <button key={t} className={'cb-chip'+(picked.includes(t)?' on':'')}
-          disabled={!picked.includes(t)&&picked.length>=3} onClick={()=>toggle(t)}>
+          disabled={!picked.includes(t)&&picked.length>=2} onClick={()=>toggle(t)}>
           <span className="cb-chk">{picked.includes(t)?'✓':''}</span>{t}</button>
       ))}
       <div className="cb-row" style={{marginTop:8}}>
         <input className="cb-input" style={{flex:1}} placeholder="Add your own…" value={custom}
           onChange={e=>setCustom(e.target.value)} onKeyDown={e=>e.key==='Enter'&&addCustom()} />
-        <button className="cb-btn ghost small" disabled={!custom.trim()||picked.length>=3} onClick={addCustom}>Add</button>
+        <button className="cb-btn ghost small" disabled={!custom.trim()||picked.length>=2} onClick={addCustom}>Add</button>
       </div>
       <div className="cb-spacer"/>
       <Foot left={<button className="cb-btn ghost" onClick={onBack}>Back</button>}
-        right={<span className="cb-row"><span className="cb-count">{picked.length}/3</span>
-          <button className="cb-btn" disabled={picked.length!==3} onClick={()=>onNext(picked)}>Next</button></span>} />
+        right={<span className="cb-row"><span className="cb-count">{picked.length}/2</span>
+          <button className="cb-btn" disabled={picked.length!==2} onClick={()=>onNext(picked)}>Next</button></span>} />
     </div>
   );
 }
@@ -798,23 +801,30 @@ function Reveal({ sys, subs, submittedTotal, onClose }){
       <p className="cb-muted" style={{margin:'0 0 6px'}}>Walking back through it in the order you did it.</p>
 
       <div className="cbr-step"><div><span className="cbr-stepn">1</span><h2 className="cbr-h2">Priorities</h2></div>
-        <div className="cbr-cap2">What each function said matters most to them.</div>
+        <div className="cbr-cap2">What each function chose as its top two, and who else picked the same thing as a need from them.</div>
         <div className="cbr-cards">
-          {present.map(id=>(
-            <div key={id} className="cbr-card"><h3>{SHORT[id]}<span className="cb-sn">{id}</span></h3>
-              {((row(id).priorities)||[]).map((p,i)=><div key={i} className="cbr-li"><span className="b">&bull;</span><span>{p}</span></div>)}
-              {(!row(id).priorities||row(id).priorities.length===0) && <div className="cbr-empty">None declared</div>}
-            </div>
-          ))}
+          {present.map(id=>{
+            const nlist=needsTo(id);
+            const prios=(row(id).priorities)||[];
+            return (
+              <div key={id} className="cbr-card"><h3>{SHORT[id]}<span className="cb-sn">{id}</span></h3>
+                {prios.map((p,i)=>{ const pickers=nlist.filter(x=>x.need===p).map(x=>SHORT[x.from]); return (
+                  <div key={i} className={'cbr-li'+(pickers.length?' match':'')}><span className="b">&bull;</span>
+                    <span>{p}{pickers.length>0 && <span className="cbr-pick">picked by {pickers.join(', ')}</span>}</span></div>); })}
+                {prios.length===0 && <div className="cbr-empty">None declared</div>}
+              </div>
+            );
+          })}
         </div>
       </div>
 
       <div className="cbr-step"><div><span className="cbr-stepn">2</span><h2 className="cbr-h2">Needs</h2></div>
-        <div className="cbr-cap2">What the rest of the system most needs from each function.</div>
+        <div className="cbr-cap2">What the rest of the system most needs from each function. A tag marks a need that function also made one of its priorities.</div>
         <div className="cbr-cards">
-          {present.map(t=>{ const items=needsTo(t); return (
+          {present.map(t=>{ const items=needsTo(t); const prioSet=new Set((row(t).priorities)||[]); return (
             <div key={t} className="cbr-card"><h3>From {SHORT[t]}<span className="cb-sn">{t}</span></h3>
-              {items.length? items.map((it,i)=><div key={i} className="cbr-nd"><span className="req">{SHORT[it.from]}</span>{it.need}</div>)
+              {items.length? items.map((it,i)=>{ const m=prioSet.has(it.need); return (
+                <div key={i} className={'cbr-nd'+(m?' match':'')}><span className="req">{SHORT[it.from]}</span>{it.need}{m && <span className="cbr-mtag">they prioritise this</span>}</div>); })
                 : <div className="cbr-empty">No needs pointed here.</div>}
             </div>); })}
         </div>
