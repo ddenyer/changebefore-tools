@@ -22,6 +22,13 @@
 
 export const config = { maxDuration: 30 };
 
+// ── MODEL CONFIG ───────────────────────────────────────────────────────
+// Model string lives in Vercel env vars so retirement can be handled by
+// updating the env var, no code push needed. Default is the current Sonnet.
+// When Anthropic retires this model (~6-18 months window historically),
+// update STAT_AI_MODEL in Vercel dashboard → Settings → Environment Variables.
+const MODEL = process.env.STAT_AI_MODEL || 'claude-sonnet-4-5';
+
 // ── 24 SURVEY QUESTIONS ────────────────────────────────────────────────
 // P=Purpose, E=People, R=Process, D=Product
 const CATS = { P:'Purpose', E:'People', R:'Process', D:'Product' };
@@ -510,13 +517,27 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: MODEL,
         max_tokens: 2000,
         messages: [{ role: 'user', content: prompt }],
       }),
     });
     const data = await aiResp.json();
-    const text = data.content?.[0]?.text || '[]';
+
+    // Surface real errors instead of silently defaulting to '[]'.
+    // Without this, model retirements / auth failures / rate limits produce
+    // a misleading "Expected 9 items, got 0" downstream — diagnosing that
+    // ate an hour. Always show the real Anthropic error.
+    if (!aiResp.ok) {
+      console.error('Anthropic API HTTP error:', aiResp.status, JSON.stringify(data));
+      throw new Error(`Anthropic API ${aiResp.status}: ${data?.error?.message || data?.error?.type || 'no error message'}`);
+    }
+    if (!data.content || !data.content[0]?.text) {
+      console.error('Anthropic API returned no content:', JSON.stringify(data));
+      throw new Error(`Anthropic returned no content: ${data?.error?.message || data?.type || 'unknown shape'}`);
+    }
+
+    const text = data.content[0].text;
     let cleaned = text.replace(/```json|```/g, '').trim();
     const m = cleaned.match(/\[[\s\S]*\]/);
     if (m) cleaned = m[0];
@@ -549,6 +570,7 @@ export default async function handler(req, res) {
         size: sizeNote,
         targets: sel.targets,
         bucket_counts: items.reduce((a,c) => { a[c.bucket] = (a[c.bucket]||0) + 1; return a; }, {}),
+        model: MODEL,
       },
     });
   } catch (e) {
