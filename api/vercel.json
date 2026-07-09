@@ -8,5 +8,6 @@
     { "source": "/engagement", "destination": "/engagement.html" },
     { "source": "/resilience-is", "destination": "/resilience-is.html" },
     { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/ahamo-hplt", "destination": "/ahamo-hplt.html" }
   ]
 }
