@@ -616,45 +616,6 @@ function ItemDetail({a}){
   );
 }
 
-function Heatmap({a}){
-  return(
-    <div>
-      <p style={{fontSize:'.86rem',color:'#4b5563',lineHeight:1.6,marginBottom:'1rem'}}>Every item, coloured by its team-member average — red is low, green is high. Grouped by area.</p>
-      {a.dims.map(d=>(
-        <div key={d.key} className="sub-block">
-          <h4 style={{color:d.colour}}>{d.name} · {scoreText(d.mean)}/6</h4>
-          <div className="hm-grid">
-            {d.subs.flatMap(s=>s.items).map(it=>{
-              const st=a.items[it.n];
-              return <div key={it.n} className="hm-cell" style={{background:meanColour(st.mean)}} title={it.t+' — '+scoreText(st.mean)}>{it.n}</div>;
-            })}
-          </div>
-        </div>
-      ))}
-      <div className="hm-legend"><span>Low</span><div className="hm-ramp"/><span>High</span></div>
-    </div>
-  );
-}
-
-function TeamVsStake({a}){
-  const gap=a.oTeam&&a.oStake?(a.oTeam-a.oStake):0;
-  return(
-    <div>
-      <div className="big3">
-        <div className="big-stat"><div className="bs-num" style={{color:'var(--green)'}}>{scoreText(a.oTeam)}<small>/10</small></div><div className="bs-lbl">Team members see</div></div>
-        <div className="big-stat"><div className="bs-num" style={{color:'var(--teal)'}}>{scoreText(a.oStake)}<small>/10</small></div><div className="bs-lbl">Stakeholders see</div></div>
-        <div className="big-stat"><div className="bs-num" style={{color:gap>0?'#E23B33':gap<0?'#5FA02A':'var(--navy)'}}>{gap>0?'+':''}{a.oTeam&&a.oStake?gap.toFixed(1):'—'}</div><div className="bs-lbl">Gap (team − stakeholder)</div></div>
-      </div>
-      <div className="inf-box">
-        {!a.stakeN?'No stakeholder responses yet — the split appears once stakeholders submit.':
-          Math.abs(gap)<0.5?'Team members and stakeholders see this team’s performance very similarly.':
-          gap>0?'Team members rate their own performance higher than stakeholders do — a perception gap worth exploring in the room.':
-          'Stakeholders rate this team higher than the team rates itself — the team may be underselling its own performance.'}
-      </div>
-    </div>
-  );
-}
-
 function Verbatim({a}){
   return(
     <div>
@@ -1492,10 +1453,8 @@ function App(){
       {key:'overall',eyebrow:'Performance',title:'Overall performance',desc:'The 1–10 score, split three ways, with the full distribution.',metric:total?scoreText(a.oAll):null,unit:'/10',need:total>0},
       {key:'areas',eyebrow:'The five areas',title:'Areas, ranked',desc:'Every area scored 1–6 and ordered strongest to weakest.',metric:a.ranked.length?scoreText(a.ranked[0].mean):null,unit:'top',need:a.teamN>0},
       {key:'subareas',eyebrow:'The five areas',title:'Sub-areas',desc:'All fourteen sub-areas scored 1–6, grouped by area.',need:a.teamN>0},
-      {key:'items',eyebrow:'Detail',title:'Item breakdown',desc:'Per-area stacked response bars, grouped by sub-theme.',need:a.teamN>0},
-      {key:'heatmap',eyebrow:'Detail',title:'Item heatmap',desc:'All 46 items at a glance, coloured by average.',need:a.teamN>0},
       {key:'topbottom',eyebrow:'Detail',title:'Highest & lowest',desc:'The five strongest and five weakest items.',need:a.teamN>0},
-      {key:'split',eyebrow:'Perception',title:'Team vs stakeholder',desc:'Where the team and its stakeholders agree — and don’t.',metric:a.stakeN?scoreText(a.oStake):null,unit:'/10',need:total>0},
+      {key:'items',eyebrow:'Detail',title:'Item breakdown',desc:'Per-area stacked response bars, grouped by sub-theme.',need:a.teamN>0},
       {key:'verbatim',eyebrow:'Voice',title:'Verbatim feedback',desc:'The three open questions, collated by track.',need:total>0},
       {key:'reflection',eyebrow:'Conversation',title:'Reflection',desc:'Four closing questions to project for the team.',need:true},
       {key:'setup',eyebrow:'Admin',title:'Session setup',desc:'Team name, sector, and access details.',need:true},
@@ -1557,9 +1516,7 @@ function App(){
       areas:{title:'The five areas, ranked',sub:'Average agreement per area · 1–6 · team members',body:<AreasRanked a={a}/>},
       subareas:{title:'The fourteen sub-areas',sub:'Average agreement per sub-area · 1–6 · team members',body:<SubAreasChart a={a}/>},
       items:{title:'Item breakdown',sub:'Response distribution per item · team members',body:<ItemDetail a={a}/>},
-      heatmap:{title:'Item heatmap',sub:'All 46 items by average · team members',body:<Heatmap a={a}/>},
       topbottom:{title:'Highest & lowest scoring items',sub:'By team-member average · 1–6',body:<TopBottom a={a}/>},
-      split:{title:'Team vs stakeholder',sub:'Overall performance, two vantage points',body:<TeamVsStake a={a}/>},
       verbatim:{title:'Verbatim feedback',sub:'Open responses, collated by track',body:<Verbatim a={a}/>},
       reflection:{title:'Reflecting on this team’s results',sub:'Four closing questions for the conversation',body:<ReflectionPanel/>},
     };
