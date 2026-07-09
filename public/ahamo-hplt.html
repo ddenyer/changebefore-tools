@@ -423,6 +423,12 @@ function Progress({track,step}){
 
 // ── SHARED CONSTANTS ──────────────────────────────────────────────────────────
 const SECTORS=['Civil Aviation','Construction','Defence','Education','Energy & Utilities','Financial Services','Government / Public Sector','Healthcare / NHS','Housing','Legal & Professional Services','Manufacturing','Nuclear','Rail & Transport','Technology','Other'];
+const REFLECTION_QS=[
+  'What do you have questions about or need more information on, if anything?',
+  'What made you smile when reading through this report?',
+  'What one area would make the biggest impact on team performance?',
+  'What was your biggest ‘aha’ moment when reading this report?',
+];
 
 // ── SCORING ENGINE ────────────────────────────────────────────────────────────
 // One pass over the loaded rows → everything the dashboard and report need.
@@ -671,6 +677,42 @@ function Verbatim({a}){
   );
 }
 
+function SubAreasChart({a}){
+  return(
+    <div>
+      <p style={{fontSize:'.86rem',color:'#4b5563',lineHeight:1.6,marginBottom:'1.1rem'}}>Each area breaks into sub-areas. Average agreement per sub-area (team members only), scored 1–6.</p>
+      {a.dims.map(d=>(
+        <div key={d.key} className="sub-block">
+          <h4 style={{color:d.colour}}>{d.name} · {scoreText(d.mean)}/6</h4>
+          {d.subs.map(s=>(
+            <div key={s.name} style={{display:'flex',alignItems:'center',gap:'.7rem',marginBottom:'.4rem'}}>
+              <div style={{flex:'0 0 200px',fontSize:'.82rem',color:'var(--ink)',lineHeight:1.3}}>{s.name}</div>
+              <div style={{flex:1,height:'14px',background:'var(--grey)',borderRadius:'7px',overflow:'hidden',maxWidth:'360px'}}>
+                {s.hasData&&<div style={{height:'100%',width:(s.mean/6*100)+'%',background:d.colour,borderRadius:'7px'}}/>}
+              </div>
+              <div style={{width:'36px',textAlign:'right',fontSize:'.92rem',fontWeight:800,color:s.hasData?'var(--navy)':'#b6bcc6'}}>{s.hasData?scoreText(s.mean):'—'}</div>
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ReflectionPanel(){
+  return(
+    <div>
+      <p style={{fontSize:'.86rem',color:'#4b5563',lineHeight:1.6,marginBottom:'1.25rem'}}>Four questions for the team to sit with ahead of the facilitated conversation. Project these to close the session.</p>
+      {REFLECTION_QS.map((q,i)=>(
+        <div key={i} style={{background:'var(--navy)',borderRadius:'12px',padding:'1.1rem 1.35rem',marginBottom:'.85rem'}}>
+          <div style={{fontSize:'.68rem',fontWeight:700,letterSpacing:'.06em',color:'var(--green)',marginBottom:'.35rem'}}>QUESTION {i+1}</div>
+          <div style={{fontSize:'1.05rem',color:'#fff',lineHeight:1.4}}>{q}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ── PDF REPORT ────────────────────────────────────────────────────────────────
 // Reproduces Ahamo's report outputs. jsPDF has no Poppins built in, so the body
 // is set in Helvetica (a close geometric sans); the palette and layout match.
@@ -699,6 +741,21 @@ function generateReport(a,meta){
     const lines=doc.splitTextToSize(txt,W-M*2);need(lines.length*4.6);
     doc.text(lines,M,y);y+=lines.length*4.6+2;
   }
+  function subhead(txt){
+    need(9);doc.setFont('helvetica','bold');doc.setFontSize(9.5);doc.setTextColor(...NAVY);
+    doc.text(txt,M,y);y+=5;
+  }
+  function divider(part,title,sub){
+    doc.addPage();doc.setFillColor(...NAVY);doc.rect(0,0,W,H,'F');
+    doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(...GREEN);
+    doc.text(part.toUpperCase(),M,H/2-18);
+    doc.setFont('helvetica','bold');doc.setFontSize(28);doc.setTextColor(255,255,255);
+    doc.text(title,M,H/2-4);
+    doc.setDrawColor(...TEAL);doc.setLineWidth(1.4);doc.line(M,H/2+2,M+50,H/2+2);
+    if(sub){doc.setFont('helvetica','normal');doc.setFontSize(11);doc.setTextColor(200,208,224);
+      const sl=doc.splitTextToSize(sub,W-M*2-40);doc.text(sl,M,H/2+14);}
+    y=H; // force next section to addPage
+  }
 
   // ── COVER ──
   doc.setFillColor(...NAVY);doc.rect(0,0,W,H,'F');
@@ -718,6 +775,42 @@ function generateReport(a,meta){
   doc.text([meta.sector||'',meta.date].filter(Boolean),M,128);
   doc.setFontSize(9);doc.setTextColor(160,172,196);
   doc.text(a.teamN+' team members · '+a.stakeN+' stakeholders',M,H-24);
+  doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(...RED);
+  doc.text('CONFIDENTIAL',M,H-16);
+  doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(160,172,196);
+  doc.text('Please do not forward this report unless agreed with the team.',M,H-11);
+
+  // ── BEFORE YOU GET INTO THE REPORT ──
+  doc.addPage();y=M;drawRunningHead();
+  h2('Before you get into the report');
+  subhead('What is this tool?');
+  para('This is the High Performing Leadership Teams (HPLT) Diagnostic Report. It measures the extent to which people feel your team shows the five traits that define a high-performing leadership team. The five traits make up the HPLT model, described in full on the next page.');
+  subhead('What data have we gathered?');
+  para('Team members rated their agreement with 46 statements across the five traits, from 1 (strongly disagree) to 6 (strongly agree). They also answered three open-ended questions and a final question rating the team’s overall performance from 1 to 10. External stakeholders — nominated by the team leader — answered the overall performance question and the three open-ended questions.');
+  subhead('Who completed?');
+  para(a.teamN+' team member'+(a.teamN===1?'':'s')+' and '+a.stakeN+' external stakeholder'+(a.stakeN===1?'':'s')+' completed the diagnostic.');
+  subhead('How will we use this report?');
+  para('Team members get a chance to read and reflect on the results. A facilitated conversation then helps the team make sense of them together and identify next steps.');
+
+  // ── WHAT WE MEASURE ──
+  doc.addPage();y=M;drawRunningHead();
+  h2('What we measure here');
+  MODEL.forEach((d,i)=>{
+    const rgb=hexToRgb(d.colour);
+    need(24);
+    doc.setFillColor(...rgb);doc.roundedRect(M,y-4,7,7,1,1,'F');
+    doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(255,255,255);
+    doc.text('0'+(i+1),M+3.5,y+0.6,{align:'center'});
+    doc.setFont('helvetica','bold');doc.setFontSize(11.5);doc.setTextColor(...rgb);
+    doc.text(d.name,M+11,y);y+=5;
+    doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.setTextColor(...MUT);
+    const dl=doc.splitTextToSize(d.desc,W-M*2-11);doc.text(dl,M+11,y);y+=dl.length*4.2+1.5;
+    doc.setFont('helvetica','italic');doc.setFontSize(8);doc.setTextColor(...INK);
+    const subs=d.subs.map(s=>s.name).join('  ·  ');
+    const sl=doc.splitTextToSize(subs,W-M*2-11);doc.text(sl,M+11,y);y+=sl.length*4+6;
+  });
+
+  divider('Part 1','Overview','The scores for the five areas, the fourteen sub-areas, and your highest and lowest scoring items.');
 
   // ── PARTICIPATION + OVERALL ──
   doc.addPage();y=M;drawRunningHead();
@@ -774,7 +867,35 @@ function generateReport(a,meta){
   });
   y+=2;
 
+  // ── 14 SUB-AREAS ──
+  doc.addPage();y=M;drawRunningHead();
+  h2('The fourteen sub-areas');
+  para('Each area breaks into sub-areas. Average agreement per sub-area (team members only), scored 1–6.');
+  const axL=M+64, axR=W-M-8, axW=axR-axL;
+  a.dims.forEach(d=>{
+    const rgb=hexToRgb(d.colour);
+    need(d.subs.length*7+11);
+    doc.setFont('helvetica','bold');doc.setFontSize(8.5);doc.setTextColor(...rgb);
+    doc.text(d.name,M,y);y+=5.5;
+    d.subs.forEach(s=>{
+      const bh=4.2;
+      doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(...INK);
+      const lab=doc.splitTextToSize(s.name,axL-M-6);
+      doc.text(lab[0]+(lab.length>1?'…':''),axL-3,y+3,{align:'right'});
+      doc.setFillColor(240,241,244);doc.rect(axL,y,axW,bh,'F');
+      if(s.hasData){doc.setFillColor(...rgb);doc.rect(axL,y,axW*(s.mean/6),bh,'F');
+        doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(...NAVY);
+        doc.text(s.mean.toFixed(1),axR+1.5,y+3.4,{align:'left'});}
+      else{doc.setFont('helvetica','italic');doc.setFontSize(6.5);doc.setTextColor(...MUT);doc.text('—',axR+1.5,y+3.4,{align:'left'});}
+      y+=7;
+    });
+    y+=3.5;
+  });
+  // axis ticks 1..6
+  for(let t=1;t<=6;t++){const x=axL+axW*((t-1)/5);doc.setFont('helvetica','normal');doc.setFontSize(6.5);doc.setTextColor(...MUT);doc.text(String(t),x,y+1,{align:'center'});}
+
   // ── HIGHEST / LOWEST ITEMS ──
+  doc.addPage();y=M;drawRunningHead();
   h2('Highest and lowest scoring items');
   const itemBlock=(title,rows,col)=>{
     need(10);doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(...col);
@@ -796,6 +917,8 @@ function generateReport(a,meta){
   };
   itemBlock('Highest scoring — top 5',a.top,[95,160,42]);
   itemBlock('Lowest scoring — bottom 5',a.bottom,[226,59,51]);
+
+  divider('Part 2','Distribution','A breakdown so you can see how the team scored each question.');
 
   // ── PER-DIMENSION ITEM DETAIL ──
   a.dims.forEach(d=>{
@@ -835,6 +958,8 @@ function generateReport(a,meta){
     });
   });
 
+  divider('Part 3','Verbatim feedback','What team members and external stakeholders wrote about your team.');
+
   // ── VERBATIM ──
   doc.addPage();y=M;drawRunningHead();
   h2('In their own words');
@@ -857,6 +982,23 @@ function generateReport(a,meta){
     grp('Team members',q.team,[95,160,42]);
     grp('Stakeholders',q.stake,[34,152,160]);
     y+=3;
+  });
+
+  divider('Part 4','Reflection','Four questions to sit with ahead of the conversation with your team.');
+
+  // ── REFLECTION ──
+  doc.addPage();y=M;drawRunningHead();
+  h2('Reflecting on this team’s results');
+  para('Ahead of the facilitated conversation, take a few minutes with these four questions.');
+  y+=2;
+  REFLECTION_QS.forEach((q,i)=>{
+    need(20);
+    doc.setFillColor(...NAVY);doc.roundedRect(M,y,W-M*2,17,2,2,'F');
+    doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(...GREEN);
+    doc.text('QUESTION '+(i+1),M+5,y+6);
+    doc.setFont('helvetica','normal');doc.setFontSize(10.5);doc.setTextColor(255,255,255);
+    const ql=doc.splitTextToSize(q,W-M*2-10);doc.text(ql,M+5,y+12);
+    y+=22;
   });
 
   // Footer page numbers
@@ -1349,11 +1491,13 @@ function App(){
     const tiles=[
       {key:'overall',eyebrow:'Performance',title:'Overall performance',desc:'The 1–10 score, split three ways, with the full distribution.',metric:total?scoreText(a.oAll):null,unit:'/10',need:total>0},
       {key:'areas',eyebrow:'The five areas',title:'Areas, ranked',desc:'Every area scored 1–6 and ordered strongest to weakest.',metric:a.ranked.length?scoreText(a.ranked[0].mean):null,unit:'top',need:a.teamN>0},
+      {key:'subareas',eyebrow:'The five areas',title:'Sub-areas',desc:'All fourteen sub-areas scored 1–6, grouped by area.',need:a.teamN>0},
       {key:'items',eyebrow:'Detail',title:'Item breakdown',desc:'Per-area stacked response bars, grouped by sub-theme.',need:a.teamN>0},
       {key:'heatmap',eyebrow:'Detail',title:'Item heatmap',desc:'All 46 items at a glance, coloured by average.',need:a.teamN>0},
       {key:'topbottom',eyebrow:'Detail',title:'Highest & lowest',desc:'The five strongest and five weakest items.',need:a.teamN>0},
       {key:'split',eyebrow:'Perception',title:'Team vs stakeholder',desc:'Where the team and its stakeholders agree — and don’t.',metric:a.stakeN?scoreText(a.oStake):null,unit:'/10',need:total>0},
       {key:'verbatim',eyebrow:'Voice',title:'Verbatim feedback',desc:'The three open questions, collated by track.',need:total>0},
+      {key:'reflection',eyebrow:'Conversation',title:'Reflection',desc:'Four closing questions to project for the team.',need:true},
       {key:'setup',eyebrow:'Admin',title:'Session setup',desc:'Team name, sector, and access details.',need:true},
     ];
 
@@ -1411,11 +1555,13 @@ function App(){
     const map={
       overall:{title:'Overall performance',sub:'“How is this team performing?” · 1–10',body:<OverallPanel a={a}/>},
       areas:{title:'The five areas, ranked',sub:'Average agreement per area · 1–6 · team members',body:<AreasRanked a={a}/>},
+      subareas:{title:'The fourteen sub-areas',sub:'Average agreement per sub-area · 1–6 · team members',body:<SubAreasChart a={a}/>},
       items:{title:'Item breakdown',sub:'Response distribution per item · team members',body:<ItemDetail a={a}/>},
       heatmap:{title:'Item heatmap',sub:'All 46 items by average · team members',body:<Heatmap a={a}/>},
       topbottom:{title:'Highest & lowest scoring items',sub:'By team-member average · 1–6',body:<TopBottom a={a}/>},
       split:{title:'Team vs stakeholder',sub:'Overall performance, two vantage points',body:<TeamVsStake a={a}/>},
       verbatim:{title:'Verbatim feedback',sub:'Open responses, collated by track',body:<Verbatim a={a}/>},
+      reflection:{title:'Reflecting on this team’s results',sub:'Four closing questions for the conversation',body:<ReflectionPanel/>},
     };
     const v=map[facTile];
     if(!v)return null;
