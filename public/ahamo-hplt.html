@@ -7,6 +7,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.development.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.development.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
 <style>
 :root{
@@ -141,6 +142,105 @@ select.inp{cursor:pointer}
 .dot{width:7px;height:7px;border-radius:50%;background:var(--ltblue);animation:blink 1.2s ease-in-out infinite}
 .dot:nth-child(2){animation-delay:.2s}.dot:nth-child(3){animation-delay:.4s}
 .think-txt{font-size:.9rem;color:var(--muted);font-style:italic}
+
+/* ── Dashboard ── */
+.dash-head{max-width:1080px;margin:0 auto;padding:1.25rem 1.5rem .5rem}
+.dash-top{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap}
+.dash-counts{display:flex;gap:.55rem;flex-wrap:wrap;align-items:center}
+.count-pill{background:#f4f7fb;border:1px solid var(--line);border-radius:20px;padding:.35rem .85rem;font-size:.8rem;font-weight:600;color:var(--navy)}
+.count-pill .cn{font-weight:800;margin-right:.25rem}
+.dash-actions{display:flex;gap:.5rem;flex-wrap:wrap}
+.dash-wrap{max-width:1080px;margin:0 auto;padding:.5rem 1.5rem 3rem}
+.tile-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:1rem;margin-top:1rem}
+.tile{border:1.5px solid var(--line);border-radius:14px;padding:1.15rem 1.25rem;background:#fff;cursor:pointer;transition:all .15s;text-align:left;font-family:'Poppins',sans-serif;position:relative;overflow:hidden;min-height:132px;display:flex;flex-direction:column}
+.tile:hover{border-color:var(--navy);transform:translateY(-2px);box-shadow:0 10px 24px -14px rgba(32,56,109,.4)}
+.tile-accent{position:absolute;top:0;left:0;right:0;height:5px;background:linear-gradient(90deg,var(--ltblue),var(--green))}
+.tile-eyebrow{font-size:.64rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--teal);margin-bottom:.4rem}
+.tile-title{font-size:1.05rem;font-weight:700;color:var(--navy);line-height:1.2;margin-bottom:.3rem}
+.tile-desc{font-size:.78rem;color:#6b7280;line-height:1.5;flex:1}
+.tile-metric{font-size:1.9rem;font-weight:800;color:var(--navy);line-height:1;margin-top:.5rem}
+.tile-metric small{font-size:.9rem;font-weight:600;color:var(--muted)}
+.tile[disabled]{opacity:.5;cursor:not-allowed}
+.tile[disabled]:hover{transform:none;box-shadow:none;border-color:var(--line)}
+
+/* ── Overlay ── */
+.ov{position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:60;display:flex;align-items:flex-start;justify-content:center;padding:2.5vh 1rem;overflow-y:auto;animation:fadeIn .2s ease both}
+.ov-card{background:#fff;border-radius:16px;width:100%;max-width:960px;margin:auto;box-shadow:0 30px 80px -20px rgba(0,0,0,.5)}
+.ov-head{position:sticky;top:0;background:#fff;border-bottom:1px solid var(--line);border-radius:16px 16px 0 0;padding:1.1rem 1.5rem;display:flex;justify-content:space-between;align-items:center;gap:1rem;z-index:2}
+.ov-head h2{font-size:1.3rem;font-weight:800;color:var(--navy);line-height:1.15}
+.ov-head .sub{font-size:.78rem;color:var(--muted);margin-top:.15rem}
+.ov-close{background:#f4f7fb;border:none;width:38px;height:38px;border-radius:10px;font-size:1.2rem;color:var(--navy);cursor:pointer;flex-shrink:0;line-height:1}
+.ov-close:hover{background:var(--grey)}
+.ov-body{padding:1.5rem}
+@media(max-width:560px){.ov-body{padding:1.1rem}.ov-head{padding:1rem 1.1rem}.ov-head h2{font-size:1.1rem}}
+
+/* ── Charts ── */
+.big3{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:1.5rem}
+@media(max-width:560px){.big3{grid-template-columns:1fr}}
+.big-stat{border:1.5px solid var(--line);border-radius:12px;padding:1.25rem;text-align:center}
+.big-stat.hero{background:var(--navy);border-color:var(--navy)}
+.big-stat.hero .bs-num,.big-stat.hero .bs-lbl{color:#fff}
+.bs-num{font-size:2.6rem;font-weight:800;color:var(--navy);line-height:1}
+.bs-num small{font-size:1.1rem;font-weight:600;color:var(--muted)}
+.big-stat.hero .bs-num small{color:rgba(255,255,255,.7)}
+.bs-lbl{font-size:.74rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-top:.4rem}
+.bs-sub{font-size:.72rem;color:var(--muted);margin-top:.2rem}
+
+.dist10{display:flex;align-items:flex-end;gap:.4rem;height:130px;margin:.5rem 0}
+.dist10 .col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}
+.dist10 .bar{width:100%;background:var(--ltblue);border-radius:4px 4px 0 0;min-height:3px;transition:height .3s;position:relative}
+.dist10 .cnt{font-size:.7rem;font-weight:700;color:var(--navy);margin-bottom:.15rem}
+.dist10 .xlab{font-size:.72rem;color:var(--muted);margin-top:.3rem}
+
+.area-row{display:flex;align-items:center;gap:.85rem;padding:.7rem 0;border-bottom:1px solid var(--line)}
+.area-row:last-child{border-bottom:none}
+.area-rank{font-size:.85rem;font-weight:700;color:#b6bcc6;width:24px;flex-shrink:0}
+.area-swatch{width:12px;height:38px;border-radius:4px;flex-shrink:0}
+.area-info{flex:1;min-width:0}
+.area-name{font-size:.95rem;font-weight:700;color:var(--navy)}
+.area-desc{font-size:.72rem;color:var(--muted);line-height:1.4;margin-top:.1rem}
+.area-track{flex:1;height:9px;background:var(--grey);border-radius:5px;overflow:hidden;max-width:180px}
+.area-fill{height:100%;border-radius:5px}
+.area-score{font-size:1.25rem;font-weight:800;color:var(--navy);width:52px;text-align:right;flex-shrink:0}
+.area-score small{font-size:.7rem;color:var(--muted);font-weight:600}
+
+.item-row{display:flex;align-items:center;gap:.75rem;padding:.55rem 0;border-bottom:1px solid #f0f1f4}
+.item-row:last-child{border-bottom:none}
+.item-num{font-size:.68rem;font-weight:700;color:#fff;background:var(--navy);border-radius:5px;padding:.15rem .4rem;flex-shrink:0}
+.item-lab{flex:1;font-size:.84rem;color:var(--ink);line-height:1.35}
+.item-lab .dim{font-size:.68rem;color:var(--muted);display:block}
+.item-mean{font-size:1.05rem;font-weight:800;width:44px;text-align:right;flex-shrink:0}
+
+.sbar{display:flex;height:24px;border-radius:5px;overflow:hidden;background:#f0f1f4}
+.sbar-seg{display:flex;align-items:center;justify-content:center;font-size:.64rem;font-weight:700;color:#fff;min-width:0}
+.sbar-seg.light{color:#1a1a1a}
+.sb-row{display:flex;align-items:center;gap:.7rem;margin-bottom:.55rem}
+.sb-txt{flex:1;font-size:.82rem;color:var(--ink);line-height:1.3;min-width:0}
+.sb-bar{flex:1.4;max-width:340px}
+.sb-mean{font-size:.95rem;font-weight:800;color:var(--navy);width:38px;text-align:right;flex-shrink:0}
+.sub-block{margin-bottom:1.4rem}
+.sub-block h4{font-size:.72rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--teal);margin-bottom:.6rem}
+
+.hm-grid{display:flex;flex-wrap:wrap;gap:5px}
+.hm-cell{width:34px;height:34px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;color:#fff;cursor:default}
+.hm-legend{display:flex;align-items:center;gap:.5rem;margin-top:1rem;font-size:.72rem;color:var(--muted)}
+.hm-ramp{height:12px;width:160px;border-radius:6px;background:linear-gradient(90deg,#E23B33,#F6C080,#5FA02A)}
+
+.dim-tab{display:inline-flex;flex-wrap:wrap;gap:.4rem;margin-bottom:1.25rem}
+.dim-pill{border:1.5px solid var(--line);background:#fff;border-radius:20px;padding:.4rem .85rem;font-size:.78rem;font-weight:600;color:#4b5563;cursor:pointer;font-family:'Poppins',sans-serif}
+.dim-pill.on{color:#fff;border-color:transparent}
+
+.verb-q{margin-bottom:1.75rem}
+.verb-q h4{font-size:.95rem;font-weight:700;color:var(--navy);margin-bottom:.15rem}
+.verb-split{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:.7rem}
+@media(max-width:640px){.verb-split{grid-template-columns:1fr}}
+.verb-col h5{font-size:.68rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin-bottom:.5rem}
+.verb-item{background:#f7f8fa;border-left:3px solid var(--ltblue);border-radius:0 8px 8px 0;padding:.6rem .8rem;margin-bottom:.5rem;font-size:.84rem;line-height:1.5;color:#374151}
+.verb-col.stake .verb-item{border-left-color:var(--teal)}
+.verb-empty{font-size:.8rem;color:#b6bcc6;font-style:italic;padding:.4rem 0}
+
+.empty-dash{text-align:center;padding:3rem 1rem;color:var(--muted)}
+.empty-dash .big{font-size:1.2rem;font-weight:700;color:var(--navy);margin-bottom:.5rem}
 </style>
 </head>
 <body>
@@ -321,6 +421,455 @@ function Progress({track,step}){
   );
 }
 
+// ── SHARED CONSTANTS ──────────────────────────────────────────────────────────
+const SECTORS=['Civil Aviation','Construction','Defence','Education','Energy & Utilities','Financial Services','Government / Public Sector','Healthcare / NHS','Housing','Legal & Professional Services','Manufacturing','Nuclear','Rail & Transport','Technology','Other'];
+
+// ── SCORING ENGINE ────────────────────────────────────────────────────────────
+// One pass over the loaded rows → everything the dashboard and report need.
+// Item statistics are TEAM-MEMBER ONLY (stakeholders don't answer the 46 items).
+// Overall score (1–10) is split three ways: all / team / stakeholder.
+function avg(a){return a.length?a.reduce((x,y)=>x+y,0)/a.length:0;}
+function isRealRow(r){return (r.track==='team'||r.track==='stakeholder')&&r.respondent_name!=='__facilitator__'&&r.respondent_name!=='__session_closed__';}
+
+function analyse(rows){
+  const real=rows.filter(isRealRow);
+  const team=real.filter(r=>r.track==='team');
+  const stake=real.filter(r=>r.track==='stakeholder');
+
+  // Per-item stats (team only): mean, six-bucket distribution, n
+  const items={};
+  ALL_ITEMS.forEach(n=>{
+    const vals=team.map(r=>(r.item_scores||{})[n]).filter(v=>typeof v==='number'&&v>=1&&v<=6);
+    const dist=[0,0,0,0,0,0];
+    vals.forEach(v=>dist[v-1]++);
+    items[n]={mean:avg(vals),dist,n:vals.length};
+  });
+
+  // Sub-theme + dimension means (mean of item means, over items that have data)
+  const dims=MODEL.map(d=>{
+    const subs=d.subs.map(s=>{
+      const withData=s.items.filter(it=>items[it.n].n>0);
+      return {name:s.name,items:s.items,mean:withData.length?avg(withData.map(it=>items[it.n].mean)):0,hasData:withData.length>0};
+    });
+    const dItems=d.subs.flatMap(s=>s.items).filter(it=>items[it.n].n>0);
+    return {key:d.key,name:d.name,colour:d.colour,desc:d.desc,subs,mean:dItems.length?avg(dItems.map(it=>items[it.n].mean)):0,hasData:dItems.length>0};
+  });
+  const ranked=[...dims].filter(d=>d.hasData).sort((a,b)=>b.mean-a.mean);
+
+  // Flat item list (with dimension label) → top 5 / bottom 5 by mean
+  const flat=[];
+  MODEL.forEach(d=>d.subs.forEach(s=>s.items.forEach(it=>{
+    if(items[it.n].n>0)flat.push({n:it.n,t:it.t,dim:d.name,colour:d.colour,mean:items[it.n].mean});
+  })));
+  const byMean=[...flat].sort((a,b)=>b.mean-a.mean);
+  const top=byMean.slice(0,5);
+  const bottom=[...byMean].reverse().slice(0,5);
+
+  // Overall performance (Q47, 1–10)
+  const oAll=avg(real.map(r=>r.overall_score).filter(v=>v>=1&&v<=10));
+  const oTeam=avg(team.map(r=>r.overall_score).filter(v=>v>=1&&v<=10));
+  const oStake=avg(stake.map(r=>r.overall_score).filter(v=>v>=1&&v<=10));
+  const oDist=Array(10).fill(0);
+  real.forEach(r=>{if(r.overall_score>=1&&r.overall_score<=10)oDist[r.overall_score-1]++;});
+
+  // Open-ended, collated by question, split by track
+  const open=OPEN_QS.map(q=>({
+    q:q.q,
+    team:team.map(r=>r[q.key]).filter(t=>t&&String(t).trim()),
+    stake:stake.map(r=>r[q.key]).filter(t=>t&&String(t).trim()),
+  }));
+
+  return {real,team,stake,teamN:team.length,stakeN:stake.length,items,dims,ranked,top,bottom,oAll,oTeam,oStake,oDist,open};
+}
+
+// 1–6 mean → red→amber→green colour
+function meanColour(m){
+  if(!m)return '#e8e8e8';
+  const t=Math.max(0,Math.min(1,(m-1)/5));
+  const S=[[226,59,51],[246,192,80],[95,160,42]];
+  const lerp=(a,b,k)=>a.map((v,i)=>v+(b[i]-v)*k);
+  const c=t<0.5?lerp(S[0],S[1],t/0.5):lerp(S[1],S[2],(t-0.5)/0.5);
+  return 'rgb('+(c[0]|0)+','+(c[1]|0)+','+(c[2]|0)+')';
+}
+function scoreText(m){return m?m.toFixed(1):'—';}
+
+// ── CHART COMPONENTS ──────────────────────────────────────────────────────────
+// Stacked 6-segment distribution bar (red→green) for one item.
+function StackBar({dist}){
+  const total=dist.reduce((a,b)=>a+b,0)||1;
+  return(
+    <div className="sbar">
+      {dist.map((c,i)=>{
+        if(c===0)return null;
+        const pct=c/total*100;
+        return <div key={i} className={'sbar-seg'+(SCALE[i].light?' light':'')} style={{width:pct+'%',background:SCALE[i].c}} title={SCALE[i].label+': '+c}>{pct>=9?c:''}</div>;
+      })}
+    </div>
+  );
+}
+
+function OverallPanel({a}){
+  const max=Math.max(1,...a.oDist);
+  return(
+    <div>
+      <div className="big3">
+        <div className="big-stat hero"><div className="bs-num">{scoreText(a.oAll)}<small>/10</small></div><div className="bs-lbl">All respondents</div><div className="bs-sub" style={{color:'rgba(255,255,255,.7)'}}>{a.real.length} in total</div></div>
+        <div className="big-stat"><div className="bs-num" style={{color:'var(--green)'}}>{scoreText(a.oTeam)}<small>/10</small></div><div className="bs-lbl">Team members</div><div className="bs-sub">{a.teamN} responses</div></div>
+        <div className="big-stat"><div className="bs-num" style={{color:'var(--teal)'}}>{scoreText(a.oStake)}<small>/10</small></div><div className="bs-lbl">Stakeholders</div><div className="bs-sub">{a.stakeN} responses</div></div>
+      </div>
+      <div className="sub-block"><h4>Distribution — “How is this team performing?” (1–10)</h4>
+        <div className="dist10">
+          {a.oDist.map((c,i)=>(
+            <div key={i} className="col">
+              <div className="cnt">{c>0?c:''}</div>
+              <div className="bar" style={{height:(c/max*100)+'%',background:i<3?'#EF7B5B':i<6?'#F6C080':'#8DC640'}}/>
+              <div className="xlab">{i+1}</div>
+            </div>
+          ))}
+        </div>
+        <div className="scale-legend" style={{maxWidth:'none'}}><span>1 · Underperforming</span><span>Excelling · 10</span></div>
+      </div>
+    </div>
+  );
+}
+
+function AreasRanked({a}){
+  const max=6;
+  return(
+    <div>
+      {a.ranked.map((d,i)=>(
+        <div key={d.key} className="area-row">
+          <div className="area-rank">{i+1}</div>
+          <div className="area-swatch" style={{background:d.colour}}/>
+          <div className="area-info">
+            <div className="area-name">{d.name}</div>
+            <div className="area-desc">{d.desc}</div>
+          </div>
+          <div className="area-track"><div className="area-fill" style={{width:(d.mean/max*100)+'%',background:d.colour}}/></div>
+          <div className="area-score">{scoreText(d.mean)}<small>/6</small></div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function TopBottom({a}){
+  const List=({title,rows,accent})=>(
+    <div>
+      <h4 style={{fontSize:'.8rem',fontWeight:700,color:accent,marginBottom:'.6rem',textTransform:'uppercase',letterSpacing:'.05em'}}>{title}</h4>
+      {rows.map(it=>(
+        <div key={it.n} className="item-row">
+          <span className="item-num" style={{background:it.colour}}>{it.n}</span>
+          <div className="item-lab"><span className="dim">{it.dim}</span>Team members {it.t.charAt(0).toLowerCase()+it.t.slice(1)}</div>
+          <div className="item-mean" style={{color:meanColour(it.mean)}}>{scoreText(it.mean)}</div>
+        </div>
+      ))}
+    </div>
+  );
+  return(
+    <div style={{display:'grid',gridTemplateColumns:'1fr',gap:'1.75rem'}}>
+      <List title="Highest scoring — top 5" rows={a.top} accent="#5FA02A"/>
+      <List title="Lowest scoring — bottom 5" rows={a.bottom} accent="#E23B33"/>
+    </div>
+  );
+}
+
+function ItemDetail({a}){
+  const [active,setActive]=React.useState(a.dims.findIndex(d=>d.hasData)>=0?a.dims.findIndex(d=>d.hasData):0);
+  const d=a.dims[active];
+  return(
+    <div>
+      <div className="dim-tab">
+        {a.dims.map((dm,i)=>(
+          <button key={dm.key} className={'dim-pill'+(i===active?' on':'')} style={i===active?{background:dm.colour}:{}} disabled={!dm.hasData} onClick={()=>setActive(i)}>{dm.name}</button>
+        ))}
+      </div>
+      <div className="dim-band" style={{background:d.colour,marginBottom:'1.25rem'}}>
+        <div className="dim-name">{d.name}<span style={{float:'right'}}>{scoreText(d.mean)}<span style={{fontSize:'.8rem',opacity:.8}}>/6</span></span></div>
+        <div className="dim-desc">{d.desc}</div>
+      </div>
+      {d.subs.map(sub=>(
+        <div key={sub.name} className="sub-block">
+          <h4>{sub.name} · {scoreText(sub.mean)}/6</h4>
+          {sub.items.map(it=>{
+            const st=a.items[it.n];
+            return(
+              <div key={it.n} className="sb-row">
+                <div className="sb-txt"><strong style={{color:'var(--muted)',fontWeight:600}}>{it.n}.</strong> {it.t}</div>
+                <div className="sb-bar">{st.n>0?<StackBar dist={st.dist}/>:<div style={{fontSize:'.74rem',color:'#b6bcc6',fontStyle:'italic'}}>No responses</div>}</div>
+                <div className="sb-mean" style={{color:meanColour(st.mean)}}>{scoreText(st.mean)}</div>
+              </div>
+            );
+          })}
+        </div>
+      ))}
+      <div className="scale-legend" style={{maxWidth:'none',marginTop:'.5rem'}}>
+        {SCALE.map(s=><span key={s.v} style={{display:'inline-flex',alignItems:'center',gap:'.25rem'}}><span style={{width:10,height:10,borderRadius:2,background:s.c,display:'inline-block'}}/>{s.label}</span>)}
+      </div>
+    </div>
+  );
+}
+
+function Heatmap({a}){
+  return(
+    <div>
+      <p style={{fontSize:'.86rem',color:'#4b5563',lineHeight:1.6,marginBottom:'1rem'}}>Every item, coloured by its team-member average — red is low, green is high. Grouped by area.</p>
+      {a.dims.map(d=>(
+        <div key={d.key} className="sub-block">
+          <h4 style={{color:d.colour}}>{d.name} · {scoreText(d.mean)}/6</h4>
+          <div className="hm-grid">
+            {d.subs.flatMap(s=>s.items).map(it=>{
+              const st=a.items[it.n];
+              return <div key={it.n} className="hm-cell" style={{background:meanColour(st.mean)}} title={it.t+' — '+scoreText(st.mean)}>{it.n}</div>;
+            })}
+          </div>
+        </div>
+      ))}
+      <div className="hm-legend"><span>Low</span><div className="hm-ramp"/><span>High</span></div>
+    </div>
+  );
+}
+
+function TeamVsStake({a}){
+  const gap=a.oTeam&&a.oStake?(a.oTeam-a.oStake):0;
+  return(
+    <div>
+      <div className="big3">
+        <div className="big-stat"><div className="bs-num" style={{color:'var(--green)'}}>{scoreText(a.oTeam)}<small>/10</small></div><div className="bs-lbl">Team members see</div></div>
+        <div className="big-stat"><div className="bs-num" style={{color:'var(--teal)'}}>{scoreText(a.oStake)}<small>/10</small></div><div className="bs-lbl">Stakeholders see</div></div>
+        <div className="big-stat"><div className="bs-num" style={{color:gap>0?'#E23B33':gap<0?'#5FA02A':'var(--navy)'}}>{gap>0?'+':''}{a.oTeam&&a.oStake?gap.toFixed(1):'—'}</div><div className="bs-lbl">Gap (team − stakeholder)</div></div>
+      </div>
+      <div className="inf-box">
+        {!a.stakeN?'No stakeholder responses yet — the split appears once stakeholders submit.':
+          Math.abs(gap)<0.5?'Team members and stakeholders see this team’s performance very similarly.':
+          gap>0?'Team members rate their own performance higher than stakeholders do — a perception gap worth exploring in the room.':
+          'Stakeholders rate this team higher than the team rates itself — the team may be underselling its own performance.'}
+      </div>
+    </div>
+  );
+}
+
+function Verbatim({a}){
+  return(
+    <div>
+      {a.open.map((q,i)=>(
+        <div key={i} className="verb-q">
+          <h4>{i+1}. {q.q}</h4>
+          <div className="verb-split">
+            <div className="verb-col">
+              <h5>Team members ({q.team.length})</h5>
+              {q.team.length?q.team.map((t,j)=><div key={j} className="verb-item">{t}</div>):<div className="verb-empty">No responses</div>}
+            </div>
+            <div className="verb-col stake">
+              <h5>Stakeholders ({q.stake.length})</h5>
+              {q.stake.length?q.stake.map((t,j)=><div key={j} className="verb-item">{t}</div>):<div className="verb-empty">No responses</div>}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── PDF REPORT ────────────────────────────────────────────────────────────────
+// Reproduces Ahamo's report outputs. jsPDF has no Poppins built in, so the body
+// is set in Helvetica (a close geometric sans); the palette and layout match.
+function generateReport(a,meta){
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({unit:'mm',format:'a4'});
+  const W=210,H=297,M=16;
+  const NAVY=[32,56,109],RED=[239,65,54],TEAL=[34,152,160],GREEN=[141,198,64],INK=[26,26,26],MUT=[107,114,128],LINE=[226,228,232];
+  const SC=[[226,59,51],[239,123,91],[246,192,176],[205,227,166],[151,201,61],[95,160,42]];
+  let y=0;
+  const pageBottom=H-16;
+  function need(h){if(y+h>pageBottom){doc.addPage();y=M;drawRunningHead();}}
+  function drawRunningHead(){
+    doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(...MUT);
+    doc.text('HPLT Diagnostic — '+meta.team,M,10);
+    doc.setDrawColor(...LINE);doc.setLineWidth(.2);doc.line(M,12,W-M,12);
+    y=Math.max(y,M+4);
+  }
+  function h2(txt){
+    need(16);doc.setFont('helvetica','bold');doc.setFontSize(15);doc.setTextColor(...NAVY);
+    doc.text(txt,M,y);y+=2.5;
+    doc.setDrawColor(...TEAL);doc.setLineWidth(1.1);doc.line(M,y,M+34,y);y+=7;
+  }
+  function para(txt,size){
+    doc.setFont('helvetica','normal');doc.setFontSize(size||9.5);doc.setTextColor(...MUT);
+    const lines=doc.splitTextToSize(txt,W-M*2);need(lines.length*4.6);
+    doc.text(lines,M,y);y+=lines.length*4.6+2;
+  }
+
+  // ── COVER ──
+  doc.setFillColor(...NAVY);doc.rect(0,0,W,H,'F');
+  doc.setFont('helvetica','bold');doc.setFontSize(30);doc.setTextColor(255,255,255);
+  doc.text('Aha',M,45);
+  const ahaW=doc.getTextWidth('Aha');
+  doc.setFillColor(...RED);doc.circle(M+ahaW+3,43.4,1.7,'F');
+  doc.text('Mo',M+ahaW+7,45);
+  doc.setFontSize(9);doc.setTextColor(...GREEN);doc.setFont('helvetica','bold');
+  doc.text('HIGH PERFORMING LEADERSHIP TEAMS',M,72);
+  doc.setFont('helvetica','bold');doc.setFontSize(30);doc.setTextColor(255,255,255);
+  const tl=doc.splitTextToSize('Diagnostic Report',W-M*2);doc.text(tl,M,88);
+  doc.setDrawColor(...TEAL);doc.setLineWidth(1.4);doc.line(M,104,M+50,104);
+  doc.setFont('helvetica','normal');doc.setFontSize(15);doc.setTextColor(255,255,255);
+  doc.text(meta.team,M,118);
+  doc.setFontSize(10);doc.setTextColor(200,208,224);
+  doc.text([meta.sector||'',meta.date].filter(Boolean),M,128);
+  doc.setFontSize(9);doc.setTextColor(160,172,196);
+  doc.text(a.teamN+' team members · '+a.stakeN+' stakeholders',M,H-24);
+
+  // ── PARTICIPATION + OVERALL ──
+  doc.addPage();y=M;drawRunningHead();
+  h2('Overall performance');
+  para('“How is this team performing?” — scored 1 (underperforming) to 10 (excelling). Team members and stakeholders both answer this question.');
+  const boxes=[['All respondents',a.oAll,NAVY,a.real.length+' in total'],['Team members',a.oTeam,GREEN,a.teamN+' responses'],['Stakeholders',a.oStake,TEAL,a.stakeN+' responses']];
+  const bw=(W-M*2-8)/3;need(30);
+  boxes.forEach((b,i)=>{
+    const x=M+i*(bw+4);
+    doc.setDrawColor(...LINE);doc.setLineWidth(.3);
+    if(i===0){doc.setFillColor(...NAVY);doc.roundedRect(x,y,bw,26,2,2,'F');}
+    else doc.roundedRect(x,y,bw,26,2,2,'S');
+    doc.setFont('helvetica','bold');doc.setFontSize(20);
+    doc.setTextColor(...(i===0?[255,255,255]:b[2]));
+    doc.text((b[1]?b[1].toFixed(1):'—')+'/10',x+bw/2,y+13,{align:'center'});
+    doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(...(i===0?[210,216,230]:MUT));
+    doc.text(String(b[0]).toUpperCase(),x+bw/2,y+19,{align:'center'});
+    doc.setFont('helvetica','normal');doc.setFontSize(7);
+    doc.text(b[3],x+bw/2,y+23.5,{align:'center'});
+  });
+  y+=32;
+  // 1–10 distribution
+  need(40);doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(...INK);
+  doc.text('Distribution of scores',M,y);y+=5;
+  const dmax=Math.max(1,...a.oDist),chH=26,cw=(W-M*2)/10;
+  a.oDist.forEach((c,i)=>{
+    const x=M+i*cw,bh=c/dmax*chH;
+    const col=i<3?[239,123,91]:i<6?[246,192,128]:[141,198,64];
+    doc.setFillColor(...col);doc.rect(x+1.5,y+chH-bh,cw-3,bh,'F');
+    doc.setFont('helvetica','bold');doc.setFontSize(7);doc.setTextColor(...NAVY);
+    if(c>0)doc.text(String(c),x+cw/2,y+chH-bh-1.5,{align:'center'});
+    doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(...MUT);
+    doc.text(String(i+1),x+cw/2,y+chH+4,{align:'center'});
+  });
+  y+=chH+10;
+
+  // ── FIVE AREAS RANKED ──
+  h2('The five areas, ranked');
+  para('Average agreement across each area’s items (team members only), scored 1–6. Ordered strongest to weakest.');
+  a.ranked.forEach((d,i)=>{
+    need(16);
+    const rgb=hexToRgb(d.colour);
+    doc.setFillColor(...rgb);doc.rect(M,y,3,12,'F');
+    doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(...NAVY);
+    doc.text((i+1)+'.  '+d.name,M+6,y+5);
+    doc.setFont('helvetica','bold');doc.setFontSize(14);doc.setTextColor(...rgb);
+    doc.text(d.mean.toFixed(1),W-M,y+6,{align:'right'});
+    doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(...MUT);
+    doc.text('/6',W-M+0.5,y+6,{align:'left'});
+    // track bar
+    doc.setFillColor(240,241,244);doc.roundedRect(M+6,y+8,W-M*2-24,2.6,1,1,'F');
+    doc.setFillColor(...rgb);doc.roundedRect(M+6,y+8,(W-M*2-24)*(d.mean/6),2.6,1,1,'F');
+    y+=16;
+  });
+  y+=2;
+
+  // ── HIGHEST / LOWEST ITEMS ──
+  h2('Highest and lowest scoring items');
+  const itemBlock=(title,rows,col)=>{
+    need(10);doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(...col);
+    doc.text(title,M,y);y+=5.5;
+    rows.forEach(it=>{
+      need(9);
+      const rgb=hexToRgb(it.colour);
+      doc.setFillColor(...rgb);doc.roundedRect(M,y-3.4,6,5,1,1,'F');
+      doc.setFont('helvetica','bold');doc.setFontSize(6.5);doc.setTextColor(255,255,255);
+      doc.text(String(it.n),M+3,y,{align:'center'});
+      doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.setTextColor(...INK);
+      const t=doc.splitTextToSize('Team members '+it.t.charAt(0).toLowerCase()+it.t.slice(1),W-M*2-30);
+      doc.text(t[0]+(t.length>1?'…':''),M+9,y);
+      doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(...mc(it.mean));
+      doc.text(it.mean.toFixed(1),W-M,y,{align:'right'});
+      y+=6.4;
+    });
+    y+=3;
+  };
+  itemBlock('Highest scoring — top 5',a.top,[95,160,42]);
+  itemBlock('Lowest scoring — bottom 5',a.bottom,[226,59,51]);
+
+  // ── PER-DIMENSION ITEM DETAIL ──
+  a.dims.forEach(d=>{
+    if(!d.hasData)return;
+    doc.addPage();y=M;drawRunningHead();
+    const rgb=hexToRgb(d.colour);
+    doc.setFillColor(...rgb);doc.roundedRect(M,y,W-M*2,16,2,2,'F');
+    doc.setFont('helvetica','bold');doc.setFontSize(13);doc.setTextColor(255,255,255);
+    doc.text(d.name,M+4,y+7);
+    doc.setFont('helvetica','bold');doc.setFontSize(13);
+    doc.text(d.mean.toFixed(1)+'/6',W-M-4,y+7,{align:'right'});
+    doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(240,244,248);
+    const dl=doc.splitTextToSize(d.desc,W-M*2-8);doc.text(dl,M+4,y+12);
+    y+=20;
+    d.subs.forEach(sub=>{
+      need(8);doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(...TEAL);
+      doc.text(sub.name.toUpperCase()+'   ·   '+(sub.mean?sub.mean.toFixed(1):'—')+'/6',M,y);y+=5;
+      sub.items.forEach(it=>{
+        const st=a.items[it.n];need(11);
+        doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(...INK);
+        const t=doc.splitTextToSize(it.n+'. '+it.t,W-M*2-64);
+        doc.text(t[0]+(t.length>1?'…':''),M,y);
+        // stacked bar
+        const barX=W-M-58,barW=48,barH=4.2;
+        if(st.n>0){
+          const total=st.dist.reduce((x,z)=>x+z,0)||1;let cx=barX;
+          st.dist.forEach((c,i)=>{if(c>0){const w=c/total*barW;doc.setFillColor(...SC[i]);doc.rect(cx,y-3.2,w,barH,'F');cx+=w;}});
+          doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(...mc(st.mean));
+          doc.text(st.mean.toFixed(1),W-M,y,{align:'right'});
+        }else{
+          doc.setFont('helvetica','italic');doc.setFontSize(7);doc.setTextColor(...MUT);
+          doc.text('no responses',W-M,y,{align:'right'});
+        }
+        y+=6.6;
+      });
+      y+=2;
+    });
+  });
+
+  // ── VERBATIM ──
+  doc.addPage();y=M;drawRunningHead();
+  h2('In their own words');
+  para('Open responses, verbatim, split by team members and stakeholders.');
+  a.open.forEach((q,i)=>{
+    need(12);doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(...NAVY);
+    const ql=doc.splitTextToSize((i+1)+'. '+q.q,W-M*2);doc.text(ql,M,y);y+=ql.length*5+2;
+    const grp=(label,arr,col)=>{
+      need(7);doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(...col);
+      doc.text(label.toUpperCase()+' ('+arr.length+')',M,y);y+=4.5;
+      if(!arr.length){doc.setFont('helvetica','italic');doc.setFontSize(8);doc.setTextColor(...MUT);doc.text('No responses',M+2,y);y+=5;return;}
+      arr.forEach(t=>{
+        const lines=doc.splitTextToSize(t,W-M*2-6);need(lines.length*4.4+2);
+        doc.setFillColor(...col);doc.rect(M,y-3.2,1.2,lines.length*4.4,'F');
+        doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.setTextColor(...INK);
+        doc.text(lines,M+4,y);y+=lines.length*4.4+2.5;
+      });
+      y+=1.5;
+    };
+    grp('Team members',q.team,[95,160,42]);
+    grp('Stakeholders',q.stake,[34,152,160]);
+    y+=3;
+  });
+
+  // Footer page numbers
+  const pages=doc.internal.getNumberOfPages();
+  for(let p=2;p<=pages;p++){doc.setPage(p);doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(...MUT);doc.text('Aha.Mo · HPLT Diagnostic',M,H-8);doc.text(String(p)+' / '+pages,W-M,H-8,{align:'right'});}
+
+  const safe=(meta.team||'team').replace(/[^a-z0-9]+/gi,'-').toLowerCase();
+  doc.save('HPLT-Report-'+safe+'.pdf');
+
+  function hexToRgb(h){const m=h.replace('#','').match(/\w\w/g);return m.map(x=>parseInt(x,16));}
+  function mc(m){if(!m)return MUT;const t=Math.max(0,Math.min(1,(m-1)/5));const S=[[226,59,51],[246,192,80],[95,160,42]];const l=(a,b,k)=>a.map((v,i)=>v+(b[i]-v)*k);const c=t<0.5?l(S[0],S[1],t/0.5):l(S[1],S[2],(t-0.5)/0.5);return [c[0]|0,c[1]|0,c[2]|0];}
+}
+
 // ── APP ───────────────────────────────────────────────────────────────────────
 function App(){
   // step: -1 gate · 0 landing · 1-5 dimension screens · 6 overall · 7 open · 8 thanks · 20 facilitator
@@ -361,6 +910,9 @@ function App(){
   const [cfgSaving,setCfgSaving]=useState(false);
   const [cfgError,setCfgError]=useState('');
   const [respondents,setRespondents]=useState([]);
+  const [facTile,setFacTile]=useState('');   // which dashboard overlay is open
+  const [facEditing,setFacEditing]=useState(false); // setup edit mode
+  const [pdfBusy,setPdfBusy]=useState(false);
 
   const topRef=useRef(null);
   const codeNorm=(accessCode||'').trim().toUpperCase();
@@ -752,51 +1304,129 @@ function App(){
 
   function renderFacilitator(){
     const ready=!!(sessionConfig&&sessionConfig.thing_for_everyone);
-    const real=respondents.filter(r=>r.respondent_name!=='__facilitator__'&&r.respondent_name!=='__session_closed__'&&(r.track||r.overall_score||r.item_scores));
-    const teamN=real.filter(r=>r.track==='team').length;
-    const stakeN=real.filter(r=>r.track==='stakeholder').length;
-    const SECTORS=['Civil Aviation','Construction','Defence','Education','Energy & Utilities','Financial Services','Government / Public Sector','Healthcare / NHS','Housing','Legal & Professional Services','Manufacturing','Nuclear','Rail & Transport','Technology','Other'];
-    return(
-      <div className="fade">
-        <div className="brand" style={{marginBottom:'.4rem'}}>Aha<span className="dot">.</span>Mo</div>
-        <div className="pg-tag">Facilitator · {codeNorm}</div>
-        <h2 className="pg-title" style={{fontSize:'1.5rem'}}>Session setup</h2>
-        <div className="title-rule"/>
+    const a=analyse(respondents);
+    const total=a.real.length;
 
-        {!ready&&<div className="inf-box">Fill these in to open the session. Until you save, participants who enter this code see “The diagnostic isn’t open yet.”</div>}
-
-        <div style={{maxWidth:'560px'}}>
-          <div style={{marginBottom:'1.1rem'}}>
-            <label className="field-lbl">Name the team being assessed <span style={{color:'var(--red)'}}>*</span></label>
-            <div className="field-sub">e.g. “The Executive Leadership Team”, “Product Leadership Team”.</div>
-            <input className="inp" placeholder="Which team is this?" value={cfgTeam} onChange={e=>setCfgTeam(e.target.value)} disabled={cfgSaving}/>
-          </div>
-          <div style={{marginBottom:'1.1rem'}}>
-            <label className="field-lbl">Sector <span style={{color:'var(--red)'}}>*</span></label>
-            <select className="inp" value={cfgSector} onChange={e=>setCfgSector(e.target.value)} disabled={cfgSaving}>
-              <option value="">Select…</option>
-              {SECTORS.map(s=><option key={s}>{s}</option>)}
-            </select>
-          </div>
-          {cfgError&&<div className="warn-box">{cfgError}</div>}
-          <div className="btn-row" style={{marginTop:'.5rem'}}>
-            <button className="btn-p" disabled={!cfgTeam.trim()||!cfgSector||cfgSaving} onClick={saveConfig}>{cfgSaving?'Saving…':ready?'Update setup':'Save and open session'}</button>
+    // Setup not done yet, or explicitly editing → show the setup form
+    if(!ready||facEditing){
+      return(
+        <div className="fade">
+          <div className="brand" style={{marginBottom:'.4rem'}}>Aha<span className="dot">.</span>Mo</div>
+          <div className="pg-tag">Facilitator · {codeNorm}</div>
+          <h2 className="pg-title" style={{fontSize:'1.5rem'}}>Session setup</h2>
+          <div className="title-rule"/>
+          {!ready&&<div className="inf-box">Fill these in to open the session. Until you save, participants who enter this code see “The diagnostic isn’t open yet.”</div>}
+          <div style={{maxWidth:'560px'}}>
+            <div style={{marginBottom:'1.1rem'}}>
+              <label className="field-lbl">Name the team being assessed <span style={{color:'var(--red)'}}>*</span></label>
+              <div className="field-sub">e.g. “The Executive Leadership Team”, “Product Leadership Team”.</div>
+              <input className="inp" placeholder="Which team is this?" value={cfgTeam} onChange={e=>setCfgTeam(e.target.value)} disabled={cfgSaving}/>
+            </div>
+            <div style={{marginBottom:'1.1rem'}}>
+              <label className="field-lbl">Sector <span style={{color:'var(--red)'}}>*</span></label>
+              <select className="inp" value={cfgSector} onChange={e=>setCfgSector(e.target.value)} disabled={cfgSaving}>
+                <option value="">Select…</option>
+                {SECTORS.map(s=><option key={s}>{s}</option>)}
+              </select>
+            </div>
+            {cfgError&&<div className="warn-box">{cfgError}</div>}
+            <div className="btn-row" style={{marginTop:'.5rem'}}>
+              <button className="btn-p" disabled={!cfgTeam.trim()||!cfgSector||cfgSaving} onClick={async()=>{await saveConfig();if(ready)setFacEditing(false);}}>{cfgSaving?'Saving…':ready?'Save changes':'Save and open session'}</button>
+              {ready&&<button className="btn-s" onClick={()=>setFacEditing(false)}>Cancel</button>}
+            </div>
           </div>
         </div>
+      );
+    }
 
-        <div style={{marginTop:'2rem',paddingTop:'1.5rem',borderTop:'1px solid var(--line)'}}>
-          <div style={{display:'flex',alignItems:'center',gap:'.4rem',marginBottom:'.5rem'}}>
-            <span className="pulse"/><span style={{fontSize:'.8rem',color:'#4b5563'}}>Live · refreshes every 15s</span>
+    const meta={team:sessionConfig.thing_for_everyone,sector:sessionConfig.sector||'',date:new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'})};
+    const doPdf=()=>{
+      if(!window.jspdf){window.alert('The report library is still loading — try again in a moment.');return;}
+      setPdfBusy(true);
+      setTimeout(()=>{try{generateReport(a,meta);}catch(e){console.error(e);window.alert('Report error: '+e.message);}setPdfBusy(false);},60);
+    };
+
+    const tiles=[
+      {key:'overall',eyebrow:'Performance',title:'Overall performance',desc:'The 1–10 score, split three ways, with the full distribution.',metric:total?scoreText(a.oAll):null,unit:'/10',need:total>0},
+      {key:'areas',eyebrow:'The five areas',title:'Areas, ranked',desc:'Every area scored 1–6 and ordered strongest to weakest.',metric:a.ranked.length?scoreText(a.ranked[0].mean):null,unit:'top',need:a.teamN>0},
+      {key:'items',eyebrow:'Detail',title:'Item breakdown',desc:'Per-area stacked response bars, grouped by sub-theme.',need:a.teamN>0},
+      {key:'heatmap',eyebrow:'Detail',title:'Item heatmap',desc:'All 46 items at a glance, coloured by average.',need:a.teamN>0},
+      {key:'topbottom',eyebrow:'Detail',title:'Highest & lowest',desc:'The five strongest and five weakest items.',need:a.teamN>0},
+      {key:'split',eyebrow:'Perception',title:'Team vs stakeholder',desc:'Where the team and its stakeholders agree — and don’t.',metric:a.stakeN?scoreText(a.oStake):null,unit:'/10',need:total>0},
+      {key:'verbatim',eyebrow:'Voice',title:'Verbatim feedback',desc:'The three open questions, collated by track.',need:total>0},
+      {key:'setup',eyebrow:'Admin',title:'Session setup',desc:'Team name, sector, and access details.',need:true},
+    ];
+
+    return(
+      <div className="fade" style={{maxWidth:'1080px',margin:'0 auto'}}>
+        <div className="dash-top">
+          <div>
+            <div className="brand" style={{marginBottom:'.3rem'}}>Aha<span className="dot">.</span>Mo</div>
+            <div className="pg-tag" style={{marginBottom:'.2rem'}}>Facilitator dashboard · {codeNorm}</div>
+            <h2 style={{fontSize:'1.5rem',fontWeight:800,color:'var(--navy)',lineHeight:1.15}}>{sessionConfig.thing_for_everyone}</h2>
           </div>
-          <div className="fac-count">
-            <div className="fac-cell"><div className="n">{teamN}</div><div className="l">Team members in</div></div>
-            <div className="fac-cell"><div className="n">{stakeN}</div><div className="l">Stakeholders in</div></div>
+          <div className="dash-actions">
+            <button className="btn-p" onClick={doPdf} disabled={pdfBusy||!total}>{pdfBusy?'Building…':'⤓ Generate report'}</button>
           </div>
-          <div className="stage2-note"><strong>Full dashboard coming next.</strong> The tile dashboard for presenting results to the group — dimension scores, item heatmaps, the team-vs-stakeholder split, collated open answers, and the generated report — is the next build stage. This screen confirms the session is live and participants are coming through.</div>
-          <div className="btn-row">
-            <button className="btn-s" onClick={loadRespondents}>Refresh now</button>
-            <button className="btn-s" onClick={restart}>Exit facilitator</button>
+        </div>
+        <div className="dash-counts" style={{marginTop:'.9rem'}}>
+          <span className="count-pill"><span className="pulse"/>Live</span>
+          <span className="count-pill"><span className="cn">{a.teamN}</span>team members</span>
+          <span className="count-pill"><span className="cn">{a.stakeN}</span>stakeholders</span>
+          <span className="count-pill"><span className="cn">{total}</span>total</span>
+          <button className="btn-s" style={{padding:'.35rem .85rem',minHeight:0,fontSize:'.8rem'}} onClick={loadRespondents}>Refresh</button>
+        </div>
+
+        {!total&&(
+          <div className="empty-dash">
+            <div className="big">No responses yet</div>
+            <p style={{fontSize:'.9rem',lineHeight:1.6,maxWidth:'440px',margin:'0 auto'}}>Share the access code with the team. As people submit, their responses appear here — the tiles fill in live.</p>
           </div>
+        )}
+
+        {total>0&&(
+          <div className="tile-grid">
+            {tiles.map(t=>(
+              <button key={t.key} className="tile" disabled={!t.need} onClick={()=>{if(t.key==='setup'){setFacEditing(true);}else setFacTile(t.key);}}>
+                <div className="tile-accent"/>
+                <div className="tile-eyebrow">{t.eyebrow}</div>
+                <div className="tile-title">{t.title}</div>
+                <div className="tile-desc">{t.desc}</div>
+                {t.metric&&<div className="tile-metric">{t.metric}<small> {t.unit}</small></div>}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className="btn-row" style={{marginTop:'2rem'}}>
+          <button className="btn-s" onClick={restart}>Exit facilitator</button>
+        </div>
+      </div>
+    );
+  }
+
+  function renderOverlay(){
+    if(!facTile)return null;
+    const a=analyse(respondents);
+    const map={
+      overall:{title:'Overall performance',sub:'“How is this team performing?” · 1–10',body:<OverallPanel a={a}/>},
+      areas:{title:'The five areas, ranked',sub:'Average agreement per area · 1–6 · team members',body:<AreasRanked a={a}/>},
+      items:{title:'Item breakdown',sub:'Response distribution per item · team members',body:<ItemDetail a={a}/>},
+      heatmap:{title:'Item heatmap',sub:'All 46 items by average · team members',body:<Heatmap a={a}/>},
+      topbottom:{title:'Highest & lowest scoring items',sub:'By team-member average · 1–6',body:<TopBottom a={a}/>},
+      split:{title:'Team vs stakeholder',sub:'Overall performance, two vantage points',body:<TeamVsStake a={a}/>},
+      verbatim:{title:'Verbatim feedback',sub:'Open responses, collated by track',body:<Verbatim a={a}/>},
+    };
+    const v=map[facTile];
+    if(!v)return null;
+    return(
+      <div className="ov" onClick={e=>{if(e.target===e.currentTarget)setFacTile('');}}>
+        <div className="ov-card">
+          <div className="ov-head">
+            <div><h2>{v.title}</h2><div className="sub">{v.sub}</div></div>
+            <button className="ov-close" onClick={()=>setFacTile('')}>✕</button>
+          </div>
+          <div className="ov-body">{v.body}</div>
         </div>
       </div>
     );
@@ -815,16 +1445,20 @@ function App(){
         </div>
       )}
       <div className="main">
-        <div className="content fade" key={step}>
-          {step===-1&&renderGate()}
-          {step===0&&renderLanding()}
-          {step>=1&&step<=5&&renderDimension(step-1)}
-          {step===6&&renderOverall()}
-          {step===7&&renderOpen()}
-          {step===8&&renderThanks()}
-          {step===20&&renderFacilitator()}
-        </div>
+        {step===20?(
+          <div className="dash-wrap fade">{renderFacilitator()}</div>
+        ):(
+          <div className="content fade" key={step}>
+            {step===-1&&renderGate()}
+            {step===0&&renderLanding()}
+            {step>=1&&step<=5&&renderDimension(step-1)}
+            {step===6&&renderOverall()}
+            {step===7&&renderOpen()}
+            {step===8&&renderThanks()}
+          </div>
+        )}
       </div>
+      {step===20&&renderOverlay()}
     </div>
   );
 }
