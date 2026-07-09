@@ -23,8 +23,9 @@ export default async function handler(req, res) {
   if (!sessionCode || typeof sessionCode !== 'string') {
     return res.status(400).json({ error: 'sessionCode required' });
   }
-  if (!tool || (tool !== 'stat-group' && tool !== 'stat-solo')) {
-    return res.status(400).json({ error: 'tool must be stat-group or stat-solo' });
+  const ALLOWED_TOOLS = ['stat-group', 'stat-solo', 'ahamo-hplt'];
+  if (!tool || !ALLOWED_TOOLS.includes(tool)) {
+    return res.status(400).json({ error: 'tool must be one of: ' + ALLOWED_TOOLS.join(', ') });
   }
   if (thingMode && !['same_for_everyone', 'each_names_own'].includes(thingMode)) {
     return res.status(400).json({ error: 'invalid thingMode' });
