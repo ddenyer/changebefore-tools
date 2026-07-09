@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>HPLT Diagnostic — AhaMo</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.development.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.development.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+:root{
+  --navy:#20386D; --red:#EF4136; --green:#8DC640; --blue:#32449C;
+  --ltblue:#2483C6; --teal:#2298A0; --grey:#E8E8E8; --yellow:#FDE00A;
+  --ink:#1a1a1a; --muted:#6b7280; --line:#e2e4e8; --bg:#ffffff;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{font-family:'Poppins',sans-serif;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased;overflow-x:hidden}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+.fade{animation:fadeIn .3s ease both}
+.shell{min-height:auto;display:flex;flex-direction:column}
+.main{flex:1}
+.content{max-width:780px;margin:0 auto;padding:2rem 1.5rem 3rem}
+
+/* Wordmark */
+.brand{display:inline-flex;align-items:baseline;font-weight:800;font-size:1.6rem;letter-spacing:-.02em;line-height:1;color:var(--navy)}
+.brand .dot{color:var(--red)}
+
+/* Progress */
+.prog-wrap{max-width:900px;margin:0 auto;padding:1rem 1.5rem .2rem}
+.prog-bars{display:flex;gap:3px;margin-bottom:.35rem}
+.prog-bar{flex:1;height:4px;border-radius:2px;background:var(--grey);transition:background .3s}
+.prog-bar.done{background:var(--green)}.prog-bar.now{background:var(--navy)}
+.prog-lbls{display:flex;gap:3px}
+.prog-lbl{flex:1;font-size:.54rem;font-weight:600;text-transform:uppercase;letter-spacing:.03em;color:#b6bcc6;text-align:center}
+.prog-lbl.done{color:var(--green)}.prog-lbl.now{color:var(--navy)}
+@media(max-width:560px){.prog-lbl{font-size:.44rem}}
+
+/* Headings */
+.pg-tag{font-size:.66rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--teal);margin-bottom:.5rem}
+.pg-title{font-size:1.9rem;font-weight:800;color:var(--navy);line-height:1.15;margin-bottom:.4rem;position:relative;display:inline}
+.hl{background:var(--yellow);box-decoration-break:clone;-webkit-box-decoration-break:clone;padding:.05em .12em}
+.title-rule{height:5px;width:170px;border-radius:3px;background:linear-gradient(90deg,var(--ltblue),var(--green));margin:.7rem 0 1.3rem}
+.pg-sub{font-size:.95rem;color:#4b5563;line-height:1.65;margin-bottom:1.5rem;max-width:620px}
+h2.pg-title{display:block}
+
+/* Landing hero */
+.land-hero{border-bottom:1px solid var(--line);padding-bottom:1.75rem;margin-bottom:1.75rem}
+.land-title{font-size:2.2rem;font-weight:800;color:var(--navy);line-height:1.12;margin:.9rem 0 .7rem}
+.land-desc{font-size:.98rem;color:#4b5563;line-height:1.7;max-width:600px}
+.land-time{display:inline-flex;align-items:center;gap:.4rem;background:var(--grey);border-radius:20px;padding:.35rem .9rem;font-size:.78rem;font-weight:600;color:#555;margin-top:.9rem}
+
+/* Fields + buttons */
+.field-lbl{font-size:.74rem;font-weight:700;color:var(--navy);display:block;margin-bottom:.35rem;letter-spacing:.02em}
+.field-sub{font-size:.74rem;color:var(--muted);margin-bottom:.4rem;line-height:1.5}
+.inp{width:100%;border:1.5px solid var(--line);border-radius:8px;padding:.72rem 1rem;font-family:'Poppins',sans-serif;font-size:.9rem;color:var(--ink);outline:none;min-height:46px;transition:border-color .15s;background:#fff;display:block}
+.inp:focus{border-color:var(--navy)}.inp::placeholder{color:#b6bcc6}
+.inp-ta{min-height:110px;resize:vertical;line-height:1.6}
+select.inp{cursor:pointer}
+.btn-p{display:inline-flex;align-items:center;gap:.4rem;background:var(--navy);color:#fff;border:none;border-radius:8px;font-weight:600;padding:.8rem 1.7rem;font-family:'Poppins',sans-serif;font-size:.9rem;cursor:pointer;min-height:46px;transition:background .15s,opacity .15s}
+.btn-p:hover:not([disabled]){background:#182b54}.btn-p[disabled]{opacity:.35;cursor:not-allowed}
+.btn-s{display:inline-flex;align-items:center;gap:.4rem;background:#fff;color:var(--navy);border:1.5px solid var(--line);border-radius:8px;font-weight:600;padding:.8rem 1.3rem;font-family:'Poppins',sans-serif;font-size:.9rem;cursor:pointer;min-height:46px;transition:border-color .15s}
+.btn-s:hover{border-color:var(--navy)}
+.btn-row{display:flex;gap:.7rem;align-items:center;flex-wrap:wrap;margin-top:1.75rem}
+.back-btn{display:inline-flex;align-items:center;gap:.3rem;background:none;border:none;font-family:'Poppins',sans-serif;font-size:.84rem;font-weight:600;color:var(--muted);cursor:pointer;padding:0;margin-bottom:1.4rem}
+.back-btn:hover{color:var(--navy)}
+
+/* Info / warn boxes */
+.inf-box{background:#f4f7fb;border-left:4px solid var(--ltblue);padding:.85rem 1.1rem;border-radius:0 8px 8px 0;margin-bottom:1.2rem;font-size:.88rem;line-height:1.6;color:#374151}
+.warn-box{background:#fff5f4;border:1px solid #f6c6c0;border-radius:8px;padding:.85rem 1.1rem;margin:.7rem 0;font-size:.85rem;color:#b23028}
+.disc{font-size:.74rem;color:var(--muted);line-height:1.6;padding:.85rem 1rem;background:#f7f8fa;border-radius:8px;border:1px solid var(--line);margin-top:.75rem}
+
+/* Chips (track / role) */
+.chip{padding:.5rem .95rem;border-radius:22px;border:1.5px solid var(--line);background:#fff;color:#4b5563;font-size:.82rem;font-weight:600;cursor:pointer;transition:all .15s;font-family:'Poppins',sans-serif}
+.chip.on{border-color:var(--navy);background:#f0f3f9;color:var(--navy)}
+
+/* Track cards */
+.track-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin:.25rem 0 .5rem}
+@media(max-width:560px){.track-grid{grid-template-columns:1fr}}
+.track-card{border:2px solid var(--line);border-radius:12px;padding:1.25rem;background:#fff;cursor:pointer;transition:all .15s}
+.track-card:hover{border-color:var(--ltblue)}
+.track-card.on{border-color:var(--navy);background:#f0f3f9}
+.track-card h3{font-size:1rem;font-weight:700;color:var(--navy);margin-bottom:.35rem}
+.track-card p{font-size:.82rem;color:#4b5563;line-height:1.55}
+
+/* Item / scale */
+.dim-band{border-radius:10px;padding:1.1rem 1.25rem;margin-bottom:1.4rem;color:#fff}
+.dim-band .dim-name{font-size:1.15rem;font-weight:700;line-height:1.2}
+.dim-band .dim-desc{font-size:.84rem;opacity:.92;margin-top:.3rem;line-height:1.5}
+.sub-hdr{font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--teal);margin:1.4rem 0 .5rem;padding-top:.6rem;border-top:1px solid var(--line)}
+.stem{font-size:.82rem;color:var(--muted);font-style:italic;margin-bottom:.9rem}
+.item-card{border:1.5px solid var(--line);border-radius:10px;padding:.95rem 1.05rem;margin-bottom:.65rem;background:#fff;transition:border-color .15s}
+.item-card.answered{border-color:#d3e7bd;background:#fbfdf7}
+.item-text{font-size:.92rem;font-weight:500;color:var(--ink);line-height:1.4;margin-bottom:.75rem}
+.item-text .lead{color:var(--muted);font-weight:400}
+.scale{display:grid;grid-template-columns:repeat(6,1fr);gap:.4rem}
+.scale-btn{border:1.5px solid var(--line);border-radius:8px;padding:.5rem .2rem;cursor:pointer;text-align:center;background:#fff;transition:all .12s;min-height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.2rem}
+.scale-btn:hover{border-color:#b6bcc6}
+.scale-btn .sn{font-size:1rem;font-weight:700;line-height:1}
+.scale-btn .sl{font-size:.56rem;font-weight:600;line-height:1.15;color:var(--muted)}
+.scale-btn.on{border-color:transparent;color:#fff}
+.scale-btn.on .sl{color:rgba(255,255,255,.9)}
+.scale-btn.on.light{color:var(--ink)}
+.scale-btn.on.light .sl{color:#4b5563}
+@media(max-width:560px){
+  .scale-btn .sl{display:none}
+  .scale-btn{min-height:46px}
+}
+.scale-legend{display:flex;justify-content:space-between;font-size:.66rem;color:var(--muted);margin-top:.4rem;padding:0 .2rem}
+
+/* Overall 1-10 */
+.ten{display:grid;grid-template-columns:repeat(10,1fr);gap:.35rem;margin:.5rem 0}
+@media(max-width:560px){.ten{grid-template-columns:repeat(5,1fr)}}
+.ten-btn{border:1.5px solid var(--line);border-radius:8px;min-height:52px;font-size:1.05rem;font-weight:700;cursor:pointer;background:#fff;color:var(--ink);transition:all .12s;display:flex;align-items:center;justify-content:center}
+.ten-btn:hover{border-color:var(--ltblue)}
+.ten-btn.on{background:var(--navy);border-color:var(--navy);color:#fff}
+.ten-anchor{display:flex;justify-content:space-between;font-size:.72rem;color:var(--muted);margin-top:.3rem}
+
+/* Thank you */
+.ty-card{background:#f4f7fb;border:1px solid var(--line);border-radius:14px;padding:2rem 1.75rem;text-align:center;max-width:560px;margin:1.5rem auto}
+.ty-mark{width:56px;height:56px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.7rem;margin:0 auto 1rem}
+.ty-card h2{font-size:1.4rem;font-weight:700;color:var(--navy);margin-bottom:.6rem}
+.ty-card p{font-size:.92rem;color:#4b5563;line-height:1.65;margin-bottom:.6rem}
+
+/* Facilitator */
+.fac-count{display:grid;grid-template-columns:1fr 1fr;gap:.9rem;margin:1rem 0}
+.fac-cell{background:#fff;border:1.5px solid var(--line);border-radius:10px;padding:1rem;text-align:center}
+.fac-cell .n{font-size:2rem;font-weight:800;color:var(--navy);line-height:1}
+.fac-cell .l{font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-top:.3rem}
+.pulse{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--green);animation:pulse 2s ease-in-out infinite;margin-right:.4rem}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.85)}}
+.stage2-note{background:#fffdf0;border:1px solid #f5e79a;border-radius:10px;padding:1rem 1.25rem;margin-top:1.25rem;font-size:.85rem;color:#6b5d10;line-height:1.6}
+
+.resume-box{background:#f4f7fb;border:1px solid #cdd9ea;border-radius:10px;padding:1.25rem;margin-bottom:1.25rem}
+.resume-box h3{font-size:.95rem;font-weight:700;color:var(--navy);margin-bottom:.5rem}
+.resume-box p{font-size:.84rem;color:#4b5563;line-height:1.55;margin-bottom:.75rem}
+
+.think{display:flex;align-items:center;gap:.75rem;padding:1.25rem 0}
+.dots{display:flex;gap:5px}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--ltblue);animation:blink 1.2s ease-in-out infinite}
+.dot:nth-child(2){animation-delay:.2s}.dot:nth-child(3){animation-delay:.4s}
+.think-txt{font-size:.9rem;color:var(--muted);font-style:italic}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const {useState,useRef,useEffect,useMemo}=React;
+
+// ── HPLT MODEL ───────────────────────────────────────────────────────────────
+// 5 dimensions · 46 agreement items (1–6) · sub-themes. Item stem:
+// "To what extent do you agree team members…" then each item completes it.
+const STEM='To what extent do you agree team members…';
+const MODEL=[
+  {key:'mindset',name:'Team mindset',colour:'#8DC640',
+   desc:'How much team members have a shared direction and consistently pull in that same direction.',
+   subs:[
+     {name:'Know where the team is headed',items:[
+       {n:1,t:'Share clear and compelling team goals'},
+       {n:2,t:'Use clear metrics to track performance against team goals'},
+       {n:3,t:'Share a clear view of what the team stands for'},
+     ]},
+     {name:'Pull in the same direction',items:[
+       {n:4,t:'Prioritise collective goals over personal goals'},
+       {n:5,t:"Share accountability for the team's performance"},
+       {n:6,t:'Focus on outcomes instead of politics or power dynamics'},
+     ]},
+   ]},
+  {key:'relationships',name:'Valued relationships',colour:'#2298A0',
+   desc:'How much team members share mutual respect, show genuine care, and feel safe to be themselves.',
+   subs:[
+     {name:'Embrace diverse thinking',items:[
+       {n:7,t:'Seek and celebrate different perspectives'},
+       {n:8,t:'Share mistakes, concerns, and different viewpoints without fear of being judged'},
+       {n:9,t:'Handle mistakes constructively instead of playing a blame game'},
+     ]},
+     {name:'Show genuine care for one another',items:[
+       {n:10,t:'Actively look out for and support one another'},
+       {n:11,t:'Develop each other and help one another to grow'},
+       {n:12,t:'Praise and celebrate each other'},
+     ]},
+     {name:'Share mutual respect',items:[
+       {n:13,t:'Truly listen to one another'},
+       {n:14,t:'Trust other team members to do their jobs well'},
+       {n:15,t:'Trust the positive intent of other team members'},
+       {n:16,t:"Adapt to each other's needs and preferences"},
+     ]},
+   ]},
+  {key:'learning',name:'Continuous learning',colour:'#2483C6',
+   desc:'How well the team uses feedback, conflict, reflection, and risks to keep improving every day.',
+   subs:[
+     {name:'Learn from successes and failures',items:[
+       {n:17,t:'Celebrate and learn from team successes'},
+       {n:18,t:'Regularly review and learn from team performance'},
+       {n:19,t:'Have processes to gather, listen, and act on feedback'},
+       {n:20,t:'Share knowledge openly and effectively with one another'},
+       {n:21,t:'Embrace risk and change as potential ways to improve performance'},
+     ]},
+     {name:'Use conflict constructively',items:[
+       {n:22,t:'Share constructive feedback to help each other develop'},
+       {n:23,t:'Disagree openly with one another and use conflict to come up with better solutions'},
+     ]},
+   ]},
+  {key:'processes',name:'Frictionless processes',colour:'#32449C',
+   desc:'How well the team uses processes and structures that help them be efficient and make great decisions.',
+   subs:[
+     {name:'Share effective ways of working',items:[
+       {n:24,t:'Share clear ways of working'},
+       {n:25,t:'Coordinate tasks across the team in a seamless way'},
+       {n:26,t:'Have efficient and effective processes to help us perform'},
+     ]},
+     {name:'Make smart decisions',items:[
+       {n:27,t:'Have complementary strengths and areas of expertise'},
+       {n:28,t:'Use the diverse expertise in the team to make great decisions'},
+       {n:29,t:'Use outside-in perspectives to inform decisions'},
+       {n:30,t:'Have clear processes for making decisions'},
+     ]},
+     {name:'Know and play personal roles',items:[
+       {n:31,t:'Have clear roles and responsibilities'},
+       {n:32,t:'Deliver on their personal roles'},
+       {n:33,t:"Understand each other's areas and responsibilities"},
+     ]},
+     {name:'Manage time efficiently',items:[
+       {n:34,t:'Have productive and well-run meetings'},
+       {n:35,t:'Focus the right amount of time on the right things'},
+     ]},
+   ]},
+  {key:'leadership',name:'Strategic leadership',colour:'#20386D',
+   desc:'How well the team operate strategically and have far-reaching positive impact across the organisation.',
+   subs:[
+     {name:'Operate strategically',items:[
+       {n:36,t:'Balance short-term operational priorities with long-term strategy'},
+       {n:37,t:'Make decisions that balance commercial and broader needs (e.g., culture, sustainability)'},
+       {n:38,t:'Empower the teams they lead to step up, so they can operate strategically'},
+     ]},
+     {name:'Collaborate well with others',items:[
+       {n:39,t:'Push back to stakeholders above the team when needed'},
+       {n:40,t:'Work well with other teams or stakeholders'},
+     ]},
+     {name:'Communicate well to the organisation',items:[
+       {n:41,t:'Are a united front on decisions, even if they disagree in private'},
+       {n:42,t:'Communicates its decisions to the organisation clearly and compellingly'},
+       {n:43,t:'Know when to share and when to hold back information with their respective teams'},
+       {n:44,t:'Share a compelling strategy and vision with their respective teams'},
+       {n:45,t:'Role model the right behaviours to the people and teams they lead'},
+       {n:46,t:'Show accessibility and collective visibility within the organisation'},
+     ]},
+   ]},
+];
+const ALL_ITEMS=MODEL.flatMap(d=>d.subs.flatMap(s=>s.items.map(i=>i.n)));
+const TOTAL_ITEMS=ALL_ITEMS.length; // 46
+
+// 1–6 forced-choice scale, red → green. `light` marks pale swatches (dark text).
+const SCALE=[
+  {v:1,label:'Strongly disagree',c:'#E23B33'},
+  {v:2,label:'Disagree',c:'#EF7B5B'},
+  {v:3,label:'Slightly disagree',c:'#F6C0B0',light:true},
+  {v:4,label:'Slightly agree',c:'#CDE3A6',light:true},
+  {v:5,label:'Agree',c:'#97C93D'},
+  {v:6,label:'Strongly agree',c:'#5FA02A'},
+];
+
+const OPEN_QS=[
+  {key:'open_1',q:'What does this team do really well?'},
+  {key:'open_2',q:"What's the change that would make the biggest impact on team performance?"},
+  {key:'open_3',q:'What have we not asked you that you think is important?'},
+];
+
+const ROLES=['Team member','Team leader','Manager','Senior leader','Executive / Board','Other'];
+
+// ── LOCAL STORAGE ─────────────────────────────────────────────────────────────
+function lsKey(code){return 'ahamo_hplt_'+(code||'anon').toLowerCase().trim().replace(/\s+/g,'_');}
+function saveProgress(code,data){try{localStorage.setItem(lsKey(code),JSON.stringify({...data,savedAt:Date.now()}));}catch(e){}}
+function loadProgress(code){try{const r=localStorage.getItem(lsKey(code));return r?JSON.parse(r):null;}catch(e){return null;}}
+function clearProgress(code){try{localStorage.removeItem(lsKey(code));}catch(e){}}
+
+// ── SCALE SELECTOR ────────────────────────────────────────────────────────────
+function ScaleSelect({value,onChange}){
+  return(
+    <div>
+      <div className="scale">
+        {SCALE.map(s=>{
+          const on=value===s.v;
+          return(
+            <button key={s.v} type="button"
+              className={'scale-btn'+(on?' on'+(s.light?' light':''):'')}
+              style={on?{background:s.c,borderColor:s.c}:{}}
+              onClick={()=>onChange(s.v)}
+              title={s.label}>
+              <span className="sn">{s.v}</span>
+              <span className="sl">{s.label}</span>
+            </button>
+          );
+        })}
+      </div>
+      <div className="scale-legend"><span>Strongly disagree</span><span>Strongly agree</span></div>
+    </div>
+  );
+}
+
+// ── PROGRESS ──────────────────────────────────────────────────────────────────
+// Team members: 5 dimensions + Overall + Comments. Stakeholders: Overall + Comments.
+function Progress({track,step}){
+  const teamLabels=['Mindset','Relationships','Learning','Processes','Leadership','Overall','Comments'];
+  const stakeLabels=['Overall','Comments'];
+  // Map internal step to a nav index per track.
+  let labels,nav;
+  if(track==='stakeholder'){
+    labels=stakeLabels;
+    nav=step===6?0:step===7?1:step>=8?2:0;
+  }else{
+    labels=teamLabels;
+    nav=(step>=1&&step<=5)?(step-1):step===6?5:step===7?6:step>=8?7:0;
+  }
+  return(
+    <div className="prog-wrap">
+      <div className="prog-bars">{labels.map((_,i)=><div key={i} className={'prog-bar'+(i<nav?' done':i===nav?' now':'')}/>)}</div>
+      <div className="prog-lbls">{labels.map((l,i)=><div key={i} className={'prog-lbl'+(i<nav?' done':i===nav?' now':'')}>{l}</div>)}</div>
+    </div>
+  );
+}
+
+// ── APP ───────────────────────────────────────────────────────────────────────
+function App(){
+  // step: -1 gate · 0 landing · 1-5 dimension screens · 6 overall · 7 open · 8 thanks · 20 facilitator
+  const [step,setStep]=useState(-1);
+
+  // Gate / session
+  const [accessCode,setAccessCode]=useState('');
+  const [codeInput,setCodeInput]=useState('');
+  const [codeError,setCodeError]=useState('');
+  const [codeChecking,setCodeChecking]=useState(false);
+  const [sessionConfig,setSessionConfig]=useState(null);
+
+  // Participant
+  const [participantUuid,setParticipantUuid]=useState('');
+  const [participantId,setParticipantId]=useState('');
+  const [respondentName,setRespondentName]=useState('');
+  const [track,setTrack]=useState('');   // 'team' | 'stakeholder'
+  const [role,setRole]=useState('');
+  const [roleCustom,setRoleCustom]=useState('');
+  const [beginning,setBeginning]=useState(false);
+  const [beginError,setBeginError]=useState('');
+
+  // Answers
+  const [scores,setScores]=useState({});   // {itemNumber: 1..6}
+  const [overall,setOverall]=useState(0);  // 1..10
+  const [open1,setOpen1]=useState('');
+  const [open2,setOpen2]=useState('');
+  const [open3,setOpen3]=useState('');
+  const [submitting,setSubmitting]=useState(false);
+  const [submitError,setSubmitError]=useState('');
+
+  const [resumeData,setResumeData]=useState(null);
+
+  // Facilitator
+  const [facUnlocked,setFacUnlocked]=useState(false);
+  const [cfgTeam,setCfgTeam]=useState('');
+  const [cfgSector,setCfgSector]=useState('');
+  const [cfgSaving,setCfgSaving]=useState(false);
+  const [cfgError,setCfgError]=useState('');
+  const [respondents,setRespondents]=useState([]);
+
+  const topRef=useRef(null);
+  const codeNorm=(accessCode||'').trim().toUpperCase();
+  const openMap={open_1:open1,open_2:open2,open_3:open3};
+
+  useEffect(()=>{topRef.current&&topRef.current.scrollIntoView({behavior:'smooth'});},[step]);
+
+  // URL ?code= shortcut
+  useEffect(()=>{
+    try{
+      const c=(new URLSearchParams(window.location.search).get('code')||'').trim();
+      if(!c)return;
+      setCodeInput(c);setCodeChecking(true);
+      (async()=>{
+        const ok=await validateCode(c);
+        setCodeChecking(false);
+        if(!ok)setCodeError('That code wasn’t recognised. Check it and try again.');
+      })();
+    }catch(e){}
+  },[]);
+
+  // Autosave to localStorage
+  useEffect(()=>{
+    if(!accessCode||step<=0)return;
+    saveProgress(accessCode,{step,track,role,roleCustom,scores,overall,open1,open2,open3,
+      participantUuid,participantId,accessCode});
+  },[step,track,role,roleCustom,scores,overall,open1,open2,open3,accessCode,participantUuid,participantId]);
+
+  // Resume detection
+  useEffect(()=>{
+    if(!accessCode||step!==0)return;
+    const saved=loadProgress(accessCode);
+    if(!saved||saved.step<=0)return;
+    const answered=(saved.scores&&Object.keys(saved.scores).length>0)||saved.overall>0;
+    if(answered)setResumeData(saved);
+  },[accessCode,step]);
+
+  // Debounced Supabase autosave once assigned + past landing
+  useEffect(()=>{
+    if(!codeNorm||!participantUuid)return;
+    if(step<1||step>7)return;
+    const t=setTimeout(()=>saveToServer(false),700);
+    return()=>clearTimeout(t);
+  },[scores,overall,open1,open2,open3,step,codeNorm,participantUuid]);
+
+  // Poll respondents in facilitator mode
+  useEffect(()=>{
+    if(!facUnlocked||step!==20||!codeNorm)return;
+    loadRespondents();
+    const id=setInterval(loadRespondents,15000);
+    return()=>clearInterval(id);
+  },[facUnlocked,step,codeNorm]);
+
+  // ── Server calls ────────────────────────────────────────────────────────────
+  async function validateCode(c){
+    try{
+      const r=await fetch('/api/validate-code',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({code:c,tool:'ahamo-hplt'})});
+      const d=await r.json().catch(()=>({}));
+      if(r.ok&&d&&d.valid){
+        setAccessCode(c.toUpperCase());
+        setSessionConfig(d.session_config||null);
+        setStep(0);
+        return true;
+      }
+      return false;
+    }catch(e){return false;}
+  }
+
+  async function checkCode(){
+    const c=codeInput.trim();
+    if(!c){setCodeError('Please enter a code.');return;}
+    setCodeChecking(true);setCodeError('');
+    const ok=await validateCode(c);
+    setCodeChecking(false);
+    if(!ok)setCodeError('That code wasn’t recognised. Check it and try again.');
+  }
+
+  async function beginParticipant(){
+    if(!entryReady())return;
+    setBeginning(true);setBeginError('');
+    try{
+      const r=await fetch('/api/assign-participant',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({sessionCode:accessCode})});
+      const d=await r.json().catch(()=>({}));
+      if(r.ok&&d&&d.id){
+        setParticipantUuid(d.id);
+        setParticipantId(d.participantId||'');
+        setBeginning(false);
+        setStep(track==='stakeholder'?6:1);
+      }else{setBeginError('We couldn’t start your session. Please try again.');setBeginning(false);}
+    }catch(e){setBeginError('We couldn’t start your session. Please try again.');setBeginning(false);}
+  }
+
+  async function saveToServer(isGenerate){
+    if(!codeNorm||!participantUuid)return false;
+    try{
+      const r=await fetch('/api/hplt-save',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          session_code:codeNorm,
+          participant_id:participantUuid,
+          respondent_name:respondentName.trim()||undefined,
+          track,
+          role:role==='Other'?roleCustom:role,
+          item_scores:track==='team'?scores:{},
+          overall_score:overall||null,
+          open_1:open1,open_2:open2,open_3:open3,
+          generate_report:!!isGenerate,
+          date:new Date().toISOString(),
+        })});
+      return r&&r.ok;
+    }catch(e){console.warn('hplt-save error',e);return false;}
+  }
+
+  async function loadRespondents(){
+    if(!codeNorm)return;
+    try{
+      const r=await fetch('/api/hplt-load?code='+encodeURIComponent(codeNorm)+'&_='+Date.now(),{cache:'no-store'});
+      if(!r.ok)return;
+      const d=await r.json();
+      if(Array.isArray(d))setRespondents(d);
+    }catch(e){}
+  }
+
+  async function submitFinal(){
+    setSubmitting(true);setSubmitError('');
+    let ok=false,attempt=0;
+    while(!ok&&attempt<3){ok=await saveToServer(true);if(!ok){attempt++;if(attempt<3)await new Promise(r=>setTimeout(r,600));}}
+    setSubmitting(false);
+    if(!ok){setSubmitError('We couldn’t save your responses. Please check your connection and try again.');return;}
+    try{clearProgress(accessCode);}catch(e){}
+    setStep(8);
+  }
+
+  async function saveConfig(){
+    if(!cfgTeam.trim()||!cfgSector)return;
+    setCfgSaving(true);setCfgError('');
+    try{
+      const r=await fetch('/api/save-session-config',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({sessionCode:accessCode,tool:'ahamo-hplt',thingForEveryone:cfgTeam.trim(),thingType:'Team',sector:cfgSector})});
+      const d=await r.json().catch(()=>({}));
+      if(r.ok&&d&&d.ok){setSessionConfig(d.sessionConfig||null);setCfgSaving(false);}
+      else{setCfgError((d&&d.error)||'Could not save. Please try again.');setCfgSaving(false);}
+    }catch(e){setCfgError('Could not save. Please try again.');setCfgSaving(false);}
+  }
+
+  function unlockFacilitator(){
+    const pw=window.prompt('Enter facilitator password:');
+    if(pw==='Admin1*'){
+      setFacUnlocked(true);
+      if(sessionConfig){setCfgTeam(sessionConfig.thing_for_everyone||'');setCfgSector(sessionConfig.sector||'');}
+      setStep(20);
+    }else if(pw!==null){window.alert('Incorrect password.');}
+  }
+
+  // ── Validation helpers ────────────────────────────────────────────────────────
+  function entryReady(){
+    if(!track)return false;
+    if(!role||(role==='Other'&&!roleCustom.trim()))return false;
+    return true;
+  }
+  function dimComplete(dim){return MODEL[dim].subs.every(s=>s.items.every(it=>scores[it.n]>0));}
+  function allItemsDone(){return ALL_ITEMS.every(n=>scores[n]>0);}
+  function answeredCount(){return ALL_ITEMS.filter(n=>scores[n]>0).length;}
+
+  function setScore(n,v){setScores(p=>({...p,[n]:v}));}
+
+  function applyResume(d){
+    if(d.track)setTrack(d.track);
+    if(d.role)setRole(d.role);if(d.roleCustom)setRoleCustom(d.roleCustom);
+    if(d.scores)setScores(d.scores);
+    if(typeof d.overall==='number')setOverall(d.overall);
+    if(d.open1)setOpen1(d.open1);if(d.open2)setOpen2(d.open2);if(d.open3)setOpen3(d.open3);
+    if(d.participantUuid)setParticipantUuid(d.participantUuid);
+    if(d.participantId)setParticipantId(d.participantId);
+    setResumeData(null);
+    setStep(d.step||(d.track==='stakeholder'?6:1));
+  }
+
+  function restart(){
+    clearProgress(accessCode);
+    setStep(-1);setAccessCode('');setCodeInput('');setCodeError('');setSessionConfig(null);
+    setParticipantUuid('');setParticipantId('');setRespondentName('');setTrack('');setRole('');setRoleCustom('');
+    setScores({});setOverall(0);setOpen1('');setOpen2('');setOpen3('');
+    setResumeData(null);setFacUnlocked(false);setRespondents([]);
+    setCfgTeam('');setCfgSector('');
+  }
+
+  // ── RENDERERS ─────────────────────────────────────────────────────────────────
+  const teamName=(sessionConfig&&sessionConfig.thing_for_everyone)||'this team';
+
+  function renderGate(){
+    return(
+      <div style={{maxWidth:'440px',margin:'3rem auto 0'}}>
+        <div className="brand" style={{marginBottom:'2rem'}}>Aha<span className="dot">.</span>Mo</div>
+        <label className="field-lbl">Enter your access code</label>
+        <input className="inp" value={codeInput}
+          onChange={e=>{setCodeInput(e.target.value);if(codeError)setCodeError('');}}
+          onKeyDown={e=>{if(e.key==='Enter'&&!codeChecking)checkCode();}}
+          autoFocus autoCapitalize="characters" autoComplete="off" spellCheck={false}
+          style={{textTransform:'uppercase',letterSpacing:'.05em'}}/>
+        {codeError&&<div style={{marginTop:'.65rem',fontSize:'.84rem',color:'#b23028',lineHeight:1.5}}>{codeError}</div>}
+        <div className="btn-row" style={{marginTop:'1.25rem'}}>
+          <button className="btn-p" disabled={!codeInput.trim()||codeChecking} onClick={checkCode}>
+            {codeChecking?'Checking…':'Continue →'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  function renderResume(){
+    if(!resumeData)return null;
+    const when=resumeData.savedAt?new Date(resumeData.savedAt).toLocaleString('en-GB',{day:'numeric',month:'long',hour:'2-digit',minute:'2-digit'}):'recently';
+    return(
+      <div className="resume-box">
+        <h3>Welcome back — continue where you left off?</h3>
+        <p>We found a saved session from {when}.</p>
+        <div className="btn-row" style={{marginTop:'.5rem'}}>
+          <button className="btn-p" onClick={()=>applyResume(resumeData)}>Resume →</button>
+          <button className="btn-s" onClick={()=>setResumeData(null)}>Start fresh</button>
+        </div>
+      </div>
+    );
+  }
+
+  function renderLanding(){
+    const ready=!!(sessionConfig&&sessionConfig.thing_for_everyone);
+    return(
+      <div>
+        <div className="land-hero">
+          <div className="brand">Aha<span className="dot">.</span>Mo</div>
+          <h1 className="land-title">High Performing Leadership Teams Diagnostic</h1>
+          <p className="land-desc">This short diagnostic captures how your team is working today across five areas that define high-performing leadership teams. Your responses are combined with the rest of the team to produce a single team report.</p>
+          <div className="land-time">⏱ Team members: about 10 minutes · Stakeholders: about 3 minutes</div>
+        </div>
+
+        {!ready&&(
+          <div style={{background:'#fff',border:'1px solid var(--line)',borderRadius:'10px',padding:'1.25rem',marginBottom:'1.25rem'}}>
+            <div style={{fontSize:'1rem',fontWeight:700,color:'var(--navy)',marginBottom:'.5rem'}}>The diagnostic isn’t open yet</div>
+            <p style={{fontSize:'.86rem',color:'#4b5563',lineHeight:1.6,margin:0}}>Your facilitator hasn’t finished setting up this session. Please contact them, or wait a moment and refresh.</p>
+            <div className="btn-row" style={{marginTop:'1rem'}}>
+              <button className="btn-s" onClick={unlockFacilitator}>Facilitator ★</button>
+            </div>
+          </div>
+        )}
+
+        {ready&&(
+          <div>
+            <div style={{background:'#f4f7fb',border:'1px solid var(--line)',borderRadius:'10px',padding:'1rem 1.25rem',marginBottom:'1.5rem'}}>
+              <div style={{fontSize:'.7rem',fontWeight:700,color:'var(--muted)',letterSpacing:'.05em',textTransform:'uppercase',marginBottom:'.3rem'}}>You are assessing</div>
+              <div style={{fontSize:'1.1rem',fontWeight:700,color:'var(--navy)'}}>{sessionConfig.thing_for_everyone}</div>
+            </div>
+
+            <label className="field-lbl">Are you a member of this team, or a stakeholder assessing it? <span style={{color:'var(--red)'}}>*</span></label>
+            <div className="track-grid">
+              <div className={'track-card'+(track==='team'?' on':'')} onClick={()=>setTrack('team')}>
+                <h3>Team member</h3>
+                <p>You’re part of this leadership team. You’ll answer 46 short statements plus a few open questions.</p>
+              </div>
+              <div className={'track-card'+(track==='stakeholder'?' on':'')} onClick={()=>setTrack('stakeholder')}>
+                <h3>Stakeholder</h3>
+                <p>You work with this team from outside it. You’ll give an overall score and answer three open questions.</p>
+              </div>
+            </div>
+
+            <div style={{marginTop:'1.5rem'}}>
+              <label className="field-lbl">Your role <span style={{color:'var(--red)'}}>*</span></label>
+              <div style={{display:'flex',flexWrap:'wrap',gap:'.5rem',marginBottom:'.5rem'}}>
+                {ROLES.map(r=>(
+                  <button key={r} className={'chip'+(role===r?' on':'')} onClick={()=>{setRole(r);if(r!=='Other')setRoleCustom('');}}>{r}</button>
+                ))}
+              </div>
+              {role==='Other'&&<input className="inp" placeholder="Describe your role…" value={roleCustom} onChange={e=>setRoleCustom(e.target.value)} style={{maxWidth:'360px'}}/>}
+            </div>
+
+            {renderResume()}
+
+            <div className="disc"><strong>Privacy:</strong> Your responses are combined with the rest of the group to produce the team report. Individual answers are not attributed to you by name in the report.</div>
+
+            <div className="btn-row">
+              <button className="btn-p" disabled={!entryReady()||beginning} onClick={beginParticipant}>{beginning?'Starting…':'Begin →'}</button>
+              <button className="btn-s" onClick={unlockFacilitator}>Facilitator ★</button>
+            </div>
+            {beginError&&<div style={{marginTop:'.65rem',fontSize:'.84rem',color:'#b23028'}}>{beginError}</div>}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  function renderDimension(dimIdx){
+    const dim=MODEL[dimIdx];
+    const done=dimComplete(dimIdx);
+    const next=()=>setStep(dimIdx+1<5?dimIdx+2:6);
+    const back=()=>setStep(dimIdx===0?0:dimIdx);
+    return(
+      <div className="fade">
+        <button className="back-btn" onClick={back}>← Back</button>
+        <div className="pg-tag">Area {dimIdx+1} of 5 · {teamName}</div>
+        <div className="dim-band" style={{background:dim.colour}}>
+          <div className="dim-name">{dim.name}</div>
+          <div className="dim-desc">{dim.desc}</div>
+        </div>
+        <div className="stem">{STEM}</div>
+        {dim.subs.map(sub=>(
+          <div key={sub.name}>
+            <div className="sub-hdr">{sub.name}</div>
+            {sub.items.map(it=>(
+              <div key={it.n} className={'item-card'+(scores[it.n]>0?' answered':'')}>
+                <div className="item-text"><span className="lead">Team members </span>{it.t.charAt(0).toLowerCase()+it.t.slice(1)}</div>
+                <ScaleSelect value={scores[it.n]||0} onChange={v=>setScore(it.n,v)}/>
+              </div>
+            ))}
+          </div>
+        ))}
+        {!done&&<div style={{fontSize:'.8rem',color:'var(--muted)',marginTop:'.9rem'}}>Answer every statement in this area to continue.</div>}
+        <div className="btn-row">
+          <button className="btn-p" disabled={!done} onClick={next}>{dimIdx<4?'Next area →':'Continue →'}</button>
+          <button className="btn-s" onClick={back}>← Back</button>
+        </div>
+      </div>
+    );
+  }
+
+  function renderOverall(){
+    const back=()=>setStep(track==='stakeholder'?0:5);
+    return(
+      <div className="fade">
+        <button className="back-btn" onClick={back}>← Back</button>
+        <div className="pg-tag">Overall performance · {teamName}</div>
+        <h2 className="pg-title"><span className="hl">How is this team performing?</span></h2>
+        <div className="title-rule"/>
+        <p className="pg-sub">How would you score this team’s current performance, from 1 (underperforming) to 10 (excelling)?</p>
+        <div className="ten">
+          {Array.from({length:10},(_,i)=>i+1).map(v=>(
+            <button key={v} type="button" className={'ten-btn'+(overall===v?' on':'')} onClick={()=>setOverall(v)}>{v}</button>
+          ))}
+        </div>
+        <div className="ten-anchor"><span>1 · Underperforming</span><span>Excelling · 10</span></div>
+        <div className="btn-row">
+          <button className="btn-p" disabled={!overall} onClick={()=>setStep(7)}>Continue →</button>
+          <button className="btn-s" onClick={back}>← Back</button>
+        </div>
+      </div>
+    );
+  }
+
+  function renderOpen(){
+    const setters={open_1:setOpen1,open_2:setOpen2,open_3:setOpen3};
+    return(
+      <div className="fade">
+        <button className="back-btn" onClick={()=>setStep(6)}>← Back</button>
+        <div className="pg-tag">A few open questions · {teamName}</div>
+        <h2 className="pg-title"><span className="hl">In your own words</span></h2>
+        <div className="title-rule"/>
+        <p className="pg-sub">These three short answers are read alongside the scores. Say as much or as little as you like.</p>
+        {OPEN_QS.map((q,i)=>(
+          <div key={q.key} style={{marginBottom:'1.4rem'}}>
+            <label className="field-lbl">{i+1}. {q.q}</label>
+            <textarea className="inp inp-ta" value={openMap[q.key]} onChange={e=>setters[q.key](e.target.value)} placeholder="Your answer (optional)…"/>
+          </div>
+        ))}
+        {submitError&&<div className="warn-box">{submitError}</div>}
+        <div className="btn-row">
+          {submitting?(
+            <div className="think"><div className="dots"><div className="dot"/><div className="dot"/><div className="dot"/></div><span className="think-txt">Saving your responses…</span></div>
+          ):(
+            <button className="btn-p" onClick={submitFinal}>Submit →</button>
+          )}
+          <button className="btn-s" onClick={()=>setStep(6)}>← Back</button>
+        </div>
+      </div>
+    );
+  }
+
+  function renderThanks(){
+    return(
+      <div className="fade">
+        <div className="ty-card">
+          <div className="ty-mark">✓</div>
+          <h2>Thank you</h2>
+          <p>Your responses for <strong>{teamName}</strong> have been recorded.</p>
+          <p>They’ll be combined with the rest of the team to produce a single team report, which your facilitator will share and talk through with the group.</p>
+        </div>
+      </div>
+    );
+  }
+
+  function renderFacilitator(){
+    const ready=!!(sessionConfig&&sessionConfig.thing_for_everyone);
+    const real=respondents.filter(r=>r.respondent_name!=='__facilitator__'&&r.respondent_name!=='__session_closed__'&&(r.track||r.overall_score||r.item_scores));
+    const teamN=real.filter(r=>r.track==='team').length;
+    const stakeN=real.filter(r=>r.track==='stakeholder').length;
+    const SECTORS=['Civil Aviation','Construction','Defence','Education','Energy & Utilities','Financial Services','Government / Public Sector','Healthcare / NHS','Housing','Legal & Professional Services','Manufacturing','Nuclear','Rail & Transport','Technology','Other'];
+    return(
+      <div className="fade">
+        <div className="brand" style={{marginBottom:'.4rem'}}>Aha<span className="dot">.</span>Mo</div>
+        <div className="pg-tag">Facilitator · {codeNorm}</div>
+        <h2 className="pg-title" style={{fontSize:'1.5rem'}}>Session setup</h2>
+        <div className="title-rule"/>
+
+        {!ready&&<div className="inf-box">Fill these in to open the session. Until you save, participants who enter this code see “The diagnostic isn’t open yet.”</div>}
+
+        <div style={{maxWidth:'560px'}}>
+          <div style={{marginBottom:'1.1rem'}}>
+            <label className="field-lbl">Name the team being assessed <span style={{color:'var(--red)'}}>*</span></label>
+            <div className="field-sub">e.g. “The Executive Leadership Team”, “Product Leadership Team”.</div>
+            <input className="inp" placeholder="Which team is this?" value={cfgTeam} onChange={e=>setCfgTeam(e.target.value)} disabled={cfgSaving}/>
+          </div>
+          <div style={{marginBottom:'1.1rem'}}>
+            <label className="field-lbl">Sector <span style={{color:'var(--red)'}}>*</span></label>
+            <select className="inp" value={cfgSector} onChange={e=>setCfgSector(e.target.value)} disabled={cfgSaving}>
+              <option value="">Select…</option>
+              {SECTORS.map(s=><option key={s}>{s}</option>)}
+            </select>
+          </div>
+          {cfgError&&<div className="warn-box">{cfgError}</div>}
+          <div className="btn-row" style={{marginTop:'.5rem'}}>
+            <button className="btn-p" disabled={!cfgTeam.trim()||!cfgSector||cfgSaving} onClick={saveConfig}>{cfgSaving?'Saving…':ready?'Update setup':'Save and open session'}</button>
+          </div>
+        </div>
+
+        <div style={{marginTop:'2rem',paddingTop:'1.5rem',borderTop:'1px solid var(--line)'}}>
+          <div style={{display:'flex',alignItems:'center',gap:'.4rem',marginBottom:'.5rem'}}>
+            <span className="pulse"/><span style={{fontSize:'.8rem',color:'#4b5563'}}>Live · refreshes every 15s</span>
+          </div>
+          <div className="fac-count">
+            <div className="fac-cell"><div className="n">{teamN}</div><div className="l">Team members in</div></div>
+            <div className="fac-cell"><div className="n">{stakeN}</div><div className="l">Stakeholders in</div></div>
+          </div>
+          <div className="stage2-note"><strong>Full dashboard coming next.</strong> The tile dashboard for presenting results to the group — dimension scores, item heatmaps, the team-vs-stakeholder split, collated open answers, and the generated report — is the next build stage. This screen confirms the session is live and participants are coming through.</div>
+          <div className="btn-row">
+            <button className="btn-s" onClick={loadRespondents}>Refresh now</button>
+            <button className="btn-s" onClick={restart}>Exit facilitator</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── ROUTER ────────────────────────────────────────────────────────────────────
+  return(
+    <div className="shell" ref={topRef}>
+      {step>=1&&step<=7&&<Progress track={track} step={step}/>}
+      {participantId&&step>=1&&step<=7&&(
+        <div style={{maxWidth:'780px',margin:'.75rem auto 0',padding:'0 1.5rem'}}>
+          <div style={{background:'var(--navy)',color:'#fff',padding:'.5rem .85rem',borderRadius:'8px',fontSize:'.78rem',display:'flex',justifyContent:'space-between',gap:'.65rem',flexWrap:'wrap'}}>
+            <span style={{opacity:.85}}>You are <strong>Participant {participantId}</strong> ({track==='team'?'team member':'stakeholder'})</span>
+            <span style={{opacity:.6}}>Session {codeNorm}</span>
+          </div>
+        </div>
+      )}
+      <div className="main">
+        <div className="content fade" key={step}>
+          {step===-1&&renderGate()}
+          {step===0&&renderLanding()}
+          {step>=1&&step<=5&&renderDimension(step-1)}
+          {step===6&&renderOverall()}
+          {step===7&&renderOpen()}
+          {step===8&&renderThanks()}
+          {step===20&&renderFacilitator()}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+class ErrorBoundary extends React.Component{
+  constructor(p){super(p);this.state={error:null};}
+  componentDidCatch(e){this.setState({error:e.message});}
+  render(){
+    if(this.state.error){
+      return React.createElement('div',{style:{padding:'2rem',fontFamily:"'Poppins',sans-serif",background:'#fff5f4',border:'2px solid #EF4136',margin:'2rem',borderRadius:'10px'}},
+        React.createElement('h3',{style:{color:'#EF4136',marginBottom:'1rem'}},'Something went wrong'),
+        React.createElement('pre',{style:{fontSize:'.75rem',color:'#555',whiteSpace:'pre-wrap'}},this.state.error),
+        React.createElement('button',{onClick:()=>this.setState({error:null}),style:{marginTop:'1rem',padding:'.5rem 1rem',background:'#20386D',color:'#fff',border:'none',borderRadius:'6px',cursor:'pointer'}},'Try again'));
+    }
+    return this.props.children;
+  }
+}
+const root=ReactDOM.createRoot(document.getElementById('root'));
+root.render(React.createElement(ErrorBoundary,null,React.createElement(App,null)));
+</script>
+</body>
+</html>
