@@ -16,7 +16,9 @@
   --ink:#1a1a1a; --muted:#6b7280; --line:#e2e4e8; --bg:#ffffff;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-html,body{font-family:'Poppins',sans-serif;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased;overflow-x:hidden}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+html,body{font-family:'Poppins',sans-serif;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased;overflow-x:hidden;-webkit-tap-highlight-color:rgba(0,0,0,0)}
+button{-webkit-tap-highlight-color:rgba(0,0,0,0)}
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
 .fade{animation:fadeIn .3s ease both}
@@ -55,10 +57,10 @@ h2.pg-title{display:block}
 /* Fields + buttons */
 .field-lbl{font-size:.74rem;font-weight:700;color:var(--navy);display:block;margin-bottom:.35rem;letter-spacing:.02em}
 .field-sub{font-size:.74rem;color:var(--muted);margin-bottom:.4rem;line-height:1.5}
-.inp{width:100%;border:1.5px solid var(--line);border-radius:8px;padding:.72rem 1rem;font-family:'Poppins',sans-serif;font-size:.9rem;color:var(--ink);outline:none;min-height:46px;transition:border-color .15s;background:#fff;display:block}
+.inp{width:100%;border:1.5px solid var(--line);border-radius:8px;padding:.72rem 1rem;font-family:'Poppins',sans-serif;font-size:16px;color:var(--ink);outline:none;min-height:48px;transition:border-color .15s;background:#fff;display:block;-webkit-appearance:none;appearance:none}
 .inp:focus{border-color:var(--navy)}.inp::placeholder{color:#b6bcc6}
-.inp-ta{min-height:110px;resize:vertical;line-height:1.6}
-select.inp{cursor:pointer}
+.inp-ta{min-height:120px;resize:vertical;line-height:1.6}
+select.inp{cursor:pointer;background-image:url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20width%3D%2712%27%20height%3D%278%27%20viewBox%3D%270%200%2012%208%27%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%3E%3Cpath%20d%3D%27M1%201l5%205%205-5%27%20stroke%3D%27%236b7280%27%20stroke-width%3D%271.5%27%20fill%3D%27none%27%20fill-rule%3D%27evenodd%27/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 1rem center;padding-right:2.5rem}
 .btn-p{display:inline-flex;align-items:center;gap:.4rem;background:var(--navy);color:#fff;border:none;border-radius:8px;font-weight:600;padding:.8rem 1.7rem;font-family:'Poppins',sans-serif;font-size:.9rem;cursor:pointer;min-height:46px;transition:background .15s,opacity .15s}
 .btn-p:hover:not([disabled]){background:#182b54}.btn-p[disabled]{opacity:.35;cursor:not-allowed}
 .btn-s{display:inline-flex;align-items:center;gap:.4rem;background:#fff;color:var(--navy);border:1.5px solid var(--line);border-radius:8px;font-weight:600;padding:.8rem 1.3rem;font-family:'Poppins',sans-serif;font-size:.9rem;cursor:pointer;min-height:46px;transition:border-color .15s}
@@ -73,7 +75,7 @@ select.inp{cursor:pointer}
 .disc{font-size:.74rem;color:var(--muted);line-height:1.6;padding:.85rem 1rem;background:#f7f8fa;border-radius:8px;border:1px solid var(--line);margin-top:.75rem}
 
 /* Chips (track / role) */
-.chip{padding:.5rem .95rem;border-radius:22px;border:1.5px solid var(--line);background:#fff;color:#4b5563;font-size:.82rem;font-weight:600;cursor:pointer;transition:all .15s;font-family:'Poppins',sans-serif}
+.chip{padding:.5rem .95rem;border-radius:22px;border:1.5px solid var(--line);background:#fff;color:#4b5563;font-size:.82rem;font-weight:600;cursor:pointer;transition:all .15s;font-family:'Poppins',sans-serif;min-height:42px;display:inline-flex;align-items:center}
 .chip.on{border-color:var(--navy);background:#f0f3f9;color:var(--navy)}
 
 /* Track cards */
@@ -106,7 +108,8 @@ select.inp{cursor:pointer}
 .scale-btn.on.light .sl{color:#4b5563}
 @media(max-width:560px){
   .scale-btn .sl{display:none}
-  .scale-btn{min-height:46px}
+  .scale-btn{min-height:48px}
+  .scale{gap:.3rem}
 }
 .scale-legend{display:flex;justify-content:space-between;font-size:.66rem;color:var(--muted);margin-top:.4rem;padding:0 .2rem}
 
@@ -125,13 +128,8 @@ select.inp{cursor:pointer}
 .ty-card p{font-size:.92rem;color:#4b5563;line-height:1.65;margin-bottom:.6rem}
 
 /* Facilitator */
-.fac-count{display:grid;grid-template-columns:1fr 1fr;gap:.9rem;margin:1rem 0}
-.fac-cell{background:#fff;border:1.5px solid var(--line);border-radius:10px;padding:1rem;text-align:center}
-.fac-cell .n{font-size:2rem;font-weight:800;color:var(--navy);line-height:1}
-.fac-cell .l{font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-top:.3rem}
 .pulse{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--green);animation:pulse 2s ease-in-out infinite;margin-right:.4rem}
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.85)}}
-.stage2-note{background:#fffdf0;border:1px solid #f5e79a;border-radius:10px;padding:1rem 1.25rem;margin-top:1.25rem;font-size:.85rem;color:#6b5d10;line-height:1.6}
 
 .resume-box{background:#f4f7fb;border:1px solid #cdd9ea;border-radius:10px;padding:1.25rem;margin-bottom:1.25rem}
 .resume-box h3{font-size:.95rem;font-weight:700;color:var(--navy);margin-bottom:.5rem}
@@ -164,7 +162,7 @@ select.inp{cursor:pointer}
 .tile[disabled]:hover{transform:none;box-shadow:none;border-color:var(--line)}
 
 /* ── Overlay ── */
-.ov{position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:60;display:flex;align-items:flex-start;justify-content:center;padding:2.5vh 1rem;overflow-y:auto;animation:fadeIn .2s ease both}
+.ov{position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:60;display:flex;align-items:flex-start;justify-content:center;padding:2.5vh 1rem;overflow-y:auto;-webkit-overflow-scrolling:touch;animation:fadeIn .2s ease both}
 .ov-card{background:#fff;border-radius:16px;width:100%;max-width:960px;margin:auto;box-shadow:0 30px 80px -20px rgba(0,0,0,.5)}
 .ov-head{position:sticky;top:0;background:#fff;border-bottom:1px solid var(--line);border-radius:16px 16px 0 0;padding:1.1rem 1.5rem;display:flex;justify-content:space-between;align-items:center;gap:1rem;z-index:2}
 .ov-head h2{font-size:1.3rem;font-weight:800;color:var(--navy);line-height:1.15}
@@ -221,11 +219,6 @@ select.inp{cursor:pointer}
 .sub-block{margin-bottom:1.4rem}
 .sub-block h4{font-size:.72rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--teal);margin-bottom:.6rem}
 
-.hm-grid{display:flex;flex-wrap:wrap;gap:5px}
-.hm-cell{width:34px;height:34px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;color:#fff;cursor:default}
-.hm-legend{display:flex;align-items:center;gap:.5rem;margin-top:1rem;font-size:.72rem;color:var(--muted)}
-.hm-ramp{height:12px;width:160px;border-radius:6px;background:linear-gradient(90deg,#E23B33,#F6C080,#5FA02A)}
-
 .dim-tab{display:inline-flex;flex-wrap:wrap;gap:.4rem;margin-bottom:1.25rem}
 .dim-pill{border:1.5px solid var(--line);background:#fff;border-radius:20px;padding:.4rem .85rem;font-size:.78rem;font-weight:600;color:#4b5563;cursor:pointer;font-family:'Poppins',sans-serif}
 .dim-pill.on{color:#fff;border-color:transparent}
@@ -246,7 +239,7 @@ select.inp{cursor:pointer}
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const {useState,useRef,useEffect,useMemo}=React;
+const {useState,useRef,useEffect}=React;
 
 // ── HPLT MODEL ───────────────────────────────────────────────────────────────
 // 5 dimensions · 46 agreement items (1–6) · sub-themes. Item stem:
@@ -349,7 +342,6 @@ const MODEL=[
    ]},
 ];
 const ALL_ITEMS=MODEL.flatMap(d=>d.subs.flatMap(s=>s.items.map(i=>i.n)));
-const TOTAL_ITEMS=ALL_ITEMS.length; // 46
 
 // 1–6 forced-choice scale, red → green. `light` marks pale swatches (dark text).
 const SCALE=[
@@ -422,7 +414,7 @@ function Progress({track,step}){
 }
 
 // ── SHARED CONSTANTS ──────────────────────────────────────────────────────────
-const SECTORS=['Civil Aviation','Construction','Defence','Education','Energy & Utilities','Financial Services','Government / Public Sector','Healthcare / NHS','Housing','Legal & Professional Services','Manufacturing','Nuclear','Rail & Transport','Technology','Other'];
+const SECTORS=['Automotive','Aviation & Aerospace','Charity & Third Sector','Construction','Defence','Education','Energy & Utilities','Financial Services','Food, Drink & Agriculture','Government / Public Sector','Healthcare & Life Sciences','Hospitality & Leisure','Housing','Legal & Professional Services','Manufacturing','Media & Creative','Nuclear','Rail','Retail','Technology & Telecoms','Transport & Logistics','Other'];
 const REFLECTION_QS=[
   'What do you have questions about or need more information on, if anything?',
   'What made you smile when reading through this report?',
@@ -436,11 +428,26 @@ const REFLECTION_QS=[
 // Overall score (1–10) is split three ways: all / team / stakeholder.
 function avg(a){return a.length?a.reduce((x,y)=>x+y,0)/a.length:0;}
 function isRealRow(r){return (r.track==='team'||r.track==='stakeholder')&&r.respondent_name!=='__facilitator__'&&r.respondent_name!=='__session_closed__';}
+// A row "counts" only once the respondent has actually finished the scored part:
+// team → all 46 items + an overall score; stakeholder → an overall score.
+// This keeps people who began and abandoned out of the counts, stats and report.
+function rowComplete(r){
+  const o=r.overall_score;
+  if(!(o>=1&&o<=10))return false;
+  if(r.track==='stakeholder')return true;
+  if(r.track==='team'){const s=r.item_scores||{};return ALL_ITEMS.every(n=>{const v=s[n];return typeof v==='number'&&v>=1&&v<=6;});}
+  return false;
+}
 
 function analyse(rows){
-  const real=rows.filter(isRealRow);
+  const allReal=(Array.isArray(rows)?rows:[]).filter(isRealRow);
+  const real=allReal.filter(rowComplete);            // completed only — used for every stat
   const team=real.filter(r=>r.track==='team');
   const stake=real.filter(r=>r.track==='stakeholder');
+  // In-progress (began, not yet complete) — counted for awareness, never in the stats.
+  const inProgress=allReal.filter(r=>!rowComplete(r));
+  const inProgressTeam=inProgress.filter(r=>r.track==='team').length;
+  const inProgressStake=inProgress.filter(r=>r.track==='stakeholder').length;
 
   // Per-item stats (team only): mean, six-bucket distribution, n
   const items={};
@@ -485,7 +492,9 @@ function analyse(rows){
     stake:stake.map(r=>r[q.key]).filter(t=>t&&String(t).trim()),
   }));
 
-  return {real,team,stake,teamN:team.length,stakeN:stake.length,items,dims,ranked,top,bottom,oAll,oTeam,oStake,oDist,open};
+  return {allReal,real,team,stake,teamN:team.length,stakeN:stake.length,
+    inProgress:inProgress.length,inProgressTeam,inProgressStake,
+    items,dims,ranked,top,bottom,oAll,oTeam,oStake,oDist,open};
 }
 
 // 1–6 mean → red→amber→green colour
@@ -1016,6 +1025,10 @@ function App(){
   const [facTile,setFacTile]=useState('');   // which dashboard overlay is open
   const [facEditing,setFacEditing]=useState(false); // setup edit mode
   const [pdfBusy,setPdfBusy]=useState(false);
+  const [removeConfirmId,setRemoveConfirmId]=useState(''); // row awaiting delete confirm
+  const [removingId,setRemovingId]=useState('');          // row currently deleting
+  const [removeErr,setRemoveErr]=useState('');
+  const [linkCopied,setLinkCopied]=useState(false);
 
   const topRef=useRef(null);
   const codeNorm=(accessCode||'').trim().toUpperCase();
@@ -1096,6 +1109,9 @@ function App(){
 
   async function beginParticipant(){
     if(!entryReady())return;
+    // Already assigned earlier this session (e.g. went Back to the landing and
+    // returned)? Reuse the same id so we never create a second row.
+    if(participantUuid){setStep(track==='stakeholder'?6:1);return;}
     setBeginning(true);setBeginError('');
     try{
       const r=await fetch('/api/assign-participant',{method:'POST',headers:{'Content-Type':'application/json'},
@@ -1140,6 +1156,22 @@ function App(){
     }catch(e){}
   }
 
+  async function removeParticipant(id){
+    if(!codeNorm||!id)return;
+    setRemovingId(id);setRemoveErr('');
+    try{
+      const r=await fetch('/api/hplt-delete',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({session_code:codeNorm,id})});
+      const d=await r.json().catch(()=>({}));
+      if(r.ok&&d&&d.ok){
+        setRespondents(prev=>prev.filter(x=>x.id!==id));
+        setRemoveConfirmId('');
+        loadRespondents();
+      }else{setRemoveErr((d&&d.error)||'Could not remove. Please try again.');}
+    }catch(e){setRemoveErr('Could not remove. Please try again.');}
+    setRemovingId('');
+  }
+
   async function submitFinal(){
     setSubmitting(true);setSubmitError('');
     let ok=false,attempt=0;
@@ -1151,15 +1183,24 @@ function App(){
   }
 
   async function saveConfig(){
-    if(!cfgTeam.trim()||!cfgSector)return;
+    if(!cfgTeam.trim()||!cfgSector)return false;
     setCfgSaving(true);setCfgError('');
     try{
       const r=await fetch('/api/save-session-config',{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({sessionCode:accessCode,tool:'ahamo-hplt',thingForEveryone:cfgTeam.trim(),thingType:'Team',sector:cfgSector})});
       const d=await r.json().catch(()=>({}));
-      if(r.ok&&d&&d.ok){setSessionConfig(d.sessionConfig||null);setCfgSaving(false);}
-      else{setCfgError((d&&d.error)||'Could not save. Please try again.');setCfgSaving(false);}
-    }catch(e){setCfgError('Could not save. Please try again.');setCfgSaving(false);}
+      if(r.ok&&d&&d.ok){setSessionConfig(d.sessionConfig||null);setCfgSaving(false);return true;}
+      setCfgError((d&&d.error)||'Could not save. Please try again.');setCfgSaving(false);return false;
+    }catch(e){setCfgError('Could not save. Please try again.');setCfgSaving(false);return false;}
+  }
+
+  async function copyParticipantLink(){
+    const url=window.location.origin+'/ahamo-hplt?code='+encodeURIComponent(codeNorm);
+    try{
+      if(navigator.clipboard&&navigator.clipboard.writeText){await navigator.clipboard.writeText(url);}
+      else{window.prompt('Copy this participant link:',url);}
+      setLinkCopied(true);setTimeout(()=>setLinkCopied(false),2200);
+    }catch(e){window.prompt('Copy this participant link:',url);}
   }
 
   function unlockFacilitator(){
@@ -1178,8 +1219,6 @@ function App(){
     return true;
   }
   function dimComplete(dim){return MODEL[dim].subs.every(s=>s.items.every(it=>scores[it.n]>0));}
-  function allItemsDone(){return ALL_ITEMS.every(n=>scores[n]>0);}
-  function answeredCount(){return ALL_ITEMS.filter(n=>scores[n]>0).length;}
 
   function setScore(n,v){setScores(p=>({...p,[n]:v}));}
 
@@ -1197,11 +1236,14 @@ function App(){
 
   function restart(){
     clearProgress(accessCode);
-    setStep(-1);setAccessCode('');setCodeInput('');setCodeError('');setSessionConfig(null);
+    setStep(-1);setAccessCode('');setCodeInput('');setCodeError('');setCodeChecking(false);setSessionConfig(null);
     setParticipantUuid('');setParticipantId('');setRespondentName('');setTrack('');setRole('');setRoleCustom('');
     setScores({});setOverall(0);setOpen1('');setOpen2('');setOpen3('');
+    setBeginning(false);setBeginError('');setSubmitting(false);setSubmitError('');
     setResumeData(null);setFacUnlocked(false);setRespondents([]);
-    setCfgTeam('');setCfgSector('');
+    setCfgTeam('');setCfgSector('');setCfgSaving(false);setCfgError('');
+    setFacTile('');setFacEditing(false);setPdfBusy(false);
+    setRemoveConfirmId('');setRemovingId('');setRemoveErr('');
   }
 
   // ── RENDERERS ─────────────────────────────────────────────────────────────────
@@ -1310,6 +1352,7 @@ function App(){
   function renderDimension(dimIdx){
     const dim=MODEL[dimIdx];
     const done=dimComplete(dimIdx);
+    const missing=dim.subs.flatMap(s=>s.items).filter(it=>!(scores[it.n]>0)).map(it=>it.n);
     const next=()=>setStep(dimIdx+1<5?dimIdx+2:6);
     const back=()=>setStep(dimIdx===0?0:dimIdx);
     return(
@@ -1325,14 +1368,26 @@ function App(){
           <div key={sub.name}>
             <div className="sub-hdr">{sub.name}</div>
             {sub.items.map(it=>(
-              <div key={it.n} className={'item-card'+(scores[it.n]>0?' answered':'')}>
+              <div key={it.n} id={'itemcard-'+it.n} className={'item-card'+(scores[it.n]>0?' answered':'')}>
                 <div className="item-text"><span className="lead">Team members </span>{it.t.charAt(0).toLowerCase()+it.t.slice(1)}</div>
                 <ScaleSelect value={scores[it.n]||0} onChange={v=>setScore(it.n,v)}/>
               </div>
             ))}
           </div>
         ))}
-        {!done&&<div style={{fontSize:'.8rem',color:'var(--muted)',marginTop:'.9rem'}}>Answer every statement in this area to continue.</div>}
+        {!done&&(
+          <div style={{fontSize:'.82rem',color:'var(--muted)',marginTop:'.9rem',lineHeight:1.9}}>
+            {missing.length<=10?(
+              <span>Still to do — tap to jump: {missing.map(n=>(
+                <button key={n} type="button"
+                  onClick={()=>{const el=document.getElementById('itemcard-'+n);if(el)el.scrollIntoView({behavior:'smooth',block:'center'});}}
+                  style={{background:'#f0f3f9',border:'1px solid #cdd9ea',color:'var(--navy)',borderRadius:'7px',padding:'.2rem .55rem',margin:'0 .2rem',fontSize:'.82rem',fontWeight:700,cursor:'pointer',fontFamily:'Poppins,sans-serif',minHeight:'34px'}}>{n}</button>
+              ))}</span>
+            ):(
+              <span>Answer every statement to continue — {missing.length} still to do.</span>
+            )}
+          </div>
+        )}
         <div className="btn-row">
           <button className="btn-p" disabled={!done} onClick={next}>{dimIdx<4?'Next area →':'Continue →'}</button>
           <button className="btn-s" onClick={back}>← Back</button>
@@ -1434,7 +1489,7 @@ function App(){
             </div>
             {cfgError&&<div className="warn-box">{cfgError}</div>}
             <div className="btn-row" style={{marginTop:'.5rem'}}>
-              <button className="btn-p" disabled={!cfgTeam.trim()||!cfgSector||cfgSaving} onClick={async()=>{await saveConfig();if(ready)setFacEditing(false);}}>{cfgSaving?'Saving…':ready?'Save changes':'Save and open session'}</button>
+              <button className="btn-p" disabled={!cfgTeam.trim()||!cfgSector||cfgSaving} onClick={async()=>{const ok=await saveConfig();if(ok&&ready)setFacEditing(false);}}>{cfgSaving?'Saving…':ready?'Save changes':'Save and open session'}</button>
               {ready&&<button className="btn-s" onClick={()=>setFacEditing(false)}>Cancel</button>}
             </div>
           </div>
@@ -1457,6 +1512,7 @@ function App(){
       {key:'items',eyebrow:'Detail',title:'Item breakdown',desc:'Per-area stacked response bars, grouped by sub-theme.',need:a.teamN>0},
       {key:'verbatim',eyebrow:'Voice',title:'Verbatim feedback',desc:'The three open questions, collated by track.',need:total>0},
       {key:'reflection',eyebrow:'Conversation',title:'Reflection',desc:'Four closing questions to project for the team.',need:true},
+      {key:'participants',eyebrow:'Admin',title:'Participants',desc:'Everyone who has submitted — remove duplicates or mistakes.',metric:a.allReal.length?String(a.allReal.length):null,unit:'entries',need:a.allReal.length>0},
       {key:'setup',eyebrow:'Admin',title:'Session setup',desc:'Team name, sector, and access details.',need:true},
     ];
 
@@ -1469,6 +1525,7 @@ function App(){
             <h2 style={{fontSize:'1.5rem',fontWeight:800,color:'var(--navy)',lineHeight:1.15}}>{sessionConfig.thing_for_everyone}</h2>
           </div>
           <div className="dash-actions">
+            <button className="btn-s" onClick={copyParticipantLink}>{linkCopied?'✓ Link copied':'⧉ Copy participant link'}</button>
             <button className="btn-p" onClick={doPdf} disabled={pdfBusy||!total}>{pdfBusy?'Building…':'⤓ Generate report'}</button>
           </div>
         </div>
@@ -1476,18 +1533,23 @@ function App(){
           <span className="count-pill"><span className="pulse"/>Live</span>
           <span className="count-pill"><span className="cn">{a.teamN}</span>team members</span>
           <span className="count-pill"><span className="cn">{a.stakeN}</span>stakeholders</span>
-          <span className="count-pill"><span className="cn">{total}</span>total</span>
+          <span className="count-pill"><span className="cn">{total}</span>completed</span>
+          {a.inProgress>0&&<span className="count-pill" style={{color:'var(--muted)'}}><span className="cn">{a.inProgress}</span>in progress</span>}
           <button className="btn-s" style={{padding:'.35rem .85rem',minHeight:0,fontSize:'.8rem'}} onClick={loadRespondents}>Refresh</button>
         </div>
 
-        {!total&&(
+        {a.allReal.length===0&&(
           <div className="empty-dash">
             <div className="big">No responses yet</div>
-            <p style={{fontSize:'.9rem',lineHeight:1.6,maxWidth:'440px',margin:'0 auto'}}>Share the access code with the team. As people submit, their responses appear here — the tiles fill in live.</p>
+            <p style={{fontSize:'.9rem',lineHeight:1.6,maxWidth:'440px',margin:'0 auto'}}>Share the access code with the team. As people complete the diagnostic, their responses appear here — the tiles fill in live.</p>
           </div>
         )}
 
-        {total>0&&(
+        {a.allReal.length>0&&total===0&&(
+          <div className="inf-box" style={{marginTop:'1rem'}}>{a.inProgress} {a.inProgress===1?'person has':'people have'} started but nobody has finished yet. The results tiles unlock once at least one person completes.</div>
+        )}
+
+        {a.allReal.length>0&&(
           <div className="tile-grid">
             {tiles.map(t=>(
               <button key={t.key} className="tile" disabled={!t.need} onClick={()=>{if(t.key==='setup'){setFacEditing(true);}else setFacTile(t.key);}}>
@@ -1519,17 +1581,63 @@ function App(){
       topbottom:{title:'Highest & lowest scoring items',sub:'By team-member average · 1–6',body:<TopBottom a={a}/>},
       verbatim:{title:'Verbatim feedback',sub:'Open responses, collated by track',body:<Verbatim a={a}/>},
       reflection:{title:'Reflecting on this team’s results',sub:'Four closing questions for the conversation',body:<ReflectionPanel/>},
+      participants:{title:'Participants',sub:'Remove a duplicate or a mistaken entry — this can’t be undone',body:renderParticipants(a)},
     };
     const v=map[facTile];
     if(!v)return null;
     return(
-      <div className="ov" onClick={e=>{if(e.target===e.currentTarget)setFacTile('');}}>
+      <div className="ov" onClick={e=>{if(e.target===e.currentTarget){setFacTile('');setRemoveConfirmId('');}}}>
         <div className="ov-card">
           <div className="ov-head">
             <div><h2>{v.title}</h2><div className="sub">{v.sub}</div></div>
-            <button className="ov-close" onClick={()=>setFacTile('')}>✕</button>
+            <button className="ov-close" onClick={()=>{setFacTile('');setRemoveConfirmId('');}}>✕</button>
           </div>
           <div className="ov-body">{v.body}</div>
+        </div>
+      </div>
+    );
+  }
+
+  function renderParticipants(a){
+    // Real rows only (track set), in submission order, numbered to aid the facilitator.
+    const rows=respondents.filter(isRealRow);
+    if(!rows.length)return <div className="verb-empty">No participants yet.</div>;
+    const fmt=(ts)=>{try{return new Date(ts).toLocaleString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});}catch(e){return '';}};
+    const itemsAnswered=(r)=>r.item_scores?Object.keys(r.item_scores).filter(k=>r.item_scores[k]>=1&&r.item_scores[k]<=6).length:0;
+    return(
+      <div>
+        <p style={{fontSize:'.86rem',color:'#4b5563',lineHeight:1.6,marginBottom:'1rem'}}>{rows.length} {rows.length===1?'entry':'entries'}. If someone completed twice or entered by mistake, remove the extra row — the scores and report update straight away. Only completed entries count toward the results.</p>
+        {removeErr&&<div className="warn-box">{removeErr}</div>}
+        <div style={{border:'1px solid var(--line)',borderRadius:'10px',overflow:'hidden'}}>
+          {rows.map((r,i)=>{
+            const isTeam=r.track==='team';
+            const complete=rowComplete(r);
+            const confirming=removeConfirmId===r.id;
+            const deleting=removingId===r.id;
+            return(
+              <div key={r.id||i} style={{display:'flex',alignItems:'center',gap:'.85rem',padding:'.75rem 1rem',borderBottom:i<rows.length-1?'1px solid var(--line)':'none',background:confirming?'#fff5f4':'#fff',flexWrap:'wrap'}}>
+                <span style={{fontSize:'.72rem',fontWeight:700,color:'#fff',background:isTeam?'var(--green)':'var(--teal)',borderRadius:'6px',padding:'.2rem .5rem',flexShrink:0}}>{isTeam?'Team':'Stakeholder'}</span>
+                <div style={{flex:1,minWidth:'160px'}}>
+                  <div style={{fontSize:'.9rem',fontWeight:600,color:'var(--navy)'}}>Entry {i+1}{r.role?' · '+r.role:''} {complete?<span style={{fontSize:'.66rem',fontWeight:700,color:'var(--green)'}}>✓ COMPLETE</span>:<span style={{fontSize:'.66rem',fontWeight:700,color:'#c98a00'}}>◷ IN PROGRESS</span>}</div>
+                  <div style={{fontSize:'.74rem',color:'var(--muted)'}}>
+                    {r.overall_score?('Overall '+r.overall_score+'/10'):'no overall score'}
+                    {isTeam?' · '+itemsAnswered(r)+'/46 items':''}
+                    {r.created_at?' · '+fmt(r.created_at):''}
+                    {r.pending_review?' · ⚠ after close':''}
+                  </div>
+                </div>
+                {!confirming?(
+                  <button className="btn-s" style={{padding:'.4rem .8rem',minHeight:0,fontSize:'.8rem',color:'#b23028',borderColor:'#f0c8c2'}} onClick={()=>{setRemoveErr('');setRemoveConfirmId(r.id);}}>Remove</button>
+                ):(
+                  <div style={{display:'flex',gap:'.4rem',alignItems:'center'}}>
+                    <span style={{fontSize:'.78rem',color:'#b23028',fontWeight:600}}>Remove?</span>
+                    <button className="btn-s" style={{padding:'.4rem .8rem',minHeight:0,fontSize:'.8rem'}} onClick={()=>setRemoveConfirmId('')} disabled={deleting}>Cancel</button>
+                    <button className="btn-p" style={{padding:'.4rem .8rem',minHeight:0,fontSize:'.8rem',background:'#c0392b'}} onClick={()=>removeParticipant(r.id)} disabled={deleting}>{deleting?'Removing…':'Yes, remove'}</button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
     );
