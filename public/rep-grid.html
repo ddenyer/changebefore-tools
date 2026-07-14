@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Rep-Grid — Repertory Grid Tool</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.development.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.development.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+/* Design system lifted from stat-group.html so Rep-Grid matches the suite. */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{font-family:'DM Sans',sans-serif;background:#f0ede8;color:#1a1a1a;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.fade{animation:fadeIn .3s ease both}
+.content{max-width:760px;margin:0 auto;padding:2.5rem 1.5rem 3rem}
+.content-wide{max-width:1040px;margin:0 auto;padding:1.75rem 1.5rem 3rem}
+.land-hero{border-bottom:1px solid #d8d3cb;padding-bottom:1.5rem;margin-bottom:1.5rem}
+.land-tag{font-size:.65rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#e07030;margin-bottom:.6rem}
+.land-title{font-size:2.1rem;font-weight:600;color:#1a1a1a;line-height:1.15;margin-bottom:.55rem;font-family:'Cormorant Garamond',serif}
+.land-desc{font-size:.95rem;color:#555;line-height:1.7;max-width:560px}
+.field-lbl{font-size:.72rem;font-weight:700;color:#555;display:block;margin-bottom:.35rem;letter-spacing:.03em}
+.field-sub{font-size:.72rem;color:#999;margin-bottom:.35rem;line-height:1.5}
+.inp{width:100%;border:1px solid #d8d3cb;border-radius:3px;padding:.72rem 1rem;font-family:'DM Sans',sans-serif;font-size:.9rem;color:#1a1a1a;outline:none;min-height:44px;transition:border-color .15s;background:#fff;display:block}
+.inp:focus{border-color:#e07030}.inp::placeholder{color:#c0b8ae}
+.inp-sm{min-height:38px;padding:.5rem .7rem;font-size:.85rem}
+.inp-ta{min-height:80px;resize:vertical;line-height:1.55}
+.btn-p{display:inline-flex;align-items:center;gap:.4rem;background:#e07030;color:#fff;border:none;border-radius:3px;font-weight:700;padding:.78rem 1.6rem;font-family:'DM Sans',sans-serif;font-size:.9rem;cursor:pointer;min-height:44px;transition:opacity .15s}
+.btn-p:hover:not([disabled]){opacity:.88}.btn-p[disabled]{opacity:.3;cursor:not-allowed}
+.btn-s{display:inline-flex;align-items:center;gap:.4rem;background:#f0ede8;color:#1a1a1a;border:1px solid #d8d3cb;border-radius:3px;font-weight:500;padding:.78rem 1.2rem;font-family:'DM Sans',sans-serif;font-size:.9rem;cursor:pointer;min-height:44px;transition:border-color .15s}
+.btn-s:hover{border-color:#1a1a1a}
+.btn-sm{padding:.45rem .9rem;min-height:36px;font-size:.8rem}
+.btn-row{display:flex;gap:.7rem;align-items:center;flex-wrap:wrap;margin-top:1.5rem}
+.sec-tag{font-size:.63rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#e07030;margin-bottom:.5rem}
+.pg-title{font-size:1.5rem;font-weight:600;color:#1a1a1a;line-height:1.3;margin-bottom:.3rem;font-family:'Cormorant Garamond',serif}
+.pg-sub{font-size:.875rem;color:#666;margin-bottom:1.3rem;line-height:1.65}
+.back-btn{display:inline-flex;align-items:center;gap:.3rem;background:none;border:none;font-family:'DM Sans',sans-serif;font-size:.82rem;font-weight:500;color:#888;cursor:pointer;padding:0;margin-bottom:1.25rem}
+.back-btn:hover{color:#1a1a1a}
+.inf-box{background:#ebe7e0;border-left:3px solid #e07030;padding:.85rem 1.1rem;border-radius:0 3px 3px 0;margin-bottom:1.2rem;font-size:.875rem;line-height:1.6;color:#555}
+.warn-box{background:#fff8f6;border:1px solid #f0b8a8;border-radius:3px;padding:.85rem 1.1rem;margin:.7rem 0;font-size:.82rem;color:#c0392b}
+.card{border:1px solid #d8d3cb;border-radius:4px;padding:1.1rem 1.25rem;background:#fff;margin-bottom:1rem}
+.fac-tab-bar{display:flex;gap:0;border-bottom:2px solid #d8d3cb;margin-bottom:1.5rem;overflow-x:auto}
+.fac-tab{padding:.55rem .95rem;font-size:.75rem;font-weight:700;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;color:#b0a898;transition:all .2s;white-space:nowrap;font-family:'DM Sans',sans-serif;background:none;border-top:none;border-left:none;border-right:none}
+.fac-tab.active{color:#1a1a1a;border-bottom-color:#1a1a1a}
+.fac-tab:hover:not(.active){color:#555}
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:1.25rem;flex-wrap:wrap}
+.topbar .code{font-size:.72rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#888;background:#e8e3dc;border-radius:20px;padding:.3rem .8rem}
+.list-row{display:flex;align-items:center;gap:.6rem;padding:.6rem 0;border-bottom:1px solid #ebe7e0}
+.list-row:last-child{border-bottom:none}
+.x{border:none;background:transparent;color:#b0a898;cursor:pointer;font-size:1rem;padding:2px 6px}
+.x:hover{color:#c0392b}
+.muted{color:#888}.small{font-size:.78rem}.grow{flex:1}.sp{height:.75rem}
+.row{display:flex;gap:.8rem;flex-wrap:wrap}.row>*{flex:1;min-width:130px}
+.field{margin-bottom:.9rem}
+.tag{display:inline-block;font-size:.63rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:.15rem .5rem;border-radius:3px;background:#ebe7e0;color:#888}
+.tag.done{background:#dcefe0;color:#16794a}.tag.prog{background:#fdecd8;color:#b5651a}
+/* Grid + analysis tables — house palette */
+.scroll{overflow-x:auto}
+table.grid{border-collapse:collapse;width:100%;font-size:.8rem;background:#fff}
+table.grid th,table.grid td{border:1px solid #d8d3cb;padding:.4rem .5rem;text-align:center}
+table.grid th{background:#ebe7e0;font-weight:700;font-size:.7rem;letter-spacing:.02em}
+table.grid td.pole,table.grid th.pole{text-align:left;white-space:nowrap;font-weight:600}
+.cellin{width:46px;text-align:center;padding:.3rem;border:1px solid #d8d3cb;border-radius:3px;font-family:'DM Sans',sans-serif;font-size:.85rem}
+.cellin:focus{border-color:#e07030;outline:none}
+.rowsel td.pole{color:#e07030}
+.badge{display:inline-block;min-width:20px;padding:.05rem .5rem;border-radius:3px;font-size:.66rem;font-weight:700;color:#fff;text-align:center}
+.badge.H{background:#16a34a}.badge.I{background:#c98a1e}.badge.L{background:#dc2626}
+.chip{display:inline-block;padding:.2rem .6rem;border:1px solid #d8d3cb;border-radius:20px;font-size:.72rem;margin:.15rem;background:#fff}
+.mini{font-size:.7rem;color:#888}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef, useMemo } = React;
+
+/* ============================ Honey engine (verified) ====================== */
+function sumAbsDiff(a, b){
+  let sum=0,n=0; const len=Math.min(a.length,b.length);
+  for(let i=0;i<len;i++){ if(a[i]==null||b[i]==null) continue; sum+=Math.abs(a[i]-b[i]); n++; }
+  return {sum,n};
+}
+function similarity(c,s,lo,hi){ const {sum,n}=sumAbsDiff(c,s); if(!n) return 0; return 1-(2*sum)/(n*(hi-lo)); }
+function reverseRatings(r,lo,hi){ return r.map(x=> x==null?null:(hi+lo-x)); }
+function analyseGrid(constructs, supplied, lo, hi){
+  const rev=reverseRatings(supplied,lo,hi);
+  const scored=constructs.map(c=>{
+    const a=similarity(c.ratings,supplied,lo,hi), b=similarity(c.ratings,rev,lo,hi);
+    return {c, simAligned:a, simReversed:b, orientation:a>=b?'aligned':'reversed', similarity:Math.max(a,b)};
+  });
+  const sims=scored.map(s=>s.similarity);
+  const min=sims.length?Math.min.apply(null,sims):0, max=sims.length?Math.max.apply(null,sims):0;
+  const width=(max-min)/3, high=max-width, low=high-width;
+  const order=[...scored].sort((x,y)=>y.similarity-x.similarity);
+  const rank={}; order.forEach((s,i)=>rank[s.c.id]=i+1);
+  const results=scored.map(s=>({
+    id:s.c.id,left:s.c.left,right:s.c.right,
+    simAligned:s.simAligned,simReversed:s.simReversed,similarity:s.similarity,
+    orientation:s.orientation,rank:rank[s.c.id],
+    band:s.similarity>high?'H':(s.similarity<low?'L':'I')
+  }));
+  return {results, bands:{min,max,width,high,low}};
+}
+const STOP=new Set(['the','and','vs','not','with','for','was','very','from','into']);
+function tokens(s){ return new Set((s||'').toLowerCase().replace(/[^a-z0-9\s]/g,' ').split(/\s+/).filter(w=>w.length>2&&!STOP.has(w))); }
+function jaccard(a,b){ if(!a.size&&!b.size) return 0; let i=0; a.forEach(t=>{if(b.has(t))i++}); return i/(a.size+b.size-i); }
+function suggestGroups(items, threshold){
+  threshold=threshold||0.34;
+  const toks=items.map(it=>tokens(it.text)), parent=items.map((_,i)=>i);
+  const find=x=> parent[x]===x?x:(parent[x]=find(parent[x]));
+  for(let i=0;i<items.length;i++) for(let j=i+1;j<items.length;j++) if(jaccard(toks[i],toks[j])>=threshold) parent[find(i)]=find(j);
+  const groups={}; items.forEach((it,i)=>{ const r=find(i); (groups[r]=groups[r]||[]).push(it); });
+  return Object.values(groups).sort((a,b)=>b.length-a.length);
+}
+
+/* ============================ helpers ====================== */
+const uid=()=> (crypto.randomUUID? crypto.randomUUID() : 'id-'+Math.random().toString(36).slice(2)+Date.now());
+async function api(path, body){
+  const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(j.error||('HTTP '+r.status));
+  return j;
+}
+async function saveWithRetry(body){
+  const backoff=[0,508,2010]; let ok=false, err;
+  for(let a=0;a<3&&!ok;a++){
+    try{ await api('/api/rep-grid-save', body); ok=true; }
+    catch(e){ err=e; await new Promise(r=>setTimeout(r,backoff[a])); }
+  }
+  if(!ok) throw err||new Error('save failed');
+}
+
+const EXAMPLE={
+  title:'Future NHS Leadership', scaleMin:1, scaleMax:10,
+  suppliedLeft:'Highly effective', suppliedRight:'Not effective at all',
+  elements:[
+    {id:'',name:'ICS',category:'SL'},{id:'',name:'Challenged Trust',category:'SL'},{id:'',name:'Region',category:'SL'},
+    {id:'',name:'National Policy',category:'TL'},{id:'',name:'National Review',category:'TL'},{id:'',name:'NHS from outside',category:'TL'},
+  ],
+  constructs:[
+    {id:'',left:'Actively inclusive',right:'Restricted'},{id:'',left:'Adaptive',right:'Rigid'},
+    {id:'',left:'Bottom up',right:'Top down'},{id:'',left:'Facilitative',right:'Pacesetting'},
+    {id:'',left:'Coaching',right:'Command and control'},
+  ],
+};
+function freshExample(){
+  return {...EXAMPLE, elements:EXAMPLE.elements.map(e=>({...e,id:uid()})), constructs:EXAMPLE.constructs.map(e=>({...e,id:uid()}))};
+}
+
+/* ============================ Gate ====================== */
+function Gate({onUnlock}){
+  const params=new URLSearchParams(location.search);
+  const [input,setInput]=useState(params.get('code')||localStorage.getItem('rg_code')||'');
+  const [code,setCode]=useState('');
+  const [pw,setPw]=useState('');
+  const [step,setStep]=useState('code');
+  const [busy,setBusy]=useState(false);
+  const [err,setErr]=useState('');
+
+  const testMode=params.get('test')==='1';
+
+  async function checkCode(){
+    const c=input.trim();
+    if(!c){ setErr('Please enter a code.'); return; }
+    // Test bypass: ?test=1 skips coupon validation (still gated by Admin1* next).
+    // Remove or ignore before go-live — do NOT share a ?test=1 link.
+    if(testMode){ const up=c.toUpperCase(); localStorage.setItem('rg_code',up); setCode(up); setStep('pw'); setErr(''); return; }
+    setBusy(true); setErr('');
+    try{
+      const resp=await fetch('/api/validate-code',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:c,tool:'rep-grid'})});
+      const data=await resp.json().catch(()=>({}));
+      if(resp.ok&&data&&data.valid){
+        const up=c.toUpperCase(); localStorage.setItem('rg_code',up); setCode(up); setStep('pw'); setErr('');
+      }else{
+        const reason=(data&&data.reason)||'';
+        setErr({not_found:'That code wasn’t recognised. Check the code and try again.',
+          expired:'That code has expired.', used_up:'That code has reached its usage limit.',
+          no_membership:'That code isn’t valid for this tool.',
+          upstream_error:'We couldn’t check the code right now. Please try again in a moment.'}[reason]
+          ||'That code wasn’t recognised. Check the code and try again.');
+      }
+    }catch(e){ setErr('We couldn’t check the code right now. Please try again in a moment.'); }
+    setBusy(false);
+  }
+  function checkPw(){ if(pw==='Admin1*') onUnlock(code); else setErr('Facilitator password incorrect.'); }
+
+  return (
+    <div className="content fade" style={{maxWidth:'440px'}}>
+      <div className="land-hero" style={{borderBottom:'none',marginBottom:'1.25rem',paddingBottom:0}}>
+        <div className="land-tag">ChangeBefore · Rep-Grid</div>
+        <div className="land-title">Repertory grid interviews</div>
+        <div className="land-desc">Facilitator-run repertory grid interviews with Honey’s content analysis.</div>
+      </div>
+      {step==='code' ? (
+        <div>
+          <label className="field-lbl">Enter your access code</label>
+          {testMode&&<div className="warn-box" style={{marginBottom:'.5rem'}}>Test mode — code validation is bypassed. Any code opens the tool. Don’t share this link.</div>}
+          <input className="inp" value={input} autoFocus autoComplete="off" spellCheck={false}
+            style={{textTransform:'uppercase',letterSpacing:'.05em'}}
+            onChange={e=>{setInput(e.target.value); if(err)setErr('');}}
+            onKeyDown={e=>{if(e.key==='Enter'&&!busy)checkCode();}}/>
+          {err&&<div style={{marginTop:'.65rem',fontSize:'.82rem',color:'#c0392b',lineHeight:1.5}}>{err}</div>}
+          <div className="btn-row"><button className="btn-p" disabled={!input.trim()||busy} onClick={checkCode}>{busy?'Checking…':'Continue →'}</button></div>
+        </div>
+      ) : (
+        <div>
+          <label className="field-lbl">Facilitator password</label>
+          <input className="inp" type="password" value={pw} autoFocus
+            onChange={e=>{setPw(e.target.value); if(err)setErr('');}}
+            onKeyDown={e=>{if(e.key==='Enter')checkPw();}}/>
+          {err&&<div style={{marginTop:'.65rem',fontSize:'.82rem',color:'#c0392b',lineHeight:1.5}}>{err}</div>}
+          <div className="btn-row">
+            <button className="btn-p" onClick={checkPw}>Open dashboard</button>
+            <button className="btn-s btn-sm" onClick={()=>{setStep('code');setErr('');}}>← Back</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ============================ Grid table ====================== */
+function GridTable({config, ratings, supplied, selected, onSel, onRate, onRateSupplied}){
+  const {elements, constructs, scaleMin, scaleMax, suppliedLeft, suppliedRight}=config;
+  const val=(m,cid,eid)=> (m[cid]&&m[cid][eid]!=null)?m[cid][eid]:'';
+  const inp=(v,onCh)=> <input className="cellin" type="number" min={scaleMin} max={scaleMax} value={v}
+    onChange={e=>{ const x=e.target.value; if(x==='') return onCh(null); let n=Number(x); if(isNaN(n)) return; n=Math.max(scaleMin,Math.min(scaleMax,n)); onCh(n); }}/>;
+  return (
+    <div className="scroll">
+      <table className="grid">
+        <thead><tr>
+          <th className="pole">Left pole ({scaleMin})</th>
+          {elements.map(el=><th key={el.id}>{el.name}{el.category?<div className="mini">{el.category}</div>:null}</th>)}
+          <th className="pole">Right pole ({scaleMax})</th>
+        </tr></thead>
+        <tbody>
+          {constructs.map(c=>(
+            <tr key={c.id} className={selected===c.id?'rowsel':''}>
+              <td className="pole" style={{cursor:'pointer'}} onClick={()=>onSel(c.id)}>{c.left}</td>
+              {elements.map(el=><td key={el.id} onClick={()=>onSel(c.id)}>{inp(val(ratings,c.id,el.id),v=>onRate(c.id,el.id,v))}</td>)}
+              <td className="pole">{c.right}</td>
+            </tr>
+          ))}
+          <tr style={{background:'#f6efe8'}}>
+            <td className="pole"><b>{suppliedLeft}</b><div className="mini">supplied / overall</div></td>
+            {elements.map(el=><td key={el.id}>{inp((supplied&&supplied[el.id]!=null)?supplied[el.id]:'',v=>onRateSupplied(el.id,v))}</td>)}
+            <td className="pole"><b>{suppliedRight}</b></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/* ============================ Interview ====================== */
+function Interview({config, code, resp, onBack}){
+  const [name,setName]=useState(resp.participant_name||'');
+  const [ratings,setRatings]=useState((resp.data&&resp.data.ratings)||{});
+  const [supplied,setSupplied]=useState((resp.data&&resp.data.supplied)||{});
+  const [quotes,setQuotes]=useState((resp.data&&resp.data.quotes)||{});
+  const [status,setStatus]=useState((resp.data&&resp.data.status)||'in_progress');
+  const [selected,setSelected]=useState(config.constructs[0]?config.constructs[0].id:null);
+  const [saveState,setSaveState]=useState('idle');
+  const timer=useRef(null);
+
+  function scheduleSave(nextStatus){
+    setSaveState('saving'); clearTimeout(timer.current);
+    const snap={ratings,supplied,quotes,status:nextStatus||status};
+    timer.current=setTimeout(async()=>{
+      try{
+        await saveWithRetry({kind:'response',session_code:code,participant_id:resp.participant_id,participant_name:name,
+          data:{...snap, completedAt: snap.status==='complete'? new Date().toISOString(): null}});
+        setSaveState('saved');
+      }catch(e){ setSaveState('error'); alert("We couldn't save right now. Please check your connection and try again."); }
+    },300);
+  }
+  useEffect(()=>{ scheduleSave(); /* eslint-disable-next-line */ },[ratings,supplied,quotes,name]);
+
+  const rate=(cid,eid,v)=> setRatings(p=>({...p,[cid]:{...(p[cid]||{}),[eid]:v}}));
+  const rateSup=(eid,v)=> setSupplied(p=>({...p,[eid]:v}));
+  const setQuote=(cid,patch)=> setQuotes(p=>({...p,[cid]:{...(p[cid]||{}),...patch}}));
+
+  const total=config.constructs.length*config.elements.length+config.elements.length;
+  let filled=0;
+  config.constructs.forEach(c=>config.elements.forEach(el=>{ if(ratings[c.id]&&ratings[c.id][el.id]!=null) filled++; }));
+  config.elements.forEach(el=>{ if(supplied[el.id]!=null) filled++; });
+
+  const selC=config.constructs.find(c=>c.id===selected), q=(quotes[selected]||{});
+  const saveTxt={saving:'saving…',saved:'saved',error:'save error',idle:''}[saveState];
+
+  return (
+    <div className="content-wide fade">
+      <button className="back-btn" onClick={onBack}>← Dashboard</button>
+      <div className="topbar">
+        <div><div className="sec-tag">Interview</div><div className="pg-title" style={{fontSize:'1.3rem'}}>{name||'New interview'}</div></div>
+        <div style={{textAlign:'right'}}>
+          <div className="mini">{filled}/{total} rated · {saveTxt}</div>
+          <span className={"tag "+(status==='complete'?'done':'prog')} style={{marginTop:4,display:'inline-block'}}>{status}</span>
+        </div>
+      </div>
+
+      <div className="card">
+        <label className="field-lbl">Interviewee (display name)</label>
+        <input className="inp inp-sm" value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. P1 / initials"/>
+        <p className="field-sub" style={{marginTop:'.6rem'}}>Rate each element {config.scaleMin} (left pole) to {config.scaleMax} (right pole). Click a construct to attach a supporting quote.</p>
+        <GridTable config={config} ratings={ratings} supplied={supplied} selected={selected}
+          onSel={setSelected} onRate={rate} onRateSupplied={rateSup}/>
+      </div>
+
+      {selC&&(
+        <div className="card">
+          <div className="sec-tag">Quote</div>
+          <div className="pg-title" style={{fontSize:'1.1rem',marginBottom:'.6rem'}}>{selC.left} vs {selC.right}</div>
+          <textarea className="inp inp-ta" value={q.text||''} onChange={e=>setQuote(selected,{text:e.target.value})} placeholder="Illustrative quote…"/>
+          <div className="sp"/>
+          <input className="inp inp-sm" value={q.ref||''} onChange={e=>setQuote(selected,{ref:e.target.value})} placeholder="Reference (optional)"/>
+        </div>
+      )}
+
+      <div className="btn-row"><div className="grow"/><button className="btn-p" onClick={()=>{setStatus('complete');scheduleSave('complete');}}>Mark interview complete</button></div>
+    </div>
+  );
+}
+
+/* ============================ Setup ====================== */
+function Setup({config,setConfig,onSave,saving,savedMsg}){
+  const c=config, set=(patch)=>setConfig({...c,...patch});
+  const setEl=(id,patch)=>set({elements:c.elements.map(e=>e.id===id?{...e,...patch}:e)});
+  const setCon=(id,patch)=>set({constructs:c.constructs.map(x=>x.id===id?{...x,...patch}:x)});
+  return (
+    <div className="fade">
+      <div className="card">
+        <div className="sec-tag">Grid design</div>
+        <label className="field-lbl">Title</label>
+        <input className="inp inp-sm" value={c.title} onChange={e=>set({title:e.target.value})}/>
+        <div className="sp"/>
+        <div className="row">
+          <div><label className="field-lbl">Scale min</label><input className="inp inp-sm" type="number" value={c.scaleMin} onChange={e=>set({scaleMin:Number(e.target.value)})}/></div>
+          <div><label className="field-lbl">Scale max</label><input className="inp inp-sm" type="number" value={c.scaleMax} onChange={e=>set({scaleMax:Number(e.target.value)})}/></div>
+        </div>
+        <div className="sp"/>
+        <div className="row">
+          <div><label className="field-lbl">Supplied construct — left pole (= {c.scaleMin})</label><input className="inp inp-sm" value={c.suppliedLeft} onChange={e=>set({suppliedLeft:e.target.value})}/></div>
+          <div><label className="field-lbl">Supplied construct — right pole (= {c.scaleMax})</label><input className="inp inp-sm" value={c.suppliedRight} onChange={e=>set({suppliedRight:e.target.value})}/></div>
+        </div>
+        <p className="field-sub" style={{marginTop:'.6rem'}}>The supplied “overall” construct is what Honey’s analysis measures every construct against.</p>
+      </div>
+
+      <div className="card">
+        <div className="sec-tag">Elements ({c.elements.length})</div>
+        {c.elements.map(el=>(
+          <div className="list-row" key={el.id}>
+            <input className="inp inp-sm" style={{flex:3}} value={el.name} onChange={e=>setEl(el.id,{name:e.target.value})}/>
+            <input className="inp inp-sm" style={{flex:1,minWidth:70}} value={el.category} placeholder="cat" onChange={e=>setEl(el.id,{category:e.target.value})}/>
+            <button className="x" onClick={()=>set({elements:c.elements.filter(x=>x.id!==el.id)})}>✕</button>
+          </div>
+        ))}
+        <div className="sp"/>
+        <button className="btn-s btn-sm" onClick={()=>set({elements:[...c.elements,{id:uid(),name:'New element',category:''}]})}>+ Add element</button>
+      </div>
+
+      <div className="card">
+        <div className="sec-tag">Prescribed constructs ({c.constructs.length})</div>
+        {c.constructs.map(x=>(
+          <div className="list-row" key={x.id}>
+            <input className="inp inp-sm" style={{flex:2}} value={x.left} onChange={e=>setCon(x.id,{left:e.target.value})}/>
+            <span className="mini">vs</span>
+            <input className="inp inp-sm" style={{flex:2}} value={x.right} onChange={e=>setCon(x.id,{right:e.target.value})}/>
+            <button className="x" onClick={()=>set({constructs:c.constructs.filter(y=>y.id!==x.id)})}>✕</button>
+          </div>
+        ))}
+        <div className="sp"/>
+        <button className="btn-s btn-sm" onClick={()=>set({constructs:[...c.constructs,{id:uid(),left:'Left pole',right:'Right pole'}]})}>+ Add construct</button>
+      </div>
+
+      <div className="btn-row">
+        <button className="btn-s" onClick={()=>setConfig(freshExample())}>Load example (NHS)</button>
+        <div className="grow"/>
+        {savedMsg&&<span className="small" style={{color:'#16794a'}}>{savedMsg}</span>}
+        <button className="btn-p" onClick={onSave} disabled={saving}>{saving?'Saving…':'Save grid design'}</button>
+      </div>
+    </div>
+  );
+}
+
+/* ============================ Interviews ====================== */
+function Interviews({config,responses,onOpen,onNew}){
+  const ready=config.elements.length>0&&config.constructs.length>0;
+  return (
+    <div className="fade">
+      <div className="topbar">
+        <div className="sec-tag" style={{margin:0}}>Interviews ({responses.length})</div>
+        <button className="btn-p btn-sm" disabled={!ready} onClick={onNew}>+ New interview</button>
+      </div>
+      {!ready&&<div className="inf-box">Add elements and constructs in Setup, and save the grid design, before running interviews.</div>}
+      {responses.length===0&&ready&&<p className="muted small">No interviews yet.</p>}
+      <div className="card" style={{padding:responses.length?'.4rem 1.25rem':'1.1rem 1.25rem'}}>
+        {responses.map(r=>{
+          const st=(r.data&&r.data.status)||'draft';
+          return (
+            <div className="list-row" key={r.participant_id}>
+              <b style={{minWidth:130}}>{r.participant_name||'(unnamed)'}</b>
+              <span className={"tag "+(st==='complete'?'done':st==='in_progress'?'prog':'')}>{st}</span>
+              <div className="grow"/>
+              <button className="btn-s btn-sm" onClick={()=>onOpen(r)}>Open</button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ============================ Analysis ====================== */
+function Analysis({config,responses}){
+  const [sel,setSel]=useState('pooled');
+  const lo=config.scaleMin, hi=config.scaleMax;
+  const bundles=useMemo(()=> responses.map(r=>{
+    const ratings=(r.data&&r.data.ratings)||{}, supplied=(r.data&&r.data.supplied)||{};
+    const sArr=config.elements.map(el=> supplied[el.id]!=null?supplied[el.id]:null);
+    if(sArr.every(v=>v==null)) return {r,results:[]};
+    const cons=config.constructs.map(c=>({id:c.id,left:c.left,right:c.right,
+      ratings:config.elements.map(el=> (ratings[c.id]&&ratings[c.id][el.id]!=null)?ratings[c.id][el.id]:null)}));
+    return {r,results:analyseGrid(cons,sArr,lo,hi).results};
+  }),[responses,config]);
+
+  function exportCsv(){
+    const rows=[['participant','construct_left','construct_right','similarity','band','rank']];
+    bundles.forEach(b=> b.results.forEach(x=> rows.push([b.r.participant_name||b.r.participant_id,x.left,x.right,x.similarity.toFixed(6),x.band,x.rank])));
+    const csv=rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\n');
+    const url=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+    const a=document.createElement('a'); a.href=url; a.download=(config.title||'rep-grid').replace(/\s+/g,'_')+'_honey.csv'; a.click(); URL.revokeObjectURL(url);
+  }
+
+  return (
+    <div className="fade">
+      <div className="topbar">
+        <div style={{display:'flex',gap:'.6rem',alignItems:'center'}}>
+          <label className="field-lbl" style={{margin:0}}>View</label>
+          <select className="inp inp-sm" style={{width:300}} value={sel} onChange={e=>setSel(e.target.value)}>
+            <option value="pooled">Pooled — all participants (Honey)</option>
+            {responses.map(r=><option key={r.participant_id} value={r.participant_id}>{r.participant_name||'(unnamed)'}</option>)}
+          </select>
+        </div>
+        <button className="btn-s btn-sm" onClick={exportCsv}>Export CSV</button>
+      </div>
+      <div className="card">
+        {sel==='pooled' ? <Pooled bundles={bundles}/> : <PerParticipant bundle={bundles.find(b=>b.r.participant_id===sel)}/>}
+        <p className="mini" style={{marginTop:'.9rem'}}>
+          <span className="badge H">H</span> High &nbsp;<span className="badge I">I</span> Intermediate &nbsp;<span className="badge L">L</span> Low —
+          equal thirds of each participant’s similarity range to the supplied construct (Rojon, McDowall &amp; Saunders 2019).
+        </p>
+      </div>
+    </div>
+  );
+}
+function PerParticipant({bundle}){
+  if(!bundle) return null;
+  if(!bundle.results.length) return <p className="muted small">No analysis yet — this grid and its supplied construct need ratings.</p>;
+  const rows=[...bundle.results].sort((a,b)=>a.rank-b.rank);
+  return (
+    <div className="scroll">
+      <table className="grid">
+        <thead><tr><th style={{width:44}}>Rank</th><th className="pole">Construct</th><th style={{width:100}}>Similarity</th><th style={{width:56}}>Band</th></tr></thead>
+        <tbody>{rows.map(r=>(
+          <tr key={r.id}><td>{r.rank}</td><td className="pole">{r.left} <span className="mini">vs</span> {r.right}</td>
+          <td>{r.similarity.toFixed(4)}</td><td><span className={"badge "+r.band}>{r.band}</span></td></tr>
+        ))}</tbody>
+      </table>
+    </div>
+  );
+}
+function Pooled({bundles}){
+  const items=[], bandById={};
+  bundles.forEach(b=> b.results.forEach(r=>{ const id=b.r.participant_id+':'+r.id; items.push({id,text:r.left+' vs '+r.right}); bandById[id]=r.band; }));
+  if(!items.length) return <p className="muted small">No analysed grids to pool yet.</p>;
+  const groups=suggestGroups(items);
+  return (
+    <div>
+      <p className="field-sub" style={{marginBottom:'.8rem'}}>Suggested groupings by label similarity — a starting point for your content-analysis categories. H+I-dominated groups are the ones participants most associate with the overall construct.</p>
+      {groups.map((g,i)=>{
+        const t={H:0,I:0,L:0}; g.forEach(x=>t[bandById[x.id]]++);
+        const keep=(t.H+t.I)>=t.L;
+        return (
+          <div key={i} style={{border:'1px solid #d8d3cb',borderRadius:4,padding:'.75rem .9rem',marginBottom:'.6rem',background:'#fff'}}>
+            <div style={{display:'flex',alignItems:'center',gap:'.5rem',marginBottom:'.4rem'}}>
+              <b>Group {i+1}</b><span className="mini">({g.length})</span><div className="grow"/>
+              <span className="badge H">H {t.H}</span> <span className="badge I">I {t.I}</span> <span className="badge L">L {t.L}</span>
+              <span className="chip" style={{marginLeft:6}}>{keep?'retain':'review / discard'}</span>
+            </div>
+            <div>{g.map(x=><span className="chip" key={x.id}><span className={"badge "+bandById[x.id]} style={{marginRight:5}}>{bandById[x.id]}</span>{x.text}</span>)}</div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ============================ Dashboard ====================== */
+function Dashboard({code, onSignOut}){
+  const [tab,setTab]=useState('setup');
+  const [config,setConfig]=useState(null);
+  const [responses,setResponses]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [saving,setSaving]=useState(false);
+  const [savedMsg,setSavedMsg]=useState('');
+  const [active,setActive]=useState(null);
+
+  async function reload(){
+    const j=await api('/api/rep-grid-load',{session_code:code});
+    setConfig((j.config&&j.config.data&&j.config.data.title!=null)? j.config.data
+      : {title:'',scaleMin:1,scaleMax:10,suppliedLeft:'Highly effective',suppliedRight:'Not effective at all',elements:[],constructs:[]});
+    setResponses(j.responses||[]); setLoading(false);
+  }
+  useEffect(()=>{ reload().catch(e=>{ setLoading(false); alert('Load failed: '+e.message); }); /* eslint-disable-next-line */ },[]);
+
+  async function saveConfig(){
+    setSaving(true); setSavedMsg('');
+    try{ await saveWithRetry({kind:'config',session_code:code,data:config}); setSavedMsg('Saved ✓'); setTimeout(()=>setSavedMsg(''),2500); }
+    catch(e){ alert('Save failed: '+e.message); }
+    setSaving(false);
+  }
+  function newInterview(){ setActive({participant_id:uid(),participant_name:'',data:{ratings:{},supplied:{},quotes:{},status:'in_progress'}}); }
+
+  if(loading) return <div className="content"><p className="muted">Loading session…</p></div>;
+  if(active) return <Interview config={config} code={code} resp={active} onBack={()=>{ setActive(null); reload(); }}/>;
+
+  return (
+    <div className="content-wide fade">
+      <div className="topbar">
+        <div><div className="land-tag" style={{marginBottom:'.3rem'}}>Rep-Grid</div>
+          <div className="pg-title" style={{margin:0}}>{config.title||'Untitled study'}</div></div>
+        <div style={{display:'flex',gap:'.6rem',alignItems:'center'}}>
+          <span className="code">{code}</span>
+          <button className="btn-s btn-sm" onClick={onSignOut}>Sign out</button>
+        </div>
+      </div>
+      <div className="fac-tab-bar">
+        <button className={"fac-tab"+(tab==='setup'?' active':'')} onClick={()=>setTab('setup')}>Setup</button>
+        <button className={"fac-tab"+(tab==='interviews'?' active':'')} onClick={()=>setTab('interviews')}>Interviews</button>
+        <button className={"fac-tab"+(tab==='analysis'?' active':'')} onClick={()=>setTab('analysis')}>Analysis</button>
+      </div>
+      {tab==='setup'&&<Setup config={config} setConfig={setConfig} onSave={saveConfig} saving={saving} savedMsg={savedMsg}/>}
+      {tab==='interviews'&&<Interviews config={config} responses={responses} onOpen={setActive} onNew={newInterview}/>}
+      {tab==='analysis'&&<Analysis config={config} responses={responses}/>}
+    </div>
+  );
+}
+
+/* ============================ Root ====================== */
+function App(){
+  const [code,setCode]=useState(null);
+  if(!code) return <Gate onUnlock={setCode}/>;
+  return <Dashboard code={code} onSignOut={()=>setCode(null)}/>;
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
