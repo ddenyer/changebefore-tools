@@ -222,25 +222,38 @@ function Gate({onUnlock}){
 }
 
 /* ============================ Grid table ====================== */
-function GridTable({config, ratings, supplied, selected, onSel, onRate, onRateSupplied}){
-  const {elements, constructs, scaleMin, scaleMax, suppliedLeft, suppliedRight}=config;
+// constructs: array of {id,left,right,elicited?}. Elicited rows have editable poles.
+function GridTable({elements, elementNames, constructs, scaleMin, scaleMax, suppliedLeft, suppliedRight,
+                    ratings, supplied, selected, onSel, onRate, onRateSupplied, onPole, onRemoveElicited}){
   const val=(m,cid,eid)=> (m[cid]&&m[cid][eid]!=null)?m[cid][eid]:'';
   const inp=(v,onCh)=> <input className="cellin" type="number" min={scaleMin} max={scaleMax} value={v}
     onChange={e=>{ const x=e.target.value; if(x==='') return onCh(null); let n=Number(x); if(isNaN(n)) return; n=Math.max(scaleMin,Math.min(scaleMax,n)); onCh(n); }}/>;
+  const hdr=(el,i)=> (elementNames&&elementNames[i])?elementNames[i]:el.name;
   return (
     <div className="scroll">
       <table className="grid">
         <thead><tr>
           <th className="pole">Left pole ({scaleMin})</th>
-          {elements.map(el=><th key={el.id}>{el.name}{el.category?<div className="mini">{el.category}</div>:null}</th>)}
+          {elements.map((el,i)=><th key={el.id}>{hdr(el,i)}{el.category?<div className="mini">{el.category}</div>:null}</th>)}
           <th className="pole">Right pole ({scaleMax})</th>
         </tr></thead>
         <tbody>
           {constructs.map(c=>(
             <tr key={c.id} className={selected===c.id?'rowsel':''}>
-              <td className="pole" style={{cursor:'pointer'}} onClick={()=>onSel(c.id)}>{c.left}</td>
+              <td className="pole" style={{cursor:'pointer'}} onClick={()=>onSel(c.id)}>
+                {c.elicited
+                  ? <input className="inp inp-sm" style={{minWidth:130}} value={c.left} onClick={e=>e.stopPropagation()} onChange={e=>onPole(c.id,'left',e.target.value)}/>
+                  : c.left}
+              </td>
               {elements.map(el=><td key={el.id} onClick={()=>onSel(c.id)}>{inp(val(ratings,c.id,el.id),v=>onRate(c.id,el.id,v))}</td>)}
-              <td className="pole">{c.right}</td>
+              <td className="pole">
+                {c.elicited
+                  ? <span style={{display:'flex',gap:4,alignItems:'center'}}>
+                      <input className="inp inp-sm" style={{minWidth:120}} value={c.right} onChange={e=>onPole(c.id,'right',e.target.value)}/>
+                      <button className="x" title="Remove" onClick={()=>onRemoveElicited(c.id)}>✕</button>
+                    </span>
+                  : c.right}
+              </td>
             </tr>
           ))}
           <tr style={{background:'#f6efe8'}}>
@@ -260,14 +273,18 @@ function Interview({config, code, resp, onBack}){
   const [ratings,setRatings]=useState((resp.data&&resp.data.ratings)||{});
   const [supplied,setSupplied]=useState((resp.data&&resp.data.supplied)||{});
   const [quotes,setQuotes]=useState((resp.data&&resp.data.quotes)||{});
+  const [elicited,setElicited]=useState((resp.data&&resp.data.elicited)||[]);
   const [status,setStatus]=useState((resp.data&&resp.data.status)||'in_progress');
-  const [selected,setSelected]=useState(config.constructs[0]?config.constructs[0].id:null);
+  const prescribed=config.constructs.map(c=>({...c,elicited:false}));
+  const combined=[...prescribed, ...elicited.map(c=>({...c,elicited:true}))];
+  const [selected,setSelected]=useState(combined[0]?combined[0].id:null);
   const [saveState,setSaveState]=useState('idle');
   const timer=useRef(null);
+  const elementNames=(resp.data&&resp.data.elementNames)||null;
 
   function scheduleSave(nextStatus){
     setSaveState('saving'); clearTimeout(timer.current);
-    const snap={ratings,supplied,quotes,status:nextStatus||status};
+    const snap={ratings,supplied,quotes,elicited,elementNames,status:nextStatus||status};
     timer.current=setTimeout(async()=>{
       try{
         await saveWithRetry({kind:'response',session_code:code,participant_id:resp.participant_id,participant_name:name,
@@ -276,18 +293,21 @@ function Interview({config, code, resp, onBack}){
       }catch(e){ setSaveState('error'); alert("We couldn't save right now. Please check your connection and try again."); }
     },300);
   }
-  useEffect(()=>{ scheduleSave(); /* eslint-disable-next-line */ },[ratings,supplied,quotes,name]);
+  useEffect(()=>{ scheduleSave(); /* eslint-disable-next-line */ },[ratings,supplied,quotes,elicited,name]);
 
   const rate=(cid,eid,v)=> setRatings(p=>({...p,[cid]:{...(p[cid]||{}),[eid]:v}}));
   const rateSup=(eid,v)=> setSupplied(p=>({...p,[eid]:v}));
   const setQuote=(cid,patch)=> setQuotes(p=>({...p,[cid]:{...(p[cid]||{}),...patch}}));
+  const addElicited=()=>{ const id=uid(); setElicited(p=>[...p,{id,left:'New construct',right:'Opposite pole'}]); setSelected(id); };
+  const setPole=(cid,side,v)=> setElicited(p=>p.map(c=>c.id===cid?{...c,[side]:v}:c));
+  const removeElicited=(cid)=>{ setElicited(p=>p.filter(c=>c.id!==cid)); setRatings(p=>{const n={...p}; delete n[cid]; return n;}); if(selected===cid) setSelected(prescribed[0]?prescribed[0].id:null); };
 
-  const total=config.constructs.length*config.elements.length+config.elements.length;
+  const total=combined.length*config.elements.length+config.elements.length;
   let filled=0;
-  config.constructs.forEach(c=>config.elements.forEach(el=>{ if(ratings[c.id]&&ratings[c.id][el.id]!=null) filled++; }));
+  combined.forEach(c=>config.elements.forEach(el=>{ if(ratings[c.id]&&ratings[c.id][el.id]!=null) filled++; }));
   config.elements.forEach(el=>{ if(supplied[el.id]!=null) filled++; });
 
-  const selC=config.constructs.find(c=>c.id===selected), q=(quotes[selected]||{});
+  const selC=combined.find(c=>c.id===selected), q=(quotes[selected]||{});
   const saveTxt={saving:'saving…',saved:'saved',error:'save error',idle:''}[saveState];
 
   return (
@@ -304,9 +324,14 @@ function Interview({config, code, resp, onBack}){
       <div className="card">
         <label className="field-lbl">Interviewee (display name)</label>
         <input className="inp inp-sm" value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. P1 / initials"/>
-        <p className="field-sub" style={{marginTop:'.6rem'}}>Rate each element {config.scaleMin} (left pole) to {config.scaleMax} (right pole). Click a construct to attach a supporting quote.</p>
-        <GridTable config={config} ratings={ratings} supplied={supplied} selected={selected}
-          onSel={setSelected} onRate={rate} onRateSupplied={rateSup}/>
+        <p className="field-sub" style={{marginTop:'.6rem'}}>Rate each element {config.scaleMin} (left pole) to {config.scaleMax} (right pole). Prescribed constructs are shared; add this person's own elicited constructs below. Click a construct to attach a quote.</p>
+        <GridTable elements={config.elements} elementNames={elementNames} constructs={combined}
+          scaleMin={config.scaleMin} scaleMax={config.scaleMax} suppliedLeft={config.suppliedLeft} suppliedRight={config.suppliedRight}
+          ratings={ratings} supplied={supplied} selected={selected}
+          onSel={setSelected} onRate={rate} onRateSupplied={rateSup} onPole={setPole} onRemoveElicited={removeElicited}/>
+        <div className="sp"/>
+        <button className="btn-s btn-sm" onClick={addElicited}>+ Add elicited construct</button>
+        <span className="mini" style={{marginLeft:8}}>{elicited.length} elicited · {prescribed.length} prescribed</span>
       </div>
 
       {selC&&(
@@ -387,14 +412,14 @@ function Setup({config,setConfig,onSave,saving,savedMsg}){
 
 /* ============================ Interviews ====================== */
 function Interviews({config,responses,onOpen,onNew}){
-  const ready=config.elements.length>0&&config.constructs.length>0;
+  const ready=config.elements.length>0;
   return (
     <div className="fade">
       <div className="topbar">
         <div className="sec-tag" style={{margin:0}}>Interviews ({responses.length})</div>
         <button className="btn-p btn-sm" disabled={!ready} onClick={onNew}>+ New interview</button>
       </div>
-      {!ready&&<div className="inf-box">Add elements and constructs in Setup, and save the grid design, before running interviews.</div>}
+      {!ready&&<div className="inf-box">Add elements in Setup and save the grid design before running interviews. Prescribed constructs are optional — you can add elicited constructs during each interview.</div>}
       {responses.length===0&&ready&&<p className="muted small">No interviews yet.</p>}
       <div className="card" style={{padding:responses.length?'.4rem 1.25rem':'1.1rem 1.25rem'}}>
         {responses.map(r=>{
@@ -421,7 +446,9 @@ function Analysis({config,responses}){
     const ratings=(r.data&&r.data.ratings)||{}, supplied=(r.data&&r.data.supplied)||{};
     const sArr=config.elements.map(el=> supplied[el.id]!=null?supplied[el.id]:null);
     if(sArr.every(v=>v==null)) return {r,results:[]};
-    const cons=config.constructs.map(c=>({id:c.id,left:c.left,right:c.right,
+    const elicited=(r.data&&r.data.elicited)||[];
+    const allCons=[...config.constructs, ...elicited];
+    const cons=allCons.map(c=>({id:c.id,left:c.left,right:c.right,
       ratings:config.elements.map(el=> (ratings[c.id]&&ratings[c.id][el.id]!=null)?ratings[c.id][el.id]:null)}));
     return {r,results:analyseGrid(cons,sArr,lo,hi).results};
   }),[responses,config]);
