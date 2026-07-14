@@ -9,6 +9,7 @@
     { "source": "/resilience-is", "destination": "/resilience-is.html" },
     { "source": "/collab", "destination": "/collab.html" },
     { "source": "/ahamo-hplt", "destination": "/ahamo-hplt.html" },
+    { "source": "/rep-grid", "destination": "/rep-grid.html" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
