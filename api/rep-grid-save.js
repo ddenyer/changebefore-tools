@@ -102,6 +102,20 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true });
     }
 
+    if (kind === 'delete-response') {
+      const { participant_id } = req.body;
+      if (!participant_id) return res.status(400).json({ error: 'participant_id required' });
+      const filter =
+        `session_code=eq.${encodeURIComponent(session_code)}` +
+        `&participant_id=eq.${encodeURIComponent(participant_id)}`;
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/rep_grid_responses?${filter}`, {
+        method: 'DELETE',
+        headers: sbHeaders({ Prefer: 'return=minimal' }),
+      });
+      if (!r.ok) throw new Error(`delete failed: ${r.status} ${await r.text()}`);
+      return res.status(200).json({ ok: true });
+    }
+
     return res.status(400).json({ error: `unknown kind: ${kind}` });
   } catch (err) {
     console.error('rep-grid-save error:', err);
