@@ -116,23 +116,35 @@ function suggestGroups(items, threshold){
 }
 
 /* ====== Composite (content-analysis) helpers — James/Jankowicz step ====== */
-// One row per (participant, construct) with Honey metrics computed over an
-// element subset (all elements, or a category e.g. SL / TL).
+function pnumOf(name){ const m=String(name||'').match(/\d+/); return m?m[0]:'?'; }
+// James's preference labels from the preferred-pole mean similarity %.
+function prefLabel(left){
+  if(left>=70) return 'Strong preference';
+  if(left>=58) return 'Moderate preference';
+  if(left>=54) return 'Slight preference';
+  if(left>=46) return 'Balanced preference';
+  if(left>=42) return 'Slight (opposite)';
+  return 'Preference (opposite)';
+}
+// One row per (participant, construct). Honey metrics over an element subset
+// (all, or a category e.g. SL / TL). leftAlignPct = how strongly the construct's
+// LEFT pole (as recorded) associates with the supplied effectiveness construct.
+// band = individual Honey H/I/L, per-participant tercile over the same subset.
 function pooledMembers(responses, config, filterCat){
-  const els=config.elements.filter(e=> !filterCat || e.category===filterCat);
-  const elIds=els.map(e=>e.id); const lo=config.scaleMin, hi=config.scaleMax;
+  const elIds=config.elements.filter(e=> !filterCat || e.category===filterCat).map(e=>e.id);
+  const lo=config.scaleMin, hi=config.scaleMax;
   const rows=[];
   responses.forEach(r=>{
     const d=r.data||{}; const ratings=d.ratings||{}; const supplied=d.supplied||{};
-    const sArr=elIds.map(e=> supplied[e]!=null?supplied[e]:null);
-    if(!elIds.length || sArr.every(v=>v==null)) return;
-    const sRev=reverseRatings(sArr,lo,hi);
+    const sSub=elIds.map(e=> supplied[e]!=null?supplied[e]:null);
+    if(!elIds.length || sSub.every(v=>v==null)) return;
+    const sRev=reverseRatings(sSub,lo,hi);
     const cons=[...config.constructs, ...(d.elicited||[])];
     const scored=cons.map(c=>{
       const cArr=elIds.map(e=> (ratings[c.id]&&ratings[c.id][e]!=null)?ratings[c.id][e]:null);
       if(cArr.every(v=>v==null)) return null;
-      const a=similarity(cArr,sArr,lo,hi), b=similarity(cArr,sRev,lo,hi);
-      return {c, sim:Math.max(a,b), orient:a>=b?'left':'right'};
+      const aL=similarity(cArr,sSub,lo,hi), aR=similarity(cArr,sRev,lo,hi);
+      return {c, aL, aR, sim:Math.max(aL,aR), orient:aL>=aR?'left':'right'};
     }).filter(Boolean);
     if(!scored.length) return;
     const sims=scored.map(s=>s.sim); const mn=Math.min.apply(null,sims), mx=Math.max.apply(null,sims);
@@ -140,7 +152,8 @@ function pooledMembers(responses, config, filterCat){
     scored.forEach(s=>{
       rows.push({
         key:r.participant_id+':'+s.c.id, participant:r.participant_name||r.participant_id,
-        left:s.c.left, right:s.c.right, sim:s.sim, preferredPct:(s.sim+1)/2*100,
+        pnum:pnumOf(r.participant_name), left:s.c.left, right:s.c.right,
+        leftAlignPct:(s.aL+1)/2*100, rightAlignPct:(s.aR+1)/2*100,
         effLabel: s.orient==='left'? s.c.left : s.c.right,
         band: s.sim>hiT?'H':(s.sim<loT?'L':'I')
       });
@@ -148,19 +161,27 @@ function pooledMembers(responses, config, filterCat){
   });
   return rows;
 }
-// Aggregate members into composite constructs (categories).
-function compositeRows(members, categories, assignments){
+function totalParticipants(members){ return new Set(members.map(m=>m.participant)).size; }
+// Fixed effective-pole orientation per construct, from the all-elements pass.
+function fixedOrientOf(membersAll){ const o={}; membersAll.forEach(m=>{ o[m.key]=m.leftAlignPct>=m.rightAlignPct?'left':'right'; }); return o; }
+// Aggregate members into composite constructs (Honey Content Table rows). The
+// effective pole is fixed (fixedOrient) so its alignment can rise/fall by subset.
+function compositeRows(members, categories, assignments, totalP, fixedOrient){
   return categories.map(cat=>{
     const mem=members.filter(m=>(assignments[m.key]||{}).cat===cat.id);
-    const n=mem.length; let leftSum=0,H=0,I=0,L=0;
+    const n=mem.length; let sum=0,H=0,I=0,L=0; const parts=new Set();
     mem.forEach(m=>{
       const flip=(assignments[m.key]||{}).flip;
-      leftSum += flip? (100-m.preferredPct) : m.preferredPct;
+      const side=(fixedOrient&&fixedOrient[m.key])||(m.leftAlignPct>=m.rightAlignPct?'left':'right');
+      const posAlign= side==='left'? m.leftAlignPct : m.rightAlignPct;
+      sum += flip? (100-posAlign) : posAlign;
+      parts.add(m.participant);
       if(m.band==='H')H++; else if(m.band==='L')L++; else I++;
     });
-    const left=n?leftSum/n:0, right=100-left, mx=Math.max(left,right);
-    const pref = n? (mx>=80?'Strong':mx>=65?'Moderate':mx>=55?'Low':'Balanced') : '—';
-    return {cat, n, left, right, pref, H:n?H/n*100:0, I:n?I/n*100:0, L:n?L/n*100:0};
+    const left=n?sum/n:0;
+    return {cat, n, uniq:parts.size, uniquePct: totalP? parts.size/totalP*100:0,
+      left, right:100-left, pref: n?prefLabel(left):'—',
+      H:n?H/n*100:0, I:n?I/n*100:0, L:n?L/n*100:0};
   });
 }
 function autoFlip(effLabel, cat){
@@ -463,7 +484,7 @@ function Setup({config,setConfig,onSave,saving,savedMsg}){
 }
 
 /* ============================ Interviews ====================== */
-function Interviews({config,responses,onOpen,onNew}){
+function Interviews({config,responses,onOpen,onNew,onDelete}){
   const ready=config.elements.length>0;
   return (
     <div className="fade">
@@ -482,6 +503,7 @@ function Interviews({config,responses,onOpen,onNew}){
               <span className={"tag "+(st==='complete'?'done':st==='in_progress'?'prog':'')}>{st}</span>
               <div className="grow"/>
               <button className="btn-s btn-sm" onClick={()=>onOpen(r)}>Open</button>
+              <button className="x" title="Delete interview" onClick={()=>onDelete&&onDelete(r)}>🗑</button>
             </div>
           );
         })}
@@ -490,89 +512,61 @@ function Interviews({config,responses,onOpen,onNew}){
   );
 }
 
-/* ============================ Analysis ====================== */
-function Analysis({config,responses}){
-  const [sel,setSel]=useState('pooled');
+/* ============================ 1 · Individual Honey ====================== */
+// Per participant: their constructs ranked by similarity to the supplied
+// "effectiveness" construct, with a bar toward the effective pole, band, quote.
+function Analysis({config,responses,onOpen}){
+  const withData=responses.filter(r=>{ const s=(r.data&&r.data.supplied)||{}; return config.elements.some(el=>s[el.id]!=null); });
+  const [sel,setSel]=useState(withData[0]?withData[0].participant_id:'');
   const lo=config.scaleMin, hi=config.scaleMax;
-  const bundles=useMemo(()=> responses.map(r=>{
-    const ratings=(r.data&&r.data.ratings)||{}, supplied=(r.data&&r.data.supplied)||{};
+  const r=responses.find(x=>x.participant_id===sel);
+  const info=useMemo(()=>{
+    if(!r) return null;
+    const ratings=(r.data&&r.data.ratings)||{}, supplied=(r.data&&r.data.supplied)||{}, quotes=(r.data&&r.data.quotes)||{};
     const sArr=config.elements.map(el=> supplied[el.id]!=null?supplied[el.id]:null);
-    if(sArr.every(v=>v==null)) return {r,results:[]};
-    const elicited=(r.data&&r.data.elicited)||[];
-    const allCons=[...config.constructs, ...elicited];
-    const cons=allCons.map(c=>({id:c.id,left:c.left,right:c.right,
-      ratings:config.elements.map(el=> (ratings[c.id]&&ratings[c.id][el.id]!=null)?ratings[c.id][el.id]:null)}));
-    return {r,results:analyseGrid(cons,sArr,lo,hi).results};
-  }),[responses,config]);
-
-  function exportCsv(){
-    const rows=[['participant','construct_left','construct_right','similarity','band','rank']];
-    bundles.forEach(b=> b.results.forEach(x=> rows.push([b.r.participant_name||b.r.participant_id,x.left,x.right,x.similarity.toFixed(6),x.band,x.rank])));
-    const csv=rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\n');
-    const url=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
-    const a=document.createElement('a'); a.href=url; a.download=(config.title||'rep-grid').replace(/\s+/g,'_')+'_honey.csv'; a.click(); URL.revokeObjectURL(url);
-  }
+    if(sArr.every(v=>v==null)) return {rows:[],quotes};
+    const cons=[...config.constructs,...((r.data&&r.data.elicited)||[])].map(c=>({id:c.id,left:c.left,right:c.right,
+      ratings:config.elements.map(el=>(ratings[c.id]&&ratings[c.id][el.id]!=null)?ratings[c.id][el.id]:null)}));
+    return {rows:analyseGrid(cons,sArr,lo,hi).results.sort((a,b)=>a.rank-b.rank), quotes};
+  },[r,config]);
 
   return (
     <div className="fade">
-      <div className="topbar">
-        <div style={{display:'flex',gap:'.6rem',alignItems:'center'}}>
-          <label className="field-lbl" style={{margin:0}}>View</label>
-          <select className="inp inp-sm" style={{width:300}} value={sel} onChange={e=>setSel(e.target.value)}>
-            <option value="pooled">Pooled — all participants (Honey)</option>
-            {responses.map(r=><option key={r.participant_id} value={r.participant_id}>{r.participant_name||'(unnamed)'}</option>)}
-          </select>
-        </div>
-        <button className="btn-s btn-sm" onClick={exportCsv}>Export CSV</button>
+      <div className="inf-box">Step 1 — each interviewee's constructs, ranked by how closely they track the supplied “{config.suppliedLeft}” construct. The bar shows the effective pole; <b>H</b> = top third of this person's range, <b>I</b> = middle, <b>L</b> = bottom (individual Honey).</div>
+      <div className="toolbar">
+        <label className="field-lbl" style={{margin:0}}>Interviewee</label>
+        <select className="inp inp-sm" style={{width:260,flex:'0 0 auto'}} value={sel} onChange={e=>setSel(e.target.value)}>
+          {responses.map(r=><option key={r.participant_id} value={r.participant_id}>{r.participant_name||'(unnamed)'}</option>)}
+        </select>
+        <div className="grow"/>
+        {r&&onOpen&&<button className="btn-s btn-sm" onClick={()=>onOpen(r)}>Edit this grid →</button>}
       </div>
       <div className="card">
-        {sel==='pooled' ? <Pooled bundles={bundles}/> : <PerParticipant bundle={bundles.find(b=>b.r.participant_id===sel)}/>}
-        <p className="mini" style={{marginTop:'.9rem'}}>
-          <span className="badge H">H</span> High &nbsp;<span className="badge I">I</span> Intermediate &nbsp;<span className="badge L">L</span> Low —
-          equal thirds of each participant’s similarity range to the supplied construct (Rojon, McDowall &amp; Saunders 2019).
-        </p>
+        {!info||!info.rows.length ? <p className="muted small">No analysis yet — this grid and its supplied construct need ratings.</p> :
+        <div className="scroll"><table className="grid">
+          <thead><tr>
+            <th style={{width:40}}>#</th><th className="pole">Effective pole</th><th style={{width:180}}>Association with effectiveness</th>
+            <th className="pole">Contrast pole</th><th style={{width:70}}>Sim</th><th style={{width:54}}>Band</th>
+          </tr></thead>
+          <tbody>{info.rows.map(x=>{
+            const pct=Math.round((x.similarity+1)/2*100);
+            const eff = x.orientation==='aligned'? x.left : x.right;
+            const opp = x.orientation==='aligned'? x.right : x.left;
+            const q=(info.quotes[x.id]||{}).text;
+            const col=x.band==='H'?'#16a34a':x.band==='L'?'#dc2626':'#c98a1e';
+            return (
+              <tr key={x.id}>
+                <td>{x.rank}</td>
+                <td className="pole"><b>{eff}</b>{q?<div className="mini" style={{maxWidth:260,whiteSpace:'normal'}}>“{q.slice(0,90)}{q.length>90?'…':''}”</div>:null}</td>
+                <td><div style={{display:'flex',alignItems:'center',gap:6}}><div style={{flex:1,height:10,background:'#efeae2',borderRadius:3,overflow:'hidden'}}><div style={{width:pct+'%',height:'100%',background:col}}/></div><span className="mini">{pct}%</span></div></td>
+                <td className="pole muted">{opp}</td>
+                <td>{x.similarity.toFixed(3)}</td>
+                <td><span className={"badge "+x.band}>{x.band}</span></td>
+              </tr>
+            );
+          })}</tbody>
+        </table></div>}
       </div>
-    </div>
-  );
-}
-function PerParticipant({bundle}){
-  if(!bundle) return null;
-  if(!bundle.results.length) return <p className="muted small">No analysis yet — this grid and its supplied construct need ratings.</p>;
-  const rows=[...bundle.results].sort((a,b)=>a.rank-b.rank);
-  return (
-    <div className="scroll">
-      <table className="grid">
-        <thead><tr><th style={{width:44}}>Rank</th><th className="pole">Construct</th><th style={{width:100}}>Similarity</th><th style={{width:56}}>Band</th></tr></thead>
-        <tbody>{rows.map(r=>(
-          <tr key={r.id}><td>{r.rank}</td><td className="pole">{r.left} <span className="mini">vs</span> {r.right}</td>
-          <td>{r.similarity.toFixed(4)}</td><td><span className={"badge "+r.band}>{r.band}</span></td></tr>
-        ))}</tbody>
-      </table>
-    </div>
-  );
-}
-function Pooled({bundles}){
-  const items=[], bandById={};
-  bundles.forEach(b=> b.results.forEach(r=>{ const id=b.r.participant_id+':'+r.id; items.push({id,text:r.left+' vs '+r.right}); bandById[id]=r.band; }));
-  if(!items.length) return <p className="muted small">No analysed grids to pool yet.</p>;
-  const groups=suggestGroups(items);
-  return (
-    <div>
-      <p className="field-sub" style={{marginBottom:'.8rem'}}>Suggested groupings by label similarity — a starting point for your content-analysis categories. H+I-dominated groups are the ones participants most associate with the overall construct.</p>
-      {groups.map((g,i)=>{
-        const t={H:0,I:0,L:0}; g.forEach(x=>t[bandById[x.id]]++);
-        const keep=(t.H+t.I)>=t.L;
-        return (
-          <div key={i} style={{border:'1px solid #d8d3cb',borderRadius:4,padding:'.75rem .9rem',marginBottom:'.6rem',background:'#fff'}}>
-            <div style={{display:'flex',alignItems:'center',gap:'.5rem',marginBottom:'.4rem'}}>
-              <b>Group {i+1}</b><span className="mini">({g.length})</span><div className="grow"/>
-              <span className="badge H">H {t.H}</span> <span className="badge I">I {t.I}</span> <span className="badge L">L {t.L}</span>
-              <span className="chip" style={{marginLeft:6}}>{keep?'retain':'review / discard'}</span>
-            </div>
-            <div>{g.map(x=><span className="chip" key={x.id}><span className={"badge "+bandById[x.id]} style={{marginRight:5}}>{bandById[x.id]}</span>{x.text}</span>)}</div>
-          </div>
-        );
-      })}
     </div>
   );
 }
@@ -581,80 +575,87 @@ function Pooled({bundles}){
 function CompositeConstructs({config,setConfig,responses,onSave,saving,savedMsg}){
   const categories=config.categories||[];
   const assignments=config.assignments||{};
-  const members=useMemo(()=>pooledMembers(responses,config,null),[responses,config]);
-  const groups=useMemo(()=>suggestGroups(members.map(m=>({id:m.key,participantId:'',text:m.left+' vs '+m.right}))),[members]);
+  const members=useMemo(()=>pooledMembers(responses,config,null),[responses,config.elements,config.constructs]);
   const memberByKey=useMemo(()=>{const o={};members.forEach(m=>o[m.key]=m);return o;},[members]);
+  const groups=useMemo(()=>suggestGroups(members.map(m=>({id:m.key,participantId:'',text:m.left+' vs '+m.right}))),[members]);
+  const totalP=useMemo(()=>totalParticipants(members),[members]);
 
   const setCats=(cats)=>setConfig({...config,categories:cats});
   const setAssign=(a)=>setConfig({...config,assignments:a});
-  const addCat=()=>setCats([...categories,{id:uid(),name:'New composite',left:'Left pole',right:'Right pole'}]);
+  const addCat=()=>setCats([...categories,{id:uid(),name:'New composite',left:'Preferred pole',leftDef:'',right:'Opposite pole',rightDef:'',quote:''}]);
   const editCat=(id,patch)=>setCats(categories.map(c=>c.id===id?{...c,...patch}:c));
   const delCat=(id)=>{ setCats(categories.filter(c=>c.id!==id));
     const a={...assignments}; Object.keys(a).forEach(k=>{if(a[k].cat===id)delete a[k];}); setAssign(a); };
-
+  const unassign=(key)=>{ const a={...assignments}; delete a[key]; setAssign(a); };
   function assignGroup(grp, catId){
-    const cat=categories.find(c=>c.id===catId);
-    const a={...assignments};
-    grp.forEach(it=>{ if(catId){ const m=memberByKey[it.id]; a[it.id]={cat:catId, flip: m&&cat? autoFlip(m.effLabel,cat):false}; } else { delete a[it.id]; } });
+    const cat=categories.find(c=>c.id===catId); const a={...assignments};
+    grp.forEach(it=>{ if(catId){ const m=memberByKey[it.id]; a[it.id]={cat:catId, flip:m&&cat?autoFlip(m.effLabel,cat):false}; } else delete a[it.id]; });
     setAssign(a);
   }
   function autoGenerate(){
-    // Create one composite per sizeable suggestion group and assign its members.
     const cats=[]; const a={...assignments};
     groups.filter(g=>g.length>=3).slice(0,20).forEach(g=>{
       const m0=memberByKey[g[0].id];
-      const cat={id:uid(), name:(m0?m0.effLabel:'Composite'), left:(m0?m0.left:'Left'), right:(m0?m0.right:'Right')};
+      const cat={id:uid(), name:(m0?m0.effLabel:'Composite'), left:(m0?m0.left:'Left'), leftDef:'', right:(m0?m0.right:'Right'), rightDef:'', quote:''};
       cats.push(cat);
       g.forEach(it=>{ const m=memberByKey[it.id]; a[it.id]={cat:cat.id, flip:m?autoFlip(m.effLabel,cat):false}; });
     });
     setConfig({...config, categories:[...categories,...cats], assignments:a});
   }
+  const Sup=({n})=> <sup style={{color:'#e07030',fontWeight:700}}>&nbsp;P{n}</sup>;
+  const assignedCount=members.filter(m=>(assignments[m.key]||{}).cat).length;
+  const unassignedGroups=groups.map(g=>g.filter(it=>!((assignments[it.id]||{}).cat))).filter(g=>g.length);
 
-  const assignedCount=Object.keys(assignments).filter(k=>memberByKey[k]).length;
   return (
     <div className="fade">
-      <div className="inf-box">Group everyone's elicited constructs into <b>composite constructs</b> (content-analysis categories), following Jankowicz's method. Use the label-similarity suggestions as a starting point, then rename and refine. {members.length} constructs · {assignedCount} assigned.</div>
+      <div className="inf-box">Step 2 — group everyone's constructs (in the interviewee's own words) into <b>composite constructs</b> (your researcher categories), à la Jankowicz. Superscripts show which participant each construct came from. {members.length} constructs · {assignedCount} assigned · {totalP} participants.</div>
 
-      <div className="card">
-        <div className="toolbar">
-          <div className="sec-tag" style={{margin:0}}>Composite constructs ({categories.length})</div>
-          <div className="grow"/>
-          <button className="btn-s btn-sm" onClick={autoGenerate}>✦ Auto-generate from suggestions</button>
-          <button className="btn-s btn-sm" onClick={addCat}>+ Add</button>
-        </div>
-        {categories.length===0 && <p className="muted small">No composite constructs yet. Auto-generate to seed them from the suggested groupings, then edit.</p>}
-        {categories.map(c=>{
-          const n=Object.keys(assignments).filter(k=>assignments[k].cat===c.id&&memberByKey[k]).length;
-          return (
-            <div className="list-row" key={c.id}>
-              <input className="inp inp-sm" style={{flex:2}} value={c.name} onChange={e=>editCat(c.id,{name:e.target.value})}/>
-              <input className="inp inp-sm" style={{flex:2}} value={c.left} onChange={e=>editCat(c.id,{left:e.target.value})}/>
-              <span className="mini">vs</span>
-              <input className="inp inp-sm" style={{flex:2}} value={c.right} onChange={e=>editCat(c.id,{right:e.target.value})}/>
-              <span className="tag">{n}</span>
-              <button className="x" onClick={()=>delCat(c.id)}>✕</button>
-            </div>
-          );
-        })}
+      <div className="toolbar">
+        <div className="sec-tag" style={{margin:0}}>Composite constructs ({categories.length})</div>
+        <div className="grow"/>
+        <button className="btn-s btn-sm" onClick={autoGenerate}>✦ Auto-generate from suggestions</button>
+        <button className="btn-s btn-sm" onClick={addCat}>+ Add composite</button>
       </div>
+      {categories.length===0 && <p className="muted small">None yet. Auto-generate to seed categories from similar constructs, then rename and edit definitions.</p>}
+      {categories.map(cat=>{
+        const mem=members.filter(m=>(assignments[m.key]||{}).cat===cat.id);
+        const uniq=new Set(mem.map(m=>m.participant)).size;
+        return (
+          <div className="card" key={cat.id}>
+            <div className="toolbar" style={{marginBottom:6}}>
+              <input className="inp inp-sm" style={{maxWidth:240,fontWeight:700}} value={cat.name} onChange={e=>editCat(cat.id,{name:e.target.value})}/>
+              <span className="tag">{mem.length} constructs · {uniq} ppts · {totalP?Math.round(uniq/totalP*100):0}%</span>
+              <div className="grow"/>
+              <button className="x" onClick={()=>delCat(cat.id)}>✕</button>
+            </div>
+            <div className="row">
+              <div><label className="field-lbl">Preferred pole (+ definition)</label>
+                <input className="inp inp-sm" value={cat.left} onChange={e=>editCat(cat.id,{left:e.target.value})}/>
+                <textarea className="inp inp-sm" rows={2} placeholder="definition…" value={cat.leftDef||''} onChange={e=>editCat(cat.id,{leftDef:e.target.value})} style={{marginTop:4}}/></div>
+              <div><label className="field-lbl">Opposite pole (+ definition)</label>
+                <input className="inp inp-sm" value={cat.right} onChange={e=>editCat(cat.id,{right:e.target.value})}/>
+                <textarea className="inp inp-sm" rows={2} placeholder="definition…" value={cat.rightDef||''} onChange={e=>editCat(cat.id,{rightDef:e.target.value})} style={{marginTop:4}}/></div>
+            </div>
+            <div className="field" style={{marginTop:8}}><label className="field-lbl">Illustrative quote</label>
+              <input className="inp inp-sm" value={cat.quote||''} onChange={e=>editCat(cat.id,{quote:e.target.value})} placeholder="“…”"/></div>
+            <div>{mem.length?mem.map(m=><span className="chip" key={m.key} style={{cursor:'pointer'}} title="click to remove" onClick={()=>unassign(m.key)}>{m.left} vs {m.right}<Sup n={m.pnum}/></span>):<span className="mini">No constructs assigned yet — use the pool below.</span>}</div>
+          </div>
+        );
+      })}
 
       <div className="card">
-        <div className="sec-tag">Suggested groupings — assign to a composite</div>
-        <p className="field-sub">Each group is a set of similar constructs from across participants. Assign a whole group at once; refine individuals later.</p>
-        {groups.slice(0,40).map((g,i)=>{
-          const assignedTo=(assignments[g[0].id]||{}).cat||'';
-          return (
-            <div className="list-row" key={i}>
-              <span className="mini" style={{minWidth:34}}>{g.length}×</span>
-              <span style={{flex:1,fontSize:'.8rem'}}>{g.slice(0,3).map(x=>x.text).join(' · ')}{g.length>3?' …':''}</span>
-              <select className="inp inp-sm" style={{width:220,flex:'0 0 auto'}} value={assignedTo} onChange={e=>assignGroup(g,e.target.value)}>
-                <option value="">— unassigned —</option>
-                {categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-            </div>
-          );
-        })}
-        {groups.length>40 && <p className="mini">Showing first 40 of {groups.length} groups.</p>}
+        <div className="sec-tag">Assign remaining constructs ({members.length-assignedCount})</div>
+        <p className="field-sub">Every unassigned construct, verbatim, grouped by similarity. Assign a whole group to a composite; click any assigned chip above to remove it.</p>
+        {unassignedGroups.length===0 && <p className="mini">All constructs assigned.</p>}
+        {unassignedGroups.map((g,i)=>(
+          <div className="list-row" key={i} style={{alignItems:'flex-start'}}>
+            <div style={{flex:1}}>{g.map(it=>{const m=memberByKey[it.id]; return <span className="chip" key={it.id}>{m.left} vs {m.right}<Sup n={m.pnum}/></span>;})}</div>
+            <select className="inp inp-sm" style={{width:210,flex:'0 0 auto'}} value="" onChange={e=>assignGroup(g,e.target.value)}>
+              <option value="">assign to…</option>
+              {categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+        ))}
       </div>
 
       <div className="btn-row">
@@ -667,37 +668,45 @@ function CompositeConstructs({config,setConfig,responses,onSave,saving,savedMsg}
 }
 
 /* ============================ Composite Honey table ====================== */
+const CAT_FULL={SL:'System Leadership',TL:'Traditional Leadership',FL:'Future Leadership'};
+function catFull(c){ return CAT_FULL[c]||c; }
 function CompositeTable({config,responses}){
   const elemCats=[...new Set(config.elements.map(e=>e.category).filter(Boolean))];
   const [seg,setSeg]=useState('all');
   const categories=config.categories||[], assignments=config.assignments||{};
-  const rowsFor=(filter)=> compositeRows(pooledMembers(responses,config,filter),categories,assignments);
+  const memAll=useMemo(()=>pooledMembers(responses,config,null),[responses,config.elements,config.constructs]);
+  const totalP=totalParticipants(memAll);
+  const fixedOrient=useMemo(()=>fixedOrientOf(memAll),[memAll]);
+  const rowsFor=(filter)=> compositeRows(pooledMembers(responses,config,filter),categories,assignments,totalP,fixedOrient);
   const all=useMemo(()=>rowsFor(null),[responses,config,seg]);
   const segRows=useMemo(()=> (seg==='all'||seg==='compare')?null:rowsFor(seg),[responses,config,seg]);
-  const cmp=useMemo(()=> seg==='compare'? elemCats.map(c=>({c, rows:rowsFor(c)})):null,[responses,config,seg]);
+  const cmp=useMemo(()=> (seg==='compare'&&elemCats.length>=2)? elemCats.map(c=>({c, rows:rowsFor(c)})):null,[responses,config,seg]);
 
-  if(categories.length===0) return <div className="inf-box">Create composite constructs first (Composite constructs tab), then this table aggregates them into the Honey Content Table.</div>;
+  if(categories.length===0) return <div className="inf-box">Build your composite constructs first (tab 2). This tab then aggregates them into James's Honey Content Table.</div>;
 
-  const bar=(l,r)=> <div style={{display:'flex',height:14,borderRadius:3,overflow:'hidden',border:'1px solid #d8d3cb',minWidth:120}}>
-    <div style={{width:l+'%',background:'#3f7d4e'}}/><div style={{width:r+'%',background:'#e0ddd8'}}/></div>;
+  const bar=(l)=> <div style={{display:'inline-flex',width:70,height:10,borderRadius:3,overflow:'hidden',border:'1px solid #d8d3cb',verticalAlign:'middle'}}>
+    <div style={{width:l+'%',background:'#3f7d4e'}}/><div style={{flex:1,background:'#efeae2'}}/></div>;
 
-  function Table({rows,title}){
+  function HoneyTable({rows,title}){
     return (
-      <div style={{marginBottom:16}}>
+      <div style={{marginBottom:18}}>
         {title&&<div className="sec-tag">{title}</div>}
         <div className="scroll"><table className="grid">
           <thead><tr>
-            <th className="pole">Composite construct</th><th style={{width:70}}>n</th>
-            <th style={{width:150}}>Preferred pole %</th><th style={{width:90}}>Left %</th><th style={{width:90}}>Right %</th>
-            <th style={{width:100}}>Preference</th><th style={{width:60}}>H%</th><th style={{width:60}}>I%</th><th style={{width:60}}>L%</th>
+            <th className="pole">Construct category</th><th style={{width:60}}>Unique freq %</th>
+            <th className="pole">Preferred pole</th><th style={{width:120}}>Mean similarity %</th>
+            <th className="pole">Opposite pole</th><th style={{width:70}}>Mean sim %</th>
+            <th style={{width:110}}>Preference</th><th style={{width:48}}>H%</th><th style={{width:48}}>I%</th><th style={{width:48}}>L%</th>
           </tr></thead>
           <tbody>
-            {rows.map(r=>(
+            {rows.filter(r=>r.n>0).map(r=>(
               <tr key={r.cat.id}>
-                <td className="pole">{r.cat.left} <span className="mini">vs</span> {r.cat.right}</td>
-                <td>{r.n}</td>
-                <td>{bar(r.left,r.right)}</td>
-                <td>{r.left.toFixed(0)}%</td><td>{r.right.toFixed(0)}%</td>
+                <td className="pole"><b>{r.cat.name}</b>{r.cat.quote?<div className="mini" style={{maxWidth:180,whiteSpace:'normal'}}>“{r.cat.quote.slice(0,70)}”</div>:null}</td>
+                <td>{Math.round(r.uniquePct)}%</td>
+                <td className="pole" style={{maxWidth:200,whiteSpace:'normal'}}>{r.cat.left}{r.cat.leftDef?<div className="mini">{r.cat.leftDef.slice(0,60)}</div>:null}</td>
+                <td>{bar(r.left)} <b>{r.left.toFixed(0)}%</b></td>
+                <td className="pole muted" style={{maxWidth:200,whiteSpace:'normal'}}>{r.cat.right}</td>
+                <td>{r.right.toFixed(0)}%</td>
                 <td>{r.pref}</td>
                 <td>{r.H.toFixed(0)}</td><td>{r.I.toFixed(0)}</td><td>{r.L.toFixed(0)}</td>
               </tr>
@@ -707,19 +716,35 @@ function CompositeTable({config,responses}){
       </div>
     );
   }
+  function Comparative(){
+    const byCat=elemCats.map(c=>({c, rows:rowsFor(c)}));
+    const catRows=categories.map((cat,i)=>({cat, cells:byCat.map(b=>b.rows.find(r=>r.cat.id===cat.id))}));
+    return (
+      <div className="scroll"><table className="grid">
+        <thead><tr><th className="pole">Construct area</th>{elemCats.map(c=><th key={c} className="pole">{catFull(c)}</th>)}</tr></thead>
+        <tbody>{catRows.filter(x=>x.cells.some(c=>c&&c.n>0)).map(x=>(
+          <tr key={x.cat.id}>
+            <td className="pole"><b>{x.cat.left}</b> <span className="mini">vs</span> {x.cat.right}</td>
+            {x.cells.map((c,j)=><td key={j} className="pole" style={{whiteSpace:'normal'}}>{c&&c.n? c.pref+' — '+c.left.toFixed(0)+'% '+x.cat.left : '—'}</td>)}
+          </tr>
+        ))}</tbody>
+      </table></div>
+    );
+  }
 
   return (
     <div className="fade">
+      <div className="inf-box">Step 3 — James's <b>Honey Content Table</b>: each composite construct's preferred-pole mean similarity to the supplied “{config.suppliedLeft}” construct, and its H/I/L spread. Run over all elements, or split by element category. {elemCats.map(c=>c+' = '+catFull(c)).join(' · ')}.</div>
       <div className="toolbar">
-        <button className={"btn-s btn-sm"+(seg==='all'?' ':'')} style={seg==='all'?{borderColor:'#1a1a1a'}:{}} onClick={()=>setSeg('all')}>All elements</button>
-        {elemCats.map(c=><button key={c} className="btn-s btn-sm" style={seg===c?{borderColor:'#1a1a1a'}:{}} onClick={()=>setSeg(c)}>{c} elements</button>)}
-        {elemCats.length>=2 && <button className="btn-s btn-sm" style={seg==='compare'?{borderColor:'#1a1a1a'}:{}} onClick={()=>setSeg('compare')}>Compare {elemCats.slice(0,2).join(' vs ')}</button>}
+        <button className="btn-s btn-sm" style={seg==='all'?{borderColor:'#1a1a1a'}:{}} onClick={()=>setSeg('all')}>All elements</button>
+        {elemCats.map(c=><button key={c} className="btn-s btn-sm" style={seg===c?{borderColor:'#1a1a1a'}:{}} onClick={()=>setSeg(c)}>{catFull(c)}</button>)}
+        {elemCats.length>=2 && <button className="btn-s btn-sm" style={seg==='compare'?{borderColor:'#1a1a1a'}:{}} onClick={()=>setSeg('compare')}>Comparative</button>}
       </div>
       <div className="card">
-        {seg==='all' && <Table rows={all}/>}
-        {segRows && <Table rows={segRows} title={seg+' elements only'}/>}
-        {cmp && cmp.map(x=><Table key={x.c} rows={x.rows} title={x.c+' elements only'}/>)}
-        <p className="mini">Preferred-pole % = mean Honey similarity of each construct's effective pole to the supplied “{config.suppliedLeft}” construct, averaged across the composite. H/I/L% = share of member constructs in each band. Following Honey (1979) / Jankowicz (2004).</p>
+        {seg==='all' && <HoneyTable rows={all}/>}
+        {segRows && <HoneyTable rows={segRows} title={catFull(seg)+' situations only (Honey Content Table)'}/>}
+        {cmp && <Comparative/>}
+        <p className="mini" style={{marginTop:'.6rem'}}>Mean similarity % = average Honey similarity of the composite's preferred pole to the supplied “{config.suppliedLeft}” construct across its member constructs. Unique freq % = share of participants with a construct in the category. H/I/L% = band spread. Following Honey (1979) / Jankowicz (2004).</p>
       </div>
     </div>
   );
@@ -751,6 +776,11 @@ function Dashboard({code, onSignOut}){
     setSaving(false);
   }
   function newInterview(){ setActive({participant_id:uid(),participant_name:'',data:{ratings:{},supplied:{},quotes:{},status:'in_progress'}}); }
+  async function deleteResponse(r){
+    if(!window.confirm('Delete interview “'+(r.participant_name||'unnamed')+'”?\n\nThis permanently removes the grid and cannot be undone.')) return;
+    try{ await api('/api/rep-grid-save',{kind:'delete-response',session_code:code,participant_id:r.participant_id}); reload(); }
+    catch(e){ alert('Delete failed: '+e.message); }
+  }
 
   if(loading) return <div className="content"><p className="muted">Loading session…</p></div>;
   if(active) return <Interview config={config} code={code} resp={active} onBack={()=>{ setActive(null); reload(); }}/>;
@@ -773,8 +803,8 @@ function Dashboard({code, onSignOut}){
         <button className={"fac-tab"+(tab==='table'?' active':'')} onClick={()=>setTab('table')}>3 · Composite table</button>
       </div>
       {tab==='setup'&&<Setup config={config} setConfig={setConfig} onSave={saveConfig} saving={saving} savedMsg={savedMsg}/>}
-      {tab==='interviews'&&<Interviews config={config} responses={responses} onOpen={setActive} onNew={newInterview}/>}
-      {tab==='individual'&&<Analysis config={config} responses={responses}/>}
+      {tab==='interviews'&&<Interviews config={config} responses={responses} onOpen={setActive} onNew={newInterview} onDelete={deleteResponse}/>}
+      {tab==='individual'&&<Analysis config={config} responses={responses} onOpen={setActive}/>}
       {tab==='composite'&&<CompositeConstructs config={config} setConfig={setConfig} responses={responses} onSave={saveConfig} saving={saving} savedMsg={savedMsg}/>}
       {tab==='table'&&<CompositeTable config={config} responses={responses}/>}
     </div>
