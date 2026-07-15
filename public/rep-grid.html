@@ -115,6 +115,58 @@ function suggestGroups(items, threshold){
   return Object.values(groups).sort((a,b)=>b.length-a.length);
 }
 
+/* ====== Composite (content-analysis) helpers — James/Jankowicz step ====== */
+// One row per (participant, construct) with Honey metrics computed over an
+// element subset (all elements, or a category e.g. SL / TL).
+function pooledMembers(responses, config, filterCat){
+  const els=config.elements.filter(e=> !filterCat || e.category===filterCat);
+  const elIds=els.map(e=>e.id); const lo=config.scaleMin, hi=config.scaleMax;
+  const rows=[];
+  responses.forEach(r=>{
+    const d=r.data||{}; const ratings=d.ratings||{}; const supplied=d.supplied||{};
+    const sArr=elIds.map(e=> supplied[e]!=null?supplied[e]:null);
+    if(!elIds.length || sArr.every(v=>v==null)) return;
+    const sRev=reverseRatings(sArr,lo,hi);
+    const cons=[...config.constructs, ...(d.elicited||[])];
+    const scored=cons.map(c=>{
+      const cArr=elIds.map(e=> (ratings[c.id]&&ratings[c.id][e]!=null)?ratings[c.id][e]:null);
+      if(cArr.every(v=>v==null)) return null;
+      const a=similarity(cArr,sArr,lo,hi), b=similarity(cArr,sRev,lo,hi);
+      return {c, sim:Math.max(a,b), orient:a>=b?'left':'right'};
+    }).filter(Boolean);
+    if(!scored.length) return;
+    const sims=scored.map(s=>s.sim); const mn=Math.min.apply(null,sims), mx=Math.max.apply(null,sims);
+    const w=(mx-mn)/3, hiT=mx-w, loT=hiT-w;
+    scored.forEach(s=>{
+      rows.push({
+        key:r.participant_id+':'+s.c.id, participant:r.participant_name||r.participant_id,
+        left:s.c.left, right:s.c.right, sim:s.sim, preferredPct:(s.sim+1)/2*100,
+        effLabel: s.orient==='left'? s.c.left : s.c.right,
+        band: s.sim>hiT?'H':(s.sim<loT?'L':'I')
+      });
+    });
+  });
+  return rows;
+}
+// Aggregate members into composite constructs (categories).
+function compositeRows(members, categories, assignments){
+  return categories.map(cat=>{
+    const mem=members.filter(m=>(assignments[m.key]||{}).cat===cat.id);
+    const n=mem.length; let leftSum=0,H=0,I=0,L=0;
+    mem.forEach(m=>{
+      const flip=(assignments[m.key]||{}).flip;
+      leftSum += flip? (100-m.preferredPct) : m.preferredPct;
+      if(m.band==='H')H++; else if(m.band==='L')L++; else I++;
+    });
+    const left=n?leftSum/n:0, right=100-left, mx=Math.max(left,right);
+    const pref = n? (mx>=80?'Strong':mx>=65?'Moderate':mx>=55?'Low':'Balanced') : '—';
+    return {cat, n, left, right, pref, H:n?H/n*100:0, I:n?I/n*100:0, L:n?L/n*100:0};
+  });
+}
+function autoFlip(effLabel, cat){
+  return jaccard(tokens(effLabel), tokens(cat.right)) > jaccard(tokens(effLabel), tokens(cat.left));
+}
+
 /* ============================ helpers ====================== */
 const uid=()=> (crypto.randomUUID? crypto.randomUUID() : 'id-'+Math.random().toString(36).slice(2)+Date.now());
 async function api(path, body){
@@ -525,6 +577,154 @@ function Pooled({bundles}){
   );
 }
 
+/* ============================ Composite constructs (categorisation) ====================== */
+function CompositeConstructs({config,setConfig,responses,onSave,saving,savedMsg}){
+  const categories=config.categories||[];
+  const assignments=config.assignments||{};
+  const members=useMemo(()=>pooledMembers(responses,config,null),[responses,config]);
+  const groups=useMemo(()=>suggestGroups(members.map(m=>({id:m.key,participantId:'',text:m.left+' vs '+m.right}))),[members]);
+  const memberByKey=useMemo(()=>{const o={};members.forEach(m=>o[m.key]=m);return o;},[members]);
+
+  const setCats=(cats)=>setConfig({...config,categories:cats});
+  const setAssign=(a)=>setConfig({...config,assignments:a});
+  const addCat=()=>setCats([...categories,{id:uid(),name:'New composite',left:'Left pole',right:'Right pole'}]);
+  const editCat=(id,patch)=>setCats(categories.map(c=>c.id===id?{...c,...patch}:c));
+  const delCat=(id)=>{ setCats(categories.filter(c=>c.id!==id));
+    const a={...assignments}; Object.keys(a).forEach(k=>{if(a[k].cat===id)delete a[k];}); setAssign(a); };
+
+  function assignGroup(grp, catId){
+    const cat=categories.find(c=>c.id===catId);
+    const a={...assignments};
+    grp.forEach(it=>{ if(catId){ const m=memberByKey[it.id]; a[it.id]={cat:catId, flip: m&&cat? autoFlip(m.effLabel,cat):false}; } else { delete a[it.id]; } });
+    setAssign(a);
+  }
+  function autoGenerate(){
+    // Create one composite per sizeable suggestion group and assign its members.
+    const cats=[]; const a={...assignments};
+    groups.filter(g=>g.length>=3).slice(0,20).forEach(g=>{
+      const m0=memberByKey[g[0].id];
+      const cat={id:uid(), name:(m0?m0.effLabel:'Composite'), left:(m0?m0.left:'Left'), right:(m0?m0.right:'Right')};
+      cats.push(cat);
+      g.forEach(it=>{ const m=memberByKey[it.id]; a[it.id]={cat:cat.id, flip:m?autoFlip(m.effLabel,cat):false}; });
+    });
+    setConfig({...config, categories:[...categories,...cats], assignments:a});
+  }
+
+  const assignedCount=Object.keys(assignments).filter(k=>memberByKey[k]).length;
+  return (
+    <div className="fade">
+      <div className="inf-box">Group everyone's elicited constructs into <b>composite constructs</b> (content-analysis categories), following Jankowicz's method. Use the label-similarity suggestions as a starting point, then rename and refine. {members.length} constructs · {assignedCount} assigned.</div>
+
+      <div className="card">
+        <div className="toolbar">
+          <div className="sec-tag" style={{margin:0}}>Composite constructs ({categories.length})</div>
+          <div className="grow"/>
+          <button className="btn-s btn-sm" onClick={autoGenerate}>✦ Auto-generate from suggestions</button>
+          <button className="btn-s btn-sm" onClick={addCat}>+ Add</button>
+        </div>
+        {categories.length===0 && <p className="muted small">No composite constructs yet. Auto-generate to seed them from the suggested groupings, then edit.</p>}
+        {categories.map(c=>{
+          const n=Object.keys(assignments).filter(k=>assignments[k].cat===c.id&&memberByKey[k]).length;
+          return (
+            <div className="list-row" key={c.id}>
+              <input className="inp inp-sm" style={{flex:2}} value={c.name} onChange={e=>editCat(c.id,{name:e.target.value})}/>
+              <input className="inp inp-sm" style={{flex:2}} value={c.left} onChange={e=>editCat(c.id,{left:e.target.value})}/>
+              <span className="mini">vs</span>
+              <input className="inp inp-sm" style={{flex:2}} value={c.right} onChange={e=>editCat(c.id,{right:e.target.value})}/>
+              <span className="tag">{n}</span>
+              <button className="x" onClick={()=>delCat(c.id)}>✕</button>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="card">
+        <div className="sec-tag">Suggested groupings — assign to a composite</div>
+        <p className="field-sub">Each group is a set of similar constructs from across participants. Assign a whole group at once; refine individuals later.</p>
+        {groups.slice(0,40).map((g,i)=>{
+          const assignedTo=(assignments[g[0].id]||{}).cat||'';
+          return (
+            <div className="list-row" key={i}>
+              <span className="mini" style={{minWidth:34}}>{g.length}×</span>
+              <span style={{flex:1,fontSize:'.8rem'}}>{g.slice(0,3).map(x=>x.text).join(' · ')}{g.length>3?' …':''}</span>
+              <select className="inp inp-sm" style={{width:220,flex:'0 0 auto'}} value={assignedTo} onChange={e=>assignGroup(g,e.target.value)}>
+                <option value="">— unassigned —</option>
+                {categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+          );
+        })}
+        {groups.length>40 && <p className="mini">Showing first 40 of {groups.length} groups.</p>}
+      </div>
+
+      <div className="btn-row">
+        <div className="grow"/>
+        {savedMsg&&<span className="small" style={{color:'#16794a'}}>{savedMsg}</span>}
+        <button className="btn-p" onClick={onSave} disabled={saving}>{saving?'Saving…':'Save categorisation'}</button>
+      </div>
+    </div>
+  );
+}
+
+/* ============================ Composite Honey table ====================== */
+function CompositeTable({config,responses}){
+  const elemCats=[...new Set(config.elements.map(e=>e.category).filter(Boolean))];
+  const [seg,setSeg]=useState('all');
+  const categories=config.categories||[], assignments=config.assignments||{};
+  const rowsFor=(filter)=> compositeRows(pooledMembers(responses,config,filter),categories,assignments);
+  const all=useMemo(()=>rowsFor(null),[responses,config,seg]);
+  const segRows=useMemo(()=> (seg==='all'||seg==='compare')?null:rowsFor(seg),[responses,config,seg]);
+  const cmp=useMemo(()=> seg==='compare'? elemCats.map(c=>({c, rows:rowsFor(c)})):null,[responses,config,seg]);
+
+  if(categories.length===0) return <div className="inf-box">Create composite constructs first (Composite constructs tab), then this table aggregates them into the Honey Content Table.</div>;
+
+  const bar=(l,r)=> <div style={{display:'flex',height:14,borderRadius:3,overflow:'hidden',border:'1px solid #d8d3cb',minWidth:120}}>
+    <div style={{width:l+'%',background:'#3f7d4e'}}/><div style={{width:r+'%',background:'#e0ddd8'}}/></div>;
+
+  function Table({rows,title}){
+    return (
+      <div style={{marginBottom:16}}>
+        {title&&<div className="sec-tag">{title}</div>}
+        <div className="scroll"><table className="grid">
+          <thead><tr>
+            <th className="pole">Composite construct</th><th style={{width:70}}>n</th>
+            <th style={{width:150}}>Preferred pole %</th><th style={{width:90}}>Left %</th><th style={{width:90}}>Right %</th>
+            <th style={{width:100}}>Preference</th><th style={{width:60}}>H%</th><th style={{width:60}}>I%</th><th style={{width:60}}>L%</th>
+          </tr></thead>
+          <tbody>
+            {rows.map(r=>(
+              <tr key={r.cat.id}>
+                <td className="pole">{r.cat.left} <span className="mini">vs</span> {r.cat.right}</td>
+                <td>{r.n}</td>
+                <td>{bar(r.left,r.right)}</td>
+                <td>{r.left.toFixed(0)}%</td><td>{r.right.toFixed(0)}%</td>
+                <td>{r.pref}</td>
+                <td>{r.H.toFixed(0)}</td><td>{r.I.toFixed(0)}</td><td>{r.L.toFixed(0)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="fade">
+      <div className="toolbar">
+        <button className={"btn-s btn-sm"+(seg==='all'?' ':'')} style={seg==='all'?{borderColor:'#1a1a1a'}:{}} onClick={()=>setSeg('all')}>All elements</button>
+        {elemCats.map(c=><button key={c} className="btn-s btn-sm" style={seg===c?{borderColor:'#1a1a1a'}:{}} onClick={()=>setSeg(c)}>{c} elements</button>)}
+        {elemCats.length>=2 && <button className="btn-s btn-sm" style={seg==='compare'?{borderColor:'#1a1a1a'}:{}} onClick={()=>setSeg('compare')}>Compare {elemCats.slice(0,2).join(' vs ')}</button>}
+      </div>
+      <div className="card">
+        {seg==='all' && <Table rows={all}/>}
+        {segRows && <Table rows={segRows} title={seg+' elements only'}/>}
+        {cmp && cmp.map(x=><Table key={x.c} rows={x.rows} title={x.c+' elements only'}/>)}
+        <p className="mini">Preferred-pole % = mean Honey similarity of each construct's effective pole to the supplied “{config.suppliedLeft}” construct, averaged across the composite. H/I/L% = share of member constructs in each band. Following Honey (1979) / Jankowicz (2004).</p>
+      </div>
+    </div>
+  );
+}
+
 /* ============================ Dashboard ====================== */
 function Dashboard({code, onSignOut}){
   const [tab,setTab]=useState('setup');
@@ -537,9 +737,10 @@ function Dashboard({code, onSignOut}){
 
   async function reload(){
     const j=await api('/api/rep-grid-load',{session_code:code});
-    setConfig((j.config&&j.config.data&&j.config.data.title!=null)? j.config.data
-      : {title:'',scaleMin:1,scaleMax:10,suppliedLeft:'Highly effective',suppliedRight:'Not effective at all',elements:[],constructs:[]});
-    setResponses(j.responses||[]); setLoading(false);
+    const cfg=(j.config&&j.config.data&&j.config.data.title!=null)? j.config.data
+      : {title:'',scaleMin:1,scaleMax:10,suppliedLeft:'Highly effective',suppliedRight:'Not effective at all',elements:[],constructs:[]};
+    cfg.categories=cfg.categories||[]; cfg.assignments=cfg.assignments||{};
+    setConfig(cfg); setResponses(j.responses||[]); setLoading(false);
   }
   useEffect(()=>{ reload().catch(e=>{ setLoading(false); alert('Load failed: '+e.message); }); /* eslint-disable-next-line */ },[]);
 
@@ -567,11 +768,15 @@ function Dashboard({code, onSignOut}){
       <div className="fac-tab-bar">
         <button className={"fac-tab"+(tab==='setup'?' active':'')} onClick={()=>setTab('setup')}>Setup</button>
         <button className={"fac-tab"+(tab==='interviews'?' active':'')} onClick={()=>setTab('interviews')}>Interviews</button>
-        <button className={"fac-tab"+(tab==='analysis'?' active':'')} onClick={()=>setTab('analysis')}>Analysis</button>
+        <button className={"fac-tab"+(tab==='individual'?' active':'')} onClick={()=>setTab('individual')}>1 · Individual Honey</button>
+        <button className={"fac-tab"+(tab==='composite'?' active':'')} onClick={()=>setTab('composite')}>2 · Composite constructs</button>
+        <button className={"fac-tab"+(tab==='table'?' active':'')} onClick={()=>setTab('table')}>3 · Composite table</button>
       </div>
       {tab==='setup'&&<Setup config={config} setConfig={setConfig} onSave={saveConfig} saving={saving} savedMsg={savedMsg}/>}
       {tab==='interviews'&&<Interviews config={config} responses={responses} onOpen={setActive} onNew={newInterview}/>}
-      {tab==='analysis'&&<Analysis config={config} responses={responses}/>}
+      {tab==='individual'&&<Analysis config={config} responses={responses}/>}
+      {tab==='composite'&&<CompositeConstructs config={config} setConfig={setConfig} responses={responses} onSave={saveConfig} saving={saving} savedMsg={savedMsg}/>}
+      {tab==='table'&&<CompositeTable config={config} responses={responses}/>}
     </div>
   );
 }
