@@ -50,9 +50,10 @@ Rules:
 - Set "flip": false when the construct's FIRST pole matches the category's PREFERRED pole; true when the construct's FIRST pole matches the category's OPPOSITE pole.
 - Choose the category whose pole definition the construct matches MOST SPECIFICALLY. Where two could fit, pick the one whose definition names the construct's core idea. Do NOT stretch a construct into a category on a loose or metaphorical association — a construct only belongs to a category if that category's definition is substantially what the construct is about.
 - Be disciplined about the catch-all: assign the category named "Other" whenever a construct is not clearly and primarily about one of the substantive categories (for example generic remarks about governance, culture, process, pace, structure or context). A real coder parks a meaningful minority here — expect very roughly 1 in 25 constructs to be "Other". Do not force every construct into a substantive category.
+- COMPLEX CONSTRUCTS: a small minority of constructs genuinely carry TWO ideas at once and belong to two categories. For those only, add "cat2" (and its own "flip2"). Use this sparingly — most constructs have a single primary category and no cat2. Never set cat2 equal to cat, and never use "Other" as cat2.
 - Every construct id must appear exactly once in your answer.
 - Return STRICT JSON only, no prose, no markdown fences:
-{"assignments":[{"id":"<construct id>","cat":"<category id>","flip":false}]}
+{"assignments":[{"id":"<construct id>","cat":"<category id>","flip":false,"cat2":"<optional second category id>","flip2":false}]}
 
 CONSTRUCTS:
 ${conList}`;
