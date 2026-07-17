@@ -187,20 +187,53 @@ function compositeRows(members, categories, assignments, totalP, fixedOrient){
 function autoFlip(effLabel, cat){
   return jaccard(tokens(effLabel), tokens(cat.right)) > jaccard(tokens(effLabel), tokens(cat.left));
 }
-// Inter-rater reliability for two independent coders: raw agreement + Cohen's kappa.
-function interRater(A,B){
-  const keys=Object.keys(A).filter(k=>B[k]);
-  const n=keys.length; if(!n) return {n:0,po:0,kappa:0,disagree:[]};
-  let match=0; const cA={}, cB={}; const disagree=[];
+// Cohen's kappa for a pair of coders.
+function cohen(A,B){
+  const keys=Object.keys(A).filter(k=>B[k]); const n=keys.length;
+  if(!n) return {n:0,po:0,kappa:0};
+  let match=0; const cA={},cB={};
+  keys.forEach(k=>{ const a=A[k].cat,b=B[k].cat; cA[a]=(cA[a]||0)+1; cB[b]=(cB[b]||0)+1; if(a===b)match++; });
+  const po=match/n; let pe=0;
+  Object.keys(cA).forEach(c=>{ if(cB[c]) pe+=(cA[c]/n)*(cB[c]/n); });
+  return {n, po, kappa: pe===1?1:(po-pe)/(1-pe)};
+}
+// Fleiss' kappa for m>2 coders over items all of them coded.
+function fleiss(sets){
+  const m=sets.length; if(m<2) return {n:0,po:0,kappa:0};
+  const keys=Object.keys(sets[0]).filter(k=>sets.every(s=>s[k]));
+  const N=keys.length; if(!N) return {n:0,po:0,kappa:0};
+  const catSet=new Set(); keys.forEach(k=>sets.forEach(s=>catSet.add(s[k].cat)));
+  const cats=[...catSet];
+  let Pbar=0; const colTot={};
   keys.forEach(k=>{
-    const a=A[k].cat, b=B[k].cat;
-    cA[a]=(cA[a]||0)+1; cB[b]=(cB[b]||0)+1;
-    if(a===b) match++; else disagree.push(k);
+    const cnt={}; sets.forEach(s=>{ const c=s[k].cat; cnt[c]=(cnt[c]||0)+1; colTot[c]=(colTot[c]||0)+1; });
+    let sq=0; cats.forEach(c=>{ const v=cnt[c]||0; sq+=v*v; });
+    Pbar += (sq-m)/(m*(m-1));
   });
-  const po=match/n;
-  let pe=0; Object.keys(cA).forEach(c=>{ if(cB[c]) pe += (cA[c]/n)*(cB[c]/n); });
-  const kappa = pe===1?1:(po-pe)/(1-pe);
-  return {n, po, kappa, disagree};
+  Pbar/=N;
+  let Pe=0; cats.forEach(c=>{ const p=(colTot[c]||0)/(N*m); Pe+=p*p; });
+  return {n:N, po:Pbar, kappa: Pe===1?1:(Pbar-Pe)/(1-Pe)};
+}
+// Overall stats across any number of coder sets, plus the disagreeing items.
+function multiStats(sets){
+  const m=sets.length;
+  if(m<2) return null;
+  const keys=Object.keys(sets[0]).filter(k=>sets.every(s=>s[k]));
+  const disagree=keys.filter(k=>!sets.every(s=>s[k].cat===sets[0][k].cat));
+  const unanimous=keys.length-disagree.length;
+  const stat = m===2? cohen(sets[0],sets[1]) : fleiss(sets);
+  return {n:keys.length, unanimous, disagree, kappa:stat.kappa,
+    po: keys.length? unanimous/keys.length : 0, kind: m===2?'Cohen’s κ':'Fleiss’ κ'};
+}
+// Majority pick for an item across coder sets (null if tied).
+function majorityPick(sets,key){
+  const cnt={}; sets.forEach(s=>{ if(s[key]){ const c=s[key].cat; cnt[c]=(cnt[c]||0)+1; } });
+  const e=Object.entries(cnt).sort((a,b)=>b[1]-a[1]);
+  if(!e.length) return null;
+  if(e.length>1 && e[0][1]===e[1][1]) return null;
+  const winner=e[0][0];
+  const src=sets.find(s=>s[key]&&s[key].cat===winner);
+  return {cat:winner, flip:src[key].flip, votes:e[0][1]};
 }
 
 /* ============================ helpers ====================== */
@@ -621,6 +654,8 @@ function CompositeConstructs({config,setConfig,responses,onSave,saving,savedMsg}
   const assignedCount=members.filter(m=>(assignments[m.key]||{}).cat).length;
   const unassignedGroups=groups.map(g=>g.filter(it=>!((assignments[it.id]||{}).cat))).filter(g=>g.length);
   const [busy,setBusy]=useState('');
+  const [coding,setCoding]=useState(null);      // coderId currently coding by hand
+  const [onlyUncoded,setOnlyUncoded]=useState(true);
 
   // Derive categories from the data using the encoded Jankowicz/Honey method.
   async function derive(){
@@ -635,48 +670,98 @@ function CompositeConstructs({config,setConfig,responses,onSave,saving,savedMsg}
       alert('Derived '+cats.length+' composite constructs. Review/edit them, then use “AI assign constructs”.');
     }catch(e){ setBusy(''); alert('Derive failed: '+e.message); }
   }
-  // One coding pass over every construct (optionally under a coder stance).
-  async function codePass(pass, label){
+  // ---- Coder panel: up to 4 coders, each AI (with a reasoning stance) or human.
+  const STANCES={A:'Definition-led',B:'Participant-language-led',C:'Contrast-led',D:'Exemplar-led'};
+  const meta=config.coderMeta||[];
+  const coders=config.coders||{};
+  const catName=(id)=>(categories.find(c=>c.id===id)||{}).name||'—';
+  const setMeta=(m)=>setConfig({...config,coderMeta:m});
+  const addCoder=(type)=>{
+    if(meta.length>=4){ alert('Maximum of 4 coders.'); return; }
+    const used=meta.filter(m=>m.type==='ai').map(m=>m.stance);
+    const stance=['A','B','C','D'].find(s=>!used.includes(s))||'A';
+    const id='cd'+Date.now().toString(36);
+    setMeta([...meta,{id,type,stance:type==='ai'?stance:null,
+      name:type==='ai'?('AI · '+STANCES[stance]):('Human coder '+(meta.filter(m=>m.type==='human').length+1))}]);
+  };
+  const editCoder=(id,patch)=>setMeta(meta.map(m=>m.id===id?{...m,...patch}:m));
+  const delCoder=(id)=>{ const c={...coders}; delete c[id]; setConfig({...config,coderMeta:meta.filter(m=>m.id!==id),coders:c}); };
+
+  async function runAiCoder(cd){
+    if(!categories.length){ alert('Create or derive composite constructs first.'); return; }
     const cats=categories.map(c=>({id:c.id,name:c.name,left:c.left,leftDef:c.leftDef,right:c.right,rightDef:c.rightDef}));
     const out={}; const B=60;
     for(let i=0;i<members.length;i+=B){
+      setBusy(cd.name+' coding… '+Math.min(i+B,members.length)+'/'+members.length);
       const batch=members.slice(i,i+B);
-      setBusy(label+' '+Math.min(i+B,members.length)+'/'+members.length);
       try{
-        const j=await api('/api/rep-grid-classify',{constructs:batch.map(m=>({id:m.key,left:m.left,right:m.right})),categories:cats,pass});
+        const j=await api('/api/rep-grid-classify',{constructs:batch.map(m=>({id:m.key,left:m.left,right:m.right})),categories:cats,pass:cd.stance});
         (j.assignments||[]).forEach(x=>{ if(x&&x.id&&x.cat&&cats.some(c=>c.id===x.cat)) out[x.id]={cat:x.cat, flip:!!x.flip}; });
       }catch(e){}
     }
-    return out;
-  }
-  // Single-coder pass.
-  async function aiAssign(){
-    if(!categories.length){ alert('Create or derive composite constructs first.'); return; }
-    const a=await codePass(null,'Coding constructs…');
-    setConfig({...config, assignments:{...assignments, ...a}});
+    setConfig({...config, coders:{...coders,[cd.id]:out}});
     setBusy('');
-    alert('Coded '+Object.keys(a).length+' of '+members.length+' constructs.\n\nReview, then Save categorisation.');
+    alert(cd.name+' coded '+Object.keys(out).length+' of '+members.length+' constructs.');
   }
-  // Two independent coders → agreement + kappa → adjudicate only disagreements.
-  async function twoCoder(){
-    if(!categories.length){ alert('Create or derive composite constructs first.'); return; }
-    if(!window.confirm('Run two independent coding passes over all '+members.length+' constructs?\n\nThey code separately; you then adjudicate only where they disagree.')) return;
-    const A=await codePass('A','Coder A (definition-led)…');
-    const B=await codePass('B','Coder B (participant-language-led)…');
-    const ir=interRater(A,B);
-    // Auto-accept where both coders agree; leave disagreements for the researcher.
-    const a={...assignments};
-    Object.keys(A).forEach(k=>{ if(B[k]&&B[k].cat===A[k].cat) a[k]={cat:A[k].cat, flip:A[k].flip}; });
-    setConfig({...config, coders:{A,B}, assignments:a});
-    setBusy('');
-    alert('Two-coder pass complete.\n\nAgreement: '+(ir.po*100).toFixed(1)+'%  ·  Cohen’s κ = '+ir.kappa.toFixed(2)+'\nAgreed and auto-accepted: '+(ir.n-ir.disagree.length)+'\nTo adjudicate: '+ir.disagree.length);
+  // Reliability across every coder that has coded anything.
+  const activeIds=meta.filter(m=>coders[m.id]&&Object.keys(coders[m.id]).length).map(m=>m.id);
+  const sets=activeIds.map(id=>coders[id]);
+  const stats=useMemo(()=> sets.length>=2? multiStats(sets):null,[config.coders,config.coderMeta]);
+  function acceptAllAgreed(){
+    if(!stats) return;
+    const a={...assignments}; let n=0;
+    Object.keys(sets[0]).forEach(k=>{ if(sets.every(s=>s[k]&&s[k].cat===sets[0][k].cat)){ a[k]={cat:sets[0][k].cat,flip:sets[0][k].flip}; n++; } });
+    setConfig({...config,assignments:a}); alert('Accepted '+n+' unanimous codes.');
   }
-  const coders=config.coders||null;
-  const ir=useMemo(()=> coders? interRater(coders.A||{},coders.B||{}) : null,[coders]);
-  const catName=(id)=>(categories.find(c=>c.id===id)||{}).name||'—';
-  function adjudicate(key, from){
-    const pick=(coders[from]||{})[key]; if(!pick) return;
+  function acceptMajority(){
+    const a={...assignments}; let n=0;
+    (stats?stats.disagree:[]).forEach(k=>{ const p=majorityPick(sets,k); if(p){ a[k]={cat:p.cat,flip:p.flip}; n++; } });
+    setConfig({...config,assignments:a}); alert('Accepted '+n+' majority codes. Ties left for you.');
+  }
+  function adjudicate(key, coderId){
+    const pick=(coders[coderId]||{})[key]; if(!pick) return;
     setConfig({...config, assignments:{...assignments, [key]:{cat:pick.cat, flip:pick.flip}}});
+  }
+  // Human coding: set this coder's code for one construct.
+  function humanCode(coderId, key, catId){
+    const cur={...(coders[coderId]||{})};
+    if(!catId) delete cur[key];
+    else { const cat=categories.find(c=>c.id===catId); const m=memberByKey[key];
+      cur[key]={cat:catId, flip:m&&cat?autoFlip(m.effLabel,cat):false}; }
+    setConfig({...config, coders:{...coders,[coderId]:cur}});
+  }
+
+  // ---- Human coding view (one coder, coding independently) ----
+  if(coding){
+    const cd=meta.find(m=>m.id===coding)||{name:'Coder'};
+    const mine=coders[coding]||{};
+    const doneN=Object.keys(mine).length;
+    const list=(onlyUncoded? members.filter(m=>!mine[m.key]) : members);
+    return (
+      <div className="fade">
+        <button className="back-btn" onClick={()=>setCoding(null)}>← Back to coders</button>
+        <div className="inf-box">Coding as <b>{cd.name}</b>. Code independently — don't consult the other coders; the reliability statistic only means something if the passes are genuinely separate. <b>{doneN}/{members.length}</b> coded.</div>
+        <div className="toolbar">
+          <label className="anon-toggle"><input type="checkbox" checked={onlyUncoded} onChange={e=>setOnlyUncoded(e.target.checked)}/> Show only uncoded</label>
+          <div className="grow"/>
+          {savedMsg&&<span className="small" style={{color:'#16794a'}}>{savedMsg}</span>}
+          <button className="btn-p btn-sm" onClick={onSave} disabled={saving}>{saving?'Saving…':'Save coding'}</button>
+        </div>
+        <div className="card">
+          {list.length===0 && <p className="mini">Nothing left to code.</p>}
+          {list.slice(0,250).map(m=>(
+            <div className="list-row" key={m.key}>
+              <span style={{flex:1,fontSize:'.82rem'}}>{m.left} <span className="mini">vs</span> {m.right}<Sup n={m.pnum}/></span>
+              <select className="inp inp-sm" style={{width:230,flex:'0 0 auto'}} value={(mine[m.key]||{}).cat||''} onChange={e=>humanCode(coding,m.key,e.target.value)}>
+                <option value="">— uncoded —</option>
+                {categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+          ))}
+          {list.length>250 && <p className="mini">Showing 250 of {list.length}. Code these, then the next batch appears.</p>}
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -688,39 +773,77 @@ function CompositeConstructs({config,setConfig,responses,onSave,saving,savedMsg}
         <div className="grow"/>
         {busy && <span className="small" style={{color:'#e07030'}}>{busy}</span>}
         <button className="btn-s btn-sm" disabled={!!busy} onClick={derive}>✦ Derive from data</button>
-        <button className="btn-s btn-sm" disabled={!!busy} onClick={aiAssign}>✦ Code once</button>
-        <button className="btn-p btn-sm" disabled={!!busy} onClick={twoCoder}>✦✦ Two-coder pass</button>
         <button className="btn-s btn-sm" onClick={addCat}>+ Add composite</button>
       </div>
 
-      {ir && ir.n>0 && (
+      {/* ---- Coding panel: AI only / AI + human / human only ---- */}
+      <div className="card">
+        <div className="toolbar">
+          <div className="sec-tag" style={{margin:0}}>Coders ({meta.length}/4)</div>
+          <div className="grow"/>
+          <button className="btn-s btn-sm" disabled={meta.length>=4} onClick={()=>addCoder('ai')}>+ AI coder</button>
+          <button className="btn-s btn-sm" disabled={meta.length>=4} onClick={()=>addCoder('human')}>+ Human coder</button>
+        </div>
+        <p className="field-sub">Add up to four independent coders — any mix of AI and human. Each codes the full set alone; the tool then reports inter-rater reliability and asks you to settle only the disagreements (Jankowicz's reconciliation step).</p>
+        {meta.length===0 && <p className="mini">No coders yet. Add two or more to get a reliability statistic.</p>}
+        {meta.map(cd=>{
+          const n=Object.keys(coders[cd.id]||{}).length;
+          return (
+            <div className="list-row" key={cd.id}>
+              <span className="tag" style={cd.type==='ai'?{background:'#f0e2d5',color:'#b5651a'}:{background:'#dcefe0',color:'#16794a'}}>{cd.type==='ai'?'AI':'HUMAN'}</span>
+              <input className="inp inp-sm" style={{flex:2}} value={cd.name} onChange={e=>editCoder(cd.id,{name:e.target.value})}/>
+              {cd.type==='ai'
+                ? <select className="inp inp-sm" style={{width:190,flex:'0 0 auto'}} value={cd.stance||'A'} onChange={e=>editCoder(cd.id,{stance:e.target.value,name:'AI · '+STANCES[e.target.value]})}>
+                    {Object.keys(STANCES).map(s=><option key={s} value={s}>{STANCES[s]}</option>)}
+                  </select>
+                : <span className="mini" style={{width:190}}>codes manually</span>}
+              <span className="mini" style={{minWidth:74}}>{n}/{members.length}</span>
+              {cd.type==='ai'
+                ? <button className="btn-p btn-sm" disabled={!!busy} onClick={()=>runAiCoder(cd)}>Run</button>
+                : <button className="btn-p btn-sm" onClick={()=>setCoding(cd.id)}>Code</button>}
+              <button className="x" onClick={()=>delCoder(cd.id)}>✕</button>
+            </div>
+          );
+        })}
+      </div>
+
+      {stats && (
         <div className="card">
-          <div className="sec-tag">Inter-rater reliability (two independent coders)</div>
+          <div className="sec-tag">Inter-rater reliability — {activeIds.length} coders</div>
           <div className="row" style={{alignItems:'center'}}>
-            <div><div className="mini">Raw agreement</div><div style={{fontSize:'1.4rem',fontWeight:700,color:'#16a34a'}}>{(ir.po*100).toFixed(1)}%</div></div>
-            <div><div className="mini">Cohen’s κ</div><div style={{fontSize:'1.4rem',fontWeight:700}}>{ir.kappa.toFixed(2)}</div></div>
-            <div><div className="mini">Agreed (auto-accepted)</div><div style={{fontSize:'1.4rem',fontWeight:700}}>{ir.n-ir.disagree.length}</div></div>
-            <div><div className="mini">To adjudicate</div><div style={{fontSize:'1.4rem',fontWeight:700,color:'#dc2626'}}>{ir.disagree.length}</div></div>
+            <div><div className="mini">Unanimous agreement</div><div style={{fontSize:'1.4rem',fontWeight:700,color:'#16a34a'}}>{(stats.po*100).toFixed(1)}%</div></div>
+            <div><div className="mini">{stats.kind}</div><div style={{fontSize:'1.4rem',fontWeight:700}}>{stats.kappa.toFixed(2)}</div></div>
+            <div><div className="mini">Agreed</div><div style={{fontSize:'1.4rem',fontWeight:700}}>{stats.unanimous}</div></div>
+            <div><div className="mini">To settle</div><div style={{fontSize:'1.4rem',fontWeight:700,color:'#dc2626'}}>{stats.disagree.length}</div></div>
           </div>
-          <p className="field-sub" style={{marginTop:'.5rem'}}>Coder A worked definition-led; Coder B worked from the participant's own language. Where they agree the code is accepted automatically; below are only the constructs where they differ — your judgement decides, exactly as the expert panel did in the thesis.</p>
+          <div className="btn-row" style={{marginTop:'.6rem'}}>
+            <button className="btn-s btn-sm" onClick={acceptAllAgreed}>Accept unanimous</button>
+            {activeIds.length>=3 && <button className="btn-s btn-sm" onClick={acceptMajority}>Accept majority</button>}
+          </div>
+          <p className="field-sub" style={{marginTop:'.4rem'}}>{activeIds.length===2?'Cohen’s κ':'Fleiss’ κ'} over the {stats.n} constructs all coders coded. κ &gt; 0.80 is conventionally “almost perfect”, 0.61–0.80 “substantial”.</p>
         </div>
       )}
 
-      {ir && ir.disagree.length>0 && (
+      {stats && stats.disagree.length>0 && (
         <div className="card">
-          <div className="sec-tag">Disagreements to adjudicate ({ir.disagree.length})</div>
-          {ir.disagree.slice(0,120).map(k=>{
+          <div className="sec-tag">Disagreements to settle ({stats.disagree.length})</div>
+          {stats.disagree.slice(0,120).map(k=>{
             const m=memberByKey[k]; if(!m) return null;
-            const a=coders.A[k], b=coders.B[k]; const cur=(assignments[k]||{}).cat;
+            const cur=(assignments[k]||{}).cat;
             return (
-              <div className="list-row" key={k}>
+              <div className="list-row" key={k} style={{alignItems:'flex-start'}}>
                 <span style={{flex:1,fontSize:'.82rem'}}>{m.left} <span className="mini">vs</span> {m.right}<Sup n={m.pnum}/></span>
-                <button className="btn-s btn-sm" style={cur===a.cat?{borderColor:'#16a34a',fontWeight:700}:{}} onClick={()=>adjudicate(k,'A')}>A: {catName(a.cat)}</button>
-                <button className="btn-s btn-sm" style={cur===b.cat?{borderColor:'#16a34a',fontWeight:700}:{}} onClick={()=>adjudicate(k,'B')}>B: {catName(b.cat)}</button>
+                {activeIds.map(id=>{
+                  const pick=coders[id][k]; if(!pick) return null;
+                  const cd=meta.find(x=>x.id===id);
+                  return <button key={id} className="btn-s btn-sm" title={cd.name}
+                    style={cur===pick.cat?{borderColor:'#16a34a',fontWeight:700}:{}}
+                    onClick={()=>adjudicate(k,id)}>{(cd.type==='ai'?'🤖':'🧑')} {catName(pick.cat)}</button>;
+                })}
               </div>
             );
           })}
-          {ir.disagree.length>120 && <p className="mini">Showing first 120 of {ir.disagree.length}.</p>}
+          {stats.disagree.length>120 && <p className="mini">Showing first 120 of {stats.disagree.length}.</p>}
         </div>
       )}
       {categories.length===0 && <p className="muted small">None yet. Auto-generate to seed categories from similar constructs, then rename and edit definitions.</p>}
