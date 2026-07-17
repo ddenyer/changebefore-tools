@@ -16,9 +16,16 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   if (!KEY) return res.status(500).json({ error: 'ANTHROPIC_API_KEY not configured' });
 
-  const { constructs, categories } = req.body || {};
+  const { constructs, categories, pass } = req.body || {};
   if (!Array.isArray(constructs) || !constructs.length) return res.status(400).json({ error: 'constructs required' });
   if (!Array.isArray(categories) || !categories.length) return res.status(400).json({ error: 'categories required' });
+
+  // Two independent coders, deliberately reasoning by different routes — the
+  // point is genuine independence, so disagreement is informative (Jankowicz).
+  const STANCE = {
+    A: `YOUR CODING STANCE — definition-led. Work from the category definitions outwards. For each construct, read the definitions and ask: which definition is this construct substantially ABOUT? Anchor every decision in the wording of the definition.`,
+    B: `YOUR CODING STANCE — participant-language-led. Work from the interviewee's words inwards. For each construct, first state to yourself what behaviour this person is describing in their own terms; then ask which category best captures that behaviour. Anchor every decision in the participant's meaning.`,
+  }[pass] || '';
 
   const catList = categories.map(c =>
     `${c.id} = ${c.name}\n   PREFERRED POLE (${c.left}): ${(c.leftDef || '').slice(0, 700)}\n   OPPOSITE POLE (${c.right}): ${(c.rightDef || '').slice(0, 700)}`
@@ -26,7 +33,9 @@ export default async function handler(req, res) {
 
   const conList = constructs.map(c => `${c.id} :: "${c.left}" versus "${c.right}"`).join('\n');
 
-  const prompt = `You are coding repertory-grid constructs into content-analysis categories, following Jankowicz's (2004) core-categorisation method as applied in a DBA thesis on NHS system leadership. You are acting as an experienced second coder.
+  const prompt = `You are coding repertory-grid constructs into content-analysis categories, following Jankowicz's (2004) core-categorisation method as applied in a DBA thesis on NHS system leadership. You are an experienced independent coder working ALONE — do not hedge toward what another coder might say; record your own honest judgement.
+
+${STANCE}
 
 CATEGORIES (id = name, with the definition of each pole):
 
