@@ -25,6 +25,8 @@ export default async function handler(req, res) {
   const STANCE = {
     A: `YOUR CODING STANCE — definition-led. Work from the category definitions outwards. For each construct, read the definitions and ask: which definition is this construct substantially ABOUT? Anchor every decision in the wording of the definition.`,
     B: `YOUR CODING STANCE — participant-language-led. Work from the interviewee's words inwards. For each construct, first state to yourself what behaviour this person is describing in their own terms; then ask which category best captures that behaviour. Anchor every decision in the participant's meaning.`,
+    C: `YOUR CODING STANCE — contrast-led. A construct's meaning lives in the CONTRAST it draws. For each construct, first identify what distinction the participant is actually making between its two poles; then find the category whose own two poles express that same distinction. Anchor every decision in the contrast, not either pole alone.`,
+    D: `YOUR CODING STANCE — exemplar-led. Reason by resemblance. For each construct, ask which category's illustrative wording and pole examples it most closely resembles as a case. Prefer the category the construct would sit most naturally beside. Anchor every decision in family resemblance to the category's exemplars.`,
   }[pass] || '';
 
   const catList = categories.map(c =>
