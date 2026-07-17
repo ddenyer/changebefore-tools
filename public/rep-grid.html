@@ -605,6 +605,40 @@ function CompositeConstructs({config,setConfig,responses,onSave,saving,savedMsg}
   const Sup=({n})=> <sup style={{color:'#e07030',fontWeight:700}}>&nbsp;P{n}</sup>;
   const assignedCount=members.filter(m=>(assignments[m.key]||{}).cat).length;
   const unassignedGroups=groups.map(g=>g.filter(it=>!((assignments[it.id]||{}).cat))).filter(g=>g.length);
+  const [busy,setBusy]=useState('');
+
+  // Derive categories from the data using the encoded Jankowicz/Honey method.
+  async function derive(){
+    if(!window.confirm('Derive composite constructs from all '+members.length+' constructs?\n\nThis proposes fresh categories (bottom-up) and REPLACES the current list.')) return;
+    setBusy('Deriving categories…');
+    try{
+      const j=await api('/api/rep-grid-derive',{constructs:members.map(m=>({left:m.left,right:m.right})),target:14,domain:config.title});
+      const cats=(j.categories||[]).map(c=>({id:uid(),name:c.name,left:c.left,leftDef:c.leftDef||'',right:c.right,rightDef:c.rightDef||'',quote:''}));
+      if(!cats.length) throw new Error('no categories returned');
+      setConfig({...config, categories:cats, assignments:{}});
+      setBusy('');
+      alert('Derived '+cats.length+' composite constructs. Review/edit them, then use “AI assign constructs”.');
+    }catch(e){ setBusy(''); alert('Derive failed: '+e.message); }
+  }
+  // Code every construct into the current categories (second-coder pass).
+  async function aiAssign(){
+    if(!categories.length){ alert('Create or derive composite constructs first.'); return; }
+    const todo=members.slice();
+    const cats=categories.map(c=>({id:c.id,name:c.name,left:c.left,leftDef:c.leftDef,right:c.right,rightDef:c.rightDef}));
+    const a={...assignments}; let done=0, fails=0;
+    const B=60;
+    for(let i=0;i<todo.length;i+=B){
+      const batch=todo.slice(i,i+B);
+      setBusy('Coding constructs… '+Math.min(i+B,todo.length)+'/'+todo.length);
+      try{
+        const j=await api('/api/rep-grid-classify',{constructs:batch.map(m=>({id:m.key,left:m.left,right:m.right})),categories:cats});
+        (j.assignments||[]).forEach(x=>{ if(x&&x.id&&x.cat&&cats.some(c=>c.id===x.cat)) { a[x.id]={cat:x.cat, flip:!!x.flip}; done++; } });
+      }catch(e){ fails++; }
+    }
+    setConfig({...config, assignments:a});
+    setBusy('');
+    alert('Coded '+done+' of '+todo.length+' constructs'+(fails?(' ('+fails+' batches failed)'):'')+'.\n\nReview, then Save categorisation.');
+  }
 
   return (
     <div className="fade">
@@ -613,7 +647,10 @@ function CompositeConstructs({config,setConfig,responses,onSave,saving,savedMsg}
       <div className="toolbar">
         <div className="sec-tag" style={{margin:0}}>Composite constructs ({categories.length})</div>
         <div className="grow"/>
-        <button className="btn-s btn-sm" onClick={autoGenerate}>✦ Auto-generate from suggestions</button>
+        {busy && <span className="small" style={{color:'#e07030'}}>{busy}</span>}
+        <button className="btn-s btn-sm" disabled={!!busy} onClick={derive}>✦ Derive from data</button>
+        <button className="btn-s btn-sm" disabled={!!busy} onClick={aiAssign}>✦ AI assign constructs</button>
+        <button className="btn-s btn-sm" onClick={autoGenerate}>Quick group</button>
         <button className="btn-s btn-sm" onClick={addCat}>+ Add composite</button>
       </div>
       {categories.length===0 && <p className="muted small">None yet. Auto-generate to seed categories from similar constructs, then rename and edit definitions.</p>}
