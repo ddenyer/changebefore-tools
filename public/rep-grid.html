@@ -130,8 +130,13 @@ function prefLabel(left){
 // (all, or a category e.g. SL / TL). leftAlignPct = how strongly the construct's
 // LEFT pole (as recorded) associates with the supplied effectiveness construct.
 // band = individual Honey H/I/L, per-participant tercile over the same subset.
+// Elements used for Honey. Supplementary elements (e.g. a supplied "future"
+// element) are rated and displayed but held OUT of the similarity calculation.
+function honeyElements(config, filterCat){
+  return config.elements.filter(e=> !e.supplementary && (!filterCat || e.category===filterCat));
+}
 function pooledMembers(responses, config, filterCat){
-  const elIds=config.elements.filter(e=> !filterCat || e.category===filterCat).map(e=>e.id);
+  const elIds=honeyElements(config, filterCat).map(e=>e.id);
   const lo=config.scaleMin, hi=config.scaleMax;
   const rows=[];
   responses.forEach(r=>{
@@ -166,12 +171,23 @@ function totalParticipants(members){ return new Set(members.map(m=>m.participant
 function fixedOrientOf(membersAll){ const o={}; membersAll.forEach(m=>{ o[m.key]=m.leftAlignPct>=m.rightAlignPct?'left':'right'; }); return o; }
 // Aggregate members into composite constructs (Honey Content Table rows). The
 // effective pole is fixed (fixedOrient) so its alignment can rise/fall by subset.
+// Members of a category — a construct may be assigned to a PRIMARY and an
+// optional SECONDARY composite (James's "Complex Construct"), so it can count
+// toward two categories.
+function membersOf(members, assignments, catId){
+  const out=[];
+  members.forEach(m=>{
+    const a=assignments[m.key]; if(!a) return;
+    if(a.cat===catId) out.push({m, flip:a.flip, role:'primary'});
+    else if(a.cat2===catId) out.push({m, flip:a.flip2, role:'secondary'});
+  });
+  return out;
+}
 function compositeRows(members, categories, assignments, totalP, fixedOrient){
   return categories.map(cat=>{
-    const mem=members.filter(m=>(assignments[m.key]||{}).cat===cat.id);
+    const mem=membersOf(members, assignments, cat.id);
     const n=mem.length; let sum=0,H=0,I=0,L=0; const parts=new Set();
-    mem.forEach(m=>{
-      const flip=(assignments[m.key]||{}).flip;
+    mem.forEach(({m,flip})=>{
       const side=(fixedOrient&&fixedOrient[m.key])||(m.leftAlignPct>=m.rightAlignPct?'left':'right');
       const posAlign= side==='left'? m.leftAlignPct : m.rightAlignPct;
       sum += flip? (100-posAlign) : posAlign;
@@ -238,6 +254,13 @@ function majorityPick(sets,key){
 
 /* ============================ helpers ====================== */
 const uid=()=> (crypto.randomUUID? crypto.randomUUID() : 'id-'+Math.random().toString(36).slice(2)+Date.now());
+function downloadCsv(rows, filename){
+  const esc=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
+  const csv=rows.map(r=>r.map(esc).join(',')).join('\n');
+  const url=URL.createObjectURL(new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'}));
+  const a=document.createElement('a'); a.href=url; a.download=filename; a.click(); URL.revokeObjectURL(url);
+}
+const slug=(s)=>String(s||'rep-grid').replace(/[^\w]+/g,'_').slice(0,50);
 async function api(path, body){
   const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   const j=await r.json().catch(()=>({}));
@@ -500,9 +523,13 @@ function Setup({config,setConfig,onSave,saving,savedMsg}){
           <div className="list-row" key={el.id}>
             <input className="inp inp-sm" style={{flex:3}} value={el.name} onChange={e=>setEl(el.id,{name:e.target.value})}/>
             <input className="inp inp-sm" style={{flex:1,minWidth:70}} value={el.category} placeholder="cat" onChange={e=>setEl(el.id,{category:e.target.value})}/>
+            <label className="anon-toggle" title="Rated and shown in the grid, but held out of the Honey similarity calculation">
+              <input type="checkbox" checked={!!el.supplementary} onChange={e=>setEl(el.id,{supplementary:e.target.checked})}/> supplementary
+            </label>
             <button className="x" onClick={()=>set({elements:c.elements.filter(x=>x.id!==el.id)})}>✕</button>
           </div>
         ))}
+        <p className="field-sub">Tick “supplementary” for a supplied element (e.g. a “future leadership” element) that participants rate but which is excluded from the Honey similarity — as in the reference thesis.</p>
         <div className="sp"/>
         <button className="btn-s btn-sm" onClick={()=>set({elements:[...c.elements,{id:uid(),name:'New element',category:''}]})}>+ Add element</button>
       </div>
@@ -571,12 +598,42 @@ function Analysis({config,responses,onOpen}){
   const info=useMemo(()=>{
     if(!r) return null;
     const ratings=(r.data&&r.data.ratings)||{}, supplied=(r.data&&r.data.supplied)||{}, quotes=(r.data&&r.data.quotes)||{};
-    const sArr=config.elements.map(el=> supplied[el.id]!=null?supplied[el.id]:null);
+    const els=honeyElements(config,null);   // supplementary elements held out
+    const sArr=els.map(el=> supplied[el.id]!=null?supplied[el.id]:null);
     if(sArr.every(v=>v==null)) return {rows:[],quotes};
     const cons=[...config.constructs,...((r.data&&r.data.elicited)||[])].map(c=>({id:c.id,left:c.left,right:c.right,
-      ratings:config.elements.map(el=>(ratings[c.id]&&ratings[c.id][el.id]!=null)?ratings[c.id][el.id]:null)}));
+      ratings:els.map(el=>(ratings[c.id]&&ratings[c.id][el.id]!=null)?ratings[c.id][el.id]:null)}));
     return {rows:analyseGrid(cons,sArr,lo,hi).results.sort((a,b)=>a.rank-b.rank), quotes};
   },[r,config]);
+
+  // Every grid: raw ratings (all elements incl. supplementary) + Honey + quotes.
+  function exportGrids(){
+    const els=config.elements;
+    const hEls=honeyElements(config,null);
+    const rows=[];
+    responses.forEach(resp=>{
+      const d=resp.data||{}; const ratings=d.ratings||{}, supplied=d.supplied||{}, quotes=d.quotes||{};
+      const names=d.elementNames||els.map(e=>e.name);
+      const sArr=hEls.map(el=> supplied[el.id]!=null?supplied[el.id]:null);
+      const cons=[...config.constructs,...(d.elicited||[])];
+      let res=[];
+      if(!sArr.every(v=>v==null)){
+        res=analyseGrid(cons.map(c=>({id:c.id,left:c.left,right:c.right,
+          ratings:hEls.map(el=>(ratings[c.id]&&ratings[c.id][el.id]!=null)?ratings[c.id][el.id]:null)})),sArr,lo,hi).results;
+      }
+      const byId={}; res.forEach(x=>byId[x.id]=x);
+      rows.push(['Participant', resp.participant_name||resp.participant_id]);
+      rows.push(['Left pole', ...els.map((e,i)=>(names[i]||e.name)+(e.category?' ['+e.category+']':'')+(e.supplementary?' (suppl.)':'')), 'Right pole','Similarity','Band','Rank','Quote','Ref']);
+      cons.forEach(c=>{
+        const x=byId[c.id]||{}; const q=quotes[c.id]||{};
+        rows.push([c.left, ...els.map(el=> (ratings[c.id]&&ratings[c.id][el.id]!=null)?ratings[c.id][el.id]:''), c.right,
+          x.similarity!=null?x.similarity.toFixed(4):'', x.band||'', x.rank||'', q.text||'', q.ref||'']);
+      });
+      rows.push([config.suppliedLeft+' (supplied)', ...els.map(el=> supplied[el.id]!=null?supplied[el.id]:''), config.suppliedRight,'','','','','']);
+      rows.push([]);
+    });
+    downloadCsv(rows, slug(config.title)+'_grids_and_Honey.csv');
+  }
 
   return (
     <div className="fade">
@@ -587,6 +644,7 @@ function Analysis({config,responses,onOpen}){
           {responses.map(r=><option key={r.participant_id} value={r.participant_id}>{r.participant_name||'(unnamed)'}</option>)}
         </select>
         <div className="grow"/>
+        <button className="btn-s btn-sm" onClick={exportGrids}>Export grids + Honey</button>
         {r&&onOpen&&<button className="btn-s btn-sm" onClick={()=>onOpen(r)}>Edit this grid →</button>}
       </div>
       <div className="card">
@@ -634,7 +692,20 @@ function CompositeConstructs({config,setConfig,responses,onSave,saving,savedMsg}
   const editCat=(id,patch)=>setCats(categories.map(c=>c.id===id?{...c,...patch}:c));
   const delCat=(id)=>{ setCats(categories.filter(c=>c.id!==id));
     const a={...assignments}; Object.keys(a).forEach(k=>{if(a[k].cat===id)delete a[k];}); setAssign(a); };
-  const unassign=(key)=>{ const a={...assignments}; delete a[key]; setAssign(a); };
+  const unassign=(key, role)=>{
+    const a={...assignments};
+    if(role==='secondary'&&a[key]){ const x={...a[key]}; delete x.cat2; delete x.flip2; a[key]=x; }
+    else delete a[key];
+    setAssign(a);
+  };
+  // Secondary composite = James's "Complex Construct" (a construct may sit in two).
+  const setSecondary=(key, catId)=>{
+    const a={...assignments}; const cur=a[key]; if(!cur) return;
+    if(!catId){ const x={...cur}; delete x.cat2; delete x.flip2; a[key]=x; }
+    else { const cat=categories.find(c=>c.id===catId); const m=memberByKey[key];
+      a[key]={...cur, cat2:catId, flip2: m&&cat? autoFlip(m.effLabel,cat):false}; }
+    setAssign(a);
+  };
   function assignGroup(grp, catId){
     const cat=categories.find(c=>c.id===catId); const a={...assignments};
     grp.forEach(it=>{ if(catId){ const m=memberByKey[it.id]; a[it.id]={cat:catId, flip:m&&cat?autoFlip(m.effLabel,cat):false}; } else delete a[it.id]; });
@@ -651,6 +722,18 @@ function CompositeConstructs({config,setConfig,responses,onSave,saving,savedMsg}
     setConfig({...config, categories:[...categories,...cats], assignments:a});
   }
   const Sup=({n})=> <sup style={{color:'#e07030',fontWeight:700}}>&nbsp;P{n}</sup>;
+  // Table 5-2 (RGT Analysis): category, quote, pole definitions, frequencies.
+  function exportTable52(){
+    const rows=[['Construct Category','Illustrative quote','Construct pole definition','Opposite construct pole','Freq. Total','Unique Freq.','%','Constructs (verbatim, with participant)']];
+    categories.forEach(cat=>{
+      const mem=membersOf(members, assignments, cat.id);
+      const uniq=new Set(mem.map(x=>x.m.participant)).size;
+      rows.push([cat.name, cat.quote||'', cat.leftDef||cat.left, cat.rightDef||cat.right,
+        mem.length, uniq, totalP?Math.round(uniq/totalP*100)+'%':'',
+        mem.map(({m,role})=>m.left+' vs '+m.right+' [P'+m.pnum+(role==='secondary'?'/2°':'')+']').join(' | ')]);
+    });
+    downloadCsv(rows, slug(config.title)+'_Table5-2_RGT_Analysis.csv');
+  }
   const assignedCount=members.filter(m=>(assignments[m.key]||{}).cat).length;
   const unassignedGroups=groups.map(g=>g.filter(it=>!((assignments[it.id]||{}).cat))).filter(g=>g.length);
   const [busy,setBusy]=useState('');
@@ -696,7 +779,13 @@ function CompositeConstructs({config,setConfig,responses,onSave,saving,savedMsg}
       const batch=members.slice(i,i+B);
       try{
         const j=await api('/api/rep-grid-classify',{constructs:batch.map(m=>({id:m.key,left:m.left,right:m.right})),categories:cats,pass:cd.stance});
-        (j.assignments||[]).forEach(x=>{ if(x&&x.id&&x.cat&&cats.some(c=>c.id===x.cat)) out[x.id]={cat:x.cat, flip:!!x.flip}; });
+        (j.assignments||[]).forEach(x=>{
+          if(x&&x.id&&x.cat&&cats.some(c=>c.id===x.cat)){
+            const rec={cat:x.cat, flip:!!x.flip};
+            if(x.cat2 && x.cat2!==x.cat && cats.some(c=>c.id===x.cat2)){ rec.cat2=x.cat2; rec.flip2=!!x.flip2; }
+            out[x.id]=rec;
+          }
+        });
       }catch(e){}
     }
     setConfig({...config, coders:{...coders,[cd.id]:out}});
@@ -710,7 +799,7 @@ function CompositeConstructs({config,setConfig,responses,onSave,saving,savedMsg}
   function acceptAllAgreed(){
     if(!stats) return;
     const a={...assignments}; let n=0;
-    Object.keys(sets[0]).forEach(k=>{ if(sets.every(s=>s[k]&&s[k].cat===sets[0][k].cat)){ a[k]={cat:sets[0][k].cat,flip:sets[0][k].flip}; n++; } });
+    Object.keys(sets[0]).forEach(k=>{ if(sets.every(s=>s[k]&&s[k].cat===sets[0][k].cat)){ a[k]={...sets[0][k]}; n++; } });
     setConfig({...config,assignments:a}); alert('Accepted '+n+' unanimous codes.');
   }
   function acceptMajority(){
@@ -720,14 +809,20 @@ function CompositeConstructs({config,setConfig,responses,onSave,saving,savedMsg}
   }
   function adjudicate(key, coderId){
     const pick=(coders[coderId]||{})[key]; if(!pick) return;
-    setConfig({...config, assignments:{...assignments, [key]:{cat:pick.cat, flip:pick.flip}}});
+    setConfig({...config, assignments:{...assignments, [key]:{...pick}}});
   }
   // Human coding: set this coder's code for one construct.
-  function humanCode(coderId, key, catId){
+  function humanCode(coderId, key, catId, cat2Id){
     const cur={...(coders[coderId]||{})};
     if(!catId) delete cur[key];
-    else { const cat=categories.find(c=>c.id===catId); const m=memberByKey[key];
-      cur[key]={cat:catId, flip:m&&cat?autoFlip(m.effLabel,cat):false}; }
+    else {
+      const m=memberByKey[key];
+      const cat=categories.find(c=>c.id===catId);
+      const rec={cat:catId, flip:m&&cat?autoFlip(m.effLabel,cat):false};
+      if(cat2Id){ const c2=categories.find(c=>c.id===cat2Id);
+        rec.cat2=cat2Id; rec.flip2=m&&c2?autoFlip(m.effLabel,c2):false; }
+      cur[key]=rec;
+    }
     setConfig({...config, coders:{...coders,[coderId]:cur}});
   }
 
@@ -751,10 +846,17 @@ function CompositeConstructs({config,setConfig,responses,onSave,saving,savedMsg}
           {list.length===0 && <p className="mini">Nothing left to code.</p>}
           {list.slice(0,250).map(m=>(
             <div className="list-row" key={m.key}>
-              <span style={{flex:1,fontSize:'.82rem'}}>{m.left} <span className="mini">vs</span> {m.right}<Sup n={m.pnum}/></span>
-              <select className="inp inp-sm" style={{width:230,flex:'0 0 auto'}} value={(mine[m.key]||{}).cat||''} onChange={e=>humanCode(coding,m.key,e.target.value)}>
+              <span style={{flex:1,fontSize:'.82rem'}}>{m.left} <span className="mini">vs</span> {m.right}<Sup n={m.pnum}/>
+                {(mine[m.key]||{}).text?<div className="mini" style={{whiteSpace:'normal',maxWidth:420}}>“{mine[m.key].text}”</div>:null}</span>
+              <select className="inp inp-sm" style={{width:200,flex:'0 0 auto'}} value={(mine[m.key]||{}).cat||''} onChange={e=>humanCode(coding,m.key,e.target.value)}>
                 <option value="">— uncoded —</option>
                 {categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+              <select className="inp inp-sm" style={{width:180,flex:'0 0 auto'}} title="Optional second composite (complex construct)"
+                value={(mine[m.key]||{}).cat2||''} disabled={!(mine[m.key]||{}).cat}
+                onChange={e=>humanCode(coding,m.key,(mine[m.key]||{}).cat,e.target.value)}>
+                <option value="">+ secondary…</option>
+                {categories.filter(c=>c.id!==(mine[m.key]||{}).cat).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
           ))}
@@ -773,6 +875,7 @@ function CompositeConstructs({config,setConfig,responses,onSave,saving,savedMsg}
         <div className="grow"/>
         {busy && <span className="small" style={{color:'#e07030'}}>{busy}</span>}
         <button className="btn-s btn-sm" disabled={!!busy} onClick={derive}>✦ Derive from data</button>
+        <button className="btn-s btn-sm" onClick={exportTable52}>Export Table 5-2</button>
         <button className="btn-s btn-sm" onClick={addCat}>+ Add composite</button>
       </div>
 
@@ -848,8 +951,8 @@ function CompositeConstructs({config,setConfig,responses,onSave,saving,savedMsg}
       )}
       {categories.length===0 && <p className="muted small">None yet. Auto-generate to seed categories from similar constructs, then rename and edit definitions.</p>}
       {categories.map(cat=>{
-        const mem=members.filter(m=>(assignments[m.key]||{}).cat===cat.id);
-        const uniq=new Set(mem.map(m=>m.participant)).size;
+        const mem=membersOf(members, assignments, cat.id);
+        const uniq=new Set(mem.map(x=>x.m.participant)).size;
         return (
           <div className="card" key={cat.id}>
             <div className="toolbar" style={{marginBottom:6}}>
@@ -868,7 +971,11 @@ function CompositeConstructs({config,setConfig,responses,onSave,saving,savedMsg}
             </div>
             <div className="field" style={{marginTop:8}}><label className="field-lbl">Illustrative quote</label>
               <input className="inp inp-sm" value={cat.quote||''} onChange={e=>editCat(cat.id,{quote:e.target.value})} placeholder="“…”"/></div>
-            <div>{mem.length?mem.map(m=><span className="chip" key={m.key} style={{cursor:'pointer'}} title="click to remove" onClick={()=>unassign(m.key)}>{m.left} vs {m.right}<Sup n={m.pnum}/></span>):<span className="mini">No constructs assigned yet — use the pool below.</span>}</div>
+            <div>{mem.length?mem.map(({m,role})=>(
+              <span className="chip" key={m.key+role} style={{cursor:'pointer',borderStyle:role==='secondary'?'dashed':'solid'}}
+                title={role==='secondary'?'secondary composite (complex construct) — click to remove':'click to remove'}
+                onClick={()=>unassign(m.key, role)}>{m.left} vs {m.right}<Sup n={m.pnum}/>{role==='secondary'?<sup style={{color:'#888'}}>&nbsp;2°</sup>:null}</span>
+            )):<span className="mini">No constructs assigned yet — use the pool below.</span>}</div>
           </div>
         );
       })}
@@ -901,7 +1008,7 @@ function CompositeConstructs({config,setConfig,responses,onSave,saving,savedMsg}
 const CAT_FULL={SL:'System Leadership',TL:'Traditional Leadership',FL:'Future Leadership'};
 function catFull(c){ return CAT_FULL[c]||c; }
 function CompositeTable({config,responses}){
-  const elemCats=[...new Set(config.elements.map(e=>e.category).filter(Boolean))];
+  const elemCats=[...new Set(honeyElements(config,null).map(e=>e.category).filter(Boolean))];
   const [seg,setSeg]=useState('all');
   const categories=config.categories||[], assignments=config.assignments||{};
   const memAll=useMemo(()=>pooledMembers(responses,config,null),[responses,config.elements,config.constructs]);
@@ -962,13 +1069,26 @@ function CompositeTable({config,responses}){
     );
   }
 
+  function exportHoney(){
+    const hdr=['Construct category','Unique freq %','Preferred pole','Preferred pole definition','Mean similarity %','Opposite pole','Opposite pole definition','Mean sim %','Preference','H%','I%','L%','n constructs'];
+    const rows=[];
+    const push=(label,rs)=>{ rows.push([label]); rows.push(hdr);
+      rs.filter(r=>r.n>0).forEach(r=>rows.push([r.cat.name, Math.round(r.uniquePct)+'%', r.cat.left, r.cat.leftDef||'',
+        r.left.toFixed(1)+'%', r.cat.right, r.cat.rightDef||'', r.right.toFixed(1)+'%', r.pref,
+        r.H.toFixed(0), r.I.toFixed(0), r.L.toFixed(0), r.n])); rows.push([]); };
+    push('Honey Content Table — ALL elements', all);
+    elemCats.forEach(c=> push('Honey Content Table — '+catFull(c)+' elements only', rowsFor(c)));
+    downloadCsv(rows, slug(config.title)+'_Honey_Content_Table.csv');
+  }
   return (
     <div className="fade">
-      <div className="inf-box">Step 3 — James's <b>Honey Content Table</b>: each composite construct's preferred-pole mean similarity to the supplied “{config.suppliedLeft}” construct, and its H/I/L spread. Run over all elements, or split by element category. {elemCats.map(c=>c+' = '+catFull(c)).join(' · ')}.</div>
+      <div className="inf-box">Step 3 — James's <b>Honey Content Table</b>: each composite construct's preferred-pole mean similarity to the supplied “{config.suppliedLeft}” construct, and its H/I/L spread. Run over all elements, or split by element category. {elemCats.map(c=>c+' = '+catFull(c)).join(' · ')}. Supplementary elements are excluded from the similarity, as in the thesis.</div>
       <div className="toolbar">
         <button className="btn-s btn-sm" style={seg==='all'?{borderColor:'#1a1a1a'}:{}} onClick={()=>setSeg('all')}>All elements</button>
         {elemCats.map(c=><button key={c} className="btn-s btn-sm" style={seg===c?{borderColor:'#1a1a1a'}:{}} onClick={()=>setSeg(c)}>{catFull(c)}</button>)}
         {elemCats.length>=2 && <button className="btn-s btn-sm" style={seg==='compare'?{borderColor:'#1a1a1a'}:{}} onClick={()=>setSeg('compare')}>Comparative</button>}
+        <div className="grow"/>
+        <button className="btn-s btn-sm" onClick={exportHoney}>Export Honey tables</button>
       </div>
       <div className="card">
         {seg==='all' && <HoneyTable rows={all}/>}
