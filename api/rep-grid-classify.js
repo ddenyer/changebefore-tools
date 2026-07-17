@@ -9,7 +9,8 @@
 // category's OPPOSITE pole rather than its preferred pole.
 
 const KEY = process.env.ANTHROPIC_API_KEY;
-const MODEL = 'claude-sonnet-4-20250514';
+// Model confirmed in production use by stat-ai-questions.js. Override via env.
+const MODEL = process.env.REPGRID_MODEL || 'claude-haiku-4-5-20251001';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
