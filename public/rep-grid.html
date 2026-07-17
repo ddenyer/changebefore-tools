@@ -187,6 +187,21 @@ function compositeRows(members, categories, assignments, totalP, fixedOrient){
 function autoFlip(effLabel, cat){
   return jaccard(tokens(effLabel), tokens(cat.right)) > jaccard(tokens(effLabel), tokens(cat.left));
 }
+// Inter-rater reliability for two independent coders: raw agreement + Cohen's kappa.
+function interRater(A,B){
+  const keys=Object.keys(A).filter(k=>B[k]);
+  const n=keys.length; if(!n) return {n:0,po:0,kappa:0,disagree:[]};
+  let match=0; const cA={}, cB={}; const disagree=[];
+  keys.forEach(k=>{
+    const a=A[k].cat, b=B[k].cat;
+    cA[a]=(cA[a]||0)+1; cB[b]=(cB[b]||0)+1;
+    if(a===b) match++; else disagree.push(k);
+  });
+  const po=match/n;
+  let pe=0; Object.keys(cA).forEach(c=>{ if(cB[c]) pe += (cA[c]/n)*(cB[c]/n); });
+  const kappa = pe===1?1:(po-pe)/(1-pe);
+  return {n, po, kappa, disagree};
+}
 
 /* ============================ helpers ====================== */
 const uid=()=> (crypto.randomUUID? crypto.randomUUID() : 'id-'+Math.random().toString(36).slice(2)+Date.now());
@@ -620,24 +635,48 @@ function CompositeConstructs({config,setConfig,responses,onSave,saving,savedMsg}
       alert('Derived '+cats.length+' composite constructs. Review/edit them, then use “AI assign constructs”.');
     }catch(e){ setBusy(''); alert('Derive failed: '+e.message); }
   }
-  // Code every construct into the current categories (second-coder pass).
+  // One coding pass over every construct (optionally under a coder stance).
+  async function codePass(pass, label){
+    const cats=categories.map(c=>({id:c.id,name:c.name,left:c.left,leftDef:c.leftDef,right:c.right,rightDef:c.rightDef}));
+    const out={}; const B=60;
+    for(let i=0;i<members.length;i+=B){
+      const batch=members.slice(i,i+B);
+      setBusy(label+' '+Math.min(i+B,members.length)+'/'+members.length);
+      try{
+        const j=await api('/api/rep-grid-classify',{constructs:batch.map(m=>({id:m.key,left:m.left,right:m.right})),categories:cats,pass});
+        (j.assignments||[]).forEach(x=>{ if(x&&x.id&&x.cat&&cats.some(c=>c.id===x.cat)) out[x.id]={cat:x.cat, flip:!!x.flip}; });
+      }catch(e){}
+    }
+    return out;
+  }
+  // Single-coder pass.
   async function aiAssign(){
     if(!categories.length){ alert('Create or derive composite constructs first.'); return; }
-    const todo=members.slice();
-    const cats=categories.map(c=>({id:c.id,name:c.name,left:c.left,leftDef:c.leftDef,right:c.right,rightDef:c.rightDef}));
-    const a={...assignments}; let done=0, fails=0;
-    const B=60;
-    for(let i=0;i<todo.length;i+=B){
-      const batch=todo.slice(i,i+B);
-      setBusy('Coding constructs… '+Math.min(i+B,todo.length)+'/'+todo.length);
-      try{
-        const j=await api('/api/rep-grid-classify',{constructs:batch.map(m=>({id:m.key,left:m.left,right:m.right})),categories:cats});
-        (j.assignments||[]).forEach(x=>{ if(x&&x.id&&x.cat&&cats.some(c=>c.id===x.cat)) { a[x.id]={cat:x.cat, flip:!!x.flip}; done++; } });
-      }catch(e){ fails++; }
-    }
-    setConfig({...config, assignments:a});
+    const a=await codePass(null,'Coding constructs…');
+    setConfig({...config, assignments:{...assignments, ...a}});
     setBusy('');
-    alert('Coded '+done+' of '+todo.length+' constructs'+(fails?(' ('+fails+' batches failed)'):'')+'.\n\nReview, then Save categorisation.');
+    alert('Coded '+Object.keys(a).length+' of '+members.length+' constructs.\n\nReview, then Save categorisation.');
+  }
+  // Two independent coders → agreement + kappa → adjudicate only disagreements.
+  async function twoCoder(){
+    if(!categories.length){ alert('Create or derive composite constructs first.'); return; }
+    if(!window.confirm('Run two independent coding passes over all '+members.length+' constructs?\n\nThey code separately; you then adjudicate only where they disagree.')) return;
+    const A=await codePass('A','Coder A (definition-led)…');
+    const B=await codePass('B','Coder B (participant-language-led)…');
+    const ir=interRater(A,B);
+    // Auto-accept where both coders agree; leave disagreements for the researcher.
+    const a={...assignments};
+    Object.keys(A).forEach(k=>{ if(B[k]&&B[k].cat===A[k].cat) a[k]={cat:A[k].cat, flip:A[k].flip}; });
+    setConfig({...config, coders:{A,B}, assignments:a});
+    setBusy('');
+    alert('Two-coder pass complete.\n\nAgreement: '+(ir.po*100).toFixed(1)+'%  ·  Cohen’s κ = '+ir.kappa.toFixed(2)+'\nAgreed and auto-accepted: '+(ir.n-ir.disagree.length)+'\nTo adjudicate: '+ir.disagree.length);
+  }
+  const coders=config.coders||null;
+  const ir=useMemo(()=> coders? interRater(coders.A||{},coders.B||{}) : null,[coders]);
+  const catName=(id)=>(categories.find(c=>c.id===id)||{}).name||'—';
+  function adjudicate(key, from){
+    const pick=(coders[from]||{})[key]; if(!pick) return;
+    setConfig({...config, assignments:{...assignments, [key]:{cat:pick.cat, flip:pick.flip}}});
   }
 
   return (
@@ -649,10 +688,41 @@ function CompositeConstructs({config,setConfig,responses,onSave,saving,savedMsg}
         <div className="grow"/>
         {busy && <span className="small" style={{color:'#e07030'}}>{busy}</span>}
         <button className="btn-s btn-sm" disabled={!!busy} onClick={derive}>✦ Derive from data</button>
-        <button className="btn-s btn-sm" disabled={!!busy} onClick={aiAssign}>✦ AI assign constructs</button>
-        <button className="btn-s btn-sm" onClick={autoGenerate}>Quick group</button>
+        <button className="btn-s btn-sm" disabled={!!busy} onClick={aiAssign}>✦ Code once</button>
+        <button className="btn-p btn-sm" disabled={!!busy} onClick={twoCoder}>✦✦ Two-coder pass</button>
         <button className="btn-s btn-sm" onClick={addCat}>+ Add composite</button>
       </div>
+
+      {ir && ir.n>0 && (
+        <div className="card">
+          <div className="sec-tag">Inter-rater reliability (two independent coders)</div>
+          <div className="row" style={{alignItems:'center'}}>
+            <div><div className="mini">Raw agreement</div><div style={{fontSize:'1.4rem',fontWeight:700,color:'#16a34a'}}>{(ir.po*100).toFixed(1)}%</div></div>
+            <div><div className="mini">Cohen’s κ</div><div style={{fontSize:'1.4rem',fontWeight:700}}>{ir.kappa.toFixed(2)}</div></div>
+            <div><div className="mini">Agreed (auto-accepted)</div><div style={{fontSize:'1.4rem',fontWeight:700}}>{ir.n-ir.disagree.length}</div></div>
+            <div><div className="mini">To adjudicate</div><div style={{fontSize:'1.4rem',fontWeight:700,color:'#dc2626'}}>{ir.disagree.length}</div></div>
+          </div>
+          <p className="field-sub" style={{marginTop:'.5rem'}}>Coder A worked definition-led; Coder B worked from the participant's own language. Where they agree the code is accepted automatically; below are only the constructs where they differ — your judgement decides, exactly as the expert panel did in the thesis.</p>
+        </div>
+      )}
+
+      {ir && ir.disagree.length>0 && (
+        <div className="card">
+          <div className="sec-tag">Disagreements to adjudicate ({ir.disagree.length})</div>
+          {ir.disagree.slice(0,120).map(k=>{
+            const m=memberByKey[k]; if(!m) return null;
+            const a=coders.A[k], b=coders.B[k]; const cur=(assignments[k]||{}).cat;
+            return (
+              <div className="list-row" key={k}>
+                <span style={{flex:1,fontSize:'.82rem'}}>{m.left} <span className="mini">vs</span> {m.right}<Sup n={m.pnum}/></span>
+                <button className="btn-s btn-sm" style={cur===a.cat?{borderColor:'#16a34a',fontWeight:700}:{}} onClick={()=>adjudicate(k,'A')}>A: {catName(a.cat)}</button>
+                <button className="btn-s btn-sm" style={cur===b.cat?{borderColor:'#16a34a',fontWeight:700}:{}} onClick={()=>adjudicate(k,'B')}>B: {catName(b.cat)}</button>
+              </div>
+            );
+          })}
+          {ir.disagree.length>120 && <p className="mini">Showing first 120 of {ir.disagree.length}.</p>}
+        </div>
+      )}
       {categories.length===0 && <p className="muted small">None yet. Auto-generate to seed categories from similar constructs, then rename and edit definitions.</p>}
       {categories.map(cat=>{
         const mem=members.filter(m=>(assignments[m.key]||{}).cat===cat.id);
