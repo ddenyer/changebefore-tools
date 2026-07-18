@@ -140,11 +140,11 @@ function pooledMembers(responses, config, filterCat){
   const lo=config.scaleMin, hi=config.scaleMax;
   const rows=[];
   responses.forEach(r=>{
-    const d=r.data||{}; const ratings=d.ratings||{}; const supplied=d.supplied||{};
+    const d=r.data||{}; const ratings=d.ratings||{}; const supplied=d.supplied||{}; const noPol=d.noPolarity||{};
     const sSub=elIds.map(e=> supplied[e]!=null?supplied[e]:null);
     if(!elIds.length || sSub.every(v=>v==null)) return;
     const sRev=reverseRatings(sSub,lo,hi);
-    const cons=[...config.constructs, ...(d.elicited||[])];
+    const cons=[...config.constructs, ...(d.elicited||[])].filter(c=> !noPol[c.id]);  // no-clear-polarity excluded
     const scored=cons.map(c=>{
       const cArr=elIds.map(e=> (ratings[c.id]&&ratings[c.id][e]!=null)?ratings[c.id][e]:null);
       if(cArr.every(v=>v==null)) return null;
@@ -250,6 +250,79 @@ function majorityPick(sets,key){
   const winner=e[0][0];
   const src=sets.find(s=>s[key]&&s[key].cat===winner);
   return {cat:winner, flip:src[key].flip, votes:e[0][1]};
+}
+
+/* ================= Grid maps: variability, FOCUS cluster, PCA biplot ========= */
+// Mean of a numeric array (nulls ignored).
+function amean(a){ let s=0,n=0; a.forEach(v=>{ if(v!=null){s+=v;n++;} }); return n?s/n:0; }
+// Average Normal Variability: mean, across constructs, of each construct's SD of
+// element ratings expressed as % of the maximum possible SD on the scale.
+// (Transparent measure of how much the grid's constructs discriminate elements.)
+function averageVariability(M, lo, hi){
+  if(!M.length) return 0;
+  const maxSD=(hi-lo)/2;
+  let tot=0,k=0;
+  M.forEach(row=>{
+    const vals=row.filter(v=>v!=null); if(vals.length<2) return;
+    const mu=amean(vals); const varc=vals.reduce((a,v)=>a+(v-mu)*(v-mu),0)/vals.length;
+    tot += (Math.sqrt(varc)/maxSD)*100; k++;
+  });
+  return k? tot/k : 0;
+}
+// Jacobi eigen-decomposition of a small symmetric matrix -> {values, vectors(cols)}.
+function jacobiEigen(A){
+  const n=A.length; let a=A.map(r=>r.slice());
+  let v=Array.from({length:n},(_,i)=>Array.from({length:n},(_,j)=>i===j?1:0));
+  for(let sweep=0;sweep<100;sweep++){
+    let off=0; for(let p=0;p<n;p++)for(let q=p+1;q<n;q++)off+=a[p][q]*a[p][q];
+    if(off<1e-12) break;
+    for(let p=0;p<n;p++)for(let q=p+1;q<n;q++){
+      if(Math.abs(a[p][q])<1e-14) continue;
+      const th=(a[q][q]-a[p][p])/(2*a[p][q]);
+      const t=(th>=0?1:-1)/(Math.abs(th)+Math.sqrt(th*th+1));
+      const c=1/Math.sqrt(t*t+1), s=t*c;
+      for(let i=0;i<n;i++){ const aip=a[i][p],aiq=a[i][q]; a[i][p]=c*aip-s*aiq; a[i][q]=s*aip+c*aiq; }
+      for(let i=0;i<n;i++){ const api=a[p][i],aqi=a[q][i]; a[p][i]=c*api-s*aqi; a[q][i]=s*api+c*aqi; }
+      for(let i=0;i<n;i++){ const vip=v[i][p],viq=v[i][q]; v[i][p]=c*vip-s*viq; v[i][q]=s*vip+c*viq; }
+    }
+  }
+  const vals=a.map((r,i)=>r[i]);
+  const idx=vals.map((val,i)=>[val,i]).sort((x,y)=>y[0]-x[0]);
+  return { values: idx.map(x=>x[0]), vectors: idx.map(x=> v.map(r=>r[x[1]])) }; // vectors[k] = kth eigenvector
+}
+// PrinGrid / Slater-style biplot from a constructs x elements matrix (row-centred).
+function pcaBiplot(M, lo, hi){
+  const R=M.length, E=M[0]?M[0].length:0; if(!R||!E) return null;
+  // mean-impute + centre each construct on its own mean
+  const G=M.map(row=>{ const mu=amean(row); return row.map(v=> (v==null?mu:v)-mu); });
+  // element-element covariance (E x E)
+  const C=Array.from({length:E},()=>new Array(E).fill(0));
+  for(let i=0;i<E;i++)for(let j=0;j<E;j++){ let s=0; for(let r=0;r<R;r++) s+=G[r][i]*G[r][j]; C[i][j]=s/(R||1); }
+  const {values,vectors}=jacobiEigen(C);
+  const total=values.reduce((a,b)=>a+Math.max(b,0),0)||1;
+  const pc=[0,1].map(k=>({ ev:vectors[k], lambda:Math.max(values[k],0), pct:Math.max(values[k],0)/total*100 }));
+  const elem=[]; for(let i=0;i<E;i++) elem.push([ pc[0].ev[i]*Math.sqrt(pc[0].lambda), pc[1].ev[i]*Math.sqrt(pc[1].lambda) ]);
+  const con=G.map(row=>[0,1].map(k=>{ let s=0; for(let i=0;i<E;i++) s+=row[i]*pc[k].ev[i]; return pc[k].lambda>1e-9? s/Math.sqrt(pc[k].lambda):0; }));
+  return { elem, con, pct:[pc[0].pct,pc[1].pct] };
+}
+// FOCUS single-linkage ordering of rows of a similarity matrix.
+function focusOrder(sim){
+  const n=sim.length; if(!n) return [];
+  let cl=Array.from({length:n},(_,i)=>[i]);
+  const link=(x,y)=>{ let b=-Infinity; x.forEach(i=>y.forEach(j=>{ if(sim[i][j]>b)b=sim[i][j]; })); return b; };
+  while(cl.length>1){ let bi=0,bj=1,best=-Infinity;
+    for(let i=0;i<cl.length;i++)for(let j=i+1;j<cl.length;j++){ const l=link(cl[i],cl[j]); if(l>best){best=l;bi=i;bj=j;} }
+    const merged=[...cl[bi],...cl[bj]]; cl=cl.filter((_,k)=>k!==bi&&k!==bj); cl.push(merged);
+  }
+  return cl[0];
+}
+function simMatrix(rows, range){
+  const n=rows.length; const m=Array.from({length:n},()=>new Array(n).fill(1));
+  for(let i=0;i<n;i++)for(let j=i+1;j<n;j++){
+    let s=0,c=0; for(let k=0;k<rows[i].length;k++){ if(rows[i][k]!=null&&rows[j][k]!=null){ s+=Math.abs(rows[i][k]-rows[j][k]); c++; } }
+    const v=c? 1-s/(c*range):0; m[i][j]=v; m[j][i]=v;
+  }
+  return m;
 }
 
 /* ============================ helpers ====================== */
@@ -418,6 +491,7 @@ function Interview({config, code, resp, onBack}){
   const [supplied,setSupplied]=useState((resp.data&&resp.data.supplied)||{});
   const [quotes,setQuotes]=useState((resp.data&&resp.data.quotes)||{});
   const [elicited,setElicited]=useState((resp.data&&resp.data.elicited)||[]);
+  const [noPolarity,setNoPolarity]=useState((resp.data&&resp.data.noPolarity)||{});
   const [status,setStatus]=useState((resp.data&&resp.data.status)||'in_progress');
   const prescribed=config.constructs.map(c=>({...c,elicited:false}));
   const combined=[...prescribed, ...elicited.map(c=>({...c,elicited:true}))];
@@ -428,7 +502,7 @@ function Interview({config, code, resp, onBack}){
 
   function scheduleSave(nextStatus){
     setSaveState('saving'); clearTimeout(timer.current);
-    const snap={ratings,supplied,quotes,elicited,elementNames,status:nextStatus||status};
+    const snap={ratings,supplied,quotes,elicited,noPolarity,elementNames,status:nextStatus||status};
     timer.current=setTimeout(async()=>{
       try{
         await saveWithRetry({kind:'response',session_code:code,participant_id:resp.participant_id,participant_name:name,
@@ -437,13 +511,19 @@ function Interview({config, code, resp, onBack}){
       }catch(e){ setSaveState('error'); alert("We couldn't save right now. Please check your connection and try again."); }
     },300);
   }
-  useEffect(()=>{ scheduleSave(); /* eslint-disable-next-line */ },[ratings,supplied,quotes,elicited,name]);
+  useEffect(()=>{ scheduleSave(); /* eslint-disable-next-line */ },[ratings,supplied,quotes,elicited,noPolarity,name]);
 
   const rate=(cid,eid,v)=> setRatings(p=>({...p,[cid]:{...(p[cid]||{}),[eid]:v}}));
   const rateSup=(eid,v)=> setSupplied(p=>({...p,[eid]:v}));
   const setQuote=(cid,patch)=> setQuotes(p=>({...p,[cid]:{...(p[cid]||{}),...patch}}));
-  const addElicited=()=>{ const id=uid(); setElicited(p=>[...p,{id,left:'New construct',right:'Opposite pole'}]); setSelected(id); };
-  const setPole=(cid,side,v)=> setElicited(p=>p.map(c=>c.id===cid?{...c,[side]:v}:c));
+  const addElicited=()=>{ const id=uid(); setElicited(p=>[...p,{id,left:'New construct',right:'Opposite pole',origLeft:'New construct',origRight:'Opposite pole'}]); setSelected(id); };
+  // Editing a pole keeps the original (as-elicited) wording for post-transcript validation.
+  const setPole=(cid,side,v)=> setElicited(p=>p.map(c=>{ if(c.id!==cid) return c;
+    const o={...c,[side]:v};
+    if(side==='left'&&o.origLeft===undefined) o.origLeft=c.left;
+    if(side==='right'&&o.origRight===undefined) o.origRight=c.right;
+    return o; }));
+  const togglePolarity=(cid)=> setNoPolarity(p=>{ const n={...p}; if(n[cid]) delete n[cid]; else n[cid]=true; return n; });
   const removeElicited=(cid)=>{ setElicited(p=>p.filter(c=>c.id!==cid)); setRatings(p=>{const n={...p}; delete n[cid]; return n;}); if(selected===cid) setSelected(prescribed[0]?prescribed[0].id:null); };
 
   const total=combined.length*config.elements.length+config.elements.length;
@@ -480,11 +560,19 @@ function Interview({config, code, resp, onBack}){
 
       {selC&&(
         <div className="card">
-          <div className="sec-tag">Quote</div>
-          <div className="pg-title" style={{fontSize:'1.1rem',marginBottom:'.6rem'}}>{selC.left} vs {selC.right}</div>
+          <div className="toolbar" style={{marginBottom:6}}>
+            <div className="sec-tag" style={{margin:0}}>Construct — {selC.left} vs {selC.right}</div>
+            <div className="grow"/>
+            <label className="anon-toggle" title="Flag constructs Honey should skip — e.g. no clear high/low (effective) direction">
+              <input type="checkbox" checked={!!noPolarity[selected]} onChange={()=>togglePolarity(selected)}/> no clear polarity
+            </label>
+          </div>
+          {selC.elicited && (selC.origLeft&&selC.origLeft!==selC.left || selC.origRight&&selC.origRight!==selC.right) &&
+            <p className="mini">Post-transcript edit — originally: “{selC.origLeft||selC.left}” vs “{selC.origRight||selC.right}”.</p>}
+          <label className="field-lbl">Illustrative quote</label>
           <textarea className="inp inp-ta" value={q.text||''} onChange={e=>setQuote(selected,{text:e.target.value})} placeholder="Illustrative quote…"/>
           <div className="sp"/>
-          <input className="inp inp-sm" value={q.ref||''} onChange={e=>setQuote(selected,{ref:e.target.value})} placeholder="Reference (optional)"/>
+          <input className="inp inp-sm" value={q.ref||''} onChange={e=>setQuote(selected,{ref:e.target.value})} placeholder="Reference (time / page)"/>
         </div>
       )}
 
@@ -593,17 +681,30 @@ function Interviews({config,responses,onOpen,onNew,onDelete}){
 function Analysis({config,responses,onOpen}){
   const withData=responses.filter(r=>{ const s=(r.data&&r.data.supplied)||{}; return config.elements.some(el=>s[el.id]!=null); });
   const [sel,setSel]=useState(withData[0]?withData[0].participant_id:'');
+  const [showMaps,setShowMaps]=useState(false);
   const lo=config.scaleMin, hi=config.scaleMax;
   const r=responses.find(x=>x.participant_id===sel);
   const info=useMemo(()=>{
     if(!r) return null;
-    const ratings=(r.data&&r.data.ratings)||{}, supplied=(r.data&&r.data.supplied)||{}, quotes=(r.data&&r.data.quotes)||{};
+    const ratings=(r.data&&r.data.ratings)||{}, supplied=(r.data&&r.data.supplied)||{}, quotes=(r.data&&r.data.quotes)||{}, noPol=(r.data&&r.data.noPolarity)||{};
     const els=honeyElements(config,null);   // supplementary elements held out
     const sArr=els.map(el=> supplied[el.id]!=null?supplied[el.id]:null);
-    if(sArr.every(v=>v==null)) return {rows:[],quotes};
-    const cons=[...config.constructs,...((r.data&&r.data.elicited)||[])].map(c=>({id:c.id,left:c.left,right:c.right,
+    if(sArr.every(v=>v==null)) return {rows:[],quotes,excluded:0,maps:null};
+    const allCons=[...config.constructs,...((r.data&&r.data.elicited)||[])];
+    const cons=allCons.filter(c=>!noPol[c.id]).map(c=>({id:c.id,left:c.left,right:c.right,
       ratings:els.map(el=>(ratings[c.id]&&ratings[c.id][el.id]!=null)?ratings[c.id][el.id]:null)}));
-    return {rows:analyseGrid(cons,sArr,lo,hi).results.sort((a,b)=>a.rank-b.rank), quotes};
+    // Grid maps use all rated constructs (with data), incl. any flagged.
+    const mapCons=allCons.filter(c=> els.some(el=> ratings[c.id]&&ratings[c.id][el.id]!=null));
+    const M=mapCons.map(c=> els.map(el=> (ratings[c.id]&&ratings[c.id][el.id]!=null)?ratings[c.id][el.id]:null));
+    let maps=null;
+    if(mapCons.length>=2 && els.length>=2){
+      const anv=averageVariability(M,lo,hi);
+      const bip=pcaBiplot(M,lo,hi);
+      const cOrder=focusOrder(simMatrix(M,hi-lo));
+      const eOrder=focusOrder(simMatrix(els.map((_,j)=>M.map(row=>row[j])),hi-lo));
+      maps={els,cons:mapCons,M,anv,bip,cOrder,eOrder};
+    }
+    return {rows:analyseGrid(cons,sArr,lo,hi).results.sort((a,b)=>a.rank-b.rank), quotes, excluded:allCons.length-cons.length, maps};
   },[r,config]);
 
   // Every grid: raw ratings (all elements incl. supplementary) + Honey + quotes.
@@ -672,7 +773,58 @@ function Analysis({config,responses,onOpen}){
             );
           })}</tbody>
         </table></div>}
+        {info&&info.excluded>0 && <p className="mini" style={{marginTop:'.5rem'}}>{info.excluded} construct(s) flagged “no clear polarity” and excluded from this Honey ranking (set in the interview grid).</p>}
       </div>
+
+      {info&&info.maps && (
+        <div className="card">
+          <div className="toolbar" style={{marginBottom:6}}>
+            <div className="sec-tag" style={{margin:0}}>Grid maps (Idiogrid-style)</div>
+            <span className="tag">Avg variability {info.maps.anv.toFixed(0)}%</span>
+            <div className="grow"/>
+            <button className="btn-s btn-sm" onClick={()=>setShowMaps(!showMaps)}>{showMaps?'Hide':'Show FOCUS + PrinGrid'}</button>
+          </div>
+          <p className="field-sub">Average Normal Variability = mean spread of each construct's ratings across the elements (0 = flat, 100 = maximally discriminating). Show the maps for the FOCUS two-way cluster grid and the PrinGrid/PCA biplot.</p>
+          {showMaps && <GridMaps maps={info.maps} scaleMin={lo} scaleMax={hi}/>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* PrinGrid biplot + FOCUS-clustered grid for one participant. */
+function GridMaps({maps,scaleMin,scaleMax}){
+  const {els,cons,M,bip,cOrder,eOrder}=maps;
+  const W=560,H=380,cx=W/2,cy=H/2;
+  const pts=[...bip.elem, ...bip.con];
+  const maxR=Math.max(0.001,...pts.map(p=>Math.hypot(p[0],p[1])));
+  const sc=(Math.min(W,H)/2-46)/maxR;
+  const X=x=>cx+x*sc, Y=y=>cy-y*sc;
+  const shade=v=>{ if(v==null) return '#f4f3f0'; const t=(v-scaleMin)/(scaleMax-scaleMin); const g=Math.round(230-150*t); return 'rgb('+Math.round(224-(224-31)*t)+','+Math.round(224-(224-125)*t)+','+Math.round(216-(216-70)*t)+')'; };
+  return (
+    <div>
+      <div className="sec-tag" style={{marginTop:'.4rem'}}>PrinGrid biplot — PC1 {bip.pct[0].toFixed(0)}% · PC2 {bip.pct[1].toFixed(0)}%</div>
+      <div className="scroll"><svg width={W} height={H} style={{border:'1px solid #d8d3cb',borderRadius:4,background:'#fff'}}>
+        <line x1={0} y1={cy} x2={W} y2={cy} stroke="#e0ddd8"/><line x1={cx} y1={0} x2={cx} y2={H} stroke="#e0ddd8"/>
+        {bip.con.map((p,i)=>(<g key={'c'+i}>
+          <line x1={cx} y1={cy} x2={X(p[0])} y2={Y(p[1])} stroke="#e0ddd8"/>
+          <circle cx={X(p[0])} cy={Y(p[1])} r={2.5} fill="#c98a1e"/>
+          <text x={X(p[0])+3} y={Y(p[1])-2} fontSize="8" fill="#8a6a1e">{(cons[i].left||'').slice(0,16)}</text>
+        </g>))}
+        {bip.elem.map((p,i)=>(<g key={'e'+i}>
+          <circle cx={X(p[0])} cy={Y(p[1])} r={5} fill="#2f5bd7"/>
+          <text x={X(p[0])+7} y={Y(p[1])+3} fontSize="10" fontWeight="700" fill="#1a1a1a">{(els[i].name||'').slice(0,20)}</text>
+        </g>))}
+      </svg></div>
+      <div className="sec-tag" style={{marginTop:'.8rem'}}>FOCUS grid — rows &amp; columns reordered so similar items sit together</div>
+      <div className="scroll"><table className="grid" style={{fontSize:'.72rem'}}>
+        <thead><tr><th className="pole">Construct (left pole)</th>{eOrder.map(j=><th key={j} style={{writingMode:'vertical-rl',height:70}}>{(els[j].name||'').slice(0,16)}</th>)}<th className="pole">Right pole</th></tr></thead>
+        <tbody>{cOrder.map(ri=>(
+          <tr key={ri}><td className="pole">{cons[ri].left}</td>
+            {eOrder.map(j=><td key={j} style={{background:shade(M[ri][j]),color:'#1a1a1a',textAlign:'center'}}>{M[ri][j]!=null?M[ri][j]:''}</td>)}
+            <td className="pole muted">{cons[ri].right}</td></tr>
+        ))}</tbody>
+      </table></div>
     </div>
   );
 }
