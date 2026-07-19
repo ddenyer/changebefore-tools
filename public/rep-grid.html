@@ -40,6 +40,14 @@ html,body{font-family:'DM Sans',sans-serif;background:#f0ede8;color:#1a1a1a;-web
 .back-btn:hover{color:#1a1a1a}
 .inf-box{background:#ebe7e0;border-left:3px solid #e07030;padding:.85rem 1.1rem;border-radius:0 3px 3px 0;margin-bottom:1.2rem;font-size:.875rem;line-height:1.6;color:#555}
 .warn-box{background:#fff8f6;border:1px solid #f0b8a8;border-radius:3px;padding:.85rem 1.1rem;margin:.7rem 0;font-size:.82rem;color:#c0392b}
+.demo-banner{background:#eef4ef;border:1px solid #b9d6c2;border-left:3px solid #16794a;border-radius:3px;padding:.7rem 1rem;margin-bottom:1.1rem;font-size:.82rem;color:#16794a;line-height:1.5}
+.help-box{background:#ebe7e0;border-left:3px solid #e07030;padding:.9rem 1.1rem;border-radius:0 3px 3px 0;margin-bottom:1.2rem;font-size:.85rem;line-height:1.6;color:#555}
+.help-box .help-h{display:block;font-weight:700;color:#1a1a1a;margin-bottom:.3rem;font-size:.8rem;letter-spacing:.02em}
+.primer-list{margin:.6rem 0 .3rem;padding-left:1.15rem;font-size:.86rem;line-height:1.6;color:#555}
+.primer-list li{margin-bottom:.4rem}
+.primer-flow{display:flex;flex-wrap:wrap;gap:.35rem .5rem;align-items:center;margin-top:.9rem;font-size:.72rem;font-weight:700}
+.primer-flow .stp{background:#fdecd8;color:#b5651a;border-radius:20px;padding:.22rem .7rem}
+.primer-flow .arw{color:#b0a898}
 .card{border:1px solid #d8d3cb;border-radius:4px;padding:1.1rem 1.25rem;background:#fff;margin-bottom:1rem}
 .fac-tab-bar{display:flex;gap:0;border-bottom:2px solid #d8d3cb;margin-bottom:1.5rem;overflow-x:auto}
 .fac-tab{padding:.55rem .95rem;font-size:.75rem;font-weight:700;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;color:#b0a898;transition:all .2s;white-space:nowrap;font-family:'DM Sans',sans-serif;background:none;border-top:none;border-left:none;border-right:none}
@@ -133,18 +141,41 @@ function prefLabel(left){
 // Elements used for Honey. Supplementary elements (e.g. a supplied "future"
 // element) are rated and displayed but held OUT of the similarity calculation.
 function honeyElements(config, filterCat){
-  return config.elements.filter(e=> !e.supplementary && (!filterCat || e.category===filterCat));
+  return (config.elements||[]).filter(e=> !e.supplementary && (!filterCat || e.category===filterCat));
 }
-function pooledMembers(responses, config, filterCat){
-  const elIds=honeyElements(config, filterCat).map(e=>e.id);
+// Elements in play for ONE response = prescribed (shared) elements + that
+// interview's own elicited elements. Supplementary elements (e.g. the prescribed
+// "Future NHS Leadership") are held out of the Honey similarity. filterCat limits
+// to an element category (e.g. SL / TL) for the System / Traditional Honey tables.
+function elementsFor(config, response, filterCat){
+  const eli=((response&&response.data&&response.data.elicitedElements)||[]).filter(e=> !e.supplementary && (!filterCat || e.category===filterCat));
+  const pre=(config.elements||[]).filter(e=> !e.supplementary && (!filterCat || e.category===filterCat));
+  return [...eli, ...pre];
+}
+// All elements shown in a grid (elicited first, then prescribed), INCLUDING
+// supplementary — for display/export. Honey uses elementsFor (supplementary out).
+function gridElementsFor(config, response){
+  const eli=((response&&response.data&&response.data.elicitedElements)||[]);
+  const pre=(config.elements||[]);
+  return [...eli, ...pre];
+}
+// refId chooses the reference (effectiveness) construct every elicited construct
+// is measured against. Default (null/'supplied') = the overall yardstick rated in
+// the "supplied" row. Passing a prescribed construct id lets you produce a
+// composite table against a DIFFERENT criterion (James's "varying levels of
+// effectiveness") — that construct is then excluded from the pooled members.
+function pooledMembers(responses, config, filterCat, refId){
   const lo=config.scaleMin, hi=config.scaleMax;
+  const useRef = refId && refId!=='supplied';
   const rows=[];
   responses.forEach(r=>{
+    const elIds=elementsFor(config, r, filterCat).map(e=>e.id);
     const d=r.data||{}; const ratings=d.ratings||{}; const supplied=d.supplied||{}; const noPol=d.noPolarity||{};
-    const sSub=elIds.map(e=> supplied[e]!=null?supplied[e]:null);
+    const refMap = useRef ? (ratings[refId]||{}) : supplied;
+    const sSub=elIds.map(e=> refMap[e]!=null?refMap[e]:null);
     if(!elIds.length || sSub.every(v=>v==null)) return;
     const sRev=reverseRatings(sSub,lo,hi);
-    const cons=[...config.constructs, ...(d.elicited||[])].filter(c=> !noPol[c.id]);  // no-clear-polarity excluded
+    const cons=[...config.constructs, ...(d.elicited||[])].filter(c=> !noPol[c.id] && c.id!==refId);  // no-clear-polarity and the reference construct excluded
     const scored=cons.map(c=>{
       const cArr=elIds.map(e=> (ratings[c.id]&&ratings[c.id][e]!=null)?ratings[c.id][e]:null);
       if(cArr.every(v=>v==null)) return null;
@@ -350,20 +381,25 @@ async function saveWithRetry(body){
 }
 
 const EXAMPLE={
-  title:'Future NHS Leadership', scaleMin:1, scaleMax:10,
+  title:'Future NHS Leadership',
+  description:'How senior NHS leaders construe system vs traditional leadership, and which leadership constructs track perceived effectiveness — following James Fleet’s DBA study.',
+  scaleMin:1, scaleMax:10,
   suppliedLeft:'Highly effective', suppliedRight:'Not effective at all',
+  suppliedDesc:'How effective the leadership practice was in achieving its intended outcomes.',
+  elementCategories:[
+    {id:'',name:'System Leadership',short:'SL',target:3},
+    {id:'',name:'Traditional Leadership',short:'TL',target:3},
+  ],
   elements:[
-    {id:'',name:'ICS',category:'SL'},{id:'',name:'Challenged Trust',category:'SL'},{id:'',name:'Region',category:'SL'},
-    {id:'',name:'National Policy',category:'TL'},{id:'',name:'National Review',category:'TL'},{id:'',name:'NHS from outside',category:'TL'},
+    {id:'',name:'Future NHS Leadership',category:'FL',supplementary:true,desc:'A prescribed, aspirational element rated on the constructs but held out of the effectiveness comparison.'},
   ],
-  constructs:[
-    {id:'',left:'Actively inclusive',right:'Restricted'},{id:'',left:'Adaptive',right:'Rigid'},
-    {id:'',left:'Bottom up',right:'Top down'},{id:'',left:'Facilitative',right:'Pacesetting'},
-    {id:'',left:'Coaching',right:'Command and control'},
-  ],
+  constructs:[],
 };
 function freshExample(){
-  return {...EXAMPLE, elements:EXAMPLE.elements.map(e=>({...e,id:uid()})), constructs:EXAMPLE.constructs.map(e=>({...e,id:uid()}))};
+  return {...EXAMPLE,
+    elementCategories:EXAMPLE.elementCategories.map(x=>({...x,id:uid()})),
+    elements:EXAMPLE.elements.map(e=>({...e,id:uid()})),
+    constructs:[]};
 }
 
 /* ============================ Gate ====================== */
@@ -404,11 +440,11 @@ function Gate({onUnlock}){
   function checkPw(){ if(pw==='Admin1*') onUnlock(code); else setErr('Facilitator password incorrect.'); }
 
   return (
-    <div className="content fade" style={{maxWidth:'440px'}}>
+    <div className="content fade" style={{maxWidth:'640px'}}>
       <div className="land-hero" style={{borderBottom:'none',marginBottom:'1.25rem',paddingBottom:0}}>
         <div className="land-tag">ChangeBefore · Rep-Grid</div>
         <div className="land-title">Repertory grid interviews</div>
-        <div className="land-desc">Facilitator-run repertory grid interviews with Honey’s content analysis.</div>
+        <div className="land-desc">A guided tool for running repertory grid interviews and turning them into shared themes with Honey’s content analysis. New to the method? The primer below explains everything in a couple of minutes.</div>
       </div>
       {step==='code' ? (
         <div>
@@ -434,6 +470,30 @@ function Gate({onUnlock}){
           </div>
         </div>
       )}
+      <div className="card" style={{marginTop:'1.5rem'}}>
+        <div className="sec-tag">A 2-minute primer — what is a repertory grid?</div>
+        <p className="land-desc" style={{maxWidth:'none',fontSize:'.9rem'}}>
+          A <b>repertory grid</b> is a structured interview that captures how a person makes sense of a topic <i>in their own words</i>, instead of forcing them into your categories. It comes from personal construct psychology (George Kelly, 1955) and is widely used in leadership, education and management research.
+        </p>
+        <p className="land-desc" style={{maxWidth:'none',fontSize:'.9rem',marginTop:'.55rem'}}>An interview has four moving parts:</p>
+        <ul className="primer-list">
+          <li><b>Elements</b> — the things being compared (for example, leaders, teams or situations the person knows well).</li>
+          <li><b>Constructs</b> — the two-ended descriptions a person uses to tell elements apart (for example, “listens” vs “dictates”). You can prescribe some in advance; others come out during the interview (these are called <i>elicited</i> constructs).</li>
+          <li><b>Ratings</b> — the person scores every element on every construct along a scale (for example, 1 to 10).</li>
+          <li><b>Supplied construct</b> — one overall yardstick you give everyone (for example, “highly effective” vs “not effective at all”). Everything else is measured against it.</li>
+        </ul>
+        <p className="land-desc" style={{maxWidth:'none',fontSize:'.9rem',marginTop:'.55rem'}}>
+          Once several people have been interviewed, <b>Honey’s (1979) content analysis</b> groups everyone’s constructs into shared <b>themes</b> and measures how strongly each theme tracks the supplied construct. That tells you which ways of thinking matter most for the topic — the payoff of the whole exercise.
+        </p>
+        <p className="land-desc" style={{maxWidth:'none',fontSize:'.86rem',marginTop:'.7rem',color:'#888'}}>The tool walks you through it in five stages:</p>
+        <div className="primer-flow">
+          <span className="stp">Setup</span><span className="arw">→</span>
+          <span className="stp">Interviews</span><span className="arw">→</span>
+          <span className="stp">1 · Individual Honey</span><span className="arw">→</span>
+          <span className="stp">2 · Composite constructs</span><span className="arw">→</span>
+          <span className="stp">3 · Composite table</span>
+        </div>
+      </div>
     </div>
   );
 }
@@ -441,10 +501,10 @@ function Gate({onUnlock}){
 /* ============================ Grid table ====================== */
 // constructs: array of {id,left,right,elicited?}. Elicited rows have editable poles.
 function GridTable({elements, elementNames, constructs, scaleMin, scaleMax, suppliedLeft, suppliedRight,
-                    ratings, supplied, selected, onSel, onRate, onRateSupplied, onPole, onRemoveElicited}){
+                    ratings, supplied, selected, onSel, onRate, onRateSupplied, onPole, onRemoveElicited, readOnly}){
   const val=(m,cid,eid)=> (m[cid]&&m[cid][eid]!=null)?m[cid][eid]:'';
-  const inp=(v,onCh)=> <input className="cellin" type="number" min={scaleMin} max={scaleMax} value={v}
-    onChange={e=>{ const x=e.target.value; if(x==='') return onCh(null); let n=Number(x); if(isNaN(n)) return; n=Math.max(scaleMin,Math.min(scaleMax,n)); onCh(n); }}/>;
+  const inp=(v,onCh)=> <input className="cellin" type="number" min={scaleMin} max={scaleMax} value={v} readOnly={readOnly}
+    onChange={e=>{ if(readOnly) return; const x=e.target.value; if(x==='') return onCh(null); let n=Number(x); if(isNaN(n)) return; n=Math.max(scaleMin,Math.min(scaleMax,n)); onCh(n); }}/>;
   const hdr=(el,i)=> (elementNames&&elementNames[i])?elementNames[i]:el.name;
   return (
     <div className="scroll">
@@ -459,23 +519,23 @@ function GridTable({elements, elementNames, constructs, scaleMin, scaleMax, supp
             <tr key={c.id} className={selected===c.id?'rowsel':''}>
               <td className="pole" style={{cursor:'pointer'}} onClick={()=>onSel(c.id)}>
                 {c.elicited
-                  ? <input className="inp inp-sm" style={{minWidth:130}} value={c.left} onClick={e=>e.stopPropagation()} onChange={e=>onPole(c.id,'left',e.target.value)}/>
+                  ? <input className="inp inp-sm" style={{minWidth:130}} value={c.left} readOnly={readOnly} onClick={e=>e.stopPropagation()} onChange={e=>onPole(c.id,'left',e.target.value)}/>
                   : c.left}
               </td>
               {elements.map(el=><td key={el.id} onClick={()=>onSel(c.id)}>{inp(val(ratings,c.id,el.id),v=>onRate(c.id,el.id,v))}</td>)}
               <td className="pole">
                 {c.elicited
                   ? <span style={{display:'flex',gap:4,alignItems:'center'}}>
-                      <input className="inp inp-sm" style={{minWidth:120}} value={c.right} onChange={e=>onPole(c.id,'right',e.target.value)}/>
-                      <button className="x" title="Remove" onClick={()=>onRemoveElicited(c.id)}>✕</button>
+                      <input className="inp inp-sm" style={{minWidth:120}} value={c.right} readOnly={readOnly} onChange={e=>onPole(c.id,'right',e.target.value)}/>
+                      {!readOnly&&<button className="x" title="Remove" onClick={()=>onRemoveElicited(c.id)}>✕</button>}
                     </span>
                   : c.right}
               </td>
             </tr>
           ))}
           <tr style={{background:'#f6efe8'}}>
-            <td className="pole"><b>{suppliedLeft}</b><div className="mini">supplied / overall</div></td>
-            {elements.map(el=><td key={el.id}>{inp((supplied&&supplied[el.id]!=null)?supplied[el.id]:'',v=>onRateSupplied(el.id,v))}</td>)}
+            <td className="pole"><b>{suppliedLeft}</b><div className="mini">overall effectiveness</div></td>
+            {elements.map(el=><td key={el.id}>{el.supplementary? <span className="mini" title="held-out element — not rated on the effectiveness yardstick">—</span> : inp((supplied&&supplied[el.id]!=null)?supplied[el.id]:'',v=>onRateSupplied(el.id,v))}</td>)}
             <td className="pole"><b>{suppliedRight}</b></td>
           </tr>
         </tbody>
@@ -485,24 +545,32 @@ function GridTable({elements, elementNames, constructs, scaleMin, scaleMax, supp
 }
 
 /* ============================ Interview ====================== */
-function Interview({config, code, resp, onBack}){
+function Interview({config, code, resp, onBack, readOnly}){
   const [name,setName]=useState(resp.participant_name||'');
   const [ratings,setRatings]=useState((resp.data&&resp.data.ratings)||{});
   const [supplied,setSupplied]=useState((resp.data&&resp.data.supplied)||{});
   const [quotes,setQuotes]=useState((resp.data&&resp.data.quotes)||{});
   const [elicited,setElicited]=useState((resp.data&&resp.data.elicited)||[]);
+  const [elicitedElements,setElicitedElements]=useState((resp.data&&resp.data.elicitedElements)||[]);
   const [noPolarity,setNoPolarity]=useState((resp.data&&resp.data.noPolarity)||{});
   const [status,setStatus]=useState((resp.data&&resp.data.status)||'in_progress');
-  const prescribed=config.constructs.map(c=>({...c,elicited:false}));
+  const cats=config.elementCategories||[];
+  const preEls=config.elements||[];
+  const gridEls=[...elicitedElements, ...preEls];       // elicited first, then prescribed
+  const gridHoney=gridEls.filter(e=>!e.supplementary);
+  const prescribed=(config.constructs||[]).map(c=>({...c,elicited:false}));
   const combined=[...prescribed, ...elicited.map(c=>({...c,elicited:true}))];
   const [selected,setSelected]=useState(combined[0]?combined[0].id:null);
   const [saveState,setSaveState]=useState('idle');
+  const [triad,setTriad]=useState(null);
+  const [triadN,setTriadN]=useState(0);
   const timer=useRef(null);
   const elementNames=(resp.data&&resp.data.elementNames)||null;
 
   function scheduleSave(nextStatus){
+    if(readOnly) return;
     setSaveState('saving'); clearTimeout(timer.current);
-    const snap={ratings,supplied,quotes,elicited,noPolarity,elementNames,status:nextStatus||status};
+    const snap={ratings,supplied,quotes,elicited,elicitedElements,noPolarity,elementNames,status:nextStatus||status};
     timer.current=setTimeout(async()=>{
       try{
         await saveWithRetry({kind:'response',session_code:code,participant_id:resp.participant_id,participant_name:name,
@@ -511,28 +579,47 @@ function Interview({config, code, resp, onBack}){
       }catch(e){ setSaveState('error'); alert("We couldn't save right now. Please check your connection and try again."); }
     },300);
   }
-  useEffect(()=>{ scheduleSave(); /* eslint-disable-next-line */ },[ratings,supplied,quotes,elicited,noPolarity,name]);
+  useEffect(()=>{ scheduleSave(); /* eslint-disable-next-line */ },[ratings,supplied,quotes,elicited,elicitedElements,noPolarity,name]);
 
   const rate=(cid,eid,v)=> setRatings(p=>({...p,[cid]:{...(p[cid]||{}),[eid]:v}}));
   const rateSup=(eid,v)=> setSupplied(p=>({...p,[eid]:v}));
   const setQuote=(cid,patch)=> setQuotes(p=>({...p,[cid]:{...(p[cid]||{}),...patch}}));
-  const addElicited=()=>{ const id=uid(); setElicited(p=>[...p,{id,left:'New construct',right:'Opposite pole',origLeft:'New construct',origRight:'Opposite pole'}]); setSelected(id); };
-  // Editing a pole keeps the original (as-elicited) wording for post-transcript validation.
+  // Elicited ELEMENTS (this interview only)
+  const addElement=(catShort)=>{ const id=uid(); setElicitedElements(p=>[...p,{id,name:'',category:catShort||'',desc:''}]); };
+  const setElement=(id,patch)=> setElicitedElements(p=>p.map(e=>e.id===id?{...e,...patch}:e));
+  const removeElement=(id)=>{ setElicitedElements(p=>p.filter(e=>e.id!==id));
+    setRatings(p=>{const n={}; Object.keys(p).forEach(k=>{ const row={...p[k]}; delete row[id]; n[k]=row; }); return n;});
+    setSupplied(p=>{const n={...p}; delete n[id]; return n;});
+    if(triad&&triad.some(t=>t.id===id)) setTriad(null);
+  };
+  // Elicited CONSTRUCTS
+  const addElicited=()=>{ const id=uid(); setElicited(p=>[...p,{id,left:'',right:'',desc:'',origLeft:'',origRight:''}]); setSelected(id); };
   const setPole=(cid,side,v)=> setElicited(p=>p.map(c=>{ if(c.id!==cid) return c;
     const o={...c,[side]:v};
     if(side==='left'&&o.origLeft===undefined) o.origLeft=c.left;
     if(side==='right'&&o.origRight===undefined) o.origRight=c.right;
     return o; }));
+  const setConDesc=(cid,v)=> setElicited(p=>p.map(c=>c.id===cid?{...c,desc:v}:c));
   const togglePolarity=(cid)=> setNoPolarity(p=>{ const n={...p}; if(n[cid]) delete n[cid]; else n[cid]=true; return n; });
   const removeElicited=(cid)=>{ setElicited(p=>p.filter(c=>c.id!==cid)); setRatings(p=>{const n={...p}; delete n[cid]; return n;}); if(selected===cid) setSelected(prescribed[0]?prescribed[0].id:null); };
+  // Triad selector (Appendix 9 protocol): random group of three named elements
+  function newTriad(){
+    const named=elicitedElements.filter(e=>e.name&&e.name.trim());
+    if(named.length<3){ setTriad(null); return; }
+    const idx=named.map((_,i)=>i);
+    for(let i=idx.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); const t=idx[i]; idx[i]=idx[j]; idx[j]=t; }
+    setTriad(idx.slice(0,3).map(i=>named[i]));
+    setTriadN(n=>n+1);
+  }
 
-  const total=combined.length*config.elements.length+config.elements.length;
+  const total=combined.length*gridHoney.length+gridHoney.length;
   let filled=0;
-  combined.forEach(c=>config.elements.forEach(el=>{ if(ratings[c.id]&&ratings[c.id][el.id]!=null) filled++; }));
-  config.elements.forEach(el=>{ if(supplied[el.id]!=null) filled++; });
+  combined.forEach(c=>gridEls.forEach(el=>{ if(ratings[c.id]&&ratings[c.id][el.id]!=null) filled++; }));
+  gridHoney.forEach(el=>{ if(supplied[el.id]!=null) filled++; });
 
   const selC=combined.find(c=>c.id===selected), q=(quotes[selected]||{});
   const saveTxt={saving:'saving…',saved:'saved',error:'save error',idle:''}[saveState];
+  const namedEls=elicitedElements.filter(e=>e.name&&e.name.trim());
 
   return (
     <div className="content-wide fade">
@@ -545,117 +632,314 @@ function Interview({config, code, resp, onBack}){
         </div>
       </div>
 
+      {!readOnly&&<div className="help-box"><span className="help-h">Running the interview</span>Three steps: (1) capture the interviewee’s <b>elements</b> — the situations they bring — below; (2) use the <b>triad selector</b> to elicit their <b>constructs</b> (“considering these three, how are two alike and different from the third?”); (3) rate every element on every construct, then rate the elements on the overall effectiveness yardstick. Following James Fleet’s interview protocol.</div>}
+
       <div className="card">
         <label className="field-lbl">Interviewee (display name)</label>
-        <input className="inp inp-sm" value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. P1 / initials"/>
-        <p className="field-sub" style={{marginTop:'.6rem'}}>Rate each element {config.scaleMin} (left pole) to {config.scaleMax} (right pole). Prescribed constructs are shared; add this person's own elicited constructs below. Click a construct to attach a quote.</p>
-        <GridTable elements={config.elements} elementNames={elementNames} constructs={combined}
-          scaleMin={config.scaleMin} scaleMax={config.scaleMax} suppliedLeft={config.suppliedLeft} suppliedRight={config.suppliedRight}
-          ratings={ratings} supplied={supplied} selected={selected}
-          onSel={setSelected} onRate={rate} onRateSupplied={rateSup} onPole={setPole} onRemoveElicited={removeElicited}/>
+        <input className="inp inp-sm" value={name} readOnly={readOnly} onChange={e=>setName(e.target.value)} placeholder="e.g. P1 / initials"/>
+      </div>
+
+      {/* 1 — Elements */}
+      <div className="card">
+        <div className="sec-tag">1 · Elements ({elicitedElements.length} elicited{preEls.length?' · '+preEls.length+' prescribed':''})</div>
+        <p className="field-sub">The situations this person brings. {cats.length?<span>Ask for {cats.map(c=>(c.target||'?')+' '+c.name).join(' and ')}.</span>:null} Give each a short label (and a description if useful). Prescribed elements are added to every grid automatically.</p>
+        {elicitedElements.map(el=>(
+          <div key={el.id} style={{borderBottom:'1px solid #ebe7e0',paddingBottom:'.5rem',marginBottom:'.5rem'}}>
+            <div className="list-row" style={{border:'none',padding:0}}>
+              <input className="inp inp-sm" style={{flex:3}} value={el.name} readOnly={readOnly} placeholder="Situation label" onChange={e=>setElement(el.id,{name:e.target.value})}/>
+              {cats.length
+                ? <select className="inp inp-sm" style={{width:160,flex:'0 0 auto'}} value={el.category||''} disabled={readOnly} onChange={e=>setElement(el.id,{category:e.target.value})}>
+                    <option value="">— category —</option>
+                    {cats.map(c=><option key={c.id} value={c.short||c.name}>{c.name}</option>)}
+                  </select>
+                : <input className="inp inp-sm" style={{width:90,flex:'0 0 auto'}} value={el.category||''} readOnly={readOnly} placeholder="cat" onChange={e=>setElement(el.id,{category:e.target.value})}/>}
+              {!readOnly&&<button className="x" onClick={()=>removeElement(el.id)}>✕</button>}
+            </div>
+            <input className="inp inp-sm" style={{marginTop:4}} value={el.desc||''} readOnly={readOnly} placeholder="Description (optional)" onChange={e=>setElement(el.id,{desc:e.target.value})}/>
+          </div>
+        ))}
+        {preEls.map(el=>(<div key={el.id} className="mini" style={{padding:'.2rem 0'}}>• {el.name||'(unnamed prescribed)'} <span className="tag">{el.supplementary?'held-out':'prescribed'}</span></div>))}
+        {elicitedElements.length===0&&preEls.length===0&&<p className="mini">No elements yet.</p>}
+        {!readOnly&&<div className="btn-row" style={{marginTop:'.4rem'}}>
+          {cats.length? cats.map(c=><button key={c.id} className="btn-s btn-sm" onClick={()=>addElement(c.short||c.name)}>+ {c.name}</button>)
+            : <button className="btn-s btn-sm" onClick={()=>addElement('')}>+ Add element</button>}
+        </div>}
+      </div>
+
+      {/* 2 — Triad selector */}
+      {!readOnly&&<div className="card">
+        <div className="toolbar" style={{marginBottom:6}}><div className="sec-tag" style={{margin:0}}>2 · Elicit constructs (triads)</div><div className="grow"/><span className="mini">{triadN} triads shown · aim for up to 10</span></div>
+        {namedEls.length<3
+          ? <p className="mini">Add at least three named elements above to start eliciting constructs by triad.</p>
+          : <div>
+              {triad
+                ? <div className="inf-box" style={{marginBottom:'.6rem'}}>Considering these three situations, how are <b>two alike and different from the third</b>, in terms of the leadership? <span className="mini">(then give the opposite pole)</span>
+                    <div style={{marginTop:'.45rem',display:'flex',gap:'.4rem',flexWrap:'wrap'}}>{triad.map((t,i)=><span key={t.id} className="chip"><b>{String.fromCharCode(65+i)}</b> · {t.name}</span>)}</div></div>
+                : <p className="mini">Click “New triad” for a random group of three, ask the question, then capture the construct.</p>}
+              <div className="btn-row">
+                <button className="btn-s btn-sm" onClick={newTriad}>🎲 New triad</button>
+                <button className="btn-s btn-sm" onClick={addElicited}>+ Construct from this triad</button>
+              </div>
+            </div>}
+      </div>}
+
+      {/* 3 — Grid */}
+      <div className="card">
+        <div className="sec-tag">3 · Grid — rate every element</div>
+        <p className="field-sub" style={{marginTop:'.2rem'}}>{readOnly?'Viewing a completed grid from the example study — read-only.':<span>Rate each element {config.scaleMin} (left pole) to {config.scaleMax} (right pole). Click a construct to attach a quote or description. The highlighted row is the overall effectiveness yardstick (not rated on held-out elements).</span>}</p>
+        {gridEls.length===0
+          ? <p className="mini">Add elements above to build the grid.</p>
+          : <GridTable elements={gridEls} elementNames={elementNames} constructs={combined}
+              scaleMin={config.scaleMin} scaleMax={config.scaleMax} suppliedLeft={config.suppliedLeft} suppliedRight={config.suppliedRight}
+              ratings={ratings} supplied={supplied} selected={selected}
+              onSel={setSelected} onRate={rate} onRateSupplied={rateSup} onPole={setPole} onRemoveElicited={removeElicited} readOnly={readOnly}/>}
         <div className="sp"/>
-        <button className="btn-s btn-sm" onClick={addElicited}>+ Add elicited construct</button>
-        <span className="mini" style={{marginLeft:8}}>{elicited.length} elicited · {prescribed.length} prescribed</span>
+        {!readOnly&&<button className="btn-s btn-sm" onClick={addElicited}>+ Add construct</button>}
+        <span className="mini" style={{marginLeft:8}}>{elicited.length} elicited · {prescribed.length} prescribed constructs</span>
       </div>
 
       {selC&&(
         <div className="card">
           <div className="toolbar" style={{marginBottom:6}}>
-            <div className="sec-tag" style={{margin:0}}>Construct — {selC.left} vs {selC.right}</div>
+            <div className="sec-tag" style={{margin:0}}>Construct — {selC.left||'(left pole)'} vs {selC.right||'(right pole)'}</div>
             <div className="grow"/>
             <label className="anon-toggle" title="Flag constructs Honey should skip — e.g. no clear high/low (effective) direction">
-              <input type="checkbox" checked={!!noPolarity[selected]} onChange={()=>togglePolarity(selected)}/> no clear polarity
+              <input type="checkbox" checked={!!noPolarity[selected]} disabled={readOnly} onChange={()=>{ if(!readOnly) togglePolarity(selected); }}/> no clear polarity
             </label>
           </div>
           {selC.elicited && (selC.origLeft&&selC.origLeft!==selC.left || selC.origRight&&selC.origRight!==selC.right) &&
             <p className="mini">Post-transcript edit — originally: “{selC.origLeft||selC.left}” vs “{selC.origRight||selC.right}”.</p>}
+          {selC.elicited&&<React.Fragment><label className="field-lbl">Construct description (optional)</label>
+            <input className="inp inp-sm" value={selC.desc||''} readOnly={readOnly} onChange={e=>setConDesc(selC.id,e.target.value)} placeholder="What does this construct mean?"/><div className="sp"/></React.Fragment>}
           <label className="field-lbl">Illustrative quote</label>
-          <textarea className="inp inp-ta" value={q.text||''} onChange={e=>setQuote(selected,{text:e.target.value})} placeholder="Illustrative quote…"/>
+          <textarea className="inp inp-ta" value={q.text||''} readOnly={readOnly} onChange={e=>setQuote(selected,{text:e.target.value})} placeholder="Illustrative quote…"/>
           <div className="sp"/>
-          <input className="inp inp-sm" value={q.ref||''} onChange={e=>setQuote(selected,{ref:e.target.value})} placeholder="Reference (time / page)"/>
+          <input className="inp inp-sm" value={q.ref||''} readOnly={readOnly} onChange={e=>setQuote(selected,{ref:e.target.value})} placeholder="Reference (time / page)"/>
         </div>
       )}
 
-      <div className="btn-row"><div className="grow"/><button className="btn-p" onClick={()=>{setStatus('complete');scheduleSave('complete');}}>Mark interview complete</button></div>
+      {!readOnly&&<div className="btn-row"><div className="grow"/><button className="btn-p" onClick={()=>{setStatus('complete');scheduleSave('complete');}}>Mark interview complete</button></div>}
     </div>
   );
 }
 
 /* ============================ Setup ====================== */
-function Setup({config,setConfig,onSave,saving,savedMsg}){
+function Setup({config,setConfig,onSave,saving,savedMsg,readOnly}){
   const c=config, set=(patch)=>setConfig({...c,...patch});
-  const setEl=(id,patch)=>set({elements:c.elements.map(e=>e.id===id?{...e,...patch}:e)});
-  const setCon=(id,patch)=>set({constructs:c.constructs.map(x=>x.id===id?{...x,...patch}:x)});
+  const cats=c.elementCategories||[];
+  const setCat=(id,patch)=>set({elementCategories:cats.map(x=>x.id===id?{...x,...patch}:x)});
   return (
     <div className="fade">
+      {!readOnly&&<div className="help-box"><span className="help-h">Setup · define the study (do this first)</span>Set this up once. Give the study a <b>title</b> and a short <b>description</b>, choose the <b>rating scale</b> (James used 1–10), and define your <b>element categories</b> — the kinds of situation each interviewee brings. James used <b>System</b> and <b>Traditional</b> leadership, three of each. The actual elements and constructs are elicited from each person during their interview; shared (prescribed) ones — like the effectiveness yardstick and a “Future NHS Leadership” element — live on the next two tabs. New here? <b>Load example (NHS)</b> fills in James’s design to adapt.</div>}
       <div className="card">
-        <div className="sec-tag">Grid design</div>
+        <div className="sec-tag">Study</div>
         <label className="field-lbl">Title</label>
-        <input className="inp inp-sm" value={c.title} onChange={e=>set({title:e.target.value})}/>
+        <input className="inp inp-sm" value={c.title} readOnly={readOnly} onChange={e=>set({title:e.target.value})}/>
+        <div className="sp"/>
+        <label className="field-lbl">Description</label>
+        <textarea className="inp inp-ta" value={c.description||''} readOnly={readOnly} onChange={e=>set({description:e.target.value})} placeholder="What is this study about? What question does it explore?"/>
         <div className="sp"/>
         <div className="row">
-          <div><label className="field-lbl">Scale min</label><input className="inp inp-sm" type="number" value={c.scaleMin} onChange={e=>set({scaleMin:Number(e.target.value)})}/></div>
-          <div><label className="field-lbl">Scale max</label><input className="inp inp-sm" type="number" value={c.scaleMax} onChange={e=>set({scaleMax:Number(e.target.value)})}/></div>
+          <div><label className="field-lbl">Scale min</label><input className="inp inp-sm" type="number" value={c.scaleMin} readOnly={readOnly} onChange={e=>set({scaleMin:Number(e.target.value)})}/></div>
+          <div><label className="field-lbl">Scale max</label><input className="inp inp-sm" type="number" value={c.scaleMax} readOnly={readOnly} onChange={e=>set({scaleMax:Number(e.target.value)})}/></div>
         </div>
-        <div className="sp"/>
-        <div className="row">
-          <div><label className="field-lbl">Supplied construct — left pole (= {c.scaleMin})</label><input className="inp inp-sm" value={c.suppliedLeft} onChange={e=>set({suppliedLeft:e.target.value})}/></div>
-          <div><label className="field-lbl">Supplied construct — right pole (= {c.scaleMax})</label><input className="inp inp-sm" value={c.suppliedRight} onChange={e=>set({suppliedRight:e.target.value})}/></div>
-        </div>
-        <p className="field-sub" style={{marginTop:'.6rem'}}>The supplied “overall” construct is what Honey’s analysis measures every construct against.</p>
       </div>
 
       <div className="card">
-        <div className="sec-tag">Elements ({c.elements.length})</div>
-        {c.elements.map(el=>(
-          <div className="list-row" key={el.id}>
-            <input className="inp inp-sm" style={{flex:3}} value={el.name} onChange={e=>setEl(el.id,{name:e.target.value})}/>
-            <input className="inp inp-sm" style={{flex:1,minWidth:70}} value={el.category} placeholder="cat" onChange={e=>setEl(el.id,{category:e.target.value})}/>
-            <label className="anon-toggle" title="Rated and shown in the grid, but held out of the Honey similarity calculation">
-              <input type="checkbox" checked={!!el.supplementary} onChange={e=>setEl(el.id,{supplementary:e.target.checked})}/> supplementary
-            </label>
-            <button className="x" onClick={()=>set({elements:c.elements.filter(x=>x.id!==el.id)})}>✕</button>
+        <div className="sec-tag">Element categories ({cats.length})</div>
+        <p className="field-sub">The kinds of situation each interviewee elicits. James: <b>System</b> (short SL, target 3) and <b>Traditional</b> (short TL, target 3). “Target” is how many of that kind you ask each person to bring.</p>
+        {cats.map(cat=>(
+          <div className="list-row" key={cat.id}>
+            <input className="inp inp-sm" style={{flex:3}} value={cat.name} readOnly={readOnly} placeholder="e.g. System Leadership" onChange={e=>setCat(cat.id,{name:e.target.value})}/>
+            <input className="inp inp-sm" style={{flex:1,minWidth:60}} value={cat.short||''} readOnly={readOnly} placeholder="SL" onChange={e=>setCat(cat.id,{short:e.target.value})}/>
+            <input className="inp inp-sm" style={{width:66,flex:'0 0 auto'}} type="number" value={cat.target==null?'':cat.target} readOnly={readOnly} placeholder="qty" onChange={e=>setCat(cat.id,{target:e.target.value===''?null:Number(e.target.value)})}/>
+            {!readOnly&&<button className="x" onClick={()=>set({elementCategories:cats.filter(x=>x.id!==cat.id)})}>✕</button>}
           </div>
         ))}
-        <p className="field-sub">Tick “supplementary” for a supplied element (e.g. a “future leadership” element) that participants rate but which is excluded from the Honey similarity — as in the reference thesis.</p>
+        {cats.length===0&&<p className="mini">No categories yet — add at least one, or leave empty for an un-categorised study.</p>}
         <div className="sp"/>
-        <button className="btn-s btn-sm" onClick={()=>set({elements:[...c.elements,{id:uid(),name:'New element',category:''}]})}>+ Add element</button>
+        {!readOnly&&<button className="btn-s btn-sm" onClick={()=>set({elementCategories:[...cats,{id:uid(),name:'',short:'',target:3}]})}>+ Add element category</button>}
       </div>
 
-      <div className="card">
-        <div className="sec-tag">Prescribed constructs ({c.constructs.length})</div>
-        {c.constructs.map(x=>(
-          <div className="list-row" key={x.id}>
-            <input className="inp inp-sm" style={{flex:2}} value={x.left} onChange={e=>setCon(x.id,{left:e.target.value})}/>
-            <span className="mini">vs</span>
-            <input className="inp inp-sm" style={{flex:2}} value={x.right} onChange={e=>setCon(x.id,{right:e.target.value})}/>
-            <button className="x" onClick={()=>set({constructs:c.constructs.filter(y=>y.id!==x.id)})}>✕</button>
-          </div>
-        ))}
-        <div className="sp"/>
-        <button className="btn-s btn-sm" onClick={()=>set({constructs:[...c.constructs,{id:uid(),left:'Left pole',right:'Right pole'}]})}>+ Add construct</button>
-      </div>
-
-      <div className="btn-row">
+      {!readOnly&&<div className="btn-row">
         <button className="btn-s" onClick={()=>setConfig(freshExample())}>Load example (NHS)</button>
         <div className="grow"/>
         {savedMsg&&<span className="small" style={{color:'#16794a'}}>{savedMsg}</span>}
-        <button className="btn-p" onClick={onSave} disabled={saving}>{saving?'Saving…':'Save grid design'}</button>
+        <button className="btn-p" onClick={onSave} disabled={saving}>{saving?'Saving…':'Save setup'}</button>
+      </div>}
+    </div>
+  );
+}
+
+/* ==================== Prescribed constructs ==================== */
+function PrescribedConstructs({config,setConfig,onSave,saving,savedMsg,readOnly}){
+  const c=config, set=(patch)=>setConfig({...c,...patch});
+  const cons=c.constructs||[];
+  const setCon=(id,patch)=>set({constructs:cons.map(x=>x.id===id?{...x,...patch}:x)});
+  return (
+    <div className="fade">
+      {!readOnly&&<div className="help-box"><span className="help-h">Prescribed constructs · shared across every grid</span>Most constructs are <b>elicited</b> from each interviewee (through triads, during the interview). A few can be <b>prescribed</b> — asked of everyone. The essential one is the <b>overall “effectiveness” construct</b> below: the single yardstick Honey measures every elicited construct against (James: “highly effective” → “not effective at all”, rated on each person’s six situations). It appears as the highlighted row in every grid. Add other shared constructs only if you want the same bipolar scale rated in every interview.</div>}
+      <div className="card" style={{borderColor:'#e07030'}}>
+        <div className="sec-tag" style={{color:'#e07030'}}>Overall effectiveness construct — the Honey yardstick</div>
+        <div className="row">
+          <div><label className="field-lbl">Preferred pole (= {c.scaleMax})</label><input className="inp inp-sm" value={c.suppliedLeft} readOnly={readOnly} onChange={e=>set({suppliedLeft:e.target.value})}/></div>
+          <div><label className="field-lbl">Opposite pole (= {c.scaleMin})</label><input className="inp inp-sm" value={c.suppliedRight} readOnly={readOnly} onChange={e=>set({suppliedRight:e.target.value})}/></div>
+        </div>
+        <div className="sp"/>
+        <label className="field-lbl">Description (optional)</label>
+        <textarea className="inp inp-sm" value={c.suppliedDesc||''} readOnly={readOnly} onChange={e=>set({suppliedDesc:e.target.value})} placeholder="What does this yardstick mean? e.g. how effective the leadership was in achieving its intended outcomes."/>
+        <p className="field-sub" style={{marginTop:'.5rem'}}>Every elicited construct is scored for how closely it tracks this yardstick.</p>
+      </div>
+
+      <div className="card">
+        <div className="sec-tag">Other prescribed constructs ({cons.length})</div>
+        {cons.map(x=>(
+          <div key={x.id} style={{borderBottom:'1px solid #ebe7e0',paddingBottom:'.6rem',marginBottom:'.6rem'}}>
+            <div className="list-row" style={{border:'none',padding:0}}>
+              <input className="inp inp-sm" style={{flex:2}} value={x.left} readOnly={readOnly} placeholder="Left pole" onChange={e=>setCon(x.id,{left:e.target.value})}/>
+              <span className="mini">vs</span>
+              <input className="inp inp-sm" style={{flex:2}} value={x.right} readOnly={readOnly} placeholder="Right pole" onChange={e=>setCon(x.id,{right:e.target.value})}/>
+              {!readOnly&&<button className="x" onClick={()=>set({constructs:cons.filter(y=>y.id!==x.id)})}>✕</button>}
+            </div>
+            <input className="inp inp-sm" style={{marginTop:4}} value={x.desc||''} readOnly={readOnly} placeholder="Description (optional)" onChange={e=>setCon(x.id,{desc:e.target.value})}/>
+          </div>
+        ))}
+        {cons.length===0&&<p className="mini">None. In James’s study all constructs were elicited — this stayed empty.</p>}
+        <div className="sp"/>
+        {!readOnly&&<button className="btn-s btn-sm" onClick={()=>set({constructs:[...cons,{id:uid(),left:'',right:'',desc:''}]})}>+ Add prescribed construct</button>}
+      </div>
+      {!readOnly&&<div className="btn-row"><div className="grow"/>{savedMsg&&<span className="small" style={{color:'#16794a'}}>{savedMsg}</span>}<button className="btn-p" onClick={onSave} disabled={saving}>{saving?'Saving…':'Save'}</button></div>}
+    </div>
+  );
+}
+
+/* ==================== Prescribed elements ==================== */
+function PrescribedElements({config,setConfig,onSave,saving,savedMsg,readOnly}){
+  const c=config, set=(patch)=>setConfig({...c,...patch});
+  const els=c.elements||[];
+  const setEl=(id,patch)=>set({elements:els.map(e=>e.id===id?{...e,...patch}:e)});
+  return (
+    <div className="fade">
+      {!readOnly&&<div className="help-box"><span className="help-h">Prescribed elements · shared in every grid</span>Most elements are <b>elicited</b> — each interviewee brings their own (captured at the start of their interview). <b>Prescribed</b> elements are shared across everyone. James used exactly one: a <b>“Future NHS Leadership”</b> element, tagged <b>held-out</b> so constructs are rated on it but it’s excluded from the effectiveness comparison. Add shared elements only if every interviewee should rate the same fixed situation.</div>}
+      <div className="card">
+        <div className="sec-tag">Prescribed elements ({els.length})</div>
+        {els.map(el=>(
+          <div key={el.id} style={{borderBottom:'1px solid #ebe7e0',paddingBottom:'.6rem',marginBottom:'.6rem'}}>
+            <div className="list-row" style={{border:'none',padding:0}}>
+              <input className="inp inp-sm" style={{flex:3}} value={el.name} readOnly={readOnly} placeholder="e.g. Future NHS Leadership" onChange={e=>setEl(el.id,{name:e.target.value})}/>
+              <input className="inp inp-sm" style={{flex:1,minWidth:60}} value={el.category||''} readOnly={readOnly} placeholder="cat" onChange={e=>setEl(el.id,{category:e.target.value})}/>
+              <label className="anon-toggle" title="Rated in the grid, but held out of the Honey similarity calculation">
+                <input type="checkbox" checked={!!el.supplementary} disabled={readOnly} onChange={e=>setEl(el.id,{supplementary:e.target.checked})}/> held-out
+              </label>
+              {!readOnly&&<button className="x" onClick={()=>set({elements:els.filter(x=>x.id!==el.id)})}>✕</button>}
+            </div>
+            <input className="inp inp-sm" style={{marginTop:4}} value={el.desc||''} readOnly={readOnly} placeholder="Description (optional)" onChange={e=>setEl(el.id,{desc:e.target.value})}/>
+          </div>
+        ))}
+        {els.length===0&&<p className="mini">None yet. James had one: “Future NHS Leadership”, held-out.</p>}
+        <div className="sp"/>
+        {!readOnly&&<button className="btn-s btn-sm" onClick={()=>set({elements:[...els,{id:uid(),name:'',category:'',desc:'',supplementary:true}]})}>+ Add prescribed element</button>}
+      </div>
+      {!readOnly&&<div className="btn-row"><div className="grow"/>{savedMsg&&<span className="small" style={{color:'#16794a'}}>{savedMsg}</span>}<button className="btn-p" onClick={onSave} disabled={saving}>{saving?'Saving…':'Save'}</button></div>}
+    </div>
+  );
+}
+
+/* ==================== All elements (master list) ==================== */
+function AllElements({config,setConfig,onSaveConfig,responses,onSaveResponse,readOnly}){
+  const pre=(config.elements||[]);
+  const [elic,setElic]=useState({});
+  const [dirty,setDirty]=useState(false);
+  useEffect(()=>{ const m={}; responses.forEach(r=>{ m[r.participant_id]=((r.data&&r.data.elicitedElements)||[]).map(e=>({...e})); }); setElic(m); setDirty(false); },[responses]);
+  const setPre=(id,patch)=>{ setConfig({...config, elements: pre.map(e=>e.id===id?{...e,...patch}:e)}); setDirty(true); };
+  const setEl=(pid,id,patch)=>{ setElic(m=>({...m,[pid]:(m[pid]||[]).map(e=>e.id===id?{...e,...patch}:e)})); setDirty(true); };
+  async function saveAll(){
+    if(onSaveConfig) await onSaveConfig();
+    for(const r of responses){ const nd={...r.data, elicitedElements: elic[r.participant_id]||((r.data&&r.data.elicitedElements)||[]) }; await onSaveResponse({...r, data:nd}); }
+  }
+  const totalElic=Object.values(elic).reduce((s,a)=>s+a.length,0);
+  return (
+    <div className="fade">
+      <div className="help-box"><span className="help-h">All elements</span>Every element in the study in one place — the shared <b>prescribed</b> elements plus every <b>elicited</b> element each interviewee brought, tagged with the interview it came from and its category. Edit a name, category or description here and press <b>Save changes</b>. Elicited elements belong to a single interview; prescribed ones appear in all.</div>
+      <div className="card"><div className="scroll"><table className="grid" style={{fontSize:'.78rem'}}>
+        <thead><tr><th className="pole">Element</th><th style={{width:64}}>Cat</th><th style={{width:76}}>Type</th><th className="pole">Interview</th><th className="pole">Description</th></tr></thead>
+        <tbody>
+          {pre.map(e=>(
+            <tr key={e.id}>
+              <td className="pole"><input className="inp inp-sm" value={e.name||''} readOnly={readOnly} onChange={ev=>setPre(e.id,{name:ev.target.value})}/></td>
+              <td><input className="inp inp-sm" style={{width:52}} value={e.category||''} readOnly={readOnly} onChange={ev=>setPre(e.id,{category:ev.target.value})}/></td>
+              <td><span className="tag">{e.supplementary?'held-out':'shared'}</span></td>
+              <td className="pole muted">all</td>
+              <td className="pole"><input className="inp inp-sm" value={e.desc||''} readOnly={readOnly} onChange={ev=>setPre(e.id,{desc:ev.target.value})}/></td>
+            </tr>
+          ))}
+          {responses.map(r=> (elic[r.participant_id]||[]).map(e=>(
+            <tr key={r.participant_id+e.id}>
+              <td className="pole"><input className="inp inp-sm" value={e.name||''} readOnly={readOnly} onChange={ev=>setEl(r.participant_id,e.id,{name:ev.target.value})}/></td>
+              <td><input className="inp inp-sm" style={{width:52}} value={e.category||''} readOnly={readOnly} onChange={ev=>setEl(r.participant_id,e.id,{category:ev.target.value})}/></td>
+              <td><span className="tag prog">elicited</span></td>
+              <td className="pole muted">{r.participant_name||r.participant_id}</td>
+              <td className="pole"><input className="inp inp-sm" value={e.desc||''} readOnly={readOnly} onChange={ev=>setEl(r.participant_id,e.id,{desc:ev.target.value})}/></td>
+            </tr>
+          )))}
+          {pre.length===0&&totalElic===0&&<tr><td colSpan={5} className="muted">No elements yet.</td></tr>}
+        </tbody>
+      </table></div>
+      <p className="mini" style={{marginTop:'.5rem'}}>{pre.length+totalElic} elements · {pre.length} prescribed · {totalElic} elicited across {responses.length} interviews.</p>
+      {!readOnly&&<div className="btn-row"><div className="grow"/><button className="btn-p btn-sm" disabled={!dirty} onClick={saveAll}>Save changes</button></div>}
+      </div>
+    </div>
+  );
+}
+
+/* ==================== All constructs (master list) ==================== */
+function AllConstructs({config,responses,onSaveResponse,readOnly}){
+  const pre=(config.constructs||[]);
+  const [elic,setElic]=useState({});
+  const [dirty,setDirty]=useState(false);
+  useEffect(()=>{ const m={}; responses.forEach(r=>{ m[r.participant_id]=((r.data&&r.data.elicited)||[]).map(e=>({...e})); }); setElic(m); setDirty(false); },[responses]);
+  const setEl=(pid,id,patch)=>{ setElic(m=>({...m,[pid]:(m[pid]||[]).map(e=>e.id===id?{...e,...patch}:e)})); setDirty(true); };
+  async function saveAll(){ for(const r of responses){ const nd={...r.data, elicited: elic[r.participant_id]||((r.data&&r.data.elicited)||[]) }; await onSaveResponse({...r, data:nd}); } }
+  const totalElic=Object.values(elic).reduce((s,a)=>s+a.length,0);
+  return (
+    <div className="fade">
+      <div className="help-box"><span className="help-h">All constructs</span>Every construct elicited across the study, with the interview it came from — plus any shared prescribed constructs. This is the raw pool that gets grouped into composite constructs on the analysis tab. Edit an elicited construct’s wording or description and press <b>Save changes</b>. Prescribed constructs are edited on the <b>Prescribed constructs</b> tab.</div>
+      <div className="card"><div className="scroll"><table className="grid" style={{fontSize:'.78rem'}}>
+        <thead><tr><th className="pole">Left pole</th><th className="pole">Right pole</th><th style={{width:76}}>Type</th><th className="pole">Interview</th><th className="pole">Description</th></tr></thead>
+        <tbody>
+          {pre.map(x=>(
+            <tr key={x.id}><td className="pole">{x.left}</td><td className="pole">{x.right}</td><td><span className="tag">shared</span></td><td className="pole muted">all</td><td className="pole muted">{x.desc||''}</td></tr>
+          ))}
+          {responses.map(r=> (elic[r.participant_id]||[]).map(x=>(
+            <tr key={r.participant_id+x.id}>
+              <td className="pole"><input className="inp inp-sm" value={x.left||''} readOnly={readOnly} onChange={ev=>setEl(r.participant_id,x.id,{left:ev.target.value})}/></td>
+              <td className="pole"><input className="inp inp-sm" value={x.right||''} readOnly={readOnly} onChange={ev=>setEl(r.participant_id,x.id,{right:ev.target.value})}/></td>
+              <td><span className="tag prog">elicited</span></td>
+              <td className="pole muted">{r.participant_name||r.participant_id}</td>
+              <td className="pole"><input className="inp inp-sm" value={x.desc||''} readOnly={readOnly} onChange={ev=>setEl(r.participant_id,x.id,{desc:ev.target.value})}/></td>
+            </tr>
+          )))}
+          {pre.length===0&&totalElic===0&&<tr><td colSpan={5} className="muted">No constructs yet.</td></tr>}
+        </tbody>
+      </table></div>
+      <p className="mini" style={{marginTop:'.5rem'}}>{pre.length+totalElic} constructs · {pre.length} prescribed · {totalElic} elicited across {responses.length} interviews.</p>
+      {!readOnly&&<div className="btn-row"><div className="grow"/><button className="btn-p btn-sm" disabled={!dirty} onClick={saveAll}>Save changes</button></div>}
       </div>
     </div>
   );
 }
 
 /* ============================ Interviews ====================== */
-function Interviews({config,responses,onOpen,onNew,onDelete}){
+function Interviews({config,responses,onOpen,onNew,onDelete,readOnly}){
   const ready=config.elements.length>0;
   return (
     <div className="fade">
+      {!readOnly&&<div className="help-box"><span className="help-h">Interviews · collect the grids</span>Run one repertory grid per person. Click <b>+ New interview</b>, enter their name, then rate every element on every construct using your scale. You can also add <b>elicited constructs</b> — ones that surface in the person’s own words — as you go, and capture a supporting quote. Mark each interview <b>complete</b> when done. Aim for enough people that themes start to repeat (often 8–20). If you share your screen, the interviewee can watch the grid fill in live.</div>}
       <div className="topbar">
         <div className="sec-tag" style={{margin:0}}>Interviews ({responses.length})</div>
-        <button className="btn-p btn-sm" disabled={!ready} onClick={onNew}>+ New interview</button>
+        {!readOnly&&<button className="btn-p btn-sm" disabled={!ready} onClick={onNew}>+ New interview</button>}
       </div>
-      {!ready&&<div className="inf-box">Add elements in Setup and save the grid design before running interviews. Prescribed constructs are optional — you can add elicited constructs during each interview.</div>}
+      {!ready&&!readOnly&&<div className="inf-box">Add elements in Setup and save the grid design before running interviews. Prescribed constructs are optional — you can add elicited constructs during each interview.</div>}
       {responses.length===0&&ready&&<p className="muted small">No interviews yet.</p>}
       <div className="card" style={{padding:responses.length?'.4rem 1.25rem':'1.1rem 1.25rem'}}>
         {responses.map(r=>{
@@ -665,8 +949,8 @@ function Interviews({config,responses,onOpen,onNew,onDelete}){
               <b style={{minWidth:130}}>{r.participant_name||'(unnamed)'}</b>
               <span className={"tag "+(st==='complete'?'done':st==='in_progress'?'prog':'')}>{st}</span>
               <div className="grow"/>
-              <button className="btn-s btn-sm" onClick={()=>onOpen(r)}>Open</button>
-              <button className="x" title="Delete interview" onClick={()=>onDelete&&onDelete(r)}>🗑</button>
+              <button className="btn-s btn-sm" onClick={()=>onOpen(r)}>{readOnly?'View':'Open'}</button>
+              {!readOnly&&<button className="x" title="Delete interview" onClick={()=>onDelete&&onDelete(r)}>🗑</button>}
             </div>
           );
         })}
@@ -687,7 +971,7 @@ function Analysis({config,responses,onOpen}){
   const info=useMemo(()=>{
     if(!r) return null;
     const ratings=(r.data&&r.data.ratings)||{}, supplied=(r.data&&r.data.supplied)||{}, quotes=(r.data&&r.data.quotes)||{}, noPol=(r.data&&r.data.noPolarity)||{};
-    const els=honeyElements(config,null);   // supplementary elements held out
+    const els=elementsFor(config,r,null);   // this interview's elements, supplementary held out
     const sArr=els.map(el=> supplied[el.id]!=null?supplied[el.id]:null);
     if(sArr.every(v=>v==null)) return {rows:[],quotes,excluded:0,maps:null};
     const allCons=[...config.constructs,...((r.data&&r.data.elicited)||[])];
@@ -709,10 +993,10 @@ function Analysis({config,responses,onOpen}){
 
   // Every grid: raw ratings (all elements incl. supplementary) + Honey + quotes.
   function exportGrids(){
-    const els=config.elements;
-    const hEls=honeyElements(config,null);
     const rows=[];
     responses.forEach(resp=>{
+      const els=gridElementsFor(config,resp);          // this interview's elements (incl. supplementary)
+      const hEls=elementsFor(config,resp,null);         // Honey subset (supplementary out)
       const d=resp.data||{}; const ratings=d.ratings||{}, supplied=d.supplied||{}, quotes=d.quotes||{};
       const names=d.elementNames||els.map(e=>e.name);
       const sArr=hEls.map(el=> supplied[el.id]!=null?supplied[el.id]:null);
@@ -738,7 +1022,8 @@ function Analysis({config,responses,onOpen}){
 
   return (
     <div className="fade">
-      <div className="inf-box">Step 1 — each interviewee's constructs, ranked by how closely they track the supplied “{config.suppliedLeft}” construct. The bar shows the effective pole; <b>H</b> = top third of this person's range, <b>I</b> = middle, <b>L</b> = bottom (individual Honey).</div>
+      <div className="help-box"><span className="help-h">Step 1 · Individual Honey (one person at a time)</span>Pick an interviewee to see their constructs ranked by how closely each one tracks the supplied “{config.suppliedLeft}” construct — this is <b>Honey’s (1979) individual analysis</b>. The bar shows how strongly each construct points toward the effective pole, and each is banded <b>H</b> (top third of that person’s range), <b>I</b> (middle) or <b>L</b> (bottom) so you can see which of their ideas matter most. This is a per-person view; the shared picture across everyone comes in steps 2 and 3.</div>
+      {responses.length===0 && <div className="inf-box">No interviews yet — run one in the <b>Interviews</b> tab and this analysis fills in automatically.</div>}
       <div className="toolbar">
         <label className="field-lbl" style={{margin:0}}>Interviewee</label>
         <select className="inp inp-sm" style={{width:260,flex:'0 0 auto'}} value={sel} onChange={e=>setSel(e.target.value)}>
@@ -830,7 +1115,7 @@ function GridMaps({maps,scaleMin,scaleMax}){
 }
 
 /* ============================ Composite constructs (categorisation) ====================== */
-function CompositeConstructs({config,setConfig,responses,onSave,saving,savedMsg}){
+function CompositeConstructs({config,setConfig,responses,onSave,saving,savedMsg,readOnly}){
   const categories=config.categories||[];
   const assignments=config.assignments||{};
   const members=useMemo(()=>pooledMembers(responses,config,null),[responses,config.elements,config.constructs]);
@@ -864,6 +1149,7 @@ function CompositeConstructs({config,setConfig,responses,onSave,saving,savedMsg}
     setAssign(a);
   }
   function autoGenerate(){
+    if(readOnly) return;
     const cats=[]; const a={...assignments};
     groups.filter(g=>g.length>=3).slice(0,20).forEach(g=>{
       const m0=memberByKey[g[0].id];
@@ -894,6 +1180,7 @@ function CompositeConstructs({config,setConfig,responses,onSave,saving,savedMsg}
 
   // Derive categories from the data using the encoded Jankowicz/Honey method.
   async function derive(){
+    if(readOnly) return;
     if(!window.confirm('Derive composite constructs from all '+members.length+' constructs?\n\nThis proposes fresh categories (bottom-up) and REPLACES the current list.')) return;
     setBusy('Deriving categories…');
     try{
@@ -923,6 +1210,7 @@ function CompositeConstructs({config,setConfig,responses,onSave,saving,savedMsg}
   const delCoder=(id)=>{ const c={...coders}; delete c[id]; setConfig({...config,coderMeta:meta.filter(m=>m.id!==id),coders:c}); };
 
   async function runAiCoder(cd){
+    if(readOnly) return;
     if(!categories.length){ alert('Create or derive composite constructs first.'); return; }
     const cats=categories.map(c=>({id:c.id,name:c.name,left:c.left,leftDef:c.leftDef,right:c.right,rightDef:c.rightDef}));
     const out={}; const B=60;
@@ -1020,15 +1308,15 @@ function CompositeConstructs({config,setConfig,responses,onSave,saving,savedMsg}
 
   return (
     <div className="fade">
-      <div className="inf-box">Step 2 — group everyone's constructs (in the interviewee's own words) into <b>composite constructs</b> (your researcher categories), à la Jankowicz. Superscripts show which participant each construct came from. {members.length} constructs · {assignedCount} assigned · {totalP} participants.</div>
+      <div className="help-box"><span className="help-h">Step 2 · Composite constructs (grouping)</span>Every construct from every interview is pooled here. Group the ones that mean the same thing into <b>composite constructs</b> — your shared research categories, each with a preferred and an opposite pole (Jankowicz’s method). Build them by hand with <b>+ Add composite</b>, add AI or human <b>coders</b> to propose them independently, or use <b>Derive from data</b> to bootstrap a first set automatically. Superscripts (P3, etc.) show which participant each construct came from. {members.length} constructs · {assignedCount} assigned · {totalP} participants.</div>
 
       <div className="toolbar">
         <div className="sec-tag" style={{margin:0}}>Composite constructs ({categories.length})</div>
         <div className="grow"/>
         {busy && <span className="small" style={{color:'#e07030'}}>{busy}</span>}
-        <button className="btn-s btn-sm" disabled={!!busy} onClick={derive}>✦ Derive from data</button>
+        {!readOnly&&<button className="btn-s btn-sm" disabled={!!busy} onClick={derive}>✦ Derive from data</button>}
         <button className="btn-s btn-sm" onClick={exportTable52}>Export Table 5-2</button>
-        <button className="btn-s btn-sm" onClick={addCat}>+ Add composite</button>
+        {!readOnly&&<button className="btn-s btn-sm" onClick={addCat}>+ Add composite</button>}
       </div>
 
       {/* ---- Coding panel: AI only / AI + human / human only ---- */}
@@ -1036,8 +1324,8 @@ function CompositeConstructs({config,setConfig,responses,onSave,saving,savedMsg}
         <div className="toolbar">
           <div className="sec-tag" style={{margin:0}}>Coders ({meta.length}/4)</div>
           <div className="grow"/>
-          <button className="btn-s btn-sm" disabled={meta.length>=4} onClick={()=>addCoder('ai')}>+ AI coder</button>
-          <button className="btn-s btn-sm" disabled={meta.length>=4} onClick={()=>addCoder('human')}>+ Human coder</button>
+          {!readOnly&&<button className="btn-s btn-sm" disabled={meta.length>=4} onClick={()=>addCoder('ai')}>+ AI coder</button>}
+          {!readOnly&&<button className="btn-s btn-sm" disabled={meta.length>=4} onClick={()=>addCoder('human')}>+ Human coder</button>}
         </div>
         <p className="field-sub">Add up to four independent coders — any mix of AI and human. Each codes the full set alone; the tool then reports inter-rater reliability and asks you to settle only the disagreements (Jankowicz's reconciliation step).</p>
         {meta.length===0 && <p className="mini">No coders yet. Add two or more to get a reliability statistic.</p>}
@@ -1046,17 +1334,17 @@ function CompositeConstructs({config,setConfig,responses,onSave,saving,savedMsg}
           return (
             <div className="list-row" key={cd.id}>
               <span className="tag" style={cd.type==='ai'?{background:'#f0e2d5',color:'#b5651a'}:{background:'#dcefe0',color:'#16794a'}}>{cd.type==='ai'?'AI':'HUMAN'}</span>
-              <input className="inp inp-sm" style={{flex:2}} value={cd.name} onChange={e=>editCoder(cd.id,{name:e.target.value})}/>
+              <input className="inp inp-sm" style={{flex:2}} value={cd.name} readOnly={readOnly} onChange={e=>editCoder(cd.id,{name:e.target.value})}/>
               {cd.type==='ai'
-                ? <select className="inp inp-sm" style={{width:190,flex:'0 0 auto'}} value={cd.stance||'A'} onChange={e=>editCoder(cd.id,{stance:e.target.value,name:'AI · '+STANCES[e.target.value]})}>
+                ? <select className="inp inp-sm" style={{width:190,flex:'0 0 auto'}} value={cd.stance||'A'} disabled={readOnly} onChange={e=>editCoder(cd.id,{stance:e.target.value,name:'AI · '+STANCES[e.target.value]})}>
                     {Object.keys(STANCES).map(s=><option key={s} value={s}>{STANCES[s]}</option>)}
                   </select>
                 : <span className="mini" style={{width:190}}>codes manually</span>}
               <span className="mini" style={{minWidth:74}}>{n}/{members.length}</span>
-              {cd.type==='ai'
+              {!readOnly&&(cd.type==='ai'
                 ? <button className="btn-p btn-sm" disabled={!!busy} onClick={()=>runAiCoder(cd)}>Run</button>
-                : <button className="btn-p btn-sm" onClick={()=>setCoding(cd.id)}>Code</button>}
-              <button className="x" onClick={()=>delCoder(cd.id)}>✕</button>
+                : <button className="btn-p btn-sm" onClick={()=>setCoding(cd.id)}>Code</button>)}
+              {!readOnly&&<button className="x" onClick={()=>delCoder(cd.id)}>✕</button>}
             </div>
           );
         })}
@@ -1108,31 +1396,31 @@ function CompositeConstructs({config,setConfig,responses,onSave,saving,savedMsg}
         return (
           <div className="card" key={cat.id}>
             <div className="toolbar" style={{marginBottom:6}}>
-              <input className="inp inp-sm" style={{maxWidth:240,fontWeight:700}} value={cat.name} onChange={e=>editCat(cat.id,{name:e.target.value})}/>
+              <input className="inp inp-sm" style={{maxWidth:240,fontWeight:700}} value={cat.name} readOnly={readOnly} onChange={e=>editCat(cat.id,{name:e.target.value})}/>
               <span className="tag">{mem.length} constructs · {uniq} ppts · {totalP?Math.round(uniq/totalP*100):0}%</span>
               <div className="grow"/>
-              <button className="x" onClick={()=>delCat(cat.id)}>✕</button>
+              {!readOnly&&<button className="x" onClick={()=>delCat(cat.id)}>✕</button>}
             </div>
             <div className="row">
               <div><label className="field-lbl">Preferred pole (+ definition)</label>
-                <input className="inp inp-sm" value={cat.left} onChange={e=>editCat(cat.id,{left:e.target.value})}/>
-                <textarea className="inp inp-sm" rows={2} placeholder="definition…" value={cat.leftDef||''} onChange={e=>editCat(cat.id,{leftDef:e.target.value})} style={{marginTop:4}}/></div>
+                <input className="inp inp-sm" value={cat.left} readOnly={readOnly} onChange={e=>editCat(cat.id,{left:e.target.value})}/>
+                <textarea className="inp inp-sm" rows={2} placeholder="definition…" value={cat.leftDef||''} readOnly={readOnly} onChange={e=>editCat(cat.id,{leftDef:e.target.value})} style={{marginTop:4}}/></div>
               <div><label className="field-lbl">Opposite pole (+ definition)</label>
-                <input className="inp inp-sm" value={cat.right} onChange={e=>editCat(cat.id,{right:e.target.value})}/>
-                <textarea className="inp inp-sm" rows={2} placeholder="definition…" value={cat.rightDef||''} onChange={e=>editCat(cat.id,{rightDef:e.target.value})} style={{marginTop:4}}/></div>
+                <input className="inp inp-sm" value={cat.right} readOnly={readOnly} onChange={e=>editCat(cat.id,{right:e.target.value})}/>
+                <textarea className="inp inp-sm" rows={2} placeholder="definition…" value={cat.rightDef||''} readOnly={readOnly} onChange={e=>editCat(cat.id,{rightDef:e.target.value})} style={{marginTop:4}}/></div>
             </div>
             <div className="field" style={{marginTop:8}}><label className="field-lbl">Illustrative quote</label>
-              <input className="inp inp-sm" value={cat.quote||''} onChange={e=>editCat(cat.id,{quote:e.target.value})} placeholder="“…”"/></div>
+              <input className="inp inp-sm" value={cat.quote||''} readOnly={readOnly} onChange={e=>editCat(cat.id,{quote:e.target.value})} placeholder="“…”"/></div>
             <div>{mem.length?mem.map(({m,role})=>(
-              <span className="chip" key={m.key+role} style={{cursor:'pointer',borderStyle:role==='secondary'?'dashed':'solid'}}
-                title={role==='secondary'?'secondary composite (complex construct) — click to remove':'click to remove'}
-                onClick={()=>unassign(m.key, role)}>{m.left} vs {m.right}<Sup n={m.pnum}/>{role==='secondary'?<sup style={{color:'#888'}}>&nbsp;2°</sup>:null}</span>
+              <span className="chip" key={m.key+role} style={{cursor:readOnly?'default':'pointer',borderStyle:role==='secondary'?'dashed':'solid'}}
+                title={readOnly?(role==='secondary'?'secondary composite (complex construct)':''):(role==='secondary'?'secondary composite (complex construct) — click to remove':'click to remove')}
+                onClick={()=>{ if(!readOnly) unassign(m.key, role); }}>{m.left} vs {m.right}<Sup n={m.pnum}/>{role==='secondary'?<sup style={{color:'#888'}}>&nbsp;2°</sup>:null}</span>
             )):<span className="mini">No constructs assigned yet — use the pool below.</span>}</div>
           </div>
         );
       })}
 
-      <div className="card">
+      {!readOnly&&<div className="card">
         <div className="sec-tag">Assign remaining constructs ({members.length-assignedCount})</div>
         <p className="field-sub">Every unassigned construct, verbatim, grouped by similarity. Assign a whole group to a composite; click any assigned chip above to remove it.</p>
         {unassignedGroups.length===0 && <p className="mini">All constructs assigned.</p>}
@@ -1145,13 +1433,13 @@ function CompositeConstructs({config,setConfig,responses,onSave,saving,savedMsg}
             </select>
           </div>
         ))}
-      </div>
+      </div>}
 
-      <div className="btn-row">
+      {!readOnly&&<div className="btn-row">
         <div className="grow"/>
         {savedMsg&&<span className="small" style={{color:'#16794a'}}>{savedMsg}</span>}
         <button className="btn-p" onClick={onSave} disabled={saving}>{saving?'Saving…':'Save categorisation'}</button>
-      </div>
+      </div>}
     </div>
   );
 }
@@ -1160,18 +1448,22 @@ function CompositeConstructs({config,setConfig,responses,onSave,saving,savedMsg}
 const CAT_FULL={SL:'System Leadership',TL:'Traditional Leadership',FL:'Future Leadership'};
 function catFull(c){ return CAT_FULL[c]||c; }
 function CompositeTable({config,responses}){
-  const elemCats=[...new Set(honeyElements(config,null).map(e=>e.category).filter(Boolean))];
+  const elemCats=[...new Set([].concat(...responses.map(r=>elementsFor(config,r,null).map(e=>e.category))).filter(Boolean))];
   const [seg,setSeg]=useState('all');
+  const [refId,setRefId]=useState('supplied');
+  const [threshold,setThreshold]=useState(0);
   const categories=config.categories||[], assignments=config.assignments||{};
-  const memAll=useMemo(()=>pooledMembers(responses,config,null),[responses,config.elements,config.constructs]);
+  const refCons=(config.constructs||[]).filter(x=>x.left||x.right);
+  const memAll=useMemo(()=>pooledMembers(responses,config,null,refId),[responses,config,refId]);
   const totalP=totalParticipants(memAll);
   const fixedOrient=useMemo(()=>fixedOrientOf(memAll),[memAll]);
-  const rowsFor=(filter)=> compositeRows(pooledMembers(responses,config,filter),categories,assignments,totalP,fixedOrient);
-  const all=useMemo(()=>rowsFor(null),[responses,config,seg]);
-  const segRows=useMemo(()=> (seg==='all'||seg==='compare')?null:rowsFor(seg),[responses,config,seg]);
-  const cmp=useMemo(()=> (seg==='compare'&&elemCats.length>=2)? elemCats.map(c=>({c, rows:rowsFor(c)})):null,[responses,config,seg]);
+  const rowsFor=(filter)=> compositeRows(pooledMembers(responses,config,filter,refId),categories,assignments,totalP,fixedOrient);
+  const all=useMemo(()=>rowsFor(null),[responses,config,seg,refId]);
+  const segRows=useMemo(()=> (seg==='all'||seg==='compare')?null:rowsFor(seg),[responses,config,seg,refId]);
+  const cmp=useMemo(()=> (seg==='compare'&&elemCats.length>=2)? elemCats.map(c=>({c, rows:rowsFor(c)})):null,[responses,config,seg,refId]);
+  const refLabel = refId==='supplied' ? (config.suppliedLeft+' → '+config.suppliedRight) : ((refCons.find(c=>c.id===refId)||{}).left||'reference');
 
-  if(categories.length===0) return <div className="inf-box">Build your composite constructs first (tab 2). This tab then aggregates them into James's Honey Content Table.</div>;
+  if(categories.length===0) return <div className="help-box"><span className="help-h">Step 3 · Composite table (the final result)</span>Nothing to show yet. First build your <b>composite constructs</b> on the <b>2 · Composite constructs</b> tab. Once you have categories, this tab automatically turns them into the <b>Honey Content Table</b> — the headline finding of the whole study.</div>;
 
   const bar=(l)=> <div style={{display:'inline-flex',width:70,height:10,borderRadius:3,overflow:'hidden',border:'1px solid #d8d3cb',verticalAlign:'middle'}}>
     <div style={{width:l+'%',background:'#3f7d4e'}}/><div style={{flex:1,background:'#efeae2'}}/></div>;
@@ -1188,7 +1480,7 @@ function CompositeTable({config,responses}){
             <th style={{width:110}}>Preference</th><th style={{width:48}}>H%</th><th style={{width:48}}>I%</th><th style={{width:48}}>L%</th>
           </tr></thead>
           <tbody>
-            {rows.filter(r=>r.n>0).map(r=>(
+            {rows.filter(r=>r.n>0 && r.uniquePct>=threshold).map(r=>(
               <tr key={r.cat.id}>
                 <td className="pole"><b>{r.cat.name}</b>{r.cat.quote?<div className="mini" style={{maxWidth:180,whiteSpace:'normal'}}>“{r.cat.quote.slice(0,70)}”</div>:null}</td>
                 <td>{Math.round(r.uniquePct)}%</td>
@@ -1234,19 +1526,43 @@ function CompositeTable({config,responses}){
   }
   return (
     <div className="fade">
-      <div className="inf-box">Step 3 — James's <b>Honey Content Table</b>: each composite construct's preferred-pole mean similarity to the supplied “{config.suppliedLeft}” construct, and its H/I/L spread. Run over all elements, or split by element category. {elemCats.map(c=>c+' = '+catFull(c)).join(' · ')}. Supplementary elements are excluded from the similarity, as in the thesis.</div>
-      <div className="toolbar">
+      <div className="help-box"><span className="help-h">Step 3 · Composite table — the Honey Content Table</span>This is the payoff. For each <b>composite construct</b>, it shows the average similarity of its preferred pole to the effectiveness reference (<b>{refLabel}</b>), how many people mentioned it, and its <b>H/I/L</b> spread — so you can read off which shared themes matter most. Split it by <b>element category</b> ({elemCats.length?elemCats.map(c=>c+' = '+catFull(c)).join(' · '):'none yet'}) to get James’s System / Traditional / Comparative tables, change the <b>reference construct</b> to analyse against a different criterion, or apply a <b>frequency threshold</b> (James kept categories cited by ≥50% of participants). Held-out elements are excluded, as in the thesis.</div>
+
+      <div className="toolbar" style={{gap:'.6rem',flexWrap:'wrap'}}>
+        <span className="mini">Split:</span>
         <button className="btn-s btn-sm" style={seg==='all'?{borderColor:'#1a1a1a'}:{}} onClick={()=>setSeg('all')}>All elements</button>
         {elemCats.map(c=><button key={c} className="btn-s btn-sm" style={seg===c?{borderColor:'#1a1a1a'}:{}} onClick={()=>setSeg(c)}>{catFull(c)}</button>)}
         {elemCats.length>=2 && <button className="btn-s btn-sm" style={seg==='compare'?{borderColor:'#1a1a1a'}:{}} onClick={()=>setSeg('compare')}>Comparative</button>}
         <div className="grow"/>
         <button className="btn-s btn-sm" onClick={exportHoney}>Export Honey tables</button>
       </div>
+      <div className="toolbar" style={{gap:'.6rem',flexWrap:'wrap',marginTop:'-.6rem'}}>
+        {refCons.length>0 && <span className="mini">Reference:
+          <select className="inp inp-sm" style={{width:220,marginLeft:6}} value={refId} onChange={e=>setRefId(e.target.value)}>
+            <option value="supplied">{config.suppliedLeft} → {config.suppliedRight} (yardstick)</option>
+            {refCons.map(x=><option key={x.id} value={x.id}>{x.left} → {x.right}</option>)}
+          </select></span>}
+        <span className="mini">Freq. threshold:</span>
+        {[0,25,50].map(t=><button key={t} className="btn-s btn-sm" style={threshold===t?{borderColor:'#1a1a1a'}:{}} onClick={()=>setThreshold(t)}>{t===0?'off':'≥'+t+'%'}</button>)}
+      </div>
+
+      <div className="card">
+        <div className="sec-tag">Results summary — categories by unique frequency (Figure 5-3)</div>
+        {[...all].filter(r=>r.n>0).sort((a,b)=>b.uniquePct-a.uniquePct).map(r=>(
+          <div key={r.cat.id} style={{display:'flex',alignItems:'center',gap:8,margin:'2px 0'}}>
+            <div style={{width:160,fontSize:'.74rem',textAlign:'right',color:r.uniquePct>=threshold?'#1a1a1a':'#b0a898',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{r.cat.name}</div>
+            <div style={{flex:1,height:13,background:'#efeae2',borderRadius:3,overflow:'hidden'}}><div style={{width:r.uniquePct+'%',height:'100%',background:r.uniquePct>=(threshold||1)?'#e07030':'#d8b9a3'}}/></div>
+            <div style={{width:38,fontSize:'.72rem'}}>{Math.round(r.uniquePct)}%</div>
+          </div>
+        ))}
+        {all.filter(r=>r.n>0).length===0&&<p className="mini">No categories with assigned constructs yet.</p>}
+      </div>
+
       <div className="card">
         {seg==='all' && <HoneyTable rows={all}/>}
         {segRows && <HoneyTable rows={segRows} title={catFull(seg)+' situations only (Honey Content Table)'}/>}
         {cmp && <Comparative/>}
-        <p className="mini" style={{marginTop:'.6rem'}}>Mean similarity % = average Honey similarity of the composite's preferred pole to the supplied “{config.suppliedLeft}” construct across its member constructs. Unique freq % = share of participants with a construct in the category. H/I/L% = band spread. Following Honey (1979) / Jankowicz (2004).</p>
+        <p className="mini" style={{marginTop:'.6rem'}}>Mean similarity % = average Honey similarity of the composite's preferred pole to <b>{refLabel}</b> across its member constructs. Unique freq % = share of participants with a construct in the category{threshold>0?' (showing ≥'+threshold+'% only)':''}. H/I/L% = band spread. Following Honey (1979) / Jankowicz (2004).</p>
       </div>
     </div>
   );
@@ -1265,49 +1581,67 @@ function Dashboard({code, onSignOut}){
   async function reload(){
     const j=await api('/api/rep-grid-load',{session_code:code});
     const cfg=(j.config&&j.config.data&&j.config.data.title!=null)? j.config.data
-      : {title:'',scaleMin:1,scaleMax:10,suppliedLeft:'Highly effective',suppliedRight:'Not effective at all',elements:[],constructs:[]};
+      : {title:'',description:'',scaleMin:1,scaleMax:10,suppliedLeft:'Highly effective',suppliedRight:'Not effective at all',suppliedDesc:'',elementCategories:[],elements:[],constructs:[]};
     cfg.categories=cfg.categories||[]; cfg.assignments=cfg.assignments||{};
+    cfg.elementCategories=cfg.elementCategories||[]; cfg.description=cfg.description||''; cfg.suppliedDesc=cfg.suppliedDesc||'';
     setConfig(cfg); setResponses(j.responses||[]); setLoading(false);
   }
   useEffect(()=>{ reload().catch(e=>{ setLoading(false); alert('Load failed: '+e.message); }); /* eslint-disable-next-line */ },[]);
 
   async function saveConfig(){
+    if(config&&config.readOnly) return;
     setSaving(true); setSavedMsg('');
     try{ await saveWithRetry({kind:'config',session_code:code,data:config}); setSavedMsg('Saved ✓'); setTimeout(()=>setSavedMsg(''),2500); }
     catch(e){ alert('Save failed: '+e.message); }
     setSaving(false);
   }
-  function newInterview(){ setActive({participant_id:uid(),participant_name:'',data:{ratings:{},supplied:{},quotes:{},status:'in_progress'}}); }
+  async function saveResponse(resp){
+    if(config&&config.readOnly) return;
+    try{ await saveWithRetry({kind:'response',session_code:code,participant_id:resp.participant_id,participant_name:resp.participant_name||'',data:resp.data}); await reload(); }
+    catch(e){ alert('Save failed: '+e.message); }
+  }
+  function newInterview(){ if(config&&config.readOnly) return; setActive({participant_id:uid(),participant_name:'',data:{ratings:{},supplied:{},quotes:{},status:'in_progress'}}); }
   async function deleteResponse(r){
+    if(config&&config.readOnly) return;
     if(!window.confirm('Delete interview “'+(r.participant_name||'unnamed')+'”?\n\nThis permanently removes the grid and cannot be undone.')) return;
     try{ await api('/api/rep-grid-save',{kind:'delete-response',session_code:code,participant_id:r.participant_id}); reload(); }
     catch(e){ alert('Delete failed: '+e.message); }
   }
 
   if(loading) return <div className="content"><p className="muted">Loading session…</p></div>;
-  if(active) return <Interview config={config} code={code} resp={active} onBack={()=>{ setActive(null); reload(); }}/>;
+  const readOnly=!!(config&&config.readOnly);
+  if(active) return <Interview config={config} code={code} resp={active} readOnly={readOnly} onBack={()=>{ setActive(null); reload(); }}/>;
 
   return (
     <div className="content-wide fade">
       <div className="topbar">
-        <div><div className="land-tag" style={{marginBottom:'.3rem'}}>Rep-Grid</div>
+        <div><div className="land-tag" style={{marginBottom:'.3rem'}}>Rep-Grid{readOnly?' · Example':''}</div>
           <div className="pg-title" style={{margin:0}}>{config.title||'Untitled study'}</div></div>
         <div style={{display:'flex',gap:'.6rem',alignItems:'center'}}>
           <span className="code">{code}</span>
           <button className="btn-s btn-sm" onClick={onSignOut}>Sign out</button>
         </div>
       </div>
+      {readOnly&&<div className="demo-banner"><b>Read-only example study.</b> This is James’s completed NHS-leadership dataset, kept as a worked example so you can see what a finished study looks like at every stage. You can explore and export freely — editing, adding interviews and deleting are switched off so it can’t be changed. To run your own study, sign out and open the tool with your own access code.</div>}
       <div className="fac-tab-bar">
         <button className={"fac-tab"+(tab==='setup'?' active':'')} onClick={()=>setTab('setup')}>Setup</button>
+        <button className={"fac-tab"+(tab==='pconstructs'?' active':'')} onClick={()=>setTab('pconstructs')}>Prescribed constructs</button>
+        <button className={"fac-tab"+(tab==='pelements'?' active':'')} onClick={()=>setTab('pelements')}>Prescribed elements</button>
         <button className={"fac-tab"+(tab==='interviews'?' active':'')} onClick={()=>setTab('interviews')}>Interviews</button>
+        <button className={"fac-tab"+(tab==='allelements'?' active':'')} onClick={()=>setTab('allelements')}>All elements</button>
+        <button className={"fac-tab"+(tab==='allconstructs'?' active':'')} onClick={()=>setTab('allconstructs')}>All constructs</button>
         <button className={"fac-tab"+(tab==='individual'?' active':'')} onClick={()=>setTab('individual')}>1 · Individual Honey</button>
         <button className={"fac-tab"+(tab==='composite'?' active':'')} onClick={()=>setTab('composite')}>2 · Composite constructs</button>
         <button className={"fac-tab"+(tab==='table'?' active':'')} onClick={()=>setTab('table')}>3 · Composite table</button>
       </div>
-      {tab==='setup'&&<Setup config={config} setConfig={setConfig} onSave={saveConfig} saving={saving} savedMsg={savedMsg}/>}
-      {tab==='interviews'&&<Interviews config={config} responses={responses} onOpen={setActive} onNew={newInterview} onDelete={deleteResponse}/>}
+      {tab==='setup'&&<Setup config={config} setConfig={setConfig} onSave={saveConfig} saving={saving} savedMsg={savedMsg} readOnly={readOnly}/>}
+      {tab==='pconstructs'&&<PrescribedConstructs config={config} setConfig={setConfig} onSave={saveConfig} saving={saving} savedMsg={savedMsg} readOnly={readOnly}/>}
+      {tab==='pelements'&&<PrescribedElements config={config} setConfig={setConfig} onSave={saveConfig} saving={saving} savedMsg={savedMsg} readOnly={readOnly}/>}
+      {tab==='interviews'&&<Interviews config={config} responses={responses} onOpen={setActive} onNew={newInterview} onDelete={deleteResponse} readOnly={readOnly}/>}
+      {tab==='allelements'&&<AllElements config={config} setConfig={setConfig} onSaveConfig={saveConfig} responses={responses} onSaveResponse={saveResponse} readOnly={readOnly}/>}
+      {tab==='allconstructs'&&<AllConstructs config={config} responses={responses} onSaveResponse={saveResponse} readOnly={readOnly}/>}
       {tab==='individual'&&<Analysis config={config} responses={responses} onOpen={setActive}/>}
-      {tab==='composite'&&<CompositeConstructs config={config} setConfig={setConfig} responses={responses} onSave={saveConfig} saving={saving} savedMsg={savedMsg}/>}
+      {tab==='composite'&&<CompositeConstructs config={config} setConfig={setConfig} responses={responses} onSave={saveConfig} saving={saving} savedMsg={savedMsg} readOnly={readOnly}/>}
       {tab==='table'&&<CompositeTable config={config} responses={responses}/>}
     </div>
   );
