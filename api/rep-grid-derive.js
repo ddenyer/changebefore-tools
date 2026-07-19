@@ -1,6 +1,6 @@
 // Vercel serverless function: DERIVE composite constructs (content-analysis
 // categories) from a raw set of elicited constructs — encoding the method used
-// in the reference DBA thesis (Jankowicz 2004 core categorisation / Honey 1979).
+// (Jankowicz 2004 core categorisation / Honey 1979).
 //
 // This is the generalisable engine: point it at ANY study's constructs and it
 // proposes the categories the way a trained second coder would, bootstrapped
@@ -34,7 +34,7 @@ METHOD YOU MUST FOLLOW (this is the logic to reproduce):
 5. Merge categories that are conceptually similar or overlapping; split any category that is doing two jobs.
 6. Then review: DISCARD categories that are underpopulated (supported by only a couple of constructs) by folding them into a better fit.
 7. Aim for about ${n} substantive categories, ordered by how many constructs they capture (most frequent first), PLUS a final catch-all category named exactly "Other" for constructs that genuinely fit nowhere.
-8. Orient every category so the PREFERRED pole is the one associated with EFFECTIVE leadership, and the OPPOSITE pole is the ineffective/contrasting one.
+8. Orient every category so the PREFERRED pole is the one associated with the effective / preferred end of the supplied construct, and the OPPOSITE pole is the contrasting one.
 
 ${domain ? 'DOMAIN CONTEXT: ' + domain + '\n' : ''}
 CONSTRUCTS (${constructs.length} total${constructs.length > 900 ? ', first 900 shown' : ''}):

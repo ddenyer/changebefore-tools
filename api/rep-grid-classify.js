@@ -35,7 +35,7 @@ export default async function handler(req, res) {
 
   const conList = constructs.map(c => `${c.id} :: "${c.left}" versus "${c.right}"`).join('\n');
 
-  const prompt = `You are coding repertory-grid constructs into content-analysis categories, following Jankowicz's (2004) core-categorisation method as applied in a DBA thesis on NHS system leadership. You are an experienced independent coder working ALONE — do not hedge toward what another coder might say; record your own honest judgement.
+  const prompt = `You are coding repertory-grid constructs into content-analysis categories, following Jankowicz's (2004) core-categorisation method. You are an experienced independent coder working ALONE — do not hedge toward what another coder might say; record your own honest judgement.
 
 ${STANCE}
 
