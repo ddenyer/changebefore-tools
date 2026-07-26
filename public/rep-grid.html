@@ -516,6 +516,26 @@ function hclust(sim){
   }
   return nodes[0];
 }
+// Cut a hclust tree into k clusters by repeatedly splitting the tallest node.
+function cutTree(root,k){
+  if(!root) return [];
+  let cl=[root];
+  while(cl.length<k){
+    let idx=-1,mh=-1; cl.forEach((n,i)=>{ if(n.left&&n.height>mh){mh=n.height;idx=i;} });
+    if(idx<0) break; const n=cl[idx]; cl.splice(idx,1,n.left,n.right);
+  }
+  return cl.map(n=>n.members);
+}
+// Per-participant content-category profile: how many of this person's constructs
+// were coded into each category (primary + secondary), using the study assignments.
+function categoryProfile(config, r){
+  const cons=[...(config.constructs||[]), ...((r.data&&r.data.elicited)||[])];
+  const A=config.assignments||{}, counts={}; (config.categories||[]).forEach(c=>counts[c.id]=0);
+  cons.forEach(c=>{ const a=A[r.participant_id+':'+c.id]; if(!a) return;
+    if(a.cat!=null&&counts[a.cat]!=null) counts[a.cat]++;
+    if(a.cat2!=null&&counts[a.cat2]!=null) counts[a.cat2]++; });
+  return counts;
+}
 
 /* ============================ helpers ====================== */
 const uid=()=> (crypto.randomUUID? crypto.randomUUID() : 'id-'+Math.random().toString(36).slice(2)+Date.now());
@@ -2097,6 +2117,110 @@ function CSPCModule({config,setConfig,onSaveConfig,readOnly}){
     </div>
   );
 }
+function SegmentsModule({config,responses}){
+  const cats=config.categories||[];
+  const withProf=responses.map(r=>({r,prof:categoryProfile(config,r)})).filter(x=>Object.values(x.prof).some(v=>v>0));
+  const [k,setK]=useState(3);
+  const data=useMemo(()=>{
+    if(withProf.length<3||!cats.length) return null;
+    const vecs=withProf.map(x=>cats.map(c=>x.prof[c.id]||0));
+    const n=vecs.length, sim=[];
+    for(let i=0;i<n;i++){sim.push([]);for(let j=0;j<n;j++){const r=pearson(vecs[i],vecs[j]); sim[i].push(((isNaN(r)?0:r)+1)/2*100);}}
+    return {vecs, tree:hclust(sim), labels:withProf.map(x=>x.r.participant_name||x.r.participant_id)};
+  },[withProf.length, cats.length, JSON.stringify(config.assignments||{}).length]);
+  const kk=data? Math.min(Math.max(2,k), data.labels.length) : 2;
+  const groups=data? cutTree(data.tree, kk) : [];
+  const topCats=(members)=>{ const sum={}; cats.forEach(c=>sum[c.id]=0); members.forEach(mi=>cats.forEach((c,ci)=>sum[c.id]+=data.vecs[mi][ci]));
+    return cats.map(c=>({name:c.name,n:sum[c.id]})).filter(x=>x.n>0).sort((a,b)=>b.n-a.n).slice(0,3); };
+  return (
+    <div className="fade">
+      <div className="help-box"><span className="help-h">Segmentation — do participants fall into “construing types”?</span><b>Why you need it:</b> instead of one average picture, clustering groups people whose <i>content profiles</i> resemble each other — the value-group / segmentation output that commercial tools sell. Each segment is a distinct way of construing the topic (e.g. one group leans “relational”, another “task-focused”). <b>How it works:</b> every person becomes a vector of how often their constructs fell into each content category; people are clustered by profile similarity. Pick the number of segments and read each group’s dominant categories. Needs constructs coded into categories first (Composite constructs).</div>
+      {!data
+        ? <div className="card"><p className="muted small">Segmentation needs at least three interviews whose constructs have been <b>coded into categories</b> (see Composite constructs). {cats.length?'':'This study has no categories yet.'}</p></div>
+        : <><div className="toolbar"><label className="field-lbl" style={{margin:0}}>Segments</label>
+            <select className="inp inp-sm" style={{width:70}} value={kk} onChange={e=>setK(+e.target.value)}>{Array.from({length:Math.min(6,data.labels.length-1)},(_,i)=>i+2).map(v=><option key={v} value={v}>{v}</option>)}</select>
+            <span className="mini">{data.labels.length} participants clustered by content profile</span></div>
+          <div className="card"><div className="sec-tag">Participant tree</div><div className="scroll"><Dendrogram root={data.tree} labels={data.labels}/></div></div>
+          <div className="row" style={{flexWrap:'wrap',gap:'.6rem'}}>{groups.map((g,gi)=>
+            <div key={gi} className="card" style={{flex:'1 1 240px'}}>
+              <div className="sec-tag">Segment {gi+1} · {g.length} {g.length===1?'person':'people'}</div>
+              <div className="mini" style={{marginBottom:'.3rem'}}>Dominant: {topCats(g).map(t=>t.name+' ('+t.n+')').join(' · ')||'—'}</div>
+              <div style={{fontSize:'.78rem'}}>{g.map(mi=>data.labels[mi]).join(', ')}</div>
+            </div>)}</div></>}
+    </div>
+  );
+}
+function CompareModule({config,responses}){
+  const lo=config.scaleMin,hi=config.scaleMax;
+  const {els,cons}=sharedFrame(config,responses);
+  const grids=responses.filter(r=>{const rt=(r.data&&r.data.ratings)||{}; return cons.some(c=>rt[c.id]&&els.some(e=>rt[c.id][e.id]!=null));});
+  const cell=useMemo(()=>{ if(els.length<1||cons.length<1||grids.length<2) return null;
+    return cons.map(c=>els.map(e=>{ const vals=grids.map(r=>{const rt=(r.data&&r.data.ratings)||{}; return rt[c.id]?rt[c.id][e.id]:null;}).filter(v=>v!=null);
+      if(!vals.length) return null; const m=vals.reduce((s,v)=>s+v,0)/vals.length; const sd=Math.sqrt(vals.reduce((s,v)=>s+(v-m)*(v-m),0)/vals.length);
+      return {m,sd,n:vals.length}; })); },[grids.length]);
+  const maxSd=(hi-lo)/2;
+  return (
+    <div className="fade">
+      <div className="help-box"><span className="help-h">Consensus &amp; difference grid — where do people agree, where do they diverge?</span><b>Why you need it:</b> when several people rate the <i>same</i> shared elements on the <i>same</i> shared constructs, the mean is a group “consensus grid” and the spread (SD) shows the cells of real disagreement — the productive places to explore. <b>How to use it:</b> this works on the study’s <b>shared (prescribed)</b> elements and constructs. Colour marks disagreement (darker = participants rate that element very differently on that construct).</div>
+      {!cell
+        ? <div className="card"><p className="muted small">A consensus grid needs at least one <b>shared element</b> and one <b>shared construct</b> rated by two or more people. This study’s grids use mostly per-interview (elicited) elements and constructs, so there isn’t a common frame to average. Add prescribed elements/constructs (Design) rated across interviews to use this view.</p></div>
+        : <div className="card"><div className="scroll"><table className="grid" style={{fontSize:'.72rem'}}>
+            <thead><tr><th className="pole" style={{textAlign:'left'}}>Construct (mean / sd)</th>{els.map((e,i)=><th key={i} title={e.name}>{(e.name||('E'+(i+1))).slice(0,14)}</th>)}</tr></thead>
+            <tbody>{cons.map((c,ci)=><tr key={ci}><td className="pole" style={{textAlign:'left'}}>{c.left} – {c.right}</td>
+              {els.map((e,ei)=>{ const x=cell[ci][ei]; if(!x) return <td key={ei} className="muted">—</td>;
+                const a=Math.min(x.sd/maxSd,1); return <td key={ei} style={{background:'rgba(192,57,43,'+(a*0.5)+')'}} title={'mean '+x.m.toFixed(1)+' · sd '+x.sd.toFixed(2)+' · n'+x.n}>{x.m.toFixed(1)}<span className="mini" style={{display:'block'}}>±{x.sd.toFixed(1)}</span></td>; })}
+            </tr>)}</tbody>
+          </table></div><p className="mini" style={{marginTop:'.4rem'}}>Cell = mean rating across {grids.length} grids; ±sd below. Redder = more disagreement.</p></div>}
+    </div>
+  );
+}
+function distributionOf(config, responses){
+  const cats=config.categories||[]; const sum={}; cats.forEach(c=>sum[c.id]=0); let tot=0;
+  responses.forEach(r=>{ const p=categoryProfile(config,r); cats.forEach(c=>{ sum[c.id]+=p[c.id]||0; tot+=p[c.id]||0; }); });
+  if(!tot) return null;
+  return cats.map(c=>({id:c.id, name:c.name, pct:sum[c.id]/tot*100, n:sum[c.id]}));
+}
+function NormsModule({config,setConfig,onSaveConfig,responses,readOnly}){
+  const cats=config.categories||[];
+  const [name,setName]=useState('');
+  const [cmp,setCmp]=useState('');
+  const norms=config.norms||[];
+  const cur=useMemo(()=>distributionOf(config,responses),[responses.length, JSON.stringify(config.assignments||{}).length]);
+  function save(){
+    if(readOnly||!cur) return;
+    const nm=name.trim()||('Norm '+(norms.length+1));
+    const rec={id:uid(), name:nm, date:new Date().toISOString().slice(0,10), n:responses.length, dist:cur.map(x=>({name:x.name,pct:x.pct}))};
+    const next={...config, norms:[...norms, rec]}; setConfig(next); onSaveConfig&&onSaveConfig(next); setName('');
+  }
+  function del(id){ if(readOnly) return; const next={...config, norms:norms.filter(n=>n.id!==id)}; setConfig(next); onSaveConfig&&onSaveConfig(next); }
+  const selNorm=norms.find(n=>n.id===cmp);
+  const cmpRows=(cur&&selNorm)? cur.map(c=>{ const nb=selNorm.dist.find(d=>d.name===c.name); return {name:c.name, cur:c.pct, base:nb?nb.pct:null}; }) : null;
+  return (
+    <div className="fade">
+      <div className="help-box"><span className="help-h">Norm bases — turn a study into a reusable benchmark</span><b>Why you need it:</b> once you’ve coded a study, its distribution of content categories is a <i>norm</i> you can score future studies against (“is this cohort unusually relational vs our benchmark?”). Commercial tools sell these normative databases as recurring value. <b>How to use it:</b> save the current study’s category distribution as a named norm, then compare any later study to it.</div>
+      {!cur
+        ? <div className="card"><p className="muted small">Nothing to benchmark yet — code this study’s constructs into categories first (Composite constructs).</p></div>
+        : <><div className="card"><div className="sec-tag">Current distribution ({responses.length} interviews)</div>
+            {cur.slice().sort((a,b)=>b.pct-a.pct).slice(0,12).map(c=><div key={c.name} style={{display:'flex',alignItems:'center',gap:'.5rem',margin:'2px 0'}}>
+              <div style={{width:150,fontSize:'.75rem',textAlign:'right'}}>{c.name}</div>
+              <div style={{flex:1,background:'#f0eee9',borderRadius:3}}><div style={{width:c.pct+'%',background:'#e07030',height:12,borderRadius:3}}/></div>
+              <div className="mini" style={{width:44}}>{c.pct.toFixed(1)}%</div></div>)}
+            <div className="toolbar" style={{marginTop:'.6rem'}}>
+              <input className="inp inp-sm" style={{flex:2}} placeholder="Name this norm (e.g. 2026 cohort)" value={name} disabled={readOnly} onChange={e=>setName(e.target.value)}/>
+              <button className="btn btn-sm" disabled={readOnly} onClick={save}>Save as norm</button>
+            </div>{readOnly&&<span className="mini">Read-only demo — cannot save norms.</span>}</div>
+          {norms.length>0&&<div className="card"><div className="sec-tag">Saved norms</div>
+            {norms.map(n=><div key={n.id} style={{display:'flex',alignItems:'center',gap:'.5rem',margin:'3px 0'}}>
+              <button className="btn-s btn-sm" style={cmp===n.id?{borderColor:'#1a1a1a'}:{}} onClick={()=>setCmp(cmp===n.id?'':n.id)}>{cmp===n.id?'Comparing':'Compare'}</button>
+              <span style={{fontSize:'.8rem'}}>{n.name}</span><span className="mini">{n.date} · n{n.n}</span>
+              {!readOnly&&<button className="x" onClick={()=>del(n.id)} style={{marginLeft:'auto'}}>✕</button>}</div>)}</div>}
+          {cmpRows&&<div className="card"><div className="sec-tag">Current vs “{selNorm.name}”</div><div className="scroll"><table className="grid" style={{fontSize:'.75rem'}}>
+            <thead><tr><th className="pole" style={{textAlign:'left'}}>Category</th><th>This study</th><th>{selNorm.name}</th><th>Δ</th></tr></thead>
+            <tbody>{cmpRows.filter(r=>r.cur>0||r.base>0).sort((a,b)=>Math.abs((b.cur-(b.base||0)))-Math.abs((a.cur-(a.base||0)))).map((r,i)=>{const d=r.base==null?null:r.cur-r.base; return <tr key={i}><td className="pole" style={{textAlign:'left'}}>{r.name}</td><td style={{textAlign:'center'}}>{r.cur.toFixed(1)}%</td><td style={{textAlign:'center'}}>{r.base==null?'—':r.base.toFixed(1)+'%'}</td><td style={{textAlign:'center',color:d==null?'#999':(d>=0?'#16784a':'#c0392b')}}>{d==null?'—':(d>=0?'+':'')+d.toFixed(1)}</td></tr>;})}</tbody>
+          </table></div></div>}</>}
+    </div>
+  );
+}
 const DASH_NAV=[
   {area:'Design', tiles:[
     {id:'setup',t:'Study setup',d:'Title, rating scale, description and element categories.'},
@@ -2123,11 +2247,11 @@ const DASH_NAV=[
     {id:'conflict',t:'Conflict',d:'Triadic-imbalance inconsistency (Slade & Sheehan).'},
     {id:'cspc',t:'CSPC dictionary',d:'Ready-made Feixas content-category scheme for constructs.'},
   ]},
-  {area:'Compare & change', soon:true, tiles:[
-    {id:'compare',t:'Grid comparison',d:'Consensus & difference grids, socionets.'},
-    {id:'change',t:'Change over time',d:'Pre/post trajectory maps.'},
-    {id:'segments',t:'Segmentation',d:'Value-group clustering; grids-as-elements.'},
-    {id:'norms',t:'Norm bases',d:'Save a study as a benchmark for new grids.'},
+  {area:'Compare & change', tiles:[
+    {id:'segments',t:'Segmentation',d:'Value-group clustering of participants by content profile.'},
+    {id:'compare',t:'Consensus & difference',d:'Group mean grid + disagreement on shared frame.'},
+    {id:'norms',t:'Norm bases',d:'Save a study’s distribution as a reusable benchmark.'},
+    {id:'change',t:'Change over time',d:'Pre/post trajectory maps.',soon:true},
   ]},
   {area:'Report & share', soon:true, tiles:[
     {id:'report',t:'Narrative report',d:'Auto-written summary of the study.'},
@@ -2150,7 +2274,7 @@ function Dashboard({code, onSignOut}){
       : {title:'',description:'',scaleMin:1,scaleMax:10,suppliedLeft:'Highly effective',suppliedRight:'Not effective at all',suppliedDesc:'',elementCategories:[],elements:[],constructs:[]};
     cfg.categories=cfg.categories||[]; cfg.assignments=cfg.assignments||{};
     cfg.elementCategories=cfg.elementCategories||[]; cfg.description=cfg.description||''; cfg.suppliedDesc=cfg.suppliedDesc||'';
-    cfg.suppliedConstructs=cfg.suppliedConstructs||[]; cfg.coderSchemes=cfg.coderSchemes||{};
+    cfg.suppliedConstructs=cfg.suppliedConstructs||[]; cfg.coderSchemes=cfg.coderSchemes||{}; cfg.norms=cfg.norms||[];
     setConfig(cfg); setResponses(j.responses||[]); setLoading(false);
   }
   useEffect(()=>{ reload().catch(e=>{ setLoading(false); alert('Load failed: '+e.message); }); /* eslint-disable-next-line */ },[]);
@@ -2245,6 +2369,9 @@ function Dashboard({code, onSignOut}){
           {tab==='dilemmas'&&<DilemmasModule config={config} responses={responses}/>}
           {tab==='conflict'&&<ConflictModule config={config} responses={responses}/>}
           {tab==='cspc'&&<CSPCModule config={config} setConfig={setConfig} onSaveConfig={saveConfig} readOnly={readOnly}/>}
+          {tab==='segments'&&<SegmentsModule config={config} responses={responses}/>}
+          {tab==='compare'&&<CompareModule config={config} responses={responses}/>}
+          {tab==='norms'&&<NormsModule config={config} setConfig={setConfig} onSaveConfig={saveConfig} responses={responses} readOnly={readOnly}/>}
         </div>
       )}
     </div>
