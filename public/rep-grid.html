@@ -2222,7 +2222,7 @@ function Dendrogram({root, labels}){
   })(root);
   return (
     <svg width={W} height={H} style={{maxWidth:'100%'}}>
-      {[0,25,50,75,100].map(p=>{const xx=x(maxH*p/100); return <g key={p}><line x1={xx} y1={top-6} x2={xx} y2={H-6} stroke="#eee"/><text x={xx} y={H-1} fontSize="8" textAnchor="middle" fill="#999">{p}%</text></g>;})}
+      {[0,25,50,75,100].map(p=>{const xx=x(maxH*p/100); return <g key={p}><line x1={xx} y1={top-6} x2={xx} y2={H-6} stroke="#eee"/><text x={xx} y={H-1} fontSize="8" textAnchor="middle" fill="#999">{Math.round(100-maxH*p/100)}%</text></g>;})}
       {leaves.map((lf,i)=><text key={i} x={left-6} y={yOf[lf.leaf]+3} fontSize="10" textAnchor="end" fill="#333">{(labels[lf.leaf]||('#'+lf.leaf)).slice(0,30)}</text>)}
       {segs.map((s,i)=> s[0]==='v'
         ? <line key={i} x1={s[1]} y1={s[2]} x2={s[1]} y2={s[3]} stroke="#1a1a1a" strokeWidth="1.3"/>
@@ -2237,7 +2237,8 @@ function DendroModule({config,responses}){
   const r=responses.find(x=>x.participant_id===sel);
   const g=r?gridFor(config,r):null;
   const trees=useMemo(()=>{ if(!g||g.cons.length<2||g.els.length<2) return null;
-    return {cons:hclust(simMatrix(g.M,hi-lo)), els:hclust(simMatrix(transpose(g.M),hi-lo)),
+    const s100=(rows)=>simMatrix(rows,hi-lo).map(row=>row.map(v=>v*100));  // simMatrix is 0–1; hclust needs 0–100
+    return {cons:hclust(s100(g.M)), els:hclust(s100(transpose(g.M))),
       cLab:g.cons.map(c=>c.left+' – '+c.right), eLab:g.els.map((e,i)=>e.name||('E'+(i+1)))};
   },[g]);
   return (
