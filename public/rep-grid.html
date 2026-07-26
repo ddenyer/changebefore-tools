@@ -863,8 +863,9 @@ function Interview({config, code, resp, onBack, readOnly, participant}){
   const setElement=(id,patch)=> setElicitedElements(p=>p.map(e=>e.id===id?{...e,...patch}:e));
   const removeElement=(id)=>{ setElicitedElements(p=>p.filter(e=>e.id!==id));
     setRatings(p=>{const n={}; Object.keys(p).forEach(k=>{ const row={...p[k]}; delete row[id]; n[k]=row; }); return n;});
-    setSupplied(p=>{const n={...p}; delete n[id]; return n;});
+    setSuppliedRatings(p=>{const n={}; Object.keys(p).forEach(k=>{ const row={...p[k]}; delete row[id]; n[k]=row; }); return n;});
     if(triad&&triad.some(t=>t.id===id)) setTriad(null);
+    if(dyad&&dyad.some(t=>t.id===id)) setDyad(null);
   };
   // Elicited CONSTRUCTS
   const addElicited=()=>{ const id=uid(); setElicited(p=>[...p,{id,left:'',right:'',desc:'',origLeft:'',origRight:''}]); setSelected(id); };
