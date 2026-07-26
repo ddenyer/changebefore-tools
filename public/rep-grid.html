@@ -396,6 +396,62 @@ function simMatrix(rows, range){
   return m;
 }
 
+/* ============ Structural indices (per-grid: constructs x elements) ============ */
+// One participant's grid: non-supplementary elements, rated constructs, and the
+// constructs x elements rating matrix (null = unrated cell).
+function gridFor(config, r){
+  const els=elementsFor(config,r,null);
+  const d=r.data||{}; const ratings=d.ratings||{};
+  const allCons=[...(config.constructs||[]), ...((d.elicited)||[])];
+  const cons=allCons.filter(c=> els.some(e=> ratings[c.id]&&ratings[c.id][e.id]!=null));
+  const M=cons.map(c=> els.map(e=> (ratings[c.id]&&ratings[c.id][e.id]!=null)?ratings[c.id][e.id]:null));
+  return {els, cons, M};
+}
+function pearson(a,b){
+  let sx=0,sy=0,sxx=0,syy=0,sxy=0,n=0;
+  for(let i=0;i<a.length;i++){ if(a[i]==null||b[i]==null) continue; sx+=a[i];sy+=b[i];sxx+=a[i]*a[i];syy+=b[i]*b[i];sxy+=a[i]*b[i];n++; }
+  if(n<2) return 0; const cov=sxy-sx*sy/n, vx=sxx-sx*sx/n, vy=syy-sy*sy/n;
+  return (vx>0&&vy>0)? cov/Math.sqrt(vx*vy):0;
+}
+function corrMatrix(rows){
+  const n=rows.length; const m=Array.from({length:n},()=>new Array(n).fill(1));
+  for(let i=0;i<n;i++)for(let j=i+1;j<n;j++){ const r=pearson(rows[i],rows[j]); m[i][j]=r; m[j][i]=r; }
+  return m;
+}
+function transpose(M){ return (M[0]||[]).map((_,j)=>M.map(row=>row[j])); }
+function distMatrix(rows){
+  const n=rows.length; const m=Array.from({length:n},()=>new Array(n).fill(0));
+  for(let i=0;i<n;i++)for(let j=i+1;j<n;j++){ let s=0,c=0; for(let k=0;k<rows[i].length;k++){ const a=rows[i][k],b=rows[j][k]; if(a!=null&&b!=null){ s+=(a-b)*(a-b); c++; } } const d=c?Math.sqrt(s/c*rows[i].length):0; m[i][j]=d; m[j][i]=d; }
+  return m;
+}
+// PVAFF + variance spectrum from the element-element covariance of the row-centred
+// grid (same basis as the biplot). High PVAFF = one-dimensional construing (simplicity).
+function pvaff(M){
+  const R=M.length, E=M[0]?M[0].length:0; if(!R||!E) return {pvaff:0,spectrum:[]};
+  const G=M.map(row=>{ const mu=amean(row); return row.map(v=>(v==null?mu:v)-mu); });
+  const C=Array.from({length:E},()=>new Array(E).fill(0));
+  for(let i=0;i<E;i++)for(let j=0;j<E;j++){ let s=0; for(let r=0;r<R;r++) s+=G[r][i]*G[r][j]; C[i][j]=s/(R||1); }
+  const {values}=jacobiEigen(C);
+  const pos=values.map(v=>Math.max(v,0)); const tot=pos.reduce((a,b)=>a+b,0)||1;
+  const spectrum=pos.map(v=>v/tot*100).filter(p=>p>0.01);
+  return {pvaff: spectrum[0]||0, spectrum};
+}
+// Bieri matching: dichotomise around midpoint; % of element-cells where construct
+// pairs agree. Higher % = more cognitively SIMPLE.
+function bieriIndex(M, lo, hi){
+  const mid=(lo+hi)/2; const R=M.length; if(R<2) return null;
+  const D=M.map(row=>row.map(v=> v==null?null:(v>mid?1:0)));
+  let match=0, tot=0;
+  for(let i=0;i<R;i++)for(let j=i+1;j<R;j++){ for(let k=0;k<D[i].length;k++){ if(D[i][k]!=null&&D[j][k]!=null){ tot++; if(D[i][k]===D[j][k]) match++; } } }
+  return tot? match/tot*100 : null;
+}
+// Grid Intensity (Bannister): mean of squared inter-construct correlations x100.
+function intensityGrid(M){
+  const R=M.length; if(R<2) return null; const C=corrMatrix(M);
+  let s=0,n=0; for(let i=0;i<R;i++)for(let j=0;j<R;j++){ if(i!==j){ s+=C[i][j]*C[i][j]; n++; } }
+  return n? s/n*100 : null;
+}
+
 /* ============================ helpers ====================== */
 const uid=()=> (crypto.randomUUID? crypto.randomUUID() : 'id-'+Math.random().toString(36).slice(2)+Date.now());
 function downloadCsv(rows, filename){
@@ -1724,6 +1780,87 @@ function CompositeTable({config,responses}){
 }
 
 /* ============================ Dashboard ====================== */
+/* ==================== Structure pack modules ==================== */
+function ppSelect(withData,sel,setSel){
+  return <select className="inp inp-sm" style={{width:240,flex:'0 0 auto'}} value={sel} onChange={e=>setSel(e.target.value)}>
+    {withData.map(x=><option key={x.participant_id} value={x.participant_id}>{x.participant_name||'(unnamed)'}</option>)}</select>;
+}
+function ComplexityModule({config,responses}){
+  const lo=config.scaleMin,hi=config.scaleMax;
+  const withData=responses.filter(r=>gridFor(config,r).cons.length>=2);
+  const [sel,setSel]=useState(withData[0]?withData[0].participant_id:'');
+  const r=responses.find(x=>x.participant_id===sel);
+  const g=r?gridFor(config,r):null;
+  const pv=g&&g.M.length?pvaff(g.M):null, bi=g&&g.M.length?bieriIndex(g.M,lo,hi):null, it=g&&g.M.length?intensityGrid(g.M):null, av=g&&g.M.length?averageVariability(g.M,lo,hi):null;
+  const per=withData.map(x=>{const gg=gridFor(config,x); return {pvaff:pvaff(gg.M).pvaff, bieri:bieriIndex(gg.M,lo,hi), intensity:intensityGrid(gg.M)};});
+  const avg=(k)=>{const a=per.map(p=>p[k]).filter(v=>v!=null); return a.length? a.reduce((s,v)=>s+v,0)/a.length : null;};
+  const Stat=({label,val,sub,accent})=> <div><div className="mini">{label}</div><div style={{fontSize:'1.5rem',fontWeight:700,color:accent||'#1a1a1a'}}>{val}</div>{sub&&<div className="mini">{sub}</div>}</div>;
+  return (
+    <div className="fade">
+      <div className="help-box"><span className="help-h">Cognitive complexity — how differentiated is each person’s construing?</span><b>Why you need it:</b> a core personal-construct-psychology measure of whether someone views a topic through many independent dimensions or collapses everything onto one. <b>How to read it:</b> <b>PVAFF</b> = % of variance on the first principal component — <b>high (≳60%) = cognitively simple/one-dimensional</b>, low = differentiated. <b>Intensity</b> = average squared inter-construct correlation (higher = tighter, more interconnected). <b>Bieri matching %</b> (higher = simpler). <b>Avg variability</b> = how much the constructs discriminate the elements.</div>
+      <div className="toolbar"><label className="field-lbl" style={{margin:0}}>Interviewee</label>{ppSelect(withData,sel,setSel)}</div>
+      {!g||g.cons.length<2 ? <p className="muted small">This grid needs at least two rated constructs.</p> : <>
+      <div className="card"><div className="row" style={{alignItems:'center'}}>
+        <Stat label="PVAFF (1st factor)" val={pv.pvaff.toFixed(1)+'%'} accent="#e07030" sub={pv.pvaff>=60?'cognitively simple':pv.pvaff>=45?'moderate':'differentiated'}/>
+        <Stat label="Intensity" val={it!=null?it.toFixed(0):'—'}/>
+        <Stat label="Bieri matching" val={bi!=null?bi.toFixed(0)+'%':'—'}/>
+        <Stat label="Avg variability" val={av!=null?av.toFixed(0)+'%':'—'}/>
+      </div>
+      <p className="mini" style={{marginTop:'.6rem'}}>Variance spectrum: {pv.spectrum.slice(0,6).map((p,i)=>'PC'+(i+1)+' '+p.toFixed(0)+'%').join(' · ')}</p></div>
+      <div className="card"><div className="sec-tag">Sample averages ({per.length} grids)</div><div className="row">
+        <Stat label="Mean PVAFF" val={avg('pvaff')!=null?avg('pvaff').toFixed(1)+'%':'—'}/>
+        <Stat label="Mean Intensity" val={avg('intensity')!=null?avg('intensity').toFixed(0):'—'}/>
+        <Stat label="Mean Bieri" val={avg('bieri')!=null?avg('bieri').toFixed(0)+'%':'—'}/>
+      </div></div></>}
+    </div>
+  );
+}
+function MatricesModule({config,responses}){
+  const withData=responses.filter(r=>gridFor(config,r).cons.length>=2);
+  const [sel,setSel]=useState(withData[0]?withData[0].participant_id:'');
+  const [mode,setMode]=useState('constructCorr');
+  const r=responses.find(x=>x.participant_id===sel);
+  const g=r?gridFor(config,r):null;
+  let mat=null, labels=[]; const isCorr=mode.endsWith('Corr');
+  if(g&&g.M.length){
+    if(mode==='constructCorr'){ mat=corrMatrix(g.M); labels=g.cons.map(c=>c.left+' – '+c.right); }
+    else if(mode==='constructDist'){ mat=distMatrix(g.M); labels=g.cons.map(c=>c.left+' – '+c.right); }
+    else if(mode==='elementCorr'){ mat=corrMatrix(transpose(g.M)); labels=g.els.map((e,i)=>e.name||('E'+(i+1))); }
+    else { mat=distMatrix(transpose(g.M)); labels=g.els.map((e,i)=>e.name||('E'+(i+1))); }
+  }
+  const cell=(v)=>{ if(isCorr){ const a=Math.min(Math.abs(v),1); return {background:(v>=0?'rgba(22,120,74,':'rgba(192,57,43,')+(a*0.55)+')'}; } return {}; };
+  return (
+    <div className="fade">
+      <div className="help-box"><span className="help-h">Distances & correlations — which constructs (and elements) go together?</span><b>Why you need it:</b> two highly correlated constructs are being used as near-synonyms (low differentiation); elements that sit close are construed alike. This backbone feeds clustering, dilemmas and “which constructs are redundant”. <b>How:</b> pick a grid — correlations run −1…+1 (green positive, red negative), distances are per-element Euclidean (smaller = more alike).</div>
+      <div className="toolbar" style={{flexWrap:'wrap',gap:'.5rem'}}>{ppSelect(withData,sel,setSel)}
+        {[['constructCorr','Construct corr'],['constructDist','Construct dist'],['elementCorr','Element corr'],['elementDist','Element dist']].map(([k,l])=><button key={k} className="btn-s btn-sm" style={mode===k?{borderColor:'#1a1a1a'}:{}} onClick={()=>setMode(k)}>{l}</button>)}
+      </div>
+      {!mat? <p className="muted small">Needs a grid with ratings.</p> :
+      <div className="card"><div className="scroll"><table className="grid" style={{fontSize:'.7rem'}}>
+        <thead><tr><th></th>{labels.map((l,i)=><th key={i} title={l}>{i+1}</th>)}</tr></thead>
+        <tbody>{mat.map((row,i)=><tr key={i}><td className="pole" style={{whiteSpace:'nowrap',maxWidth:210,overflow:'hidden',textOverflow:'ellipsis'}} title={labels[i]}>{i+1}. {labels[i].slice(0,28)}</td>{row.map((v,j)=><td key={j} style={cell(v)}>{isCorr?v.toFixed(2):v.toFixed(1)}</td>)}</tr>)}</tbody>
+      </table></div></div>}
+    </div>
+  );
+}
+function MapsModule({config,responses}){
+  const lo=config.scaleMin,hi=config.scaleMax;
+  const withData=responses.filter(r=>{const g=gridFor(config,r); return g.cons.length>=2&&g.els.length>=2;});
+  const [sel,setSel]=useState(withData[0]?withData[0].participant_id:'');
+  const r=responses.find(x=>x.participant_id===sel);
+  const g=r?gridFor(config,r):null;
+  const maps=useMemo(()=>{ if(!g||g.cons.length<2||g.els.length<2) return null;
+    return {els:g.els, cons:g.cons, M:g.M, bip:pcaBiplot(g.M,lo,hi), cOrder:focusOrder(simMatrix(g.M,hi-lo)), eOrder:focusOrder(simMatrix(transpose(g.M),hi-lo))};
+  },[g]);
+  return (
+    <div className="fade">
+      <div className="help-box"><span className="help-h">Grid maps — the picture of one person’s construct system</span><b>Why you need it:</b> the signature repertory-grid visual. The <b>PrinGrid biplot</b> plots elements as points and constructs as directions in the two biggest dimensions of the grid; the <b>% variance</b> on each axis says how much of the person’s construing it captures. <b>FOCUS</b> re-orders constructs and elements so similar ones sit together.</div>
+      <div className="toolbar"><label className="field-lbl" style={{margin:0}}>Interviewee</label>{ppSelect(withData,sel,setSel)}</div>
+      {!maps? <p className="muted small">Needs a grid with ≥2 constructs and ≥2 elements.</p> : <GridMaps maps={maps} scaleMin={lo} scaleMax={hi}/>}
+    </div>
+  );
+}
+
 const DASH_NAV=[
   {area:'Design', tiles:[
     {id:'setup',t:'Study setup',d:'Title, rating scale, description and element categories.'},
@@ -1740,13 +1877,13 @@ const DASH_NAV=[
     {id:'composite',t:'2 · Composite constructs',d:'Group constructs into categories; coders & reliability.'},
     {id:'table',t:'3 · Composite table',d:'The Honey Content Table — the headline result.'},
   ]},
-  {area:'Structure', soon:true, tiles:[
-    {id:'complexity',t:'Cognitive complexity',d:'PVAFF, Intensity, Bieri, Ordination.'},
-    {id:'matrices',t:'Distances & correlations',d:'Element & construct distance/correlation matrices.'},
-    {id:'maps',t:'Grid maps',d:'PrinGrid biplot (% variance) + FOCUS dendrograms.'},
-    {id:'selfideal',t:'Self–ideal',d:'Self vs ideal-self discrepancy (role-tagged elements).'},
-    {id:'dilemmas',t:'Implicative dilemmas',d:'Cognitive conflicts that block change.'},
-    {id:'cspc',t:'CSPC dictionary',d:'Standard 45-category construct content system.'},
+  {area:'Structure', tiles:[
+    {id:'complexity',t:'Cognitive complexity',d:'PVAFF, Intensity, Bieri per grid + sample means.'},
+    {id:'matrices',t:'Distances & correlations',d:'Element & construct correlation and distance matrices.'},
+    {id:'maps',t:'Grid maps',d:'PrinGrid biplot (% variance) + FOCUS ordering.'},
+    {id:'selfideal',t:'Self–ideal',d:'Self vs ideal-self discrepancy (role-tagged elements).',soon:true},
+    {id:'dilemmas',t:'Implicative dilemmas',d:'Cognitive conflicts that block change.',soon:true},
+    {id:'cspc',t:'CSPC dictionary',d:'Standard 45-category construct content system.',soon:true},
   ]},
   {area:'Compare & change', soon:true, tiles:[
     {id:'compare',t:'Grid comparison',d:'Consensus & difference grids, socionets.'},
@@ -1779,6 +1916,22 @@ function Dashboard({code, onSignOut}){
     setConfig(cfg); setResponses(j.responses||[]); setLoading(false);
   }
   useEffect(()=>{ reload().catch(e=>{ setLoading(false); alert('Load failed: '+e.message); }); /* eslint-disable-next-line */ },[]);
+
+  // Browser Back navigates WITHIN the tool (interview/module → dashboard) instead of leaving the page.
+  const navRef=useRef({tab,active}); navRef.current={tab,active};
+  useEffect(()=>{
+    window.history.pushState({rg:1},'');                 // guard entry so the first Back is caught
+    const onPop=()=>{
+      const {tab:t,active:a}=navRef.current;
+      if(a){ setActive(null); window.history.pushState({rg:1},''); }
+      else if(t!==null){ setTab(null); window.history.pushState({rg:1},''); }
+      // at the dashboard home: let Back proceed (guard already consumed), so a second Back exits.
+    };
+    window.addEventListener('popstate', onPop);
+    return ()=>window.removeEventListener('popstate', onPop);
+  }, []);
+  // Push a history entry each time the user goes deeper, so Back has something to pop.
+  useEffect(()=>{ if(tab!==null||active) window.history.pushState({rg:1},''); }, [tab, active?active.participant_id:null]);
 
   async function saveConfig(){
     if(config&&config.readOnly) return;
@@ -1822,13 +1975,13 @@ function Dashboard({code, onSignOut}){
             <div className="dash-area" key={g.area}>
               <div className="dash-area-h">{g.area}{g.soon&&<span className="soon"> · building</span>}</div>
               <div className="dash-grid">
-                {g.tiles.map(t=>(
-                  <button className="dash-tile" key={t.id} disabled={!!g.soon} onClick={()=>{ if(!g.soon) setTab(t.id); }}>
+                {g.tiles.map(t=>{ const soon=!!(g.soon||t.soon); return (
+                  <button className="dash-tile" key={t.id} disabled={soon} onClick={()=>{ if(!soon) setTab(t.id); }}>
                     <div className="dash-tile-t">{t.t}</div>
                     <div className="dash-tile-d">{t.d}</div>
-                    {g.soon&&<span className="dash-tile-badge">building</span>}
+                    {soon&&<span className="dash-tile-badge">building</span>}
                   </button>
-                ))}
+                );})}
               </div>
             </div>
           ))}
@@ -1845,6 +1998,9 @@ function Dashboard({code, onSignOut}){
           {tab==='individual'&&<Analysis config={config} responses={responses} onOpen={setActive}/>}
           {tab==='composite'&&<CompositeConstructs config={config} setConfig={setConfig} responses={responses} onSave={saveConfig} saving={saving} savedMsg={savedMsg} readOnly={readOnly}/>}
           {tab==='table'&&<CompositeTable config={config} responses={responses}/>}
+          {tab==='complexity'&&<ComplexityModule config={config} responses={responses}/>}
+          {tab==='matrices'&&<MatricesModule config={config} responses={responses}/>}
+          {tab==='maps'&&<MapsModule config={config} responses={responses}/>}
         </div>
       )}
     </div>
