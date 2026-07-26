@@ -516,6 +516,25 @@ function hclust(sim){
   }
   return nodes[0];
 }
+// PEGASUS break-match detection. Two ELEMENTS "match" when they are rated
+// almost identically across constructs (no construct tells them apart) → prompt
+// for a distinguishing construct. Two CONSTRUCTS "match" when they rate elements
+// almost identically (in either polarity) → prompt for a distinguishing element.
+function findMatches(constructs, elements, ratings, lo, hi, tol){
+  const rated=(cid,eid)=> ratings[cid]&&ratings[cid][eid]!=null;
+  const elMatch=[], conMatch=[];
+  for(let i=0;i<elements.length;i++)for(let j=i+1;j<elements.length;j++){
+    const a=elements[i],b=elements[j]; let s=0,n=0;
+    constructs.forEach(c=>{ if(rated(c.id,a.id)&&rated(c.id,b.id)){ s+=Math.abs(ratings[c.id][a.id]-ratings[c.id][b.id]); n++; } });
+    if(n>=2 && s/n<=tol) elMatch.push({a,b,diff:s/n,n});
+  }
+  for(let i=0;i<constructs.length;i++)for(let j=i+1;j<constructs.length;j++){
+    const a=constructs[i],b=constructs[j]; let sd=0,sr=0,n=0;
+    elements.forEach(e=>{ if(rated(a.id,e.id)&&rated(b.id,e.id)){ const va=ratings[a.id][e.id],vb=ratings[b.id][e.id]; sd+=Math.abs(va-vb); sr+=Math.abs(va-((hi+lo)-vb)); n++; } });
+    if(n>=2){ const d=Math.min(sd,sr)/n; if(d<=tol) conMatch.push({a,b,diff:d,n,reversed:sr<sd}); }
+  }
+  return {elMatch, conMatch};
+}
 // Cut a hclust tree into k clusters by repeatedly splitting the tallest node.
 function cutTree(root,k){
   if(!root) return [];
@@ -730,6 +749,37 @@ function GridTable({elements, elementNames, constructs, scaleMin, scaleMax, outc
 }
 
 /* ============================ Interview ====================== */
+function GuidedCheck({constructs, elements, ratings, lo, hi, onAddConstruct, onAddElement}){
+  const [open,setOpen]=useState(false);
+  const tol=Math.max(1,Math.round((hi-lo)*0.12));
+  const {elMatch, conMatch}=useMemo(()=>findMatches(constructs, elements, ratings, lo, hi, tol),[JSON.stringify(ratings), constructs.length, elements.length]);
+  const total=elMatch.length+conMatch.length;
+  const elName=(e)=> e.name||'(unnamed element)';
+  const conName=(c)=> (c.left||'?')+' – '+(c.right||'?');
+  return (
+    <div className="card" style={{borderColor: total?'#e07030':'#dcd7ce'}}>
+      <div className="toolbar" style={{marginBottom: open?8:0}}>
+        <div className="sec-tag" style={{margin:0}}>Guided check — break the matches {total?('· '+total+' to review'):'· all clear'}</div>
+        <div className="grow"/>
+        <button className="btn-s btn-sm" onClick={()=>setOpen(o=>!o)}>{open?'Hide':'Show'}</button>
+      </div>
+      {open && <React.Fragment>
+        <p className="field-sub">A good grid discriminates. Where two elements are rated the same by every construct, add a construct that tells them apart; where two constructs rate every element the same, add an element they’d score differently. (Matches within ±{tol} per rating — the PEGASUS “break-match” method.)</p>
+        {total===0 && <p className="mini">No matches — every element and construct is currently doing distinct work.</p>}
+        {elMatch.length>0 && <div style={{marginBottom:'.5rem'}}>
+          <div className="mini" style={{fontWeight:700}}>Elements construed identically — add a construct that separates them:</div>
+          {elMatch.slice(0,6).map((m,i)=><div key={i} className="mini">• <b>{elName(m.a)}</b> ≈ <b>{elName(m.b)}</b> (avg gap {m.diff.toFixed(1)})</div>)}
+          {onAddConstruct&&<button className="btn-s btn-sm" style={{marginTop:4}} onClick={onAddConstruct}>+ Add construct</button>}
+        </div>}
+        {conMatch.length>0 && <div>
+          <div className="mini" style={{fontWeight:700}}>Constructs that don’t separate the elements — add an element they’d rate differently:</div>
+          {conMatch.slice(0,6).map((m,i)=><div key={i} className="mini">• <b>{conName(m.a)}</b> ≈ <b>{conName(m.b)}</b>{m.reversed?' (opposite poles)':''} (avg gap {m.diff.toFixed(1)})</div>)}
+          {onAddElement&&<button className="btn-s btn-sm" style={{marginTop:4}} onClick={onAddElement}>+ Add element</button>}
+        </div>}
+      </React.Fragment>}
+    </div>
+  );
+}
 function Interview({config, code, resp, onBack, readOnly}){
   const [name,setName]=useState(resp.participant_name||'');
   const [ratings,setRatings]=useState((resp.data&&resp.data.ratings)||{});
@@ -858,6 +908,10 @@ function Interview({config, code, resp, onBack, readOnly}){
               {!readOnly&&<button className="x" onClick={()=>removeElement(el.id)}>✕</button>}
             </div>
             <input className="inp inp-sm" style={{marginTop:4}} value={el.desc||''} readOnly={readOnly} placeholder="Description (optional)" onChange={e=>setElement(el.id,{desc:e.target.value})}/>
+            <div style={{display:'flex',gap:6,marginTop:4,alignItems:'center'}}>
+              <input className="inp inp-sm" style={{flex:1}} value={el.img||''} readOnly={readOnly} placeholder="Image URL (optional — e.g. a photo, logo or screenshot)" onChange={e=>setElement(el.id,{img:e.target.value})}/>
+              {el.img&&<img src={el.img} alt="" style={{height:40,width:40,objectFit:'cover',borderRadius:4,border:'1px solid #ddd'}} onError={e=>{e.target.style.display='none';}}/>}
+            </div>
           </div>
         ))}
         {preEls.map(el=>(<div key={el.id} className="mini" style={{padding:'.2rem 0'}}>• {el.name||'(unnamed prescribed)'} <span className="tag">{el.supplementary?'held-out':'prescribed'}</span></div>))}
@@ -899,6 +953,9 @@ function Interview({config, code, resp, onBack, readOnly}){
         {!readOnly&&<button className="btn-s btn-sm" onClick={addElicited}>+ Add construct</button>}
         <span className="mini" style={{marginLeft:8}}>{elicited.length} elicited · {prescribed.length} prescribed constructs</span>
       </div>
+
+      {!readOnly&&gridHoney.length>=2&&combined.length>=2&&
+        <GuidedCheck constructs={combined} elements={gridHoney} ratings={ratings} lo={config.scaleMin} hi={config.scaleMax} onAddConstruct={addElicited} onAddElement={()=>addElement('')}/>}
 
       {selC&&(
         <div className="card">
