@@ -637,7 +637,7 @@ function Gate({onUnlock}){
     }catch(e){ setErr('We couldn’t check the code right now. Please try again in a moment.'); }
     setBusy(false);
   }
-  function checkPw(){ if(pw==='Admin1*') onUnlock(code); else setErr('Facilitator password incorrect.'); }
+  function checkPw(){ if(pw==='Admin1*') onUnlock(code,'facilitator'); else setErr('Facilitator password incorrect.'); }
 
   return (
     <div className="content fade" style={{maxWidth:'640px'}}>
@@ -667,6 +667,10 @@ function Gate({onUnlock}){
           <div className="btn-row">
             <button className="btn-p" onClick={checkPw}>Open dashboard</button>
             <button className="btn-s btn-sm" onClick={()=>{setStep('code');setErr('');}}>← Back</button>
+          </div>
+          <div style={{marginTop:'1rem',paddingTop:'.9rem',borderTop:'1px solid #ebe7e0'}}>
+            <p className="mini" style={{marginBottom:'.4rem'}}>Here to complete an interview? You don’t need the facilitator password.</p>
+            <button className="btn-s btn-sm" onClick={()=>onUnlock(code,'participant')}>I’m a participant — start my interview →</button>
           </div>
         </div>
       )}
@@ -780,7 +784,7 @@ function GuidedCheck({constructs, elements, ratings, lo, hi, onAddConstruct, onA
     </div>
   );
 }
-function Interview({config, code, resp, onBack, readOnly}){
+function Interview({config, code, resp, onBack, readOnly, participant}){
   const [name,setName]=useState(resp.participant_name||'');
   const [ratings,setRatings]=useState((resp.data&&resp.data.ratings)||{});
   const outcomes=(config.suppliedConstructs&&config.suppliedConstructs.length)?config.suppliedConstructs:[{id:'supplied',left:config.suppliedLeft||'Preferred',right:config.suppliedRight||'Opposite'}];
@@ -874,7 +878,7 @@ function Interview({config, code, resp, onBack, readOnly}){
 
   return (
     <div className="content-wide fade">
-      <button className="back-btn" onClick={onBack}>← Dashboard</button>
+      {!participant&&<button className="back-btn" onClick={onBack}>← Dashboard</button>}
       <div className="topbar">
         <div><div className="sec-tag">Interview</div><div className="pg-title" style={{fontSize:'1.3rem'}}>{name||'New interview'}</div></div>
         <div style={{textAlign:'right'}}>
@@ -1008,7 +1012,13 @@ function Interview({config, code, resp, onBack, readOnly}){
         </div>
       )}
 
-      {!readOnly&&<div className="btn-row"><div className="grow"/><button className="btn-p" onClick={()=>{setStatus('complete');scheduleSave('complete');}}>Mark interview complete</button></div>}
+      {!readOnly&&<div className="btn-row"><div className="grow"/><button className="btn-p" onClick={async()=>{
+        setStatus('complete');
+        if(participant){ const snap={ratings,suppliedRatings,supplied:suppliedRatings['supplied']||{},quotes,elicited,elicitedElements,noPolarity,elementNames,wave,status:'complete'};
+          try{ await saveWithRetry({kind:'response',session_code:code,participant_id:resp.participant_id,participant_name:name,data:{...snap,completedAt:new Date().toISOString()}}); }catch(e){}
+          onBack&&onBack();
+        } else scheduleSave('complete');
+      }}>{participant?'Submit my grid':'Mark interview complete'}</button></div>}
     </div>
   );
 }
@@ -2594,10 +2604,53 @@ function Dashboard({code, onSignOut}){
 }
 
 /* ============================ Root ====================== */
+function ParticipantApp({code, onExit}){
+  const [config,setConfig]=useState(null);
+  const [loading,setLoading]=useState(true);
+  const [failed,setFailed]=useState(false);
+  const [resp,setResp]=useState(null);
+  const [name,setName]=useState('');
+  const [done,setDone]=useState(false);
+  useEffect(()=>{ (async()=>{
+    try{
+      const j=await api('/api/rep-grid-load',{session_code:code});
+      const cfg=(j.config&&j.config.data&&j.config.data.title!=null)? j.config.data
+        : {title:'',description:'',scaleMin:1,scaleMax:10,suppliedLeft:'Highly effective',suppliedRight:'Not effective at all',suppliedDesc:'',elementCategories:[],elements:[],constructs:[]};
+      cfg.categories=cfg.categories||[]; cfg.assignments=cfg.assignments||{}; cfg.elementCategories=cfg.elementCategories||[];
+      cfg.description=cfg.description||''; cfg.suppliedDesc=cfg.suppliedDesc||''; cfg.suppliedConstructs=cfg.suppliedConstructs||[];
+      cfg.coderSchemes=cfg.coderSchemes||{}; cfg.norms=cfg.norms||[];
+      setConfig(cfg);
+    }catch(e){ setFailed(true); }
+    setLoading(false);
+  })(); /* eslint-disable-next-line */ },[]);
+
+  if(loading) return <div className="content fade"><div className="card"><p className="mini">Loading your study…</p></div></div>;
+  if(failed||!config) return <div className="content fade" style={{maxWidth:640}}><div className="card"><p>We couldn’t open this study. Please check the code you were given, or contact the person running the study.</p><button className="btn-s btn-sm" onClick={onExit}>← Back</button></div></div>;
+  if(config.readOnly) return <div className="content fade" style={{maxWidth:640}}><div className="card"><p>This is a read-only example study, so new interviews can’t be added here. Please use the study code you were given.</p><button className="btn-s btn-sm" onClick={onExit}>← Back</button></div></div>;
+  if(done) return <div className="content fade" style={{maxWidth:640}}>
+    <div className="land-hero" style={{borderBottom:'none'}}><div className="land-tag">ChangeBefore · Rep-Grid</div><div className="land-title">Thank you</div></div>
+    <div className="card"><p>Your grid has been saved. You can close this window now.</p></div></div>;
+
+  if(!resp) return <div className="content fade" style={{maxWidth:640}}>
+    <div className="land-hero" style={{borderBottom:'none',marginBottom:'1rem'}}>
+      <div className="land-tag">ChangeBefore · Rep-Grid</div>
+      <div className="land-title">{config.title||'Repertory grid interview'}</div>
+      {config.description&&<div className="land-desc">{config.description}</div>}
+    </div>
+    <div className="card">
+      <p className="field-sub">You’ll be guided through a short interview: add a few situations, describe what tells them apart, and rate them. It takes about 20–30 minutes.</p>
+      <label className="field-lbl">Your name (or an identifier)</label>
+      <input className="inp inp-sm" value={name} autoFocus placeholder="e.g. your initials" onChange={e=>setName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&name.trim())setResp({participant_id:uid(),participant_name:name.trim(),data:{ratings:{},supplied:{},quotes:{},status:'in_progress'}});}}/>
+      <div className="btn-row"><button className="btn-p" disabled={!name.trim()} onClick={()=>setResp({participant_id:uid(),participant_name:name.trim(),data:{ratings:{},supplied:{},quotes:{},status:'in_progress'}})}>Start my interview →</button></div>
+    </div></div>;
+
+  return <div className="content"><Interview config={config} code={code} resp={resp} onBack={()=>setDone(true)} readOnly={false} participant={true}/></div>;
+}
 function App(){
-  const [code,setCode]=useState(null);
-  if(!code) return <Gate onUnlock={setCode}/>;
-  return <Dashboard code={code} onSignOut={()=>setCode(null)}/>;
+  const [session,setSession]=useState(null);
+  if(!session) return <Gate onUnlock={(code,role)=>setSession({code, role:role||'facilitator'})}/>;
+  if(session.role==='participant') return <ParticipantApp code={session.code} onExit={()=>setSession(null)}/>;
+  return <Dashboard code={session.code} onSignOut={()=>setSession(null)}/>;
 }
 ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
 </script>
