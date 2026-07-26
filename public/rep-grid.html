@@ -744,6 +744,7 @@ function Interview({config, code, resp, onBack, readOnly}){
   const [elicitedElements,setElicitedElements]=useState((resp.data&&resp.data.elicitedElements)||[]);
   const [noPolarity,setNoPolarity]=useState((resp.data&&resp.data.noPolarity)||{});
   const [status,setStatus]=useState((resp.data&&resp.data.status)||'in_progress');
+  const [wave,setWave]=useState((resp.data&&resp.data.wave)||'');
   const cats=config.elementCategories||[];
   const preEls=config.elements||[];
   const gridEls=[...elicitedElements, ...preEls];       // elicited first, then prescribed
@@ -760,7 +761,7 @@ function Interview({config, code, resp, onBack, readOnly}){
   function scheduleSave(nextStatus){
     if(readOnly) return;
     setSaveState('saving'); clearTimeout(timer.current);
-    const snap={ratings,suppliedRatings,supplied:suppliedRatings['supplied']||{},quotes,elicited,elicitedElements,noPolarity,elementNames,status:nextStatus||status};
+    const snap={ratings,suppliedRatings,supplied:suppliedRatings['supplied']||{},quotes,elicited,elicitedElements,noPolarity,elementNames,wave,status:nextStatus||status};
     timer.current=setTimeout(async()=>{
       try{
         await saveWithRetry({kind:'response',session_code:code,participant_id:resp.participant_id,participant_name:name,
@@ -769,7 +770,7 @@ function Interview({config, code, resp, onBack, readOnly}){
       }catch(e){ setSaveState('error'); alert("We couldn't save right now. Please check your connection and try again."); }
     },300);
   }
-  useEffect(()=>{ scheduleSave(); /* eslint-disable-next-line */ },[ratings,suppliedRatings,quotes,elicited,elicitedElements,noPolarity,name]);
+  useEffect(()=>{ scheduleSave(); /* eslint-disable-next-line */ },[ratings,suppliedRatings,quotes,elicited,elicitedElements,noPolarity,name,wave]);
 
   const rate=(cid,eid,v)=> setRatings(p=>({...p,[cid]:{...(p[cid]||{}),[eid]:v}}));
   const rateSup=(oid,eid,v)=> setSuppliedRatings(p=>({...p,[oid]:{...(p[oid]||{}),[eid]:v}}));
@@ -825,8 +826,13 @@ function Interview({config, code, resp, onBack, readOnly}){
       {!readOnly&&<div className="help-box"><span className="help-h">Running the interview</span>Three steps: (1) capture the interviewee’s <b>elements</b> — the situations they bring — below; (2) use the <b>triad selector</b> to elicit their <b>constructs</b> (“considering these three, how are two alike and different from the third?”); (3) rate every element on every construct, then rate the elements on the overall effectiveness yardstick. Following the standard repertory-grid interview protocol.</div>}
 
       <div className="card">
-        <label className="field-lbl">Interviewee (display name)</label>
-        <input className="inp inp-sm" value={name} readOnly={readOnly} onChange={e=>setName(e.target.value)} placeholder="e.g. P1 / initials"/>
+        <div className="row" style={{gap:'.6rem',alignItems:'flex-end'}}>
+          <div style={{flex:3}}><label className="field-lbl">Interviewee (display name)</label>
+            <input className="inp inp-sm" value={name} readOnly={readOnly} onChange={e=>setName(e.target.value)} placeholder="e.g. P1 / initials"/></div>
+          <div style={{flex:1}}><label className="field-lbl" title="Timepoint / wave — set the same person’s later interview to a different wave (e.g. Pre / Post) to track change">Wave / timepoint</label>
+            <input className="inp inp-sm" value={wave} readOnly={readOnly} onChange={e=>setWave(e.target.value)} placeholder="e.g. Pre"/></div>
+        </div>
+        <p className="mini" style={{marginTop:'.3rem'}}>Optional. To track change over time, give the same interviewee two interviews with the same display name and different waves (e.g. “Pre” and “Post”).</p>
       </div>
 
       {/* 1 — Elements */}
@@ -2221,6 +2227,87 @@ function NormsModule({config,setConfig,onSaveConfig,responses,readOnly}){
     </div>
   );
 }
+function ChangeModule({config,responses}){
+  const tagged=responses.filter(r=>((r.data&&r.data.wave)||'').trim());
+  const waves=[]; tagged.forEach(r=>{const w=r.data.wave.trim(); if(!waves.includes(w))waves.push(w);});
+  const byP={}; tagged.forEach(r=>{ const nm=r.participant_name||r.participant_id; (byP[nm]=byP[nm]||{})[r.data.wave.trim()]=r; });
+  const paired=Object.keys(byP).filter(nm=>Object.keys(byP[nm]).length>=2);
+  const metric=(r)=>{ const g=gridFor(config,r); const pv=g.cons.length>=2?pvaff(g.M).pvaff:null; const cf=g.cons.length>=3?triadicConflict(g.M).pct:null; const si=selfIdeal(config,r); return {pv, cf, si:si?si.pct:null}; };
+  const groupMean=(w,k)=>{ const a=paired.map(nm=>byP[nm][w]).filter(Boolean).map(metric).map(x=>x[k]).filter(v=>v!=null); return a.length? a.reduce((s,v)=>s+v,0)/a.length : null; };
+  const fmt=(v,suf)=>v==null?'—':v.toFixed(1)+(suf||'');
+  const delta=(a,b)=> (a==null||b==null)?null:(b-a);
+  return (
+    <div className="fade">
+      <div className="help-box"><span className="help-h">Change over time — did construing move between waves?</span><b>Why you need it:</b> the core question in coaching, therapy and culture change is “did anything shift?”. Tag the same person’s interviews with different <b>waves</b> (e.g. Pre / Post) and this tracks how their key indices moved. <b>How to read it:</b> for each person interviewed more than once, it shows cognitive complexity (PVAFF), conflict, and self–ideal distance per wave, with the change from first to last. Set the wave on each interview (top of the interview screen).</div>
+      {!waves.length
+        ? <div className="card"><p className="muted small">No interviews are tagged with a <b>wave</b> yet. Open an interview and set its <b>Wave / timepoint</b> field (e.g. “Pre”, “Post”). To see change, the same interviewee needs two interviews with the same display name and different waves.</p></div>
+        : !paired.length
+        ? <div className="card"><p className="muted small">Waves found ({waves.join(', ')}), but no interviewee yet appears in two or more waves. Add a second interview for a person with the same display name and a different wave.</p></div>
+        : <>
+          <div className="card"><div className="sec-tag">Group means by wave ({paired.length} paired {paired.length===1?'person':'people'})</div>
+            <div className="scroll"><table className="grid" style={{fontSize:'.8rem'}}>
+              <thead><tr><th className="pole" style={{textAlign:'left'}}>Index</th>{waves.map(w=><th key={w}>{w}</th>)}</tr></thead>
+              <tbody>{[['pv','Complexity PVAFF %'],['cf','Conflict %'],['si','Self–ideal %']].map(([k,lab])=>
+                <tr key={k}><td className="pole" style={{textAlign:'left'}}>{lab}</td>{waves.map(w=><td key={w} style={{textAlign:'center'}}>{fmt(groupMean(w,k))}</td>)}</tr>)}</tbody>
+            </table></div></div>
+          <div className="card"><div className="sec-tag">Per person (first → last wave)</div>
+            <div className="scroll"><table className="grid" style={{fontSize:'.76rem'}}>
+              <thead><tr><th className="pole" style={{textAlign:'left'}}>Interviewee</th><th>Waves</th><th>PVAFF Δ</th><th>Conflict Δ</th><th>Self–ideal Δ</th></tr></thead>
+              <tbody>{paired.map(nm=>{ const ws=waves.filter(w=>byP[nm][w]); const a=metric(byP[nm][ws[0]]), b=metric(byP[nm][ws[ws.length-1]]);
+                const cell=(d,inv)=>{ if(d==null) return <td style={{textAlign:'center'}}>—</td>; const good=inv? d<0 : d<0; return <td style={{textAlign:'center',color:d===0?'#999':(good?'#16784a':'#c0392b')}}>{(d>=0?'+':'')+d.toFixed(1)}</td>; };
+                return <tr key={nm}><td className="pole" style={{textAlign:'left'}}>{nm}</td><td style={{textAlign:'center'}}>{ws[0]}→{ws[ws.length-1]}</td>{cell(delta(a.pv,b.pv))}{cell(delta(a.cf,b.cf))}{cell(delta(a.si,b.si))}</tr>; })}</tbody>
+            </table></div><p className="mini" style={{marginTop:'.4rem'}}>Δ = last wave minus first. Lower PVAFF/conflict/self–ideal generally indicate a more differentiated, less strained, more self-accepting construing (green).</p></div>
+        </>}
+    </div>
+  );
+}
+function ReportModule({config,responses,code}){
+  const rep=useMemo(()=>{
+    const n=responses.length;
+    const withGrid=responses.filter(r=>gridFor(config,r).cons.length>=2);
+    const pvs=withGrid.map(r=>pvaff(gridFor(config,r).M).pvaff).filter(v=>v!=null);
+    const cfs=responses.map(r=>{const g=gridFor(config,r); return g.cons.length>=3?triadicConflict(g.M).pct:null;}).filter(v=>v!=null);
+    const avg=a=>a.length?a.reduce((s,v)=>s+v,0)/a.length:null;
+    const dist=distributionOf(config,responses);
+    const sis=responses.map(r=>selfIdeal(config,r)).filter(Boolean);
+    const dils=responses.map(r=>dilemmas(config,r)).filter(Boolean);
+    const withDil=dils.filter(d=>d.found.length>0).length;
+    const nCons=responses.reduce((s,r)=>s+(((r.data&&r.data.elicited)||[]).length),0)+(config.constructs||[]).length*n;
+    return {n, meanPV:avg(pvs), meanCf:avg(cfs), dist, sis, dils, withDil, nCons, coded:!!(dist&&dist.some(d=>d.n>0)),
+      title:config.title||'Untitled study', scale:config.scaleMin+'–'+config.scaleMax};
+  },[responses.length, JSON.stringify(config.assignments||{}).length, config.title]);
+
+  function buildHtml(){
+    const d=rep; const top=(d.dist||[]).slice().sort((a,b)=>b.pct-a.pct).filter(x=>x.pct>0);
+    const p=[];
+    p.push('<h1>'+esc(d.title)+'</h1>');
+    p.push('<p class="meta">Repertory-grid study · '+d.n+' interview'+(d.n===1?'':'s')+' · rating scale '+d.scale+' · generated '+new Date().toLocaleDateString()+'</p>');
+    p.push('<h2>Overview</h2><p>This study comprises '+d.n+' repertory-grid interview'+(d.n===1?'':'s')+', elicited and rated on a '+d.scale+' scale. '+(d.coded?'Constructs have been content-analysed into '+((config.categories||[]).length)+' categories.':'Constructs have not yet been content-analysed into categories.')+'</p>');
+    if(d.coded&&top.length){
+      p.push('<h2>Content analysis</h2><p>The most frequently construed themes were '+top.slice(0,3).map(t=>'<b>'+esc(t.name)+'</b> ('+t.pct.toFixed(0)+'%)').join(', ')+'. The full distribution:</p><table><thead><tr><th>Category</th><th>Share</th></tr></thead><tbody>'+top.map(t=>'<tr><td>'+esc(t.name)+'</td><td>'+t.pct.toFixed(1)+'%</td></tr>').join('')+'</tbody></table>');
+    }
+    p.push('<h2>Structure</h2><p>'+(d.meanPV!=null?'Average cognitive complexity (PVAFF) across grids was <b>'+d.meanPV.toFixed(1)+'%</b> ('+(d.meanPV>=60?'relatively one-dimensional / simple':d.meanPV>=45?'moderate':'well-differentiated')+').':'Complexity could not be computed.')+' '+(d.meanCf!=null?'Mean logical conflict (triadic imbalance) was <b>'+d.meanCf.toFixed(1)+'%</b>.':'')+'</p>');
+    if(d.sis.length){ const mp=d.sis.reduce((s,x)=>s+x.pct,0)/d.sis.length; const me=d.sis.reduce((s,x)=>s+x.esteem,0)/d.sis.length;
+      p.push('<h2>Self–ideal</h2><p>Across '+d.sis.length+' grid'+(d.sis.length===1?'':'s')+' with a self and ideal tagged, the mean self–ideal distance was <b>'+mp.toFixed(1)+'%</b> of maximum and the mean self-esteem correlation was <b>'+me.toFixed(2)+'</b>.</p>'); }
+    if(d.dils.length){ p.push('<h2>Implicative dilemmas</h2><p>'+d.withDil+' of '+d.dils.length+' analysable participants showed at least one implicative dilemma — a change they want that is entangled with a valued, congruent construct.</p>'); }
+    p.push('<p class="foot">Generated by the ChangeBefore repertory-grid tool.</p>');
+    return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc(d.title)+' — report</title><style>body{font-family:Georgia,serif;max-width:760px;margin:40px auto;color:#1a1a1a;line-height:1.5;padding:0 20px}h1{font-size:1.7rem;margin-bottom:.1rem}h2{font-size:1.15rem;margin-top:1.6rem;border-bottom:1px solid #ddd;padding-bottom:.2rem}.meta,.foot{color:#777;font-size:.85rem}table{border-collapse:collapse;width:100%;margin:.5rem 0;font-family:Arial,sans-serif;font-size:.85rem}th,td{border:1px solid #ddd;padding:4px 8px;text-align:left}th{background:#f3f1ec}.foot{margin-top:2rem;border-top:1px solid #ddd;padding-top:.5rem}</style></head><body>'+p.join('')+'</body></html>';
+  }
+  function esc(s){ return String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+  function openReport(){ const w=window.open('','_blank'); if(!w){alert('Please allow pop-ups to open the report.');return;} w.document.write(buildHtml()); w.document.close(); setTimeout(()=>w.print(),400); }
+
+  const top=(rep.dist||[]).slice().sort((a,b)=>b.pct-a.pct).filter(x=>x.pct>0).slice(0,3);
+  return (
+    <div className="fade">
+      <div className="help-box"><span className="help-h">Narrative report — the write-up, drafted for you</span><b>Why you need it:</b> stakeholders read the story, not the matrix. This assembles the study’s headline numbers into a clean, printable summary you can save as a PDF (via your browser’s print dialog) or paste into a document. <b>How:</b> click <b>Open printable report</b> — it builds a formatted page in a new tab and opens the print/save-PDF dialog.</div>
+      <div className="card"><div className="sec-tag">Summary</div>
+        <p style={{fontSize:'.9rem'}}><b>{rep.title}</b> — {rep.n} interview{rep.n===1?'':'s'}, scale {rep.scale}.</p>
+        <p className="mini">Complexity (PVAFF): {rep.meanPV!=null?rep.meanPV.toFixed(1)+'%':'—'} · Conflict: {rep.meanCf!=null?rep.meanCf.toFixed(1)+'%':'—'} · {rep.coded?('Top themes: '+top.map(t=>t.name+' '+t.pct.toFixed(0)+'%').join(', ')):'Not yet content-analysed'}{rep.sis.length?' · Self–ideal grids: '+rep.sis.length:''}{rep.dils.length?' · Dilemmas: '+rep.withDil+'/'+rep.dils.length:''}</p>
+        <div className="toolbar" style={{marginTop:'.6rem'}}><button className="btn btn-sm" onClick={openReport}>Open printable report (PDF)</button></div>
+      </div>
+    </div>
+  );
+}
 const DASH_NAV=[
   {area:'Design', tiles:[
     {id:'setup',t:'Study setup',d:'Title, rating scale, description and element categories.'},
@@ -2251,12 +2338,12 @@ const DASH_NAV=[
     {id:'segments',t:'Segmentation',d:'Value-group clustering of participants by content profile.'},
     {id:'compare',t:'Consensus & difference',d:'Group mean grid + disagreement on shared frame.'},
     {id:'norms',t:'Norm bases',d:'Save a study’s distribution as a reusable benchmark.'},
-    {id:'change',t:'Change over time',d:'Pre/post trajectory maps.',soon:true},
+    {id:'change',t:'Change over time',d:'Pre/post movement in complexity, conflict & self–ideal.'},
   ]},
-  {area:'Report & share', soon:true, tiles:[
-    {id:'report',t:'Narrative report',d:'Auto-written summary of the study.'},
-    {id:'exports',t:'Branded exports',d:'PDF / Word / PowerPoint.'},
-    {id:'share',t:'Share links',d:'Read-only view links for stakeholders.'},
+  {area:'Report & share', tiles:[
+    {id:'report',t:'Narrative report',d:'Auto-written, printable PDF summary of the study.'},
+    {id:'exports',t:'Branded exports',d:'Word / PowerPoint deliverables.',soon:true},
+    {id:'share',t:'Share links',d:'Read-only view links for stakeholders.',soon:true},
   ]},
 ];
 function Dashboard({code, onSignOut}){
@@ -2372,6 +2459,8 @@ function Dashboard({code, onSignOut}){
           {tab==='segments'&&<SegmentsModule config={config} responses={responses}/>}
           {tab==='compare'&&<CompareModule config={config} responses={responses}/>}
           {tab==='norms'&&<NormsModule config={config} setConfig={setConfig} onSaveConfig={saveConfig} responses={responses} readOnly={readOnly}/>}
+          {tab==='change'&&<ChangeModule config={config} responses={responses}/>}
+          {tab==='report'&&<ReportModule config={config} responses={responses} code={code}/>}
         </div>
       )}
     </div>
