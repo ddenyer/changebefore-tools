@@ -2054,19 +2054,22 @@ function ComplexityModule({config,responses}){
   const pv=g&&g.M.length?pvaff(g.M):null, bi=g&&g.M.length?bieriIndex(g.M,lo,hi):null, it=g&&g.M.length?intensityGrid(g.M):null, av=g&&g.M.length?averageVariability(g.M,lo,hi):null;
   const per=withData.map(x=>{const gg=gridFor(config,x); return {pvaff:pvaff(gg.M).pvaff, bieri:bieriIndex(gg.M,lo,hi), intensity:intensityGrid(gg.M)};});
   const avg=(k)=>{const a=per.map(p=>p[k]).filter(v=>v!=null); return a.length? a.reduce((s,v)=>s+v,0)/a.length : null;};
+  const pvals=per.map(p=>p.pvaff).filter(v=>v!=null);
+  const pctileOf=(v)=> pvals.length>=4? Math.round(pvals.filter(x=>x<v).length/pvals.length*100) : null;
   const Stat=({label,val,sub,accent})=> <div><div className="mini">{label}</div><div style={{fontSize:'1.5rem',fontWeight:700,color:accent||'#1a1a1a'}}>{val}</div>{sub&&<div className="mini">{sub}</div>}</div>;
   return (
     <div className="fade">
-      <div className="help-box"><span className="help-h">Cognitive complexity — how differentiated is each person’s construing?</span><b>Why you need it:</b> a core personal-construct-psychology measure of whether someone views a topic through many independent dimensions or collapses everything onto one. <b>How to read it:</b> <b>PVAFF</b> = % of variance on the first principal component — <b>high (≳60%) = cognitively simple/one-dimensional</b>, low = differentiated. <b>Intensity</b> = average squared inter-construct correlation (higher = tighter, more interconnected). <b>Bieri matching %</b> (higher = simpler). <b>Avg variability</b> = how much the constructs discriminate the elements.<span className="help-tip">In plain terms: a “simple” grid means the person is judging almost everything on one underlying idea; a “complex” grid means they use several independent ideas at once.</span><span className="help-ref">Ref: Bieri, J. (1955) ‘Cognitive complexity–simplicity and predictive behavior’, <i>Journal of Abnormal &amp; Social Psychology</i>, 51; Bannister, D. (1960) on intensity; Fransella, Bell &amp; Bannister (2004), ch. 5.</span></div>
+      <div className="help-box"><span className="help-h">Cognitive complexity — how differentiated is each person’s construing?</span><b>Why you need it:</b> a core personal-construct-psychology measure of whether someone views a topic through many independent dimensions or collapses everything onto one. <b>How to read it:</b> <b>PVAFF</b> = % of variance on the first principal component — higher = more one-dimensional construing, lower = more differentiated. <b>Important:</b> PVAFF depends heavily on grid size — with few elements it runs high mechanically, so don’t read a fixed cut-off as “simple”; compare each grid to your <i>own</i> study’s spread (the percentile shown), and expect small, evaluatively-focused grids to score high. <b>Intensity</b> = average squared inter-construct correlation (higher = tighter, more interconnected). <b>Bieri matching %</b> (higher = simpler). <b>Avg variability</b> = how much the constructs discriminate the elements.<span className="help-tip">In plain terms: a “simple” grid means the person is judging almost everything on one underlying idea; a “complex” grid means they use several independent ideas at once.</span><span className="help-ref">Ref: Bieri, J. (1955) ‘Cognitive complexity–simplicity and predictive behavior’, <i>Journal of Abnormal &amp; Social Psychology</i>, 51; Bannister, D. (1960) on intensity; Fransella, Bell &amp; Bannister (2004), ch. 5.</span></div>
       <div className="toolbar"><label className="field-lbl" style={{margin:0}}>Interviewee</label>{ppSelect(withData,sel,setSel)}</div>
       {!g||g.cons.length<2 ? <p className="muted small">This grid needs at least two rated constructs.</p> : <>
       <div className="card"><div className="row" style={{alignItems:'center'}}>
-        <Stat label="PVAFF (1st factor)" val={pv.pvaff.toFixed(1)+'%'} accent="#e07030" sub={pv.pvaff>=60?'cognitively simple':pv.pvaff>=45?'moderate':'differentiated'}/>
+        <Stat label="PVAFF (1st factor)" val={pv.pvaff.toFixed(1)+'%'} accent="#e07030" sub={(()=>{const pc=pctileOf(pv.pvaff); return pc!=null? ('more one-dimensional than '+pc+'% of this study’s grids') : (pv.pvaff>=60?'fairly one-dimensional':'more differentiated');})()}/>
         <Stat label="Intensity" val={it!=null?it.toFixed(0):'—'}/>
         <Stat label="Bieri matching" val={bi!=null?bi.toFixed(0)+'%':'—'}/>
         <Stat label="Avg variability" val={av!=null?av.toFixed(0)+'%':'—'}/>
       </div>
-      <p className="mini" style={{marginTop:'.6rem'}}>Variance spectrum: {pv.spectrum.slice(0,6).map((p,i)=>'PC'+(i+1)+' '+p.toFixed(0)+'%').join(' · ')}</p></div>
+      <p className="mini" style={{marginTop:'.6rem'}}>Variance spectrum: {pv.spectrum.slice(0,6).map((p,i)=>'PC'+(i+1)+' '+p.toFixed(0)+'%').join(' · ')}</p>
+      <p className="mini" style={{marginTop:'.3rem',color:'#8a5a2b'}}>Note: this grid has {g.els.length} element{g.els.length===1?'':'s'} and {g.cons.length} constructs. PVAFF runs higher when a grid has few elements, so read it <b>relative to your own study</b> (the percentile above), not against a fixed cut-off — most small, evaluatively-focused grids score high.</p></div>
       <div className="card"><div className="sec-tag">Sample averages ({per.length} grids)</div><div className="row">
         <Stat label="Mean PVAFF" val={avg('pvaff')!=null?avg('pvaff').toFixed(1)+'%':'—'}/>
         <Stat label="Mean Intensity" val={avg('intensity')!=null?avg('intensity').toFixed(0):'—'}/>
@@ -2343,6 +2346,14 @@ function CompareModule({config,responses}){
     </div>
   );
 }
+// Elements/constructs shared across grids — the common frame a consensus grid
+// needs. Prescribed (study-level) items only; per-interview elicited items differ
+// person to person so can't be averaged.
+function sharedFrame(config, responses){
+  const els=(config.elements||[]).filter(e=>!e.supplementary);
+  const cons=(config.constructs||[]);
+  return {els, cons};
+}
 function distributionOf(config, responses){
   const cats=config.categories||[]; const sum={}; cats.forEach(c=>sum[c.id]=0); let tot=0;
   responses.forEach(r=>{ const p=categoryProfile(config,r); cats.forEach(c=>{ sum[c.id]+=p[c.id]||0; tot+=p[c.id]||0; }); });
@@ -2476,7 +2487,7 @@ function generateStudyPDF(config, responses){
     y+=2;
   }
   heading('Structure');
-  if(avg(pvs)!=null) kv('Mean cognitive complexity (PVAFF)', avg(pvs).toFixed(1)+'%  ('+(avg(pvs)>=60?'simpler / one-dimensional':avg(pvs)>=45?'moderate':'differentiated')+')');
+  if(avg(pvs)!=null) kv('Mean cognitive complexity (PVAFF)', avg(pvs).toFixed(1)+'% (higher = more one-dimensional; read relative to grid size)');
   if(avg(cfs)!=null) kv('Mean conflict (triadic imbalance)', avg(cfs).toFixed(1)+'%');
   if(sis.length){ kv('Self–ideal grids', sis.length); kv('Mean self–ideal distance', (sis.reduce((s,x)=>s+x.pct,0)/sis.length).toFixed(1)+'% of max'); }
   if(dils.length) kv('Participants with an implicative dilemma', withDil+' of '+dils.length);
@@ -2513,7 +2524,7 @@ function ReportModule({config,responses,code}){
     if(d.coded&&top.length){
       p.push('<h2>Content analysis</h2><p>The most frequently construed themes were '+top.slice(0,3).map(t=>'<b>'+esc(t.name)+'</b> ('+t.pct.toFixed(0)+'%)').join(', ')+'. The full distribution:</p><table><thead><tr><th>Category</th><th>Share</th></tr></thead><tbody>'+top.map(t=>'<tr><td>'+esc(t.name)+'</td><td>'+t.pct.toFixed(1)+'%</td></tr>').join('')+'</tbody></table>');
     }
-    p.push('<h2>Structure</h2><p>'+(d.meanPV!=null?'Average cognitive complexity (PVAFF) across grids was <b>'+d.meanPV.toFixed(1)+'%</b> ('+(d.meanPV>=60?'relatively one-dimensional / simple':d.meanPV>=45?'moderate':'well-differentiated')+').':'Complexity could not be computed.')+' '+(d.meanCf!=null?'Mean logical conflict (triadic imbalance) was <b>'+d.meanCf.toFixed(1)+'%</b>.':'')+'</p>');
+    p.push('<h2>Structure</h2><p>'+(d.meanPV!=null?'Average cognitive complexity (PVAFF) across grids was <b>'+d.meanPV.toFixed(1)+'%</b> (higher = more one-dimensional construing; because PVAFF rises with fewer elements, it should be read relative to grid size rather than an absolute cut-off).':'Complexity could not be computed.')+' '+(d.meanCf!=null?'Mean logical conflict (triadic imbalance) was <b>'+d.meanCf.toFixed(1)+'%</b>.':'')+'</p>');
     if(d.sis.length){ const mp=d.sis.reduce((s,x)=>s+x.pct,0)/d.sis.length; const me=d.sis.reduce((s,x)=>s+x.esteem,0)/d.sis.length;
       p.push('<h2>Self–ideal</h2><p>Across '+d.sis.length+' grid'+(d.sis.length===1?'':'s')+' with a self and ideal tagged, the mean self–ideal distance was <b>'+mp.toFixed(1)+'%</b> of maximum and the mean self-esteem correlation was <b>'+me.toFixed(2)+'</b>.</p>'); }
     if(d.dils.length){ p.push('<h2>Implicative dilemmas</h2><p>'+d.withDil+' of '+d.dils.length+' analysable participants showed at least one implicative dilemma — a change they want that is entangled with a valued, congruent construct.</p>'); }
