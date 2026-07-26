@@ -805,6 +805,8 @@ function Interview({config, code, resp, onBack, readOnly}){
   const [saveState,setSaveState]=useState('idle');
   const [triad,setTriad]=useState(null);
   const [triadN,setTriadN]=useState(0);
+  const [dyad,setDyad]=useState(null);
+  const [elicitMode,setElicitMode]=useState('triad');
   const timer=useRef(null);
   const elementNames=(resp.data&&resp.data.elementNames)||null;
 
@@ -851,6 +853,14 @@ function Interview({config, code, resp, onBack, readOnly}){
     for(let i=idx.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); const t=idx[i]; idx[i]=idx[j]; idx[j]=t; }
     setTriad(idx.slice(0,3).map(i=>named[i]));
     setTriadN(n=>n+1);
+  }
+  // Dyadic protocol: a random pair — "how are these two alike or different?"
+  function newDyad(){
+    const named=elicitedElements.filter(e=>e.name&&e.name.trim());
+    if(named.length<2){ setDyad(null); return; }
+    const idx=named.map((_,i)=>i);
+    for(let i=idx.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); const t=idx[i]; idx[i]=idx[j]; idx[j]=t; }
+    setDyad(idx.slice(0,2).map(i=>named[i]));
   }
 
   const total=combined.length*gridHoney.length + outcomes.length*gridHoney.length;
@@ -922,21 +932,42 @@ function Interview({config, code, resp, onBack, readOnly}){
         </div>}
       </div>
 
-      {/* 2 — Triad selector */}
+      {/* 2 — Construct elicitation (triadic or dyadic) */}
       {!readOnly&&<div className="card">
-        <div className="toolbar" style={{marginBottom:6}}><div className="sec-tag" style={{margin:0}}>2 · Elicit constructs (triads)</div><div className="grow"/><span className="mini">{triadN} triads shown · aim for up to 10</span></div>
-        {namedEls.length<3
-          ? <p className="mini">Add at least three named elements above to start eliciting constructs by triad.</p>
-          : <div>
-              {triad
-                ? <div className="inf-box" style={{marginBottom:'.6rem'}}>Considering these three situations, how are <b>two alike and different from the third</b>? <span className="mini">(then give the opposite pole)</span>
-                    <div style={{marginTop:'.45rem',display:'flex',gap:'.4rem',flexWrap:'wrap'}}>{triad.map((t,i)=><span key={t.id} className="chip"><b>{String.fromCharCode(65+i)}</b> · {t.name}</span>)}</div></div>
-                : <p className="mini">Click “New triad” for a random group of three, ask the question, then capture the construct.</p>}
-              <div className="btn-row">
-                <button className="btn-s btn-sm" onClick={newTriad}>🎲 New triad</button>
-                <button className="btn-s btn-sm" onClick={addElicited}>+ Construct from this triad</button>
-              </div>
-            </div>}
+        <div className="toolbar" style={{marginBottom:6}}>
+          <div className="sec-tag" style={{margin:0}}>2 · Elicit constructs</div>
+          <div className="grow"/>
+          <div className="seg" style={{display:'inline-flex',gap:4}}>
+            <button className="btn-s btn-sm" style={elicitMode==='triad'?{borderColor:'#1a1a1a'}:{}} onClick={()=>setElicitMode('triad')}>Triadic</button>
+            <button className="btn-s btn-sm" style={elicitMode==='dyad'?{borderColor:'#1a1a1a'}:{}} onClick={()=>setElicitMode('dyad')}>Dyadic</button>
+          </div>
+        </div>
+        {elicitMode==='triad'
+          ? (namedEls.length<3
+            ? <p className="mini">Add at least three named elements above to elicit constructs by triad.</p>
+            : <div>
+                {triad
+                  ? <div className="inf-box" style={{marginBottom:'.6rem'}}>Considering these three situations, how are <b>two alike and different from the third</b>? <span className="mini">(then give the opposite pole)</span>
+                      <div style={{marginTop:'.45rem',display:'flex',gap:'.4rem',flexWrap:'wrap'}}>{triad.map((t,i)=><span key={t.id} className="chip"><b>{String.fromCharCode(65+i)}</b> · {t.name}</span>)}</div></div>
+                  : <p className="mini">Click “New triad” for a random group of three, ask the question, then capture the construct.</p>}
+                <div className="btn-row">
+                  <button className="btn-s btn-sm" onClick={newTriad}>🎲 New triad</button>
+                  <button className="btn-s btn-sm" onClick={addElicited}>+ Construct from this triad</button>
+                </div>
+              </div>)
+          : (namedEls.length<2
+            ? <p className="mini">Add at least two named elements above to elicit constructs by pairs (dyadic).</p>
+            : <div>
+                <p className="mini" style={{marginBottom:'.4rem'}}>Dyadic elicitation is a lower-load alternative to triads: show one pair and ask how they compare.</p>
+                {dyad
+                  ? <div className="inf-box" style={{marginBottom:'.6rem'}}>Thinking about these two situations, <b>how are they alike, or how do they differ</b>? <span className="mini">(name the quality, then its opposite pole)</span>
+                      <div style={{marginTop:'.45rem',display:'flex',gap:'.4rem',flexWrap:'wrap'}}>{dyad.map((t,i)=><span key={t.id} className="chip"><b>{String.fromCharCode(65+i)}</b> · {t.name}</span>)}</div></div>
+                  : <p className="mini">Click “New pair” for a random two, ask the question, then capture the construct.</p>}
+                <div className="btn-row">
+                  <button className="btn-s btn-sm" onClick={newDyad}>🎲 New pair</button>
+                  <button className="btn-s btn-sm" onClick={addElicited}>+ Construct from this pair</button>
+                </div>
+              </div>)}
       </div>}
 
       {/* 3 — Grid */}
@@ -983,13 +1014,51 @@ function Interview({config, code, resp, onBack, readOnly}){
 }
 
 /* ============================ Setup ====================== */
+const STUDY_TEMPLATES=[
+  {id:'leadership', name:'Leadership effectiveness', apply:{
+    title:'Leadership effectiveness', description:'How do people construe effective versus ineffective leadership, and which of their own constructs track effectiveness?',
+    scaleMin:1, scaleMax:10,
+    elementCategories:[{id:'eff',name:'Effective leader/situation',short:'E',target:3},{id:'ineff',name:'Less effective leader/situation',short:'L',target:3}],
+    suppliedConstructs:[{id:'supplied',left:'Highly effective',right:'Not effective at all',desc:'The overall effectiveness yardstick.'}] }},
+  {id:'brand', name:'Brand / product perception', apply:{
+    title:'Brand perception', description:'How do people tell brands or products apart, and what drives appeal?',
+    scaleMin:1, scaleMax:7,
+    elementCategories:[{id:'br',name:'Brand / product',short:'B',target:6}],
+    suppliedConstructs:[{id:'supplied',left:'Very appealing',right:'Not appealing',desc:'Overall appeal.'}] }},
+  {id:'team', name:'Working relationships', apply:{
+    title:'Working relationships', description:'How does someone construe the people they work with?',
+    scaleMin:1, scaleMax:7,
+    elementCategories:[{id:'col',name:'Colleague',short:'C',target:6}],
+    suppliedConstructs:[{id:'supplied',left:'Easy to work with',right:'Hard to work with',desc:'Overall working relationship.'}] }},
+  {id:'self', name:'Coaching · self & ideal', apply:{
+    title:'Self and ideal self', description:'How does someone see themselves now versus their ideal, across their roles and situations?',
+    scaleMin:1, scaleMax:7,
+    elementCategories:[{id:'role',name:'Role / situation',short:'R',target:5}],
+    suppliedConstructs:[{id:'supplied',left:'Like my ideal self',right:'Unlike my ideal self',desc:'Closeness to the ideal self.'}],
+    elements:[{id:'self_el',name:'Me now',role:'self'},{id:'ideal_el',name:'My ideal self',role:'ideal'}] }},
+];
 function Setup({config,setConfig,onSave,saving,savedMsg,readOnly}){
   const c=config, set=(patch)=>setConfig({...c,...patch});
   const cats=c.elementCategories||[];
   const setCat=(id,patch)=>set({elementCategories:cats.map(x=>x.id===id?{...x,...patch}:x)});
+  const [tpl,setTpl]=useState('');
+  function applyTpl(){
+    const t=STUDY_TEMPLATES.find(x=>x.id===tpl); if(!t||readOnly) return;
+    if(!window.confirm('Apply the “'+t.name+'” template? It fills in the title, description, scale, element categories and outcome construct'+(t.apply.elements?' (and a self/ideal element pair)':'')+'. Existing interviews are not affected.')) return;
+    const a=t.apply, o=(a.suppliedConstructs&&a.suppliedConstructs[0])||{};
+    set({...a, suppliedLeft:o.left||'', suppliedRight:o.right||'', suppliedDesc:o.desc||''});
+  }
   return (
     <div className="fade">
-      {!readOnly&&<div className="help-box"><span className="help-h">Setup · define the study (do this first)</span>Set this up once. Give the study a <b>title</b> and a short <b>description</b>, choose the <b>rating scale</b> (1–10 is common), and define your <b>element categories</b> — the kinds of situation each interviewee brings (for example two categories with a target of three each). The actual elements and constructs are elicited from each person during their interview; shared (prescribed) ones — like the effectiveness yardstick and any “ideal” element — live on the next two tabs. New here? <b>Load example</b> fills in a generic design you can adapt.</div>}
+      {!readOnly&&<div className="help-box"><span className="help-h">Setup · define the study (do this first)</span>Set this up once. Give the study a <b>title</b> and a short <b>description</b>, choose the <b>rating scale</b> (1–10 is common), and define your <b>element categories</b> — the kinds of situation each interviewee brings (for example two categories with a target of three each). The actual elements and constructs are elicited from each person during their interview; shared (prescribed) ones — like the effectiveness yardstick and any “ideal” element — live on the next two tabs. New here? Pick a <b>template</b> or <b>Load example</b> to fill in a generic design you can adapt.</div>}
+      {!readOnly&&<div className="card"><div className="toolbar">
+        <div className="sec-tag" style={{margin:0}}>Start from a template</div><div className="grow"/>
+        <select className="inp inp-sm" style={{width:220}} value={tpl} onChange={e=>setTpl(e.target.value)}>
+          <option value="">— choose a starter design —</option>
+          {STUDY_TEMPLATES.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
+        </select>
+        <button className="btn-s btn-sm" disabled={!tpl} onClick={applyTpl}>Apply template</button>
+      </div><p className="mini" style={{marginTop:'.3rem'}}>Templates are generic starting points — edit everything after applying.</p></div>}
       <div className="card">
         <div className="sec-tag">Study</div>
         <label className="field-lbl">Title</label>
