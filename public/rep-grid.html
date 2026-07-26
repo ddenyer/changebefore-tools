@@ -451,6 +451,43 @@ function intensityGrid(M){
   let s=0,n=0; for(let i=0;i<R;i++)for(let j=0;j<R;j++){ if(i!==j){ s+=C[i][j]*C[i][j]; n++; } }
   return n? s/n*100 : null;
 }
+// Role-tagged element id (self/ideal/…) for a response — elicited or prescribed.
+function roleElId(config, r, role){
+  const eli=((r.data&&r.data.elicitedElements)||[]).find(e=>e.role===role);
+  if(eli) return eli.id;
+  const pre=(config.elements||[]).find(e=>e.role===role);
+  return pre?pre.id:null;
+}
+// Self–ideal analysis for one response: standardised distance + self-esteem correlation.
+function selfIdeal(config, r){
+  const selfId=roleElId(config,r,'self'), idealId=roleElId(config,r,'ideal');
+  if(!selfId||!idealId) return null;
+  const d=r.data||{}, ratings=d.ratings||{};
+  const cons=[...(config.constructs||[]),...((d.elicited)||[])].filter(c=> ratings[c.id]&&ratings[c.id][selfId]!=null&&ratings[c.id][idealId]!=null);
+  if(cons.length<2) return null;
+  const sv=cons.map(c=>ratings[c.id][selfId]), iv=cons.map(c=>ratings[c.id][idealId]);
+  let ss=0; for(let k=0;k<cons.length;k++) ss+=(sv[k]-iv[k])*(sv[k]-iv[k]);
+  const dist=Math.sqrt(ss/cons.length);
+  return {dist, pct:dist/(config.scaleMax-config.scaleMin)*100, esteem:pearson(sv,iv), n:cons.length};
+}
+// Implicative dilemmas for one response (needs a self and an ideal element).
+function dilemmas(config, r){
+  const selfId=roleElId(config,r,'self'), idealId=roleElId(config,r,'ideal');
+  if(!selfId||!idealId) return null;
+  const d=r.data||{}, ratings=d.ratings||{};
+  const range=config.scaleMax-config.scaleMin;
+  const congT=Math.max(1,Math.round(range/6)), discT=Math.round(range/2);
+  const cons=[...(config.constructs||[]),...((d.elicited)||[])].filter(c=> ratings[c.id]&&ratings[c.id][selfId]!=null&&ratings[c.id][idealId]!=null);
+  const els=elementsFor(config,r,null).map(e=>e.id);
+  const info=cons.map(c=>{ const diff=Math.abs(ratings[c.id][selfId]-ratings[c.id][idealId]);
+    const status= diff<=congT?'congruent':(diff>=discT?'discrepant':'other');
+    return {c, status, vec:els.map(e=> (ratings[c.id]&&ratings[c.id][e]!=null)?ratings[c.id][e]:null)}; });
+  const cong=info.filter(x=>x.status==='congruent'), disc=info.filter(x=>x.status==='discrepant');
+  const found=[];
+  cong.forEach(a=>disc.forEach(b=>{ const cr=pearson(a.vec,b.vec); if(Math.abs(cr)>=0.35) found.push({cong:a.c,disc:b.c,corr:cr}); }));
+  const possible=cong.length*disc.length;
+  return {found, nCong:cong.length, nDisc:disc.length, possible, pid: possible? found.length/possible*100:0, nCons:cons.length};
+}
 
 /* ============================ helpers ====================== */
 const uid=()=> (crypto.randomUUID? crypto.randomUUID() : 'id-'+Math.random().toString(36).slice(2)+Date.now());
@@ -758,6 +795,12 @@ function Interview({config, code, resp, onBack, readOnly}){
                     {cats.map(c=><option key={c.id} value={c.short||c.name}>{c.name}</option>)}
                   </select>
                 : <input className="inp inp-sm" style={{width:90,flex:'0 0 auto'}} value={el.category||''} readOnly={readOnly} placeholder="cat" onChange={e=>setElement(el.id,{category:e.target.value})}/>}
+              <select className="inp inp-sm" style={{width:96,flex:'0 0 auto'}} value={el.role||''} disabled={readOnly} title="Optional role tag — needed for self–ideal and implicative-dilemma analysis" onChange={e=>setElement(el.id,{role:e.target.value||undefined})}>
+                <option value="">— role —</option>
+                <option value="self">Self</option>
+                <option value="ideal">Ideal</option>
+                <option value="other">Other</option>
+              </select>
               {!readOnly&&<button className="x" onClick={()=>removeElement(el.id)}>✕</button>}
             </div>
             <input className="inp inp-sm" style={{marginTop:4}} value={el.desc||''} readOnly={readOnly} placeholder="Description (optional)" onChange={e=>setElement(el.id,{desc:e.target.value})}/>
@@ -1861,6 +1904,102 @@ function MapsModule({config,responses}){
   );
 }
 
+function roleBadge(config,responses){
+  // How many grids carry a self AND an ideal tag?
+  return responses.filter(r=> roleElId(config,r,'self')&&roleElId(config,r,'ideal')).length;
+}
+function SelfIdealModule({config,responses}){
+  const withRoles=responses.filter(r=> roleElId(config,r,'self')&&roleElId(config,r,'ideal'));
+  const rows=withRoles.map(r=>({r, si:selfIdeal(config,r)})).filter(x=>x.si);
+  const mean=(k)=>{const a=rows.map(x=>x.si[k]).filter(v=>v!=null); return a.length? a.reduce((s,v)=>s+v,0)/a.length : null;};
+  return (
+    <div className="fade">
+      <div className="help-box"><span className="help-h">Self–ideal discrepancy — the gap between who I am and who I want to be</span><b>Why you need it:</b> in coaching and clinical grids, the distance between the <b>“self”</b> element and the <b>“ideal self”</b> element is a validated index of dissatisfaction / motivation to change, and the <b>self–ideal correlation</b> is a classic self-esteem measure (high positive = content; near zero or negative = the person rates themselves unlike their ideal on the very constructs that matter to them). <b>How to use it:</b> in each interview, tag one element with the role <b>Self</b> and one with <b>Ideal</b> (the role dropdown on each element). This module then computes, per person, the standardised self–ideal distance and correlation.</div>
+      {!rows.length
+        ? <div className="card"><p className="muted small">No grids yet have both a <b>Self</b> and an <b>Ideal</b> element tagged. Open an interview, and on two of its elements set the <b>role</b> dropdown to <b>Self</b> and <b>Ideal</b>. Studies that don’t use a self/ideal design can ignore this module.</p></div>
+        : <><div className="card"><div className="row">
+            <div><div className="mini">Mean self–ideal distance</div><div style={{fontSize:'1.5rem',fontWeight:700,color:'#e07030'}}>{mean('pct')!=null?mean('pct').toFixed(1)+'%':'—'}</div><div className="mini">of max possible</div></div>
+            <div><div className="mini">Mean self-esteem (r)</div><div style={{fontSize:'1.5rem',fontWeight:700}}>{mean('esteem')!=null?mean('esteem').toFixed(2):'—'}</div><div className="mini">self vs ideal correlation</div></div>
+            <div><div className="mini">Grids analysed</div><div style={{fontSize:'1.5rem',fontWeight:700}}>{rows.length}</div></div>
+          </div></div>
+          <div className="card"><div className="scroll"><table className="grid" style={{fontSize:'.8rem'}}>
+            <thead><tr><th className="pole" style={{textAlign:'left'}}>Interviewee</th><th>Constructs</th><th>Self–ideal distance</th><th>% of max</th><th>Self-esteem (r)</th></tr></thead>
+            <tbody>{rows.map((x,i)=><tr key={i}><td className="pole" style={{textAlign:'left'}}>{x.r.participant_name||x.r.participant_id}</td><td style={{textAlign:'center'}}>{x.si.n}</td><td style={{textAlign:'center'}}>{x.si.dist.toFixed(2)}</td><td style={{textAlign:'center'}}>{x.si.pct.toFixed(1)}%</td><td style={{textAlign:'center'}}>{x.si.esteem.toFixed(2)}</td></tr>)}</tbody>
+          </table></div><p className="mini" style={{marginTop:'.5rem'}}>Distance = root-mean-square rating gap between the self and ideal columns across shared constructs; “% of max” expresses it against the widest possible gap on your scale.</p></div></>}
+    </div>
+  );
+}
+function DilemmasModule({config,responses}){
+  const withRoles=responses.filter(r=> roleElId(config,r,'self')&&roleElId(config,r,'ideal'));
+  const [sel,setSel]=useState(withRoles[0]?withRoles[0].participant_id:'');
+  const r=responses.find(x=>x.participant_id===sel);
+  const dl=r?dilemmas(config,r):null;
+  const allD=withRoles.map(x=>({r:x, d:dilemmas(config,x)})).filter(x=>x.d);
+  const totalDil=allD.reduce((s,x)=>s+x.d.found.length,0);
+  const withDil=allD.filter(x=>x.d.found.length>0).length;
+  return (
+    <div className="fade">
+      <div className="help-box"><span className="help-h">Implicative dilemmas — the hidden conflicts that block change</span><b>Why you need it:</b> a person may want to change on a <i>discrepant</i> construct (where their self sits far from their ideal) but that construct is strongly correlated with a <i>congruent</i> one (where self already equals ideal). Moving toward the ideal on the first would drag them <b>away</b> from their ideal on the second — so they’re stuck. Feixas & Saúl showed these “implicative dilemmas” predict resistance to change in coaching and therapy. <b>How it’s computed:</b> a construct is <b>congruent</b> if the self–ideal gap ≤ scale/6, <b>discrepant</b> if ≥ scale/2; a dilemma is a congruent–discrepant pair correlated |r| ≥ 0.35. Needs a <b>Self</b> and an <b>Ideal</b> element tagged (see Self–ideal).</div>
+      {!withRoles.length
+        ? <div className="card"><p className="muted small">No grids yet have both a <b>Self</b> and an <b>Ideal</b> element tagged. Set the <b>role</b> dropdown on two elements in an interview to enable dilemma detection.</p></div>
+        : <>
+        <div className="card"><div className="row">
+          <div><div className="mini">People with ≥1 dilemma</div><div style={{fontSize:'1.5rem',fontWeight:700,color:'#c0392b'}}>{withDil} / {allD.length}</div></div>
+          <div><div className="mini">Total dilemmas found</div><div style={{fontSize:'1.5rem',fontWeight:700}}>{totalDil}</div></div>
+        </div></div>
+        <div className="toolbar"><label className="field-lbl" style={{margin:0}}>Interviewee</label>{ppSelect(withRoles,sel,setSel)}</div>
+        {!dl? <p className="muted small">Pick an interviewee.</p> :
+          <div className="card">
+            <p className="mini">{dl.nCong} congruent · {dl.nDisc} discrepant constructs · {dl.found.length} dilemma{dl.found.length===1?'':'s'} of {dl.possible} possible pairs (PID {dl.pid.toFixed(0)}%).</p>
+            {!dl.found.length? <p className="muted small" style={{marginTop:'.4rem'}}>No implicative dilemmas detected for this person.</p> :
+            <div className="scroll"><table className="grid" style={{fontSize:'.78rem'}}>
+              <thead><tr><th className="pole" style={{textAlign:'left'}}>Wants to change (discrepant)</th><th className="pole" style={{textAlign:'left'}}>But it’s tied to (congruent)</th><th>r</th></tr></thead>
+              <tbody>{dl.found.map((f,i)=><tr key={i}><td className="pole" style={{textAlign:'left'}}>{f.disc.left} – {f.disc.right}</td><td className="pole" style={{textAlign:'left'}}>{f.cong.left} – {f.cong.right}</td><td style={{textAlign:'center',color:f.corr>=0?'#16784a':'#c0392b'}}>{f.corr.toFixed(2)}</td></tr>)}</tbody>
+            </table></div>}
+          </div>}
+        </>}
+    </div>
+  );
+}
+const CSPC_DICT=[
+  {area:'1 · Moral', cats:[['1A','Good','bad'],['1B','Altruistic','egoistic'],['1C','Humble','proud'],['1D','Respectful','judgmental'],['1E','Faithful','unfaithful'],['1F','Sincere','insincere'],['1G','Just','unjust'],['1H','Responsible','irresponsible'],['1O','Other moral','']]},
+  {area:'2 · Emotional', cats:[['2A','Visceral','rational'],['2B','Warm','cold'],['2C','Optimistic','pessimistic'],['2D','Balanced','unbalanced'],['2E','Specific emotion',''],['2F','Sexuality',''],['2O','Other emotional','']]},
+  {area:'3 · Relational', cats:[['3A','Extroverted','introverted'],['3B','Pleasant','unpleasant'],['3C','Direct','devious'],['3D','Tolerant','authoritarian'],['3E','Conformist','rebel'],['3F','Dependent','independent'],['3G','Peaceable','aggressive'],['3H','Sympathetic','unsympathetic'],['3I','Trusting','suspicious'],['3O','Other relational','']]},
+  {area:'4 · Personal', cats:[['4A','Strong','weak'],['4B','Active','passive'],['4C','Hardworking','lazy'],['4D','Organized','disorganized'],['4E','Decisive','indecisive'],['4F','Flexible','rigid'],['4G','Thoughtful','shallow'],['4H','Mature','immature'],['4O','Other personal','']]},
+  {area:'5 · Intellectual / operational', cats:[['5A','Capable','incapable'],['5B','Intelligent','dull'],['5C','Cultured','uncultured'],['5D','Focused','unfocused'],['5E','Creative','uncreative'],['5F','Specific ability','']]},
+  {area:'6 · Values & interests', cats:[['6A','Ideological values',''],['6B','Specific values',''],['6O','Other values','']]},
+  {area:'7 · Physical', cats:[['7A','Body appearance',''],['7B','Physical malaise',''],['7C','Attitude toward body','']]},
+];
+function CSPCModule({config,setConfig,onSaveConfig,readOnly}){
+  const total=CSPC_DICT.reduce((s,a)=>s+a.cats.length,0);
+  const loaded=(config.categories||[]).some(c=>String(c.id||'').startsWith('cspc_'));
+  function load(){
+    if(readOnly) return;
+    if(!window.confirm('Replace this study’s current category scheme with the CSPC dictionary ('+total+' categories)? Existing construct-to-category codings will be cleared.')) return;
+    const cats=[]; CSPC_DICT.forEach(a=>a.cats.forEach(([code,l,r])=>cats.push({id:'cspc_'+code, name:code+' '+l+(r?'–'+r:''), left:l, right:r||'contrast', leftDef:'CSPC '+a.area.replace(/^[0-9]+ · /,'')+' area — '+l+(r?' vs '+r:'')+'.', rightDef:r?('The '+r+' pole.'):'Constructs that do not express the '+l+' theme.'})));
+    const next={...config, categories:cats, assignments:{}};
+    setConfig(next); onSaveConfig&&onSaveConfig(next);
+  }
+  return (
+    <div className="fade">
+      <div className="help-box"><span className="help-h">CSPC — a standard, ready-made content-category dictionary</span><b>Why you need it:</b> content analysis normally means <i>deriving</i> your own categories bottom-up (the Composite-constructs tab). Sometimes you instead want a <b>validated, comparable</b> scheme so results can be benchmarked against the wider literature. The <b>Classification System for Personal Constructs (CSPC; Feixas, Geldschläger &amp; Neimeyer)</b> is the most widely used, sorting constructs into content areas — moral, emotional, relational, personal, intellectual/operational, values, and physical. <b>How to use it:</b> click <b>Load CSPC scheme</b> to make these the study’s categories; then code your constructs against them in Composite constructs (AI or human coders), exactly as with a derived scheme. The frequency of each area/category is the CSPC result.</div>
+      <div className="toolbar">
+        {loaded? <span className="pill" style={{background:'#e6f4ec',color:'#16784a'}}>CSPC scheme loaded ({(config.categories||[]).length} categories)</span>
+               : <button className="btn" disabled={readOnly} onClick={load}>Load CSPC scheme ({total} categories)</button>}
+        {readOnly&&<span className="mini">Read-only demo — cannot change the scheme.</span>}
+      </div>
+      <div className="card"><div className="sec-tag">The dictionary</div>
+        {CSPC_DICT.map(a=><div key={a.area} style={{marginBottom:'.7rem'}}>
+          <div style={{fontWeight:700,fontSize:'.85rem',marginBottom:'.25rem'}}>{a.area}</div>
+          <div className="row" style={{flexWrap:'wrap',gap:'.3rem'}}>
+            {a.cats.map(([code,l,r])=><span key={code} className="pill" style={{background:'#f3f1ec'}} title={code}>{code} · {l}{r?' – '+r:''}</span>)}
+          </div>
+        </div>)}
+        <p className="mini">Bipolar labels (e.g. Good–bad) split into a preferred and contrast pole; single-label categories (e.g. Sexuality, Body appearance) code the presence of that theme. Physical is an extension area used in some clinical studies.</p>
+      </div>
+    </div>
+  );
+}
 const DASH_NAV=[
   {area:'Design', tiles:[
     {id:'setup',t:'Study setup',d:'Title, rating scale, description and element categories.'},
@@ -1881,9 +2020,9 @@ const DASH_NAV=[
     {id:'complexity',t:'Cognitive complexity',d:'PVAFF, Intensity, Bieri per grid + sample means.'},
     {id:'matrices',t:'Distances & correlations',d:'Element & construct correlation and distance matrices.'},
     {id:'maps',t:'Grid maps',d:'PrinGrid biplot (% variance) + FOCUS ordering.'},
-    {id:'selfideal',t:'Self–ideal',d:'Self vs ideal-self discrepancy (role-tagged elements).',soon:true},
-    {id:'dilemmas',t:'Implicative dilemmas',d:'Cognitive conflicts that block change.',soon:true},
-    {id:'cspc',t:'CSPC dictionary',d:'Standard 45-category construct content system.',soon:true},
+    {id:'selfideal',t:'Self–ideal',d:'Self vs ideal-self discrepancy (role-tagged elements).'},
+    {id:'dilemmas',t:'Implicative dilemmas',d:'Cognitive conflicts that block change.'},
+    {id:'cspc',t:'CSPC dictionary',d:'Ready-made Feixas content-category scheme for constructs.'},
   ]},
   {area:'Compare & change', soon:true, tiles:[
     {id:'compare',t:'Grid comparison',d:'Consensus & difference grids, socionets.'},
@@ -1933,10 +2072,11 @@ function Dashboard({code, onSignOut}){
   // Push a history entry each time the user goes deeper, so Back has something to pop.
   useEffect(()=>{ if(tab!==null||active) window.history.pushState({rg:1},''); }, [tab, active?active.participant_id:null]);
 
-  async function saveConfig(){
-    if(config&&config.readOnly) return;
+  async function saveConfig(override){
+    const cfg=override||config;
+    if(cfg&&cfg.readOnly) return;
     setSaving(true); setSavedMsg('');
-    try{ await saveWithRetry({kind:'config',session_code:code,data:config}); setSavedMsg('Saved ✓'); setTimeout(()=>setSavedMsg(''),2500); }
+    try{ await saveWithRetry({kind:'config',session_code:code,data:cfg}); setSavedMsg('Saved ✓'); setTimeout(()=>setSavedMsg(''),2500); }
     catch(e){ alert('Save failed: '+e.message); }
     setSaving(false);
   }
@@ -2001,6 +2141,9 @@ function Dashboard({code, onSignOut}){
           {tab==='complexity'&&<ComplexityModule config={config} responses={responses}/>}
           {tab==='matrices'&&<MatricesModule config={config} responses={responses}/>}
           {tab==='maps'&&<MapsModule config={config} responses={responses}/>}
+          {tab==='selfideal'&&<SelfIdealModule config={config} responses={responses}/>}
+          {tab==='dilemmas'&&<DilemmasModule config={config} responses={responses}/>}
+          {tab==='cspc'&&<CSPCModule config={config} setConfig={setConfig} onSaveConfig={saveConfig} readOnly={readOnly}/>}
         </div>
       )}
     </div>
