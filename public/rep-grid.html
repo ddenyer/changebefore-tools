@@ -488,6 +488,34 @@ function dilemmas(config, r){
   const possible=cong.length*disc.length;
   return {found, nCong:cong.length, nDisc:disc.length, possible, pid: possible? found.length/possible*100:0, nCons:cons.length};
 }
+// Triadic-imbalance conflict (Slade & Sheehan 1979): a triad of constructs is
+// "balanced" when the product of its three correlations is positive; a negative
+// product is a logical inconsistency. Conflict = % of imbalanced triads.
+function triadicConflict(M, labels){
+  const C=corrMatrix(M); const n=C.length; if(n<3) return null;
+  let imbal=0,total=0; const triads=[];
+  for(let i=0;i<n;i++)for(let j=i+1;j<n;j++)for(let k=j+1;k<n;k++){
+    const p=C[i][j]*C[i][k]*C[j][k]; total++;
+    if(p<0){ imbal++; triads.push({i,j,k,p}); }
+  }
+  triads.sort((a,b)=>a.p-b.p);
+  return {pct: total? imbal/total*100:0, imbal, total, triads:triads.slice(0,12), labels:labels||[]};
+}
+// Average-linkage agglomerative clustering from a similarity matrix (0–100).
+function hclust(sim){
+  const n=sim.length; if(n<2) return null;
+  const D=sim.map(row=>row.map(v=>100-v));
+  let nodes=[...Array(n).keys()].map(i=>({members:[i],height:0,left:null,right:null,leaf:i}));
+  const avg=(A,B)=>{let s=0,c=0; A.members.forEach(a=>B.members.forEach(b=>{s+=D[a][b];c++;})); return s/c;};
+  while(nodes.length>1){
+    let mi=0,mj=1,md=Infinity;
+    for(let a=0;a<nodes.length;a++)for(let b=a+1;b<nodes.length;b++){const d=avg(nodes[a],nodes[b]); if(d<md){md=d;mi=a;mj=b;}}
+    const A=nodes[mi],B=nodes[mj];
+    nodes=nodes.filter((_,x)=>x!==mi&&x!==mj);
+    nodes.push({members:[...A.members,...B.members],height:md,left:A,right:B,leaf:null});
+  }
+  return nodes[0];
+}
 
 /* ============================ helpers ====================== */
 const uid=()=> (crypto.randomUUID? crypto.randomUUID() : 'id-'+Math.random().toString(36).slice(2)+Date.now());
@@ -1961,6 +1989,75 @@ function DilemmasModule({config,responses}){
     </div>
   );
 }
+function ConflictModule({config,responses}){
+  const withData=responses.filter(r=>gridFor(config,r).cons.length>=3);
+  const [sel,setSel]=useState(withData[0]?withData[0].participant_id:'');
+  const r=responses.find(x=>x.participant_id===sel);
+  const g=r?gridFor(config,r):null;
+  const con=g&&g.cons.length>=3? triadicConflict(g.M, g.cons.map(c=>c.left+' – '+c.right)) : null;
+  const per=withData.map(x=>{const gg=gridFor(config,x); const t=triadicConflict(gg.M); return t?t.pct:null;}).filter(v=>v!=null);
+  const mean=per.length? per.reduce((s,v)=>s+v,0)/per.length : null;
+  return (
+    <div className="fade">
+      <div className="help-box"><span className="help-h">Conflict — logical inconsistency in a construct system</span><b>Why you need it:</b> unlike implicative dilemmas (which need a self &amp; ideal), this measures internal <i>inconsistency</i> from the grid alone. Balance theory says any three constructs are consistent when the product of their three correlations is positive; a <b>negative</b> product means “A goes with B, B goes with C, but A goes <i>against</i> C” — a logical knot. <b>Conflict %</b> is the share of construct triads that are imbalanced (Slade &amp; Sheehan, 1979). Higher = a more strained, contradictory way of construing. <b>How to read it:</b> the listed triads are the most inconsistent — good candidates to explore in feedback.</div>
+      <div className="toolbar"><label className="field-lbl" style={{margin:0}}>Interviewee</label>{ppSelect(withData,sel,setSel)}</div>
+      {!con? <p className="muted small">Needs a grid with at least three rated constructs.</p> : <>
+        <div className="card"><div className="row">
+          <div><div className="mini">Conflict (this grid)</div><div style={{fontSize:'1.5rem',fontWeight:700,color:'#c0392b'}}>{con.pct.toFixed(1)}%</div><div className="mini">{con.imbal} of {con.total} triads imbalanced</div></div>
+          <div><div className="mini">Sample mean conflict</div><div style={{fontSize:'1.5rem',fontWeight:700}}>{mean!=null?mean.toFixed(1)+'%':'—'}</div><div className="mini">{per.length} grids</div></div>
+        </div></div>
+        {con.triads.length>0&&<div className="card"><div className="sec-tag">Most inconsistent triads</div>
+          <div className="scroll"><table className="grid" style={{fontSize:'.75rem'}}>
+            <thead><tr><th className="pole" style={{textAlign:'left'}}>Construct A</th><th className="pole" style={{textAlign:'left'}}>Construct B</th><th className="pole" style={{textAlign:'left'}}>Construct C</th><th>r·r·r</th></tr></thead>
+            <tbody>{con.triads.map((t,i)=><tr key={i}><td className="pole" style={{textAlign:'left'}}>{con.labels[t.i]}</td><td className="pole" style={{textAlign:'left'}}>{con.labels[t.j]}</td><td className="pole" style={{textAlign:'left'}}>{con.labels[t.k]}</td><td style={{textAlign:'center',color:'#c0392b'}}>{t.p.toFixed(2)}</td></tr>)}</tbody>
+          </table></div></div>}
+      </>}
+    </div>
+  );
+}
+function Dendrogram({root, labels}){
+  if(!root) return null;
+  const leaves=[]; (function rec(n){ if(n.leaf!=null) leaves.push(n); else {rec(n.left);rec(n.right);} })(root);
+  const rowH=22, top=14, left=210, plot=300, W=left+plot+16, H=top+leaves.length*rowH+10;
+  const maxH=root.height||1;
+  const yOf={}; leaves.forEach((lf,i)=>{ yOf[lf.leaf]=top+i*rowH+rowH/2; });
+  const x=(h)=>left+(h/maxH)*plot;
+  const segs=[];
+  (function draw(n){ if(n.leaf!=null){ n._x=left; n._y=yOf[n.leaf]; return; }
+    draw(n.left); draw(n.right); n._x=x(n.height); n._y=(n.left._y+n.right._y)/2;
+    segs.push(['v',n._x,n.left._y,n.right._y]); segs.push(['h',n.left._x,n._x,n.left._y]); segs.push(['h',n.right._x,n._x,n.right._y]);
+  })(root);
+  return (
+    <svg width={W} height={H} style={{maxWidth:'100%'}}>
+      {[0,25,50,75,100].map(p=>{const xx=x(maxH*p/100); return <g key={p}><line x1={xx} y1={top-6} x2={xx} y2={H-6} stroke="#eee"/><text x={xx} y={H-1} fontSize="8" textAnchor="middle" fill="#999">{p}%</text></g>;})}
+      {leaves.map((lf,i)=><text key={i} x={left-6} y={yOf[lf.leaf]+3} fontSize="10" textAnchor="end" fill="#333">{(labels[lf.leaf]||('#'+lf.leaf)).slice(0,30)}</text>)}
+      {segs.map((s,i)=> s[0]==='v'
+        ? <line key={i} x1={s[1]} y1={s[2]} x2={s[1]} y2={s[3]} stroke="#1a1a1a" strokeWidth="1.3"/>
+        : <line key={i} x1={s[1]} y1={s[3]} x2={s[2]} y2={s[3]} stroke="#1a1a1a" strokeWidth="1.3"/>)}
+    </svg>
+  );
+}
+function DendroModule({config,responses}){
+  const lo=config.scaleMin,hi=config.scaleMax;
+  const withData=responses.filter(r=>{const g=gridFor(config,r); return g.cons.length>=2&&g.els.length>=2;});
+  const [sel,setSel]=useState(withData[0]?withData[0].participant_id:'');
+  const r=responses.find(x=>x.participant_id===sel);
+  const g=r?gridFor(config,r):null;
+  const trees=useMemo(()=>{ if(!g||g.cons.length<2||g.els.length<2) return null;
+    return {cons:hclust(simMatrix(g.M,hi-lo)), els:hclust(simMatrix(transpose(g.M),hi-lo)),
+      cLab:g.cons.map(c=>c.left+' – '+c.right), eLab:g.els.map((e,i)=>e.name||('E'+(i+1)))};
+  },[g]);
+  return (
+    <div className="fade">
+      <div className="help-box"><span className="help-h">Cluster trees (dendrograms) — what groups with what</span><b>Why you need it:</b> the dendrogram is the classic FOCUS output. It joins the most similar constructs (and elements) first, then progressively looser groups, so you can <i>see</i> the person’s themes as branches. Constructs that join low on the tree are near-synonyms; a late, high join marks a genuine dividing line in how they think. <b>How to read it:</b> the horizontal axis is matching % — read where two items merge to judge how alike they are.</div>
+      <div className="toolbar"><label className="field-lbl" style={{margin:0}}>Interviewee</label>{ppSelect(withData,sel,setSel)}</div>
+      {!trees? <p className="muted small">Needs a grid with ≥2 constructs and ≥2 elements.</p> : <>
+        <div className="card"><div className="sec-tag">Constructs</div><div className="scroll"><Dendrogram root={trees.cons} labels={trees.cLab}/></div></div>
+        <div className="card"><div className="sec-tag">Elements</div><div className="scroll"><Dendrogram root={trees.els} labels={trees.eLab}/></div></div>
+      </>}
+    </div>
+  );
+}
 const CSPC_DICT=[
   {area:'1 · Moral', cats:[['1A','Good','bad'],['1B','Altruistic','egoistic'],['1C','Humble','proud'],['1D','Respectful','judgmental'],['1E','Faithful','unfaithful'],['1F','Sincere','insincere'],['1G','Just','unjust'],['1H','Responsible','irresponsible'],['1O','Other moral','']]},
   {area:'2 · Emotional', cats:[['2A','Visceral','rational'],['2B','Warm','cold'],['2C','Optimistic','pessimistic'],['2D','Balanced','unbalanced'],['2E','Specific emotion',''],['2F','Sexuality',''],['2O','Other emotional','']]},
@@ -2020,8 +2117,10 @@ const DASH_NAV=[
     {id:'complexity',t:'Cognitive complexity',d:'PVAFF, Intensity, Bieri per grid + sample means.'},
     {id:'matrices',t:'Distances & correlations',d:'Element & construct correlation and distance matrices.'},
     {id:'maps',t:'Grid maps',d:'PrinGrid biplot (% variance) + FOCUS ordering.'},
+    {id:'dendro',t:'Cluster trees',d:'Construct & element dendrograms (FOCUS).'},
     {id:'selfideal',t:'Self–ideal',d:'Self vs ideal-self discrepancy (role-tagged elements).'},
     {id:'dilemmas',t:'Implicative dilemmas',d:'Cognitive conflicts that block change.'},
+    {id:'conflict',t:'Conflict',d:'Triadic-imbalance inconsistency (Slade & Sheehan).'},
     {id:'cspc',t:'CSPC dictionary',d:'Ready-made Feixas content-category scheme for constructs.'},
   ]},
   {area:'Compare & change', soon:true, tiles:[
@@ -2141,8 +2240,10 @@ function Dashboard({code, onSignOut}){
           {tab==='complexity'&&<ComplexityModule config={config} responses={responses}/>}
           {tab==='matrices'&&<MatricesModule config={config} responses={responses}/>}
           {tab==='maps'&&<MapsModule config={config} responses={responses}/>}
+          {tab==='dendro'&&<DendroModule config={config} responses={responses}/>}
           {tab==='selfideal'&&<SelfIdealModule config={config} responses={responses}/>}
           {tab==='dilemmas'&&<DilemmasModule config={config} responses={responses}/>}
+          {tab==='conflict'&&<ConflictModule config={config} responses={responses}/>}
           {tab==='cspc'&&<CSPCModule config={config} setConfig={setConfig} onSaveConfig={saveConfig} readOnly={readOnly}/>}
         </div>
       )}
