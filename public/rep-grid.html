@@ -46,6 +46,7 @@ html,body{font-family:'DM Sans',sans-serif;background:#f0ede8;color:#1a1a1a;-web
 .help-ref{display:block;margin-top:.5rem;padding-top:.4rem;border-top:1px dashed #cbc5ba;font-size:.76rem;color:#7a746b;font-style:italic}
 .help-tip{display:block;margin-top:.45rem;font-size:.8rem;color:#1a5e3a}
 .help-see{display:block;margin-top:.55rem;padding:.5rem .7rem;background:rgba(224,112,48,.09);border-radius:5px;font-size:.84rem;line-height:1.55}
+.help-calc{display:block;margin-top:.5rem;padding:.45rem .7rem;background:#eef1f4;border-left:3px solid #7d93a8;border-radius:0 4px 4px 0;font-size:.82rem;line-height:1.55}
 .help-box p.hp{margin:.5rem 0 0;line-height:1.6}
 .help-box p.hp:first-of-type{margin-top:.35rem}
 .primer-list{margin:.6rem 0 .3rem;padding-left:1.15rem;font-size:.86rem;line-height:1.6;color:#555}
@@ -1406,8 +1407,11 @@ function Analysis({config,responses,onOpen}){
   return (
     <div className="fade">
       <div className="help-box"><span className="help-h">Step 1 · Individual Honey (one person at a time)</span>
-        <p className="hp">Which of one person’s own ways of describing things line up most closely with “what good looks like” (the outcome construct)? That’s Honey’s (1979) individual analysis.</p>
-        <span className="help-see"><b>What you’re seeing:</b> pick an interviewee. Their constructs are ranked, longest bar first — the bar is how strongly that construct points toward the preferred end of the outcome. Each is banded <b>H</b>, <b>I</b> or <b>L</b> (top / middle / bottom third of this person’s own range) so you can see which of their ideas matter most. This is one person; steps 2–3 combine everyone.</span><span className="help-ref">Ref: Honey, P. (1979) ‘The repertory grid in action’, <i>Industrial &amp; Commercial Training</i>, 11(11); Jankowicz, D. (2004) <i>The Easy Guide to Repertory Grids</i>.</span></div>
+        <p className="hp"><b>What it is.</b> A ranking of one person’s constructs by how closely each tracks “what good looks like” (the outcome construct). This is Honey’s (1979) individual analysis.</p>
+        <p className="hp"><b>Why it matters.</b> It shows which of a person’s <i>own</i> ways of describing things matter most for the outcome — the raw material every later step builds on.</p>
+        <span className="help-see"><b>What you’re seeing.</b> Pick an interviewee. Their constructs are listed longest-bar-first, each tagged <b>H</b>, <b>I</b> or <b>L</b>. This is one person; steps 2–3 combine everyone.</span>
+        <p className="hp"><b>How to read it.</b> A long bar = that construct points strongly toward the preferred end of the outcome. <b>H</b> = top third of this person’s own range, <b>I</b> = middle, <b>L</b> = bottom — so the H constructs are the ones most tied to the outcome for them.</p>
+        <span className="help-calc"><b>How it’s calculated.</b> Similarity = 1 − 2 × (the rating gaps between a construct and the outcome, added up) ÷ (number of situations × the width of the scale), using whichever pole points the same way. Each person’s similarities are then split into thirds to give the H / I / L bands.</span><span className="help-ref">Ref: Honey, P. (1979) ‘The repertory grid in action’, <i>Industrial &amp; Commercial Training</i>, 11(11); Jankowicz, D. (2004) <i>The Easy Guide to Repertory Grids</i>.</span></div>
       {responses.length===0 && <div className="inf-box">No interviews yet — run one in the <b>Interviews</b> tab and this analysis fills in automatically.</div>}
       <div className="toolbar">
         <label className="field-lbl" style={{margin:0}}>Interviewee</label>
@@ -1735,8 +1739,11 @@ function CompositeConstructs({config,setConfig,responses,onSave,saving,savedMsg,
   return (
     <div className="fade">
       <div className="help-box"><span className="help-h">Step 2 · Composite constructs (grouping)</span>
-        <p className="hp">Gather everyone’s wording and sort it into a handful of shared themes — the same idea, worded differently, goes in one pile. Each theme (a <b>composite construct</b>) gets a preferred and an opposite pole. This is the heart of the content analysis.</p>
-        <span className="help-see"><b>What you’re seeing:</b> every construct from every interview, pooled (the small P3 etc. shows who said it). Build themes by hand with <b>+ Add composite</b>, add AI or human <b>coders</b> to sort independently (then check they agree), or <b>Derive from data</b> for an automatic first draft. Counter below: {members.length} constructs · {assignedCount} assigned · {totalP} participants.</span><span className="help-ref">Ref: Jankowicz, D. (2004) <i>The Easy Guide to Repertory Grids</i> (core-categorisation); Honey, P. (1979). For coder agreement: Krippendorff, K. (2004) <i>Content Analysis</i>.</span></div>
+        <p className="hp"><b>What it is.</b> Sorting everyone’s constructs into a handful of shared themes (<b>composite constructs</b>) — the same idea, worded differently, goes in one pile. Each theme gets a preferred and an opposite pole. This is the heart of the content analysis.</p>
+        <p className="hp"><b>Why it matters.</b> Individual grids are all worded differently, so grouping is what lets you say anything about the group. Doing it with more than one coder is what makes it trustworthy rather than one person’s opinion.</p>
+        <span className="help-see"><b>What you’re seeing.</b> Every construct from every interview, pooled (the small P3 etc. shows who said it), plus your list of themes and any coders you add. Counter: {members.length} constructs · {assignedCount} assigned · {totalP} participants.</span>
+        <p className="hp"><b>How to read it.</b> Build themes by hand with <b>+ Add composite</b>, add AI or human <b>coders</b> to sort the constructs independently, or <b>Derive from data</b> for an automatic first draft. With two or more coders, an agreement score shows how much they matched.</p>
+        <span className="help-calc"><b>How it’s calculated.</b> Grouping itself is a judgement, not a formula (Jankowicz’s core-categorisation method). Coder <b>agreement</b> uses Cohen’s / Fleiss’ kappa or Krippendorff’s alpha — the share of matches beyond what chance alone would give (1 = perfect, 0 = chance-level).</span><span className="help-ref">Ref: Jankowicz, D. (2004) <i>The Easy Guide to Repertory Grids</i> (core-categorisation); Honey, P. (1979). For coder agreement: Krippendorff, K. (2004) <i>Content Analysis</i>.</span></div>
 
       <div className="toolbar">
         <div className="sec-tag" style={{margin:0}}>Composite constructs ({categories.length})</div>
@@ -2004,7 +2011,13 @@ function CompositeTable({config,responses}){
   }
   return (
     <div className="fade">
-      <div className="help-box"><span className="help-h">Step 3 · Composite table — the Honey Content Table</span>This is the payoff. For each <b>composite construct</b>, it shows the average similarity of its preferred pole to the effectiveness reference (<b>{refLabel}</b>), how many people mentioned it, and its <b>H/I/L</b> spread — so you can read off which shared themes matter most. Split it by <b>element category</b> ({elemCats.length?elemCats.map(c=>c+' = '+catFull(c)).join(' · '):'none yet'}) to get a table per category plus a comparative view, change the <b>reference construct</b> to analyse against a different criterion, or apply a <b>frequency threshold</b> (a common cut-off keeps only categories cited by ≥50% of participants). Held-out elements are excluded.</div>
+      <div className="help-box"><span className="help-h">Step 3 · Composite table — the Honey Content Table</span>
+        <p className="hp"><b>What it is.</b> The payoff of the whole study: your shared themes, ranked by how strongly each one tracks the outcome and how widely it was used.</p>
+        <p className="hp"><b>Why it matters.</b> This single table answers the research question — which ways of construing the topic matter most across everyone.</p>
+        <span className="help-see"><b>What you’re seeing.</b> One row per <b>composite construct</b>: its preferred pole, mean similarity to the reference (<b>{refLabel}</b>), how many people used it, and its <b>H/I/L</b> spread. You can split by <b>element category</b> ({elemCats.length?elemCats.map(c=>c+' = '+catFull(c)).join(' · '):'none yet'}), switch the <b>reference construct</b>, or set a <b>frequency threshold</b>.</span>
+        <p className="hp"><b>How to read it.</b> Themes near the top (high similarity <i>and</i> high frequency) are the headline findings. A common cut-off keeps only categories cited by ≥50% of participants. Held-out elements are excluded.</p>
+        <span className="help-calc"><b>How it’s calculated.</b> For each theme, the tool averages the individual-Honey similarities of every construct filed under it (using the fixed preferred pole), counts the share of participants who contributed one (unique frequency %), and averages their H/I/L bands.</span>
+        <span className="help-ref">Ref: Honey, P. (1979); Jankowicz, D. (2004) <i>The Easy Guide to Repertory Grids</i>.</span></div>
 
       <div className="toolbar" style={{gap:'.6rem',flexWrap:'wrap'}}>
         <span className="mini">Split:</span>
@@ -2068,8 +2081,11 @@ function ComplexityModule({config,responses}){
   return (
     <div className="fade">
       <div className="help-box"><span className="help-h">Cognitive complexity — how many different ideas is this person using?</span>
-        <p className="hp">If someone judges five colleagues only as “good vs bad”, they’re using <b>one</b> idea; if they also use warm/cold, bold/cautious and so on, they’re using <b>several</b>. This screen measures whether a person construes the topic <b>simply</b> (one dimension) or <b>complexly</b> (many).</p>
-        <span className="help-see"><b>What you’re seeing:</b> pick an interviewee. <b>PVAFF</b> is the headline — the share of the grid explained by its single biggest theme (nearer 100% = one theme dominates, i.e. simpler). The line beneath shows where this grid sits <i>versus the rest of your study</i> — trust that, not a fixed cut-off, because PVAFF always runs high when a grid has few situations. <b>Intensity</b> and <b>Bieri</b> are other angles (higher = simpler); <b>Sample averages</b> is the study-wide view.</span>
+        <p className="hp"><b>What it is.</b> Whether a person judges the topic on one underlying idea (simple) or several independent ones (complex). Someone who only ever thinks “good vs bad” construes simply; someone who also uses warm/cold, bold/cautious and so on construes complexly.</p>
+        <p className="hp"><b>Why it matters.</b> A very simple view is quick but rigid; a more differentiated view is more flexible but harder to act on. It’s a long-studied indicator in psychology, coaching and research.</p>
+        <span className="help-see"><b>What you’re seeing.</b> Pick an interviewee. <b>PVAFF</b> is the headline %, with <b>Intensity</b>, <b>Bieri matching</b> and <b>Avg variability</b> as other angles on the same thing, and a <b>Sample averages</b> card for the whole study.</span>
+        <p className="hp"><b>How to read it.</b> Higher PVAFF = more one-dimensional (simpler); lower = more differentiated. Trust the “vs the rest of your study” line beneath it, not a fixed cut-off — PVAFF runs high whenever a grid has few situations.</p>
+        <span className="help-calc"><b>How it’s calculated.</b> The grid is centred on each construct, then split into its principal components (an eigen-decomposition of the ratings). PVAFF = the % of all the variation carried by the single biggest component. Intensity = the average squared correlation between constructs; Bieri = the % of rating cells where two constructs agree once each is split at its midpoint.</span>
         <span className="help-ref">Ref: Bieri (1955); Bannister (1960); Fransella, Bell &amp; Bannister (2004), ch. 5.</span></div>
       <div className="toolbar"><label className="field-lbl" style={{margin:0}}>Interviewee</label>{ppSelect(withData,sel,setSel)}</div>
       {!g||g.cons.length<2 ? <p className="muted small">This grid needs at least two rated constructs.</p> : <>
@@ -2106,8 +2122,11 @@ function MatricesModule({config,responses}){
   return (
     <div className="fade">
       <div className="help-box"><span className="help-h">Distances & correlations — which constructs (and elements) go together?</span>
-        <p className="hp">Two constructs that always get rated the same way are really the same idea in different words; two situations rated alike are seen as similar. This screen shows those overlaps as numbers.</p>
-        <span className="help-see"><b>What you’re seeing:</b> pick a grid, then a view. A <b>correlation</b> runs from −1 to +1 (green = the two go together, red = they pull opposite ways, near 0 = unrelated). A <b>distance</b> is how far apart two things are rated (smaller = more alike). Big green blocks mean the person is using several constructs as near-synonyms.</span><span className="help-ref">Ref: Slater, P. (1977) <i>The Measurement of Intrapersonal Space by Grid Technique</i>, Vol. 2; Fransella, Bell &amp; Bannister (2004), ch. 6.</span></div>
+        <p className="hp"><b>What it is.</b> A table of which constructs (and which situations) overlap. Two constructs always rated the same way are the same idea in different words; two situations rated alike are seen as similar.</p>
+        <p className="hp"><b>Why it matters.</b> It’s the backbone for clustering and dilemmas, and it shows where a person is really only using one idea under several labels.</p>
+        <span className="help-see"><b>What you’re seeing.</b> Pick a grid, then one of four views — <b>construct</b> or <b>element</b>, each as a <b>correlation</b> or a <b>distance</b>. Cells are shaded by strength.</span>
+        <p className="hp"><b>How to read it.</b> A <b>correlation</b> runs −1 to +1 (green = the two go together, red = they pull opposite ways, near 0 = unrelated). A <b>distance</b> is how far apart two things are rated (smaller = more alike). Big green blocks = several constructs used as near-synonyms.</p>
+        <span className="help-calc"><b>How it’s calculated.</b> Correlations are Pearson’s r between two rows (constructs) or two columns (elements) of ratings. Distances are the straight-line (Euclidean) gap between those rows/columns across every rating.</span><span className="help-ref">Ref: Slater, P. (1977) <i>The Measurement of Intrapersonal Space by Grid Technique</i>, Vol. 2; Fransella, Bell &amp; Bannister (2004), ch. 6.</span></div>
       <div className="toolbar" style={{flexWrap:'wrap',gap:'.5rem'}}>{ppSelect(withData,sel,setSel)}
         {[['constructCorr','Construct corr'],['constructDist','Construct dist'],['elementCorr','Element corr'],['elementDist','Element dist']].map(([k,l])=><button key={k} className="btn-s btn-sm" style={mode===k?{borderColor:'#1a1a1a'}:{}} onClick={()=>setMode(k)}>{l}</button>)}
       </div>
@@ -2131,8 +2150,11 @@ function MapsModule({config,responses}){
   return (
     <div className="fade">
       <div className="help-box"><span className="help-h">Grid maps — the picture of one person’s construct system</span>
-        <p className="hp">This is the classic repertory-grid “map” of one person’s thinking, laid out on the two biggest patterns in their grid.</p>
-        <span className="help-see"><b>What you’re seeing:</b> pick an interviewee. On the <b>biplot</b>, situations are dots and constructs are arrows — dots close together are seen as alike, and arrows pointing the same way are ideas that go together. The <b>% on each axis</b> is how much of the person’s thinking that direction captures. <b>FOCUS</b> simply re-orders the grid so similar rows and columns sit next to each other.</span><span className="help-ref">Ref: Slater, P. (1977) <i>INGRID / Intrapersonal Space by Grid Technique</i>; Shaw, M. L. G. (1980) <i>On Becoming a Personal Scientist</i> (FOCUS); Gaines &amp; Shaw, WebGrid.</span></div>
+        <p className="hp"><b>What it is.</b> The classic repertory-grid “map” of one person’s thinking, laid out on the two biggest patterns in their grid, plus a tidied-up version of the grid itself.</p>
+        <p className="hp"><b>Why it matters.</b> A picture makes a person’s whole construct system readable at a glance — which situations they lump together, and which ideas drive that.</p>
+        <span className="help-see"><b>What you’re seeing (two visuals).</b> <b>(1) The biplot</b> — situations as dots, constructs as arrows. <b>(2) The FOCUS grid</b> — the same ratings re-ordered so similar rows and columns sit next to each other.</span>
+        <p className="hp"><b>How to read it.</b> On the <b>biplot</b>, dots close together are construed alike, arrows pointing the same way are ideas that go together, and the <b>% on each axis</b> is how much of the person’s thinking that direction captures. On the <b>FOCUS grid</b>, look for blocks of similar colour — those are clusters of like situations and constructs.</p>
+        <span className="help-calc"><b>How it’s calculated.</b> The biplot is a principal-component analysis (PCA) of the grid — the same maths as complexity — drawn on its two biggest dimensions. FOCUS re-orders rows and columns step by step so the most similar ones end up adjacent.</span><span className="help-ref">Ref: Slater, P. (1977) <i>INGRID / Intrapersonal Space by Grid Technique</i>; Shaw, M. L. G. (1980) <i>On Becoming a Personal Scientist</i> (FOCUS); Gaines &amp; Shaw, WebGrid.</span></div>
       <div className="toolbar"><label className="field-lbl" style={{margin:0}}>Interviewee</label>{ppSelect(withData,sel,setSel)}</div>
       {!maps? <p className="muted small">Needs a grid with ≥2 constructs and ≥2 elements.</p> : <GridMaps maps={maps} scaleMin={lo} scaleMax={hi}/>}
     </div>
@@ -2150,8 +2172,11 @@ function SelfIdealModule({config,responses}){
   return (
     <div className="fade">
       <div className="help-box"><span className="help-h">Self–ideal discrepancy — the gap between who I am and who I want to be</span>
-        <p className="hp">How far a person rates their <b>“self now”</b> from their <b>“ideal self”</b>. A big gap signals dissatisfaction and motivation to change; the two moving together is a classic measure of self-esteem. Used a lot in coaching and therapy.</p>
-        <span className="help-see"><b>What you’re seeing:</b> a table of everyone who has a <b>Self</b> and an <b>Ideal</b> element tagged (set this with the role dropdown on an element inside the interview). <b>Distance %</b> is the size of the gap (higher = bigger gap); the <b>correlation</b> is self-esteem (near +1 = content, near 0 or negative = rates themselves unlike their ideal).</span><span className="help-ref">Ref: Norris, M. &amp; Makhlouf-Norris, F. (1976) on self–ideal discrepancy; Fransella, Bell &amp; Bannister (2004); Winter, D. A. (1992) <i>Personal Construct Psychology in Clinical Practice</i>.</span></div>
+        <p className="hp"><b>What it is.</b> How far a person rates their <b>“self now”</b> from their <b>“ideal self”</b> across their constructs.</p>
+        <p className="hp"><b>Why it matters.</b> A big gap signals dissatisfaction and motivation to change; the two moving together is a classic measure of self-esteem. Widely used in coaching and therapy.</p>
+        <span className="help-see"><b>What you’re seeing.</b> Sample averages at the top, then a per-person table — everyone who has a <b>Self</b> and an <b>Ideal</b> element tagged (set with the role dropdown on an element inside the interview).</span>
+        <p className="hp"><b>How to read it.</b> <b>Distance %</b> is the size of the gap (higher = bigger gap, more room to change). The <b>correlation</b> is self-esteem: near +1 = content with themselves, near 0 or negative = they rate themselves unlike their ideal on the things that matter.</p>
+        <span className="help-calc"><b>How it’s calculated.</b> Distance = the root-mean-square rating gap between the self and ideal columns across shared constructs, shown as a % of the widest possible gap on your scale. Self-esteem = Pearson’s r between those same two columns.</span><span className="help-ref">Ref: Norris, M. &amp; Makhlouf-Norris, F. (1976) on self–ideal discrepancy; Fransella, Bell &amp; Bannister (2004); Winter, D. A. (1992) <i>Personal Construct Psychology in Clinical Practice</i>.</span></div>
       {!rows.length
         ? <div className="card"><p className="muted small">No grids yet have both a <b>Self</b> and an <b>Ideal</b> element tagged. Open an interview, and on two of its elements set the <b>role</b> dropdown to <b>Self</b> and <b>Ideal</b>. Studies that don’t use a self/ideal design can ignore this module.</p></div>
         : <><div className="card"><div className="row">
@@ -2177,8 +2202,11 @@ function DilemmasModule({config,responses}){
   return (
     <div className="fade">
       <div className="help-box"><span className="help-h">Implicative dilemmas — the hidden conflicts that block change</span>
-        <p className="hp">“I want to change X — but for me X is tied to something good I don’t want to lose.” That knot is why some changes feel stuck, and it predicts resistance in coaching and therapy.</p>
-        <span className="help-see"><b>What you’re seeing:</b> for each person (needs a <b>Self</b> and <b>Ideal</b> element tagged), a list of dilemmas — a trait they’d like to change that is strongly linked to one they’re already happy with. More listed dilemmas = more internal reasons change may be resisted.</span><span className="help-ref">Ref: Feixas, G. &amp; Saúl, L. A. (2004) ‘The Multi-Center Dilemma Project’, <i>Journal of Constructivist Psychology</i>, 17; Hinkle, D. (1965) implications grid.</span></div>
+        <p className="hp"><b>What it is.</b> A conflict where wanting to change one thing clashes with something already valued: “I want to change X, but for me X is tied to something good I don’t want to lose.”</p>
+        <p className="hp"><b>Why it matters.</b> That knot is why some changes feel stuck, and it predicts resistance to change in coaching and therapy.</p>
+        <span className="help-see"><b>What you’re seeing.</b> A summary count, then per person (needs a <b>Self</b> and <b>Ideal</b> element tagged) a list of dilemmas, each pairing a trait they’d like to change with one they’re already happy with.</span>
+        <p className="hp"><b>How to read it.</b> More listed dilemmas = more built-in reasons the person may resist change. Each row names the two entangled ideas.</p>
+        <span className="help-calc"><b>How it’s calculated.</b> A construct is “congruent” if the self–ideal gap is small (≤ a sixth of the scale) and “discrepant” if it’s large (≥ half the scale). A dilemma is flagged when a congruent and a discrepant construct are strongly correlated (|r| ≥ 0.35) — moving one would drag the other the wrong way.</span><span className="help-ref">Ref: Feixas, G. &amp; Saúl, L. A. (2004) ‘The Multi-Center Dilemma Project’, <i>Journal of Constructivist Psychology</i>, 17; Hinkle, D. (1965) implications grid.</span></div>
       {!withRoles.length
         ? <div className="card"><p className="muted small">No grids yet have both a <b>Self</b> and an <b>Ideal</b> element tagged. Set the <b>role</b> dropdown on two elements in an interview to enable dilemma detection.</p></div>
         : <>
@@ -2211,8 +2239,11 @@ function ConflictModule({config,responses}){
   return (
     <div className="fade">
       <div className="help-box"><span className="help-h">Conflict — do the person’s ideas hang together?</span>
-        <p className="hp">Sometimes a set of views doesn’t quite add up: “A goes with B, B goes with C, but A works against C.” This measures how often that happens across the grid — a sign of tension worth talking through, not a mistake. Unlike dilemmas, it needs no self or ideal.</p>
-        <span className="help-see"><b>What you’re seeing:</b> <b>Conflict %</b> is the share of construct triples that don’t hang together logically (higher = a more strained, contradictory picture). The listed triples are the most inconsistent — good things to explore in feedback.</span><span className="help-ref">Ref: Slade, P. D. &amp; Sheehan, M. J. (1979) ‘The measurement of “conflict” in repertory grids’, <i>British Journal of Psychology</i>, 70; Bell, R. C. (2004) on grid conflict.</span></div>
+        <p className="hp"><b>What it is.</b> How often a person’s views fail to add up logically: “A goes with B, B goes with C, but A works against C.” Unlike dilemmas, it needs no self or ideal.</p>
+        <p className="hp"><b>Why it matters.</b> A high score is a sign of tension in how someone construes the topic — worth talking through, not a mistake.</p>
+        <span className="help-see"><b>What you’re seeing.</b> A <b>Conflict %</b> for the chosen grid and the sample mean, plus a list of the most inconsistent construct triples.</span>
+        <p className="hp"><b>How to read it.</b> Higher % = a more strained, contradictory picture. The listed triples are the sharpest inconsistencies — good places to explore in feedback.</p>
+        <span className="help-calc"><b>How it’s calculated.</b> For every set of three constructs, multiply their three correlations together; a negative product means the three don’t balance (a logical knot). Conflict % = the share of all triples that come out negative (Slade &amp; Sheehan).</span><span className="help-ref">Ref: Slade, P. D. &amp; Sheehan, M. J. (1979) ‘The measurement of “conflict” in repertory grids’, <i>British Journal of Psychology</i>, 70; Bell, R. C. (2004) on grid conflict.</span></div>
       <div className="toolbar"><label className="field-lbl" style={{margin:0}}>Interviewee</label>{ppSelect(withData,sel,setSel)}</div>
       {!con? <p className="muted small">Needs a grid with at least three rated constructs.</p> : <>
         <div className="card"><div className="row">
@@ -2264,8 +2295,11 @@ function DendroModule({config,responses}){
   return (
     <div className="fade">
       <div className="help-box"><span className="help-h">Cluster trees (dendrograms) — what groups with what</span>
-        <p className="hp">A family tree of the person’s ideas: the most similar constructs (and situations) join first, looser groups join later. It’s the same information as the correlations, but easier to see as branches.</p>
-        <span className="help-see"><b>What you’re seeing:</b> the axis is <b>matching %</b> (100% on the left). Two items that join far to the <b>left</b> are near-synonyms; a join far to the <b>right</b> marks a real dividing line in how the person thinks. Read where any two branches meet to judge how alike they are.</span><span className="help-ref">Ref: Shaw, M. L. G. (1980) <i>On Becoming a Personal Scientist</i> (FOCUS clustering); Gaines &amp; Shaw, WebGrid; Fransella, Bell &amp; Bannister (2004), ch. 6.</span></div>
+        <p className="hp"><b>What it is.</b> A family tree of the person’s ideas: the most similar items join first, looser groups join later. Same information as the correlations, but easier to see as branches.</p>
+        <p className="hp"><b>Why it matters.</b> It reveals a person’s themes as clusters — which constructs are really the same, and where the genuine dividing lines fall.</p>
+        <span className="help-see"><b>What you’re seeing (two trees).</b> One tree for the <b>constructs</b> and one for the <b>elements</b>. The axis on each is <b>matching %</b>, 100% on the left.</span>
+        <p className="hp"><b>How to read it.</b> Two items that join far to the <b>left</b> (high %) are near-synonyms; a join far to the <b>right</b> (low %) marks a real dividing line. Read where any two branches meet to judge how alike they are.</p>
+        <span className="help-calc"><b>How it’s calculated.</b> Average-linkage hierarchical clustering: start with each item alone, repeatedly join the two closest groups (closeness = 100 − matching %), and record the level of each join — that level is where the branch appears.</span><span className="help-ref">Ref: Shaw, M. L. G. (1980) <i>On Becoming a Personal Scientist</i> (FOCUS clustering); Gaines &amp; Shaw, WebGrid; Fransella, Bell &amp; Bannister (2004), ch. 6.</span></div>
       <div className="toolbar"><label className="field-lbl" style={{margin:0}}>Interviewee</label>{ppSelect(withData,sel,setSel)}</div>
       {!trees? <p className="muted small">Needs a grid with ≥2 constructs and ≥2 elements.</p> : <>
         <div className="card"><div className="sec-tag">Constructs</div><div className="scroll"><Dendrogram root={trees.cons} labels={trees.cLab}/></div></div>
@@ -2296,8 +2330,11 @@ function CSPCModule({config,setConfig,onSaveConfig,readOnly}){
   return (
     <div className="fade">
       <div className="help-box"><span className="help-h">CSPC — a ready-made category dictionary</span>
-        <p className="hp">Normally you build your own categories (on Composite constructs). Instead, you can borrow a published, standard set — the <b>CSPC</b> — so your results are comparable with other studies. It sorts constructs into areas like moral, emotional, relational, personal and physical.</p>
-        <span className="help-see"><b>What you’re seeing:</b> the full CSPC dictionary. Click <b>Load CSPC scheme</b> to make these your study’s categories, then code constructs against them on Composite constructs exactly as normal. How often each category appears is your result.</span><span className="help-ref">Ref: Feixas, G., Geldschläger, H. &amp; Neimeyer, R. A. (2002) ‘Content analysis of personal constructs’, <i>Journal of Constructivist Psychology</i>, 15(1).</span></div>
+        <p className="hp"><b>What it is.</b> A published, standard set of construct categories (the CSPC) you can borrow instead of building your own. It sorts constructs into areas like moral, emotional, relational, personal and physical.</p>
+        <p className="hp"><b>Why it matters.</b> A shared scheme makes your results directly comparable with other published studies, rather than a one-off set of themes.</p>
+        <span className="help-see"><b>What you’re seeing.</b> The full CSPC dictionary, grouped by area, with a <b>Load CSPC scheme</b> button.</span>
+        <p className="hp"><b>How to read it.</b> Load it to make these your study’s categories, then code constructs against them on Composite constructs exactly as normal. Your result is how often each category comes up.</p>
+        <span className="help-calc"><b>How it’s calculated.</b> There’s no formula — it’s a fixed dictionary. Loading it replaces your categories with the CSPC set; the analysis then counts how many constructs fall into each category and area (Feixas, Geldschläger &amp; Neimeyer).</span><span className="help-ref">Ref: Feixas, G., Geldschläger, H. &amp; Neimeyer, R. A. (2002) ‘Content analysis of personal constructs’, <i>Journal of Constructivist Psychology</i>, 15(1).</span></div>
       <div className="toolbar">
         {loaded? <span className="pill" style={{background:'#e6f4ec',color:'#16784a'}}>CSPC scheme loaded ({(config.categories||[]).length} categories)</span>
                : <button className="btn" disabled={readOnly} onClick={load}>Load CSPC scheme ({total} categories)</button>}
@@ -2333,8 +2370,11 @@ function SegmentsModule({config,responses}){
   return (
     <div className="fade">
       <div className="help-box"><span className="help-h">Segmentation — do people fall into “types”?</span>
-        <p className="hp">Rather than one average picture, this groups people who think alike — one group might lean “relational”, another “task-focused”. It’s the market-segmentation output commercial tools sell.</p>
-        <span className="help-see"><b>What you’re seeing:</b> a tree of participants (people who join close together think similarly) and, below, the segments with each group’s dominant categories and members. Use the selector to choose how many groups to split into. Needs constructs coded into categories first (Composite constructs).</span><span className="help-ref">Ref: cluster analysis of grids — Fransella, Bell &amp; Bannister (2004), ch. 7 (group grids); value-group segmentation as used commercially (nextpractice).</span></div>
+        <p className="hp"><b>What it is.</b> Groups of people who construe the topic alike — one segment might lean “relational”, another “task-focused”. It’s the market-segmentation output commercial tools sell.</p>
+        <p className="hp"><b>Why it matters.</b> One average can hide real sub-groups; segmentation surfaces the distinct “types” of thinking in your sample.</p>
+        <span className="help-see"><b>What you’re seeing (two visuals).</b> <b>(1) A participant tree</b> — people who join close together think similarly. <b>(2) Segment cards</b> — each group’s dominant categories and members. The selector sets how many groups to split into.</span>
+        <p className="hp"><b>How to read it.</b> Read the tree like the cluster trees (closer joins = more alike). Each card’s “dominant” categories tell you what defines that segment. Needs constructs coded into categories first (Composite constructs).</p>
+        <span className="help-calc"><b>How it’s calculated.</b> Each person becomes a tally of how often their constructs fell into each category. People are compared (correlation of those tallies), clustered with the same average-linkage method as the cluster trees, and the tree is cut into the number of groups you pick.</span><span className="help-ref">Ref: cluster analysis of grids — Fransella, Bell &amp; Bannister (2004), ch. 7 (group grids); value-group segmentation as used commercially (nextpractice).</span></div>
       {!data
         ? <div className="card"><p className="muted small">Segmentation needs at least three interviews whose constructs have been <b>coded into categories</b> (see Composite constructs). {cats.length?'':'This study has no categories yet.'}</p></div>
         : <><div className="toolbar"><label className="field-lbl" style={{margin:0}}>Segments</label>
@@ -2362,8 +2402,11 @@ function CompareModule({config,responses}){
   return (
     <div className="fade">
       <div className="help-box"><span className="help-h">Consensus &amp; difference — where do people agree or diverge?</span>
-        <p className="hp">When several people rate the <i>same</i> things on the <i>same</i> scales, the average is the group’s shared view and the spread shows where they really disagree — the interesting places to dig into.</p>
-        <span className="help-see"><b>What you’re seeing:</b> a group grid of average ratings, with cells shaded by disagreement (darker red = people rate that cell very differently). It only works on <b>shared (prescribed)</b> elements and constructs; studies built from per-person elicited items show an empty state instead.</span><span className="help-ref">Ref: Slater, P. (1977) group / consensus grids; Shaw &amp; Gaines on grid exchange (WebGrid Socionets).</span></div>
+        <p className="hp"><b>What it is.</b> A single grid that averages several people’s ratings of the <i>same</i> shared situations on the <i>same</i> shared constructs — plus a picture of where they disagree.</p>
+        <p className="hp"><b>Why it matters.</b> The average is the group’s shared view; the disagreement highlights the productive places to dig into.</p>
+        <span className="help-see"><b>What you’re seeing.</b> A group grid of average ratings, each cell shaded by how much people disagree (darker red = more spread). Only works on <b>shared (prescribed)</b> elements and constructs; per-person elicited studies show an empty state instead.</span>
+        <p className="hp"><b>How to read it.</b> The number is the group average for that situation on that construct; the darker the cell, the more people diverged there — those cells are worth exploring.</p>
+        <span className="help-calc"><b>How it’s calculated.</b> For each shared cell it takes the mean of everyone’s ratings (the consensus value) and their standard deviation (the disagreement), then shades the cell by that spread.</span><span className="help-ref">Ref: Slater, P. (1977) group / consensus grids; Shaw &amp; Gaines on grid exchange (WebGrid Socionets).</span></div>
       {!cell
         ? <div className="card"><p className="muted small">A consensus grid needs at least one <b>shared element</b> and one <b>shared construct</b> rated by two or more people. This study’s grids use mostly per-interview (elicited) elements and constructs, so there isn’t a common frame to average. Add prescribed elements/constructs (Design) rated across interviews to use this view.</p></div>
         : <div className="card"><div className="scroll"><table className="grid" style={{fontSize:'.72rem'}}>
@@ -2408,8 +2451,11 @@ function NormsModule({config,setConfig,onSaveConfig,responses,readOnly}){
   return (
     <div className="fade">
       <div className="help-box"><span className="help-h">Norm bases — save a study as a benchmark</span>
-        <p className="hp">Once a study is coded, its mix of categories becomes a yardstick you can measure future studies against (“is this new cohort unusually relational compared with our benchmark?”).</p>
-        <span className="help-see"><b>What you’re seeing:</b> the current study’s category distribution. Give it a name and <b>Save as norm</b> to keep it; later, pick <b>Compare</b> on a saved norm to see how another study differs, category by category.</span><span className="help-ref">Ref: normative content-analysis approach — Feixas, Geldschläger &amp; Neimeyer (2002); commercial norm bases (nextpractice).</span></div>
+        <p className="hp"><b>What it is.</b> A saved benchmark — a study’s mix of categories, kept so you can measure future studies against it (“is this new cohort unusually relational versus our benchmark?”).</p>
+        <p className="hp"><b>Why it matters.</b> It turns a finished study into a reusable reference, so later cohorts can be scored rather than described in isolation.</p>
+        <span className="help-see"><b>What you’re seeing.</b> The current study’s category distribution as bars, a box to name and <b>Save as norm</b>, a list of saved norms, and — when you pick <b>Compare</b> — a side-by-side table.</span>
+        <p className="hp"><b>How to read it.</b> The comparison shows each category’s share now versus the saved norm and the difference (Δ) — a big positive Δ means this study leans on that category more than the benchmark did.</p>
+        <span className="help-calc"><b>How it’s calculated.</b> The distribution is each category’s share of all coded constructs (%). A saved norm stores those percentages; comparing subtracts the norm’s % from the current study’s, category by category.</span><span className="help-ref">Ref: normative content-analysis approach — Feixas, Geldschläger &amp; Neimeyer (2002); commercial norm bases (nextpractice).</span></div>
       {!cur
         ? <div className="card"><p className="muted small">Nothing to benchmark yet — code this study’s constructs into categories first (Composite constructs).</p></div>
         : <><div className="card"><div className="sec-tag">Current distribution ({responses.length} interviews)</div>
@@ -2445,8 +2491,11 @@ function ChangeModule({config,responses}){
   return (
     <div className="fade">
       <div className="help-box"><span className="help-h">Change over time — did anything shift?</span>
-        <p className="hp">The core question in coaching, therapy and culture change: did the person’s thinking move? Interview the same people twice and compare.</p>
-        <span className="help-see"><b>What you’re seeing:</b> for anyone interviewed more than once, their key measures (complexity, conflict, self–ideal gap) side by side per wave, with the change from first to last. To use it, give a person two interviews with the <b>same name</b> and different <b>waves</b> (e.g. “Pre” and “Post”) — the wave box is at the top of the interview screen.</span><span className="help-ref">Ref: Winter, D. A. (1992) <i>Personal Construct Psychology in Clinical Practice</i> (change over therapy); Fransella, Bell &amp; Bannister (2004).</span></div>
+        <p className="hp"><b>What it is.</b> A before-and-after view — did a person’s thinking move between interviews? The core question in coaching, therapy and culture change.</p>
+        <p className="hp"><b>Why it matters.</b> A single grid is a snapshot; comparing waves is the only way to show whether anything actually shifted.</p>
+        <span className="help-see"><b>What you’re seeing (two tables).</b> <b>(1) Group means by wave</b> — the sample’s average on each measure at each timepoint. <b>(2) Per person</b> — each repeated interviewee’s change from first to last wave. To use it, give a person two interviews with the <b>same name</b> and different <b>waves</b> (the wave box is at the top of the interview screen).</span>
+        <p className="hp"><b>How to read it.</b> A green Δ = moved in the healthier direction (lower complexity, conflict or self–ideal gap); red = the other way. Look for consistent shifts across people, not one-offs.</p>
+        <span className="help-calc"><b>How it’s calculated.</b> Each measure (PVAFF, conflict, self–ideal %) is computed per interview and grouped by wave; the per-person Δ is simply the last wave’s value minus the first.</span><span className="help-ref">Ref: Winter, D. A. (1992) <i>Personal Construct Psychology in Clinical Practice</i> (change over therapy); Fransella, Bell &amp; Bannister (2004).</span></div>
       {!waves.length
         ? <div className="card"><p className="muted small">No interviews are tagged with a <b>wave</b> yet. Open an interview and set its <b>Wave / timepoint</b> field (e.g. “Pre”, “Post”). To see change, the same interviewee needs two interviews with the same display name and different waves.</p></div>
         : !paired.length
