@@ -2461,7 +2461,7 @@ function generateStudyPDF(config, responses){
   F(15,'normal',ACCENT); doc.text('Repertory Grid Study',margin,150);
   F(10,'normal',MUTED); doc.text('Prepared '+new Date().toLocaleDateString(),margin,164);
   doc.text(responses.length+' interview'+(responses.length===1?'':'s')+' · Honey content analysis',margin,170);
-  // stats
+  // ---- data ----
   const withGrid=responses.filter(r=>gridFor(config,r).cons.length>=2);
   const pvs=withGrid.map(r=>pvaff(gridFor(config,r).M).pvaff).filter(v=>v!=null);
   const cfs=responses.map(r=>{const g=gridFor(config,r);return g.cons.length>=3?triadicConflict(g.M).pct:null;}).filter(v=>v!=null);
@@ -2469,28 +2469,55 @@ function generateStudyPDF(config, responses){
   const dist=distributionOf(config,responses);
   const sis=responses.map(r=>selfIdeal(config,r)).filter(Boolean);
   const dils=responses.map(r=>dilemmas(config,r)).filter(Boolean); const withDil=dils.filter(d=>d.found.length>0).length;
-  // content
+  const outcomes=(config.suppliedConstructs&&config.suppliedConstructs.length)?config.suppliedConstructs:[{id:'supplied',left:config.suppliedLeft||'Preferred',right:config.suppliedRight||'Opposite'}];
+  const refId=outcomes[0].id, categories=config.categories||[], assignments=config.assignments||{};
+  const memAll=pooledMembers(responses,config,null,refId);
+  const totalP=totalParticipants(memAll);
+  const honeyRows=categories.length? compositeRows(memAll,categories,assignments,totalP,fixedOrientOf(memAll)).filter(r=>r.n>0).sort((a,b)=>b.uniquePct-a.uniquePct) : [];
+  // ---- table helpers ----
+  function thead(cols){ ensure(9); F(8,'bold',TEXT); cols.forEach(c=>doc.text(c.t, c.a==='r'?c.x+c.w:c.x, y, {align:c.a==='r'?'right':'left'})); y+=1.5; doc.setDrawColor(...ACCENT); doc.setLineWidth(0.4); doc.line(margin,y,margin+cw,y); y+=4; }
+  function trows(cols,rows){ rows.forEach(rw=>{ if(y+5>pageH-16){ page(); thead(cols); } F(8,'normal',TEXT); cols.forEach((c,i)=>{ doc.text(doc.splitTextToSize(String(rw[i]==null?'':rw[i]),c.w-1.5)[0], c.a==='r'?c.x+c.w:c.x, y, {align:c.a==='r'?'right':'left'}); }); y+=4.6; doc.setDrawColor(...BORDER); doc.setLineWidth(0.1); doc.line(margin,y-1.6,margin+cw,y-1.6); }); y+=3; }
+  // ---- content ----
   page();
   heading('Overview');
   para(config.description||'A repertory-grid study analysed with Honey’s (1979) content analysis.');
   kv('Interviews', responses.length);
   kv('Rating scale', config.scaleMin+'–'+config.scaleMax);
-  kv('Content categories', (config.categories||[]).length||'not yet coded');
-  if(dist&&dist.some(d=>d.n>0)){
+  kv('Content categories', categories.length||'not yet coded');
+  kv('Outcome construct', (outcomes[0].left||'Preferred')+' → '+(outcomes[0].right||'Opposite'));
+
+  if(honeyRows.length){
+    heading('Honey Content Table — the headline result');
+    para('Each category of construct, ranked by how many participants used it (Freq %), showing how closely its preferred pole tracks the outcome construct (Sim %) and the spread of High / Intermediate / Low similarity bands.');
+    const C=[{t:'Category',x:margin,w:50,a:'l'},{t:'Freq%',x:margin+50,w:16,a:'r'},{t:'Preferred pole',x:margin+68,w:50,a:'l'},{t:'Sim%',x:margin+118,w:16,a:'r'},{t:'H%',x:margin+137,w:11,a:'r'},{t:'I%',x:margin+149,w:11,a:'r'},{t:'L%',x:margin+161,w:11,a:'r'}];
+    thead(C);
+    trows(C, honeyRows.map(r=>[r.cat.name, r.uniquePct.toFixed(0)+'%', r.cat.left||'—', r.left.toFixed(0)+'%', r.H.toFixed(0), r.I.toFixed(0), r.L.toFixed(0)]));
+  } else if(dist&&dist.some(d=>d.n>0)){
     const top=dist.slice().sort((a,b)=>b.pct-a.pct).filter(x=>x.pct>0);
     heading('Content analysis — dominant themes');
-    para('Constructs elicited across all interviews were coded into '+(config.categories||[]).length+' content categories. The most frequent:');
+    para('Constructs elicited across all interviews were coded into '+categories.length+' content categories. The most frequent:');
     top.slice(0,14).forEach(t=>{ ensure(7); F(9,'normal',TEXT); doc.text(doc.splitTextToSize(t.name,84)[0],margin,y);
       const barX=margin+90, barW=cw-90-16, w=barW*Math.min(t.pct,100)/100;
       doc.setFillColor(...BORDER); doc.rect(barX,y-3,barW,3.2,'F'); doc.setFillColor(...ACCENT); doc.rect(barX,y-3,w,3.2,'F');
       F(8,'normal',MUTED); doc.text(t.pct.toFixed(1)+'%',margin+cw,y,{align:'right'}); y+=6; });
     y+=2;
+  } else {
+    heading('Content analysis'); para('Constructs have not yet been coded into categories, so the Honey Content Table is not available yet. Code them on the Composite constructs tab to populate this section.');
   }
+
   heading('Structure');
   if(avg(pvs)!=null) kv('Mean cognitive complexity (PVAFF)', avg(pvs).toFixed(1)+'% (higher = more one-dimensional; read relative to grid size)');
   if(avg(cfs)!=null) kv('Mean conflict (triadic imbalance)', avg(cfs).toFixed(1)+'%');
   if(sis.length){ kv('Self–ideal grids', sis.length); kv('Mean self–ideal distance', (sis.reduce((s,x)=>s+x.pct,0)/sis.length).toFixed(1)+'% of max'); }
   if(dils.length) kv('Participants with an implicative dilemma', withDil+' of '+dils.length);
+  if(avg(pvs)==null&&avg(cfs)==null&&!sis.length&&!dils.length) para('No structural measures could be computed yet (grids need at least two rated constructs).');
+
+  if(responses.length){
+    heading('Interviews');
+    const P=[{t:'Interviewee',x:margin,w:78,a:'l'},{t:'Constructs',x:margin+78,w:34,a:'r'},{t:'Elements',x:margin+114,w:30,a:'r'},{t:'Status',x:margin+150,w:22,a:'l'}];
+    thead(P);
+    trows(P, responses.map(r=>{ const g=gridFor(config,r); return [r.participant_name||r.participant_id, String(g.cons.length), String(g.els.length), (r.data&&r.data.status)||'in progress']; }));
+  }
   // about
   page();
   heading('About ChangeBefore');
