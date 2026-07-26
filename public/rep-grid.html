@@ -53,6 +53,21 @@ html,body{font-family:'DM Sans',sans-serif;background:#f0ede8;color:#1a1a1a;-web
 .fac-tab{padding:.55rem .95rem;font-size:.75rem;font-weight:700;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;color:#b0a898;transition:all .2s;white-space:nowrap;font-family:'DM Sans',sans-serif;background:none;border-top:none;border-left:none;border-right:none}
 .fac-tab.active{color:#1a1a1a;border-bottom-color:#1a1a1a}
 .fac-tab:hover:not(.active){color:#555}
+/* Admin dashboard — tiles + module view */
+.dash-home{max-width:1120px;margin:0 auto}
+.dash-area{margin-bottom:1.7rem}
+.dash-area-h{font-size:.7rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#e07030;margin:0 0 .7rem}
+.dash-area-h .soon{color:#b0a898;font-weight:600}
+.dash-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.9rem}
+@media(max-width:900px){.dash-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:560px){.dash-grid{grid-template-columns:1fr}}
+.dash-tile{background:#fff;border:1px solid #d8d3cb;border-radius:6px;padding:1rem 1.1rem;cursor:pointer;transition:border-color .15s,box-shadow .15s;display:flex;flex-direction:column;gap:.28rem;min-height:98px;text-align:left;font-family:'DM Sans',sans-serif}
+.dash-tile:hover:not([disabled]){border-color:#e07030;box-shadow:0 2px 12px rgba(0,0,0,.06)}
+.dash-tile[disabled]{opacity:.55;cursor:default;background:#f6f3ee}
+.dash-tile-t{font-weight:700;font-size:.95rem;color:#1a1a1a}
+.dash-tile-d{font-size:.78rem;color:#777;line-height:1.45}
+.dash-tile-badge{align-self:flex-start;font-size:.58rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#b5651a;background:#fdecd8;border-radius:20px;padding:.12rem .5rem;margin-top:.15rem}
+.mod-back{background:none;border:none;color:#e07030;font-weight:700;font-size:.82rem;cursor:pointer;padding:0;margin-bottom:1rem;font-family:'DM Sans',sans-serif}
 .topbar{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:1.25rem;flex-wrap:wrap}
 .topbar .code{font-size:.72rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#888;background:#e8e3dc;border-radius:20px;padding:.3rem .8rem}
 .list-row{display:flex;align-items:center;gap:.6rem;padding:.6rem 0;border-bottom:1px solid #ebe7e0}
@@ -1709,8 +1724,44 @@ function CompositeTable({config,responses}){
 }
 
 /* ============================ Dashboard ====================== */
+const DASH_NAV=[
+  {area:'Design', tiles:[
+    {id:'setup',t:'Study setup',d:'Title, rating scale, description and element categories.'},
+    {id:'pconstructs',t:'Prescribed constructs',d:'Outcome constructs (the Honey yardsticks) + shared constructs.'},
+    {id:'pelements',t:'Prescribed elements',d:'Shared elements added to every grid (e.g. an “ideal”).'},
+  ]},
+  {area:'Collect', tiles:[
+    {id:'interviews',t:'Interviews',d:'Run repertory grids: elements, triads, ratings.'},
+    {id:'allelements',t:'All elements',d:'Master list of every element and its interview.'},
+    {id:'allconstructs',t:'All constructs',d:'Master list of every construct and its interview.'},
+  ]},
+  {area:'Content analysis', tiles:[
+    {id:'individual',t:'1 · Individual Honey',d:'One person’s constructs ranked by similarity to an outcome.'},
+    {id:'composite',t:'2 · Composite constructs',d:'Group constructs into categories; coders & reliability.'},
+    {id:'table',t:'3 · Composite table',d:'The Honey Content Table — the headline result.'},
+  ]},
+  {area:'Structure', soon:true, tiles:[
+    {id:'complexity',t:'Cognitive complexity',d:'PVAFF, Intensity, Bieri, Ordination.'},
+    {id:'matrices',t:'Distances & correlations',d:'Element & construct distance/correlation matrices.'},
+    {id:'maps',t:'Grid maps',d:'PrinGrid biplot (% variance) + FOCUS dendrograms.'},
+    {id:'selfideal',t:'Self–ideal',d:'Self vs ideal-self discrepancy (role-tagged elements).'},
+    {id:'dilemmas',t:'Implicative dilemmas',d:'Cognitive conflicts that block change.'},
+    {id:'cspc',t:'CSPC dictionary',d:'Standard 45-category construct content system.'},
+  ]},
+  {area:'Compare & change', soon:true, tiles:[
+    {id:'compare',t:'Grid comparison',d:'Consensus & difference grids, socionets.'},
+    {id:'change',t:'Change over time',d:'Pre/post trajectory maps.'},
+    {id:'segments',t:'Segmentation',d:'Value-group clustering; grids-as-elements.'},
+    {id:'norms',t:'Norm bases',d:'Save a study as a benchmark for new grids.'},
+  ]},
+  {area:'Report & share', soon:true, tiles:[
+    {id:'report',t:'Narrative report',d:'Auto-written summary of the study.'},
+    {id:'exports',t:'Branded exports',d:'PDF / Word / PowerPoint.'},
+    {id:'share',t:'Share links',d:'Read-only view links for stakeholders.'},
+  ]},
+];
 function Dashboard({code, onSignOut}){
-  const [tab,setTab]=useState('setup');
+  const [tab,setTab]=useState(null);
   const [config,setConfig]=useState(null);
   const [responses,setResponses]=useState([]);
   const [loading,setLoading]=useState(true);
@@ -1764,26 +1815,38 @@ function Dashboard({code, onSignOut}){
         </div>
       </div>
       {readOnly&&<div className="demo-banner"><b>Read-only example study.</b> This is a completed dataset, kept as a worked example so you can see what a finished study looks like at every stage. You can explore and export freely — editing, adding interviews and deleting are switched off so it can’t be changed. To run your own study, sign out and open the tool with your own access code.</div>}
-      <div className="fac-tab-bar">
-        <button className={"fac-tab"+(tab==='setup'?' active':'')} onClick={()=>setTab('setup')}>Setup</button>
-        <button className={"fac-tab"+(tab==='pconstructs'?' active':'')} onClick={()=>setTab('pconstructs')}>Prescribed constructs</button>
-        <button className={"fac-tab"+(tab==='pelements'?' active':'')} onClick={()=>setTab('pelements')}>Prescribed elements</button>
-        <button className={"fac-tab"+(tab==='interviews'?' active':'')} onClick={()=>setTab('interviews')}>Interviews</button>
-        <button className={"fac-tab"+(tab==='allelements'?' active':'')} onClick={()=>setTab('allelements')}>All elements</button>
-        <button className={"fac-tab"+(tab==='allconstructs'?' active':'')} onClick={()=>setTab('allconstructs')}>All constructs</button>
-        <button className={"fac-tab"+(tab==='individual'?' active':'')} onClick={()=>setTab('individual')}>1 · Individual Honey</button>
-        <button className={"fac-tab"+(tab==='composite'?' active':'')} onClick={()=>setTab('composite')}>2 · Composite constructs</button>
-        <button className={"fac-tab"+(tab==='table'?' active':'')} onClick={()=>setTab('table')}>3 · Composite table</button>
-      </div>
-      {tab==='setup'&&<Setup config={config} setConfig={setConfig} onSave={saveConfig} saving={saving} savedMsg={savedMsg} readOnly={readOnly}/>}
-      {tab==='pconstructs'&&<PrescribedConstructs config={config} setConfig={setConfig} onSave={saveConfig} saving={saving} savedMsg={savedMsg} readOnly={readOnly}/>}
-      {tab==='pelements'&&<PrescribedElements config={config} setConfig={setConfig} onSave={saveConfig} saving={saving} savedMsg={savedMsg} readOnly={readOnly}/>}
-      {tab==='interviews'&&<Interviews config={config} responses={responses} onOpen={setActive} onNew={newInterview} onDelete={deleteResponse} readOnly={readOnly}/>}
-      {tab==='allelements'&&<AllElements config={config} setConfig={setConfig} onSaveConfig={saveConfig} responses={responses} onSaveResponse={saveResponse} readOnly={readOnly}/>}
-      {tab==='allconstructs'&&<AllConstructs config={config} responses={responses} onSaveResponse={saveResponse} readOnly={readOnly}/>}
-      {tab==='individual'&&<Analysis config={config} responses={responses} onOpen={setActive}/>}
-      {tab==='composite'&&<CompositeConstructs config={config} setConfig={setConfig} responses={responses} onSave={saveConfig} saving={saving} savedMsg={savedMsg} readOnly={readOnly}/>}
-      {tab==='table'&&<CompositeTable config={config} responses={responses}/>}
+      {tab===null ? (
+        <div className="dash-home fade">
+          <div className="help-box"><span className="help-h">Study dashboard</span>Pick a module to work in. They’re grouped by stage — <b>design</b> your study, <b>collect</b> grids, then <b>analyse</b> them — and each opens with guidance on why and how to use it. {responses.length} interview{responses.length===1?'':'s'} · {(config.categories||[]).length} categories so far.</div>
+          {DASH_NAV.map(g=>(
+            <div className="dash-area" key={g.area}>
+              <div className="dash-area-h">{g.area}{g.soon&&<span className="soon"> · building</span>}</div>
+              <div className="dash-grid">
+                {g.tiles.map(t=>(
+                  <button className="dash-tile" key={t.id} disabled={!!g.soon} onClick={()=>{ if(!g.soon) setTab(t.id); }}>
+                    <div className="dash-tile-t">{t.t}</div>
+                    <div className="dash-tile-d">{t.d}</div>
+                    {g.soon&&<span className="dash-tile-badge">building</span>}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="fade">
+          <button className="mod-back" onClick={()=>setTab(null)}>← Dashboard</button>
+          {tab==='setup'&&<Setup config={config} setConfig={setConfig} onSave={saveConfig} saving={saving} savedMsg={savedMsg} readOnly={readOnly}/>}
+          {tab==='pconstructs'&&<PrescribedConstructs config={config} setConfig={setConfig} onSave={saveConfig} saving={saving} savedMsg={savedMsg} readOnly={readOnly}/>}
+          {tab==='pelements'&&<PrescribedElements config={config} setConfig={setConfig} onSave={saveConfig} saving={saving} savedMsg={savedMsg} readOnly={readOnly}/>}
+          {tab==='interviews'&&<Interviews config={config} responses={responses} onOpen={setActive} onNew={newInterview} onDelete={deleteResponse} readOnly={readOnly}/>}
+          {tab==='allelements'&&<AllElements config={config} setConfig={setConfig} onSaveConfig={saveConfig} responses={responses} onSaveResponse={saveResponse} readOnly={readOnly}/>}
+          {tab==='allconstructs'&&<AllConstructs config={config} responses={responses} onSaveResponse={saveResponse} readOnly={readOnly}/>}
+          {tab==='individual'&&<Analysis config={config} responses={responses} onOpen={setActive}/>}
+          {tab==='composite'&&<CompositeConstructs config={config} setConfig={setConfig} responses={responses} onSave={saveConfig} saving={saving} savedMsg={savedMsg} readOnly={readOnly}/>}
+          {tab==='table'&&<CompositeTable config={config} responses={responses}/>}
+        </div>
+      )}
     </div>
   );
 }
