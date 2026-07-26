@@ -613,19 +613,22 @@ function Gate({onUnlock}){
   const [err,setErr]=useState('');
 
   const testMode=params.get('test')==='1';
+  const viewMode=params.get('view')==='1';
 
   async function checkCode(){
     const c=input.trim();
     if(!c){ setErr('Please enter a code.'); return; }
     // Test bypass: ?test=1 skips coupon validation (still gated by Admin1* next).
     // Remove or ignore before go-live — do NOT share a ?test=1 link.
-    if(testMode){ const up=c.toUpperCase(); localStorage.setItem('rg_code',up); setCode(up); setStep('pw'); setErr(''); return; }
+    if(testMode){ const up=c.toUpperCase(); localStorage.setItem('rg_code',up); if(viewMode){onUnlock(up,'viewer');return;} setCode(up); setStep('pw'); setErr(''); return; }
     setBusy(true); setErr('');
     try{
       const resp=await fetch('/api/validate-code',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:c,tool:'rep-grid'})});
       const data=await resp.json().catch(()=>({}));
       if(resp.ok&&data&&data.valid){
-        const up=c.toUpperCase(); localStorage.setItem('rg_code',up); setCode(up); setStep('pw'); setErr('');
+        const up=c.toUpperCase(); localStorage.setItem('rg_code',up);
+        if(viewMode){ onUnlock(up,'viewer'); return; }   // read-only share link — no facilitator password
+        setCode(up); setStep('pw'); setErr('');
       }else{
         const reason=(data&&data.reason)||'';
         setErr({not_found:'That code wasn’t recognised. Check the code and try again.',
@@ -2511,6 +2514,21 @@ function ReportModule({config,responses,code}){
     </div>
   );
 }
+function ShareModule({code}){
+  const url=location.origin+location.pathname+'?code='+encodeURIComponent(code)+'&view=1';
+  const [copied,setCopied]=useState(false);
+  function copy(){ if(navigator.clipboard) navigator.clipboard.writeText(url).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),1800);}).catch(()=>{}); }
+  return (
+    <div className="fade">
+      <div className="help-box"><span className="help-h">Share links — let others see the results, read-only</span><b>Why you need it:</b> a supervisor, client or examiner can review the findings without the facilitator password and without changing anything. <b>How it works:</b> the link below opens this study in <b>read-only</b> mode — every analysis tab is visible, but nothing can be edited, saved or deleted. Recipients also need the study’s access code. <b>Note:</b> read-only hides the edit controls; it is not a hard security boundary, so only share with people you’d trust with the study data.</div>
+      <div className="card"><div className="sec-tag">Read-only link for this study</div>
+        <input className="inp inp-sm" readOnly value={url} onFocus={e=>e.target.select()} style={{fontSize:'.76rem'}}/>
+        <div className="toolbar" style={{marginTop:'.5rem'}}><button className="btn btn-sm" onClick={copy}>{copied?'Copied ✓':'Copy link'}</button></div>
+        <p className="mini" style={{marginTop:'.4rem'}}>Recipients open the link, enter the study access code, and land directly on the read-only dashboard — no facilitator password.</p>
+      </div>
+    </div>
+  );
+}
 const DASH_NAV=[
   {area:'Design', tiles:[
     {id:'setup',t:'Study setup',d:'Title, rating scale, description and element categories.'},
@@ -2545,10 +2563,10 @@ const DASH_NAV=[
   ]},
   {area:'Report & share', tiles:[
     {id:'report',t:'Narrative report & PDF',d:'Auto-written summary + branded ChangeBefore PDF.'},
-    {id:'share',t:'Share links',d:'Read-only view links for stakeholders.',soon:true},
+    {id:'share',t:'Share links',d:'Read-only view link for supervisors & stakeholders.'},
   ]},
 ];
-function Dashboard({code, onSignOut}){
+function Dashboard({code, onSignOut, viewer}){
   const [tab,setTab]=useState(null);
   const [config,setConfig]=useState(null);
   const [responses,setResponses]=useState([]);
@@ -2606,20 +2624,21 @@ function Dashboard({code, onSignOut}){
   }
 
   if(loading) return <div className="content"><p className="muted">Loading session…</p></div>;
-  const readOnly=!!(config&&config.readOnly);
+  const readOnly=!!(config&&config.readOnly)||!!viewer;
   if(active) return <Interview config={config} code={code} resp={active} readOnly={readOnly} onBack={()=>{ setActive(null); reload(); }}/>;
 
   return (
     <div className="content-wide fade">
       <div className="topbar">
-        <div><div className="land-tag" style={{marginBottom:'.3rem'}}>Rep-Grid{readOnly?' · Example':''}</div>
+        <div><div className="land-tag" style={{marginBottom:'.3rem'}}>Rep-Grid{viewer?' · View only':(readOnly?' · Example':'')}</div>
           <div className="pg-title" style={{margin:0}}>{config.title||'Untitled study'}</div></div>
         <div style={{display:'flex',gap:'.6rem',alignItems:'center'}}>
           <span className="code">{code}</span>
-          <button className="btn-s btn-sm" onClick={onSignOut}>Sign out</button>
+          <button className="btn-s btn-sm" onClick={onSignOut}>{viewer?'Exit':'Sign out'}</button>
         </div>
       </div>
-      {readOnly&&<div className="demo-banner"><b>Read-only example study.</b> This is a completed dataset, kept as a worked example so you can see what a finished study looks like at every stage. You can explore and export freely — editing, adding interviews and deleting are switched off so it can’t be changed. To run your own study, sign out and open the tool with your own access code.</div>}
+      {viewer&&!(config&&config.readOnly)&&<div className="demo-banner"><b>Read-only view.</b> You’re viewing shared results for this study. Every analysis is visible, but editing, adding interviews and deleting are switched off.</div>}
+      {(config&&config.readOnly)&&<div className="demo-banner"><b>Read-only example study.</b> This is a completed dataset, kept as a worked example so you can see what a finished study looks like at every stage. You can explore and export freely — editing, adding interviews and deleting are switched off so it can’t be changed. To run your own study, sign out and open the tool with your own access code.</div>}
       {tab===null ? (
         <div className="dash-home fade">
           <div className="help-box"><span className="help-h">Study dashboard</span>Pick a module to work in. They’re grouped by stage — <b>design</b> your study, <b>collect</b> grids, then <b>analyse</b> them — and each opens with guidance on why and how to use it. {responses.length} interview{responses.length===1?'':'s'} · {(config.categories||[]).length} categories so far.</div>
@@ -2663,6 +2682,7 @@ function Dashboard({code, onSignOut}){
           {tab==='norms'&&<NormsModule config={config} setConfig={setConfig} onSaveConfig={saveConfig} responses={responses} readOnly={readOnly}/>}
           {tab==='change'&&<ChangeModule config={config} responses={responses}/>}
           {tab==='report'&&<ReportModule config={config} responses={responses} code={code}/>}
+          {tab==='share'&&<ShareModule code={code}/>}
         </div>
       )}
     </div>
@@ -2716,7 +2736,7 @@ function App(){
   const [session,setSession]=useState(null);
   if(!session) return <Gate onUnlock={(code,role)=>setSession({code, role:role||'facilitator'})}/>;
   if(session.role==='participant') return <ParticipantApp code={session.code} onExit={()=>setSession(null)}/>;
-  return <Dashboard code={session.code} onSignOut={()=>setSession(null)}/>;
+  return <Dashboard code={session.code} onSignOut={()=>setSession(null)} viewer={session.role==='viewer'}/>;
 }
 ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
 </script>
