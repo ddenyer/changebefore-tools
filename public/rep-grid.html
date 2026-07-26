@@ -1170,7 +1170,9 @@ function GridMaps({maps,scaleMin,scaleMax}){
 function CompositeConstructs({config,setConfig,responses,onSave,saving,savedMsg,readOnly}){
   const categories=config.categories||[];
   const assignments=config.assignments||{};
-  const members=useMemo(()=>pooledMembers(responses,config,null),[responses,config.elements,config.constructs]);
+  const outcomes=(config.suppliedConstructs&&config.suppliedConstructs.length)?config.suppliedConstructs:[{id:'supplied'}];
+  const refId=outcomes[0].id;   // pool constructs against the first outcome (grouping is outcome-independent; ref sets orientation/band)
+  const members=useMemo(()=>pooledMembers(responses,config,null,refId),[responses,config,refId]);
   const memberByKey=useMemo(()=>{const o={};members.forEach(m=>o[m.key]=m);return o;},[members]);
   const groups=useMemo(()=>suggestGroups(members.map(m=>({id:m.key,participantId:'',text:m.left+' vs '+m.right}))),[members]);
   const totalP=useMemo(()=>totalParticipants(members),[members]);
