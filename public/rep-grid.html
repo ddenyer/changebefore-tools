@@ -164,14 +164,22 @@ function gridElementsFor(config, response){
 // the "supplied" row. Passing a prescribed construct id lets you produce a
 // composite table against a DIFFERENT criterion ("varying levels of
 // effectiveness") — that construct is then excluded from the pooled members.
+// The element-ratings of the chosen reference (outcome) construct for a response.
+// Supports MULTIPLE outcome/supplied constructs: refId can be an outcome id (rated
+// in data.suppliedRatings), the legacy single 'supplied' row, or a prescribed
+// construct id. Legacy studies keep working (default 'supplied' -> data.supplied).
+function refRatingsFor(d, refId){
+  if(d && d.suppliedRatings && d.suppliedRatings[refId]) return d.suppliedRatings[refId];   // multi-outcome store
+  if(!refId || refId==='supplied') return (d&&d.supplied)||{};                              // legacy single supplied row
+  return (d&&d.ratings&&d.ratings[refId])||{};                                              // prescribed construct as reference
+}
 function pooledMembers(responses, config, filterCat, refId){
   const lo=config.scaleMin, hi=config.scaleMax;
-  const useRef = refId && refId!=='supplied';
   const rows=[];
   responses.forEach(r=>{
     const elIds=elementsFor(config, r, filterCat).map(e=>e.id);
-    const d=r.data||{}; const ratings=d.ratings||{}; const supplied=d.supplied||{}; const noPol=d.noPolarity||{};
-    const refMap = useRef ? (ratings[refId]||{}) : supplied;
+    const d=r.data||{}; const ratings=d.ratings||{}; const noPol=d.noPolarity||{};
+    const refMap = refRatingsFor(d, refId);
     const sSub=elIds.map(e=> refMap[e]!=null?refMap[e]:null);
     if(!elIds.length || sSub.every(v=>v==null)) return;
     const sRev=reverseRatings(sSub,lo,hi);
@@ -261,6 +269,23 @@ function fleiss(sets){
   let Pe=0; cats.forEach(c=>{ const p=(colTot[c]||0)/(N*m); Pe+=p*p; });
   return {n:N, po:Pbar, kappa: Pe===1?1:(Pbar-Pe)/(1-Pe)};
 }
+// Krippendorff's alpha (nominal). Unlike kappa it tolerates missing codings —
+// each unit coded by >=2 of the coders contributes. sets = [{unitKey:{cat}}...].
+function krippendorff(sets){
+  const units={};
+  sets.forEach(s=>{ Object.keys(s).forEach(u=>{ (units[u]=units[u]||[]).push(s[u].cat); }); });
+  const o={}; let n=0, coded=0;
+  Object.values(units).forEach(vals=>{ const mu=vals.length; if(mu<2) return; n+=mu; coded++;
+    for(let i=0;i<mu;i++) for(let j=0;j<mu;j++){ if(i===j) continue; const a=vals[i],b=vals[j];
+      o[a]=o[a]||{}; o[a][b]=(o[a][b]||0)+1/(mu-1); } });
+  const cats=Object.keys(o);
+  if(!cats.length || n<2) return {alpha:null,n:0};
+  const nc={}; cats.forEach(c=>{ nc[c]=cats.reduce((s,k)=>s+((o[c]&&o[c][k])||0),0); });
+  let Do=0,De=0;
+  cats.forEach(a=>cats.forEach(b=>{ if(a!==b){ Do+=((o[a]&&o[a][b])||0); De+=nc[a]*nc[b]; } }));
+  De/=(n-1);
+  return {alpha: De===0?1:1-Do/De, n:coded};
+}
 // Overall stats across any number of coder sets, plus the disagreeing items.
 function multiStats(sets){
   const m=sets.length;
@@ -269,7 +294,7 @@ function multiStats(sets){
   const disagree=keys.filter(k=>!sets.every(s=>s[k].cat===sets[0][k].cat));
   const unanimous=keys.length-disagree.length;
   const stat = m===2? cohen(sets[0],sets[1]) : fleiss(sets);
-  return {n:keys.length, unanimous, disagree, kappa:stat.kappa,
+  return {n:keys.length, unanimous, disagree, kappa:stat.kappa, krip:krippendorff(sets),
     po: keys.length? unanimous/keys.length : 0, kind: m===2?'Cohen’s κ':'Fleiss’ κ'};
 }
 // Majority pick for an item across coder sets (null if tied).
@@ -500,8 +525,10 @@ function Gate({onUnlock}){
 
 /* ============================ Grid table ====================== */
 // constructs: array of {id,left,right,elicited?}. Elicited rows have editable poles.
-function GridTable({elements, elementNames, constructs, scaleMin, scaleMax, suppliedLeft, suppliedRight,
-                    ratings, supplied, selected, onSel, onRate, onRateSupplied, onPole, onRemoveElicited, readOnly}){
+function GridTable({elements, elementNames, constructs, scaleMin, scaleMax, outcomes,
+                    ratings, suppliedRatings, selected, onSel, onRate, onRateSupplied, onPole, onRemoveElicited, readOnly}){
+  outcomes = outcomes || [];
+  suppliedRatings = suppliedRatings || {};
   const val=(m,cid,eid)=> (m[cid]&&m[cid][eid]!=null)?m[cid][eid]:'';
   const inp=(v,onCh)=> <input className="cellin" type="number" min={scaleMin} max={scaleMax} value={v} readOnly={readOnly}
     onChange={e=>{ if(readOnly) return; const x=e.target.value; if(x==='') return onCh(null); let n=Number(x); if(isNaN(n)) return; n=Math.max(scaleMin,Math.min(scaleMax,n)); onCh(n); }}/>;
@@ -533,11 +560,13 @@ function GridTable({elements, elementNames, constructs, scaleMin, scaleMax, supp
               </td>
             </tr>
           ))}
-          <tr style={{background:'#f6efe8'}}>
-            <td className="pole"><b>{suppliedLeft}</b><div className="mini">overall effectiveness</div></td>
-            {elements.map(el=><td key={el.id}>{el.supplementary? <span className="mini" title="held-out element — not rated on the effectiveness yardstick">—</span> : inp((supplied&&supplied[el.id]!=null)?supplied[el.id]:'',v=>onRateSupplied(el.id,v))}</td>)}
-            <td className="pole"><b>{suppliedRight}</b></td>
-          </tr>
+          {outcomes.map(oc=>(
+            <tr key={oc.id} style={{background:'#f6efe8'}}>
+              <td className="pole"><b>{oc.left}</b><div className="mini">{outcomes.length>1?'outcome construct':'overall effectiveness'}</div></td>
+              {elements.map(el=><td key={el.id}>{el.supplementary? <span className="mini" title="held-out element — not rated on the outcome construct">—</span> : inp((suppliedRatings[oc.id]&&suppliedRatings[oc.id][el.id]!=null)?suppliedRatings[oc.id][el.id]:'',v=>onRateSupplied(oc.id,el.id,v))}</td>)}
+              <td className="pole"><b>{oc.right}</b></td>
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>
@@ -548,7 +577,12 @@ function GridTable({elements, elementNames, constructs, scaleMin, scaleMax, supp
 function Interview({config, code, resp, onBack, readOnly}){
   const [name,setName]=useState(resp.participant_name||'');
   const [ratings,setRatings]=useState((resp.data&&resp.data.ratings)||{});
-  const [supplied,setSupplied]=useState((resp.data&&resp.data.supplied)||{});
+  const outcomes=(config.suppliedConstructs&&config.suppliedConstructs.length)?config.suppliedConstructs:[{id:'supplied',left:config.suppliedLeft||'Preferred',right:config.suppliedRight||'Opposite'}];
+  const [suppliedRatings,setSuppliedRatings]=useState(()=>{
+    const sr=(resp.data&&resp.data.suppliedRatings)? {...resp.data.suppliedRatings} : {};
+    if(resp.data&&resp.data.supplied&&!sr['supplied']) sr['supplied']={...resp.data.supplied};  // migrate legacy single supplied row
+    return sr;
+  });
   const [quotes,setQuotes]=useState((resp.data&&resp.data.quotes)||{});
   const [elicited,setElicited]=useState((resp.data&&resp.data.elicited)||[]);
   const [elicitedElements,setElicitedElements]=useState((resp.data&&resp.data.elicitedElements)||[]);
@@ -570,7 +604,7 @@ function Interview({config, code, resp, onBack, readOnly}){
   function scheduleSave(nextStatus){
     if(readOnly) return;
     setSaveState('saving'); clearTimeout(timer.current);
-    const snap={ratings,supplied,quotes,elicited,elicitedElements,noPolarity,elementNames,status:nextStatus||status};
+    const snap={ratings,suppliedRatings,supplied:suppliedRatings['supplied']||{},quotes,elicited,elicitedElements,noPolarity,elementNames,status:nextStatus||status};
     timer.current=setTimeout(async()=>{
       try{
         await saveWithRetry({kind:'response',session_code:code,participant_id:resp.participant_id,participant_name:name,
@@ -579,10 +613,10 @@ function Interview({config, code, resp, onBack, readOnly}){
       }catch(e){ setSaveState('error'); alert("We couldn't save right now. Please check your connection and try again."); }
     },300);
   }
-  useEffect(()=>{ scheduleSave(); /* eslint-disable-next-line */ },[ratings,supplied,quotes,elicited,elicitedElements,noPolarity,name]);
+  useEffect(()=>{ scheduleSave(); /* eslint-disable-next-line */ },[ratings,suppliedRatings,quotes,elicited,elicitedElements,noPolarity,name]);
 
   const rate=(cid,eid,v)=> setRatings(p=>({...p,[cid]:{...(p[cid]||{}),[eid]:v}}));
-  const rateSup=(eid,v)=> setSupplied(p=>({...p,[eid]:v}));
+  const rateSup=(oid,eid,v)=> setSuppliedRatings(p=>({...p,[oid]:{...(p[oid]||{}),[eid]:v}}));
   const setQuote=(cid,patch)=> setQuotes(p=>({...p,[cid]:{...(p[cid]||{}),...patch}}));
   // Elicited ELEMENTS (this interview only)
   const addElement=(catShort)=>{ const id=uid(); setElicitedElements(p=>[...p,{id,name:'',category:catShort||'',desc:''}]); };
@@ -612,10 +646,10 @@ function Interview({config, code, resp, onBack, readOnly}){
     setTriadN(n=>n+1);
   }
 
-  const total=combined.length*gridHoney.length+gridHoney.length;
+  const total=combined.length*gridHoney.length + outcomes.length*gridHoney.length;
   let filled=0;
   combined.forEach(c=>gridEls.forEach(el=>{ if(ratings[c.id]&&ratings[c.id][el.id]!=null) filled++; }));
-  gridHoney.forEach(el=>{ if(supplied[el.id]!=null) filled++; });
+  outcomes.forEach(oc=> gridHoney.forEach(el=>{ if(suppliedRatings[oc.id]&&suppliedRatings[oc.id][el.id]!=null) filled++; }));
 
   const selC=combined.find(c=>c.id===selected), q=(quotes[selected]||{});
   const saveTxt={saving:'saving…',saved:'saved',error:'save error',idle:''}[saveState];
@@ -690,8 +724,8 @@ function Interview({config, code, resp, onBack, readOnly}){
         {gridEls.length===0
           ? <p className="mini">Add elements above to build the grid.</p>
           : <GridTable elements={gridEls} elementNames={elementNames} constructs={combined}
-              scaleMin={config.scaleMin} scaleMax={config.scaleMax} suppliedLeft={config.suppliedLeft} suppliedRight={config.suppliedRight}
-              ratings={ratings} supplied={supplied} selected={selected}
+              scaleMin={config.scaleMin} scaleMax={config.scaleMax} outcomes={outcomes}
+              ratings={ratings} suppliedRatings={suppliedRatings} selected={selected}
               onSel={setSelected} onRate={rate} onRateSupplied={rateSup} onPole={setPole} onRemoveElicited={removeElicited} readOnly={readOnly}/>}
         <div className="sp"/>
         {!readOnly&&<button className="btn-s btn-sm" onClick={addElicited}>+ Add construct</button>}
@@ -776,19 +810,30 @@ function PrescribedConstructs({config,setConfig,onSave,saving,savedMsg,readOnly}
   const c=config, set=(patch)=>setConfig({...c,...patch});
   const cons=c.constructs||[];
   const setCon=(id,patch)=>set({constructs:cons.map(x=>x.id===id?{...x,...patch}:x)});
+  const outcomes=(c.suppliedConstructs&&c.suppliedConstructs.length)?c.suppliedConstructs:[{id:'supplied',left:c.suppliedLeft||'',right:c.suppliedRight||'',desc:c.suppliedDesc||''}];
+  const writeOutcomes=(list)=> set({suppliedConstructs:list, suppliedLeft:(list[0]||{}).left||'', suppliedRight:(list[0]||{}).right||'', suppliedDesc:(list[0]||{}).desc||''});
+  const setOutcome=(id,patch)=> writeOutcomes(outcomes.map(o=>o.id===id?{...o,...patch}:o));
+  const addOutcome=()=> writeOutcomes([...outcomes,{id:uid(),left:'',right:'',desc:''}]);
+  const removeOutcome=(id)=> writeOutcomes(outcomes.filter(o=>o.id!==id));
   return (
     <div className="fade">
-      {!readOnly&&<div className="help-box"><span className="help-h">Prescribed constructs · shared across every grid</span>Most constructs are <b>elicited</b> from each interviewee (through triads, during the interview). A few can be <b>prescribed</b> — asked of everyone. The essential one is the <b>overall “effectiveness” construct</b> below: the single yardstick Honey measures every elicited construct against (for example “highly effective” → “not effective at all”, rated on each person’s own situations). It appears as the highlighted row in every grid. Add other shared constructs only if you want the same bipolar scale rated in every interview.</div>}
+      {!readOnly&&<div className="help-box"><span className="help-h">Prescribed constructs · shared across every grid</span>Most constructs are <b>elicited</b> from each interviewee (through triads, during the interview). The essential shared ones are the <b>outcome constructs</b> below — the yardstick(s) Honey measures every elicited construct against. Most studies use one (e.g. “highly effective” → “not effective at all”); you can add several (e.g. Challenging, Confident, Aligned, Effective) to get a separate Honey table for each. They appear as highlighted rows in every grid. You can also add other shared prescribed constructs lower down.</div>}
       <div className="card" style={{borderColor:'#e07030'}}>
-        <div className="sec-tag" style={{color:'#e07030'}}>Overall effectiveness construct — the Honey yardstick</div>
-        <div className="row">
-          <div><label className="field-lbl">Preferred pole (= {c.scaleMax})</label><input className="inp inp-sm" value={c.suppliedLeft} readOnly={readOnly} onChange={e=>set({suppliedLeft:e.target.value})}/></div>
-          <div><label className="field-lbl">Opposite pole (= {c.scaleMin})</label><input className="inp inp-sm" value={c.suppliedRight} readOnly={readOnly} onChange={e=>set({suppliedRight:e.target.value})}/></div>
-        </div>
-        <div className="sp"/>
-        <label className="field-lbl">Description (optional)</label>
-        <textarea className="inp inp-sm" value={c.suppliedDesc||''} readOnly={readOnly} onChange={e=>set({suppliedDesc:e.target.value})} placeholder="What does this yardstick mean? e.g. how effective each example was overall."/>
-        <p className="field-sub" style={{marginTop:'.5rem'}}>Every elicited construct is scored for how closely it tracks this yardstick.</p>
+        <div className="sec-tag" style={{color:'#e07030'}}>Outcome constructs — the Honey yardstick(s) ({outcomes.length})</div>
+        <p className="field-sub">Each elicited construct is scored for how closely it tracks these. Add more than one to analyse against several criteria.</p>
+        {outcomes.map(o=>(
+          <div key={o.id} style={{borderBottom:'1px solid #ebe7e0',paddingBottom:'.6rem',marginBottom:'.6rem'}}>
+            <div className="row">
+              <div><label className="field-lbl">Preferred pole (= {c.scaleMax})</label><input className="inp inp-sm" value={o.left||''} readOnly={readOnly} onChange={e=>setOutcome(o.id,{left:e.target.value})}/></div>
+              <div><label className="field-lbl">Opposite pole (= {c.scaleMin})</label><input className="inp inp-sm" value={o.right||''} readOnly={readOnly} onChange={e=>setOutcome(o.id,{right:e.target.value})}/></div>
+            </div>
+            <div style={{display:'flex',gap:6,marginTop:4,alignItems:'center'}}>
+              <input className="inp inp-sm" style={{flex:1}} value={o.desc||''} readOnly={readOnly} placeholder="Description (optional)" onChange={e=>setOutcome(o.id,{desc:e.target.value})}/>
+              {!readOnly&&outcomes.length>1&&<button className="x" title="Remove outcome" onClick={()=>removeOutcome(o.id)}>✕</button>}
+            </div>
+          </div>
+        ))}
+        {!readOnly&&<button className="btn-s btn-sm" onClick={addOutcome}>+ Add outcome construct</button>}
       </div>
 
       <div className="card">
@@ -963,14 +1008,16 @@ function Interviews({config,responses,onOpen,onNew,onDelete,readOnly}){
 // Per participant: their constructs ranked by similarity to the supplied
 // "effectiveness" construct, with a bar toward the effective pole, band, quote.
 function Analysis({config,responses,onOpen}){
-  const withData=responses.filter(r=>{ const s=(r.data&&r.data.supplied)||{}; return config.elements.some(el=>s[el.id]!=null); });
+  const outcomes=(config.suppliedConstructs&&config.suppliedConstructs.length)?config.suppliedConstructs:[{id:'supplied',left:config.suppliedLeft,right:config.suppliedRight}];
+  const [outId,setOutId]=useState(outcomes[0].id);
+  const withData=responses.filter(r=>{ const s=refRatingsFor(r.data,outId); return Object.keys(s).length>0; });
   const [sel,setSel]=useState(withData[0]?withData[0].participant_id:'');
   const [showMaps,setShowMaps]=useState(false);
   const lo=config.scaleMin, hi=config.scaleMax;
   const r=responses.find(x=>x.participant_id===sel);
   const info=useMemo(()=>{
     if(!r) return null;
-    const ratings=(r.data&&r.data.ratings)||{}, supplied=(r.data&&r.data.supplied)||{}, quotes=(r.data&&r.data.quotes)||{}, noPol=(r.data&&r.data.noPolarity)||{};
+    const ratings=(r.data&&r.data.ratings)||{}, supplied=refRatingsFor(r.data,outId), quotes=(r.data&&r.data.quotes)||{}, noPol=(r.data&&r.data.noPolarity)||{};
     const els=elementsFor(config,r,null);   // this interview's elements, supplementary held out
     const sArr=els.map(el=> supplied[el.id]!=null?supplied[el.id]:null);
     if(sArr.every(v=>v==null)) return {rows:[],quotes,excluded:0,maps:null};
@@ -989,7 +1036,7 @@ function Analysis({config,responses,onOpen}){
       maps={els,cons:mapCons,M,anv,bip,cOrder,eOrder};
     }
     return {rows:analyseGrid(cons,sArr,lo,hi).results.sort((a,b)=>a.rank-b.rank), quotes, excluded:allCons.length-cons.length, maps};
-  },[r,config]);
+  },[r,config,outId]);
 
   // Every grid: raw ratings (all elements incl. supplementary) + Honey + quotes.
   function exportGrids(){
@@ -997,7 +1044,7 @@ function Analysis({config,responses,onOpen}){
     responses.forEach(resp=>{
       const els=gridElementsFor(config,resp);          // this interview's elements (incl. supplementary)
       const hEls=elementsFor(config,resp,null);         // Honey subset (supplementary out)
-      const d=resp.data||{}; const ratings=d.ratings||{}, supplied=d.supplied||{}, quotes=d.quotes||{};
+      const d=resp.data||{}; const ratings=d.ratings||{}, supplied=refRatingsFor(d,outId), quotes=d.quotes||{};
       const names=d.elementNames||els.map(e=>e.name);
       const sArr=hEls.map(el=> supplied[el.id]!=null?supplied[el.id]:null);
       const cons=[...config.constructs,...(d.elicited||[])];
@@ -1014,7 +1061,8 @@ function Analysis({config,responses,onOpen}){
         rows.push([c.left, ...els.map(el=> (ratings[c.id]&&ratings[c.id][el.id]!=null)?ratings[c.id][el.id]:''), c.right,
           x.similarity!=null?x.similarity.toFixed(4):'', x.band||'', x.rank||'', q.text||'', q.ref||'']);
       });
-      rows.push([config.suppliedLeft+' (supplied)', ...els.map(el=> supplied[el.id]!=null?supplied[el.id]:''), config.suppliedRight,'','','','','']);
+      outcomes.forEach(oc=>{ const sr=refRatingsFor(d,oc.id);
+        rows.push([oc.left+(oc.id===outId?' (Honey reference)':' (outcome)'), ...els.map(el=> sr[el.id]!=null?sr[el.id]:''), oc.right,'','','','','']); });
       rows.push([]);
     });
     downloadCsv(rows, slug(config.title)+'_grids_and_Honey.csv');
@@ -1022,13 +1070,17 @@ function Analysis({config,responses,onOpen}){
 
   return (
     <div className="fade">
-      <div className="help-box"><span className="help-h">Step 1 · Individual Honey (one person at a time)</span>Pick an interviewee to see their constructs ranked by how closely each one tracks the supplied “{config.suppliedLeft}” construct — this is <b>Honey’s (1979) individual analysis</b>. The bar shows how strongly each construct points toward the effective pole, and each is banded <b>H</b> (top third of that person’s range), <b>I</b> (middle) or <b>L</b> (bottom) so you can see which of their ideas matter most. This is a per-person view; the shared picture across everyone comes in steps 2 and 3.</div>
+      <div className="help-box"><span className="help-h">Step 1 · Individual Honey (one person at a time)</span>Pick an interviewee to see their constructs ranked by how closely each one tracks the outcome construct — this is <b>Honey’s (1979) individual analysis</b>. The bar shows how strongly each construct points toward the preferred pole, and each is banded <b>H</b> (top third of that person’s range), <b>I</b> (middle) or <b>L</b> (bottom) so you can see which of their ideas matter most. This is a per-person view; the shared picture across everyone comes in steps 2 and 3.</div>
       {responses.length===0 && <div className="inf-box">No interviews yet — run one in the <b>Interviews</b> tab and this analysis fills in automatically.</div>}
       <div className="toolbar">
         <label className="field-lbl" style={{margin:0}}>Interviewee</label>
-        <select className="inp inp-sm" style={{width:260,flex:'0 0 auto'}} value={sel} onChange={e=>setSel(e.target.value)}>
+        <select className="inp inp-sm" style={{width:230,flex:'0 0 auto'}} value={sel} onChange={e=>setSel(e.target.value)}>
           {responses.map(r=><option key={r.participant_id} value={r.participant_id}>{r.participant_name||'(unnamed)'}</option>)}
         </select>
+        {outcomes.length>1 && <><label className="field-lbl" style={{margin:'0 0 0 8px'}}>Outcome</label>
+          <select className="inp inp-sm" style={{width:210,flex:'0 0 auto'}} value={outId} onChange={e=>setOutId(e.target.value)}>
+            {outcomes.map(o=><option key={o.id} value={o.id}>{o.left} → {o.right}</option>)}
+          </select></>}
         <div className="grow"/>
         <button className="btn-s btn-sm" onClick={exportGrids}>Export grids + Honey</button>
         {r&&onOpen&&<button className="btn-s btn-sm" onClick={()=>onOpen(r)}>Edit this grid →</button>}
@@ -1192,11 +1244,46 @@ function CompositeConstructs({config,setConfig,responses,onSave,saving,savedMsg,
       alert('Derived '+cats.length+' composite constructs. Review/edit them, then use “AI assign constructs”.');
     }catch(e){ setBusy(''); alert('Derive failed: '+e.message); }
   }
+  // ---- Independent coder schemes (each coder derives & codes their OWN categories) ----
+  const coderSchemes=config.coderSchemes||{};
+  async function deriveForCoder(cd){
+    if(readOnly) return;
+    if(!members.length){ alert('No constructs to code yet.'); return; }
+    setBusy(cd.name+' deriving own scheme…');
+    try{
+      const j=await api('/api/rep-grid-derive',{constructs:members.map(m=>({left:m.left,right:m.right})),target:14,domain:config.title});
+      const scheme=(j.categories||[]).map(c=>({id:uid(),name:c.name,left:c.left,leftDef:c.leftDef||'',right:c.right,rightDef:c.rightDef||''}));
+      if(!scheme.length) throw new Error('no categories returned');
+      const assign={}; const Bt=60;
+      for(let i=0;i<members.length;i+=Bt){
+        setBusy(cd.name+' coding own scheme… '+Math.min(i+Bt,members.length)+'/'+members.length);
+        const batch=members.slice(i,i+Bt);
+        const cj=await api('/api/rep-grid-classify',{constructs:batch.map(m=>({id:m.key,left:m.left,right:m.right})),categories:scheme,pass:cd.stance||'A'});
+        (cj.assignments||[]).forEach(a=>{ if(a.cat){ assign[a.id]={cat:a.cat,flip:!!a.flip}; if(a.cat2){assign[a.id].cat2=a.cat2;assign[a.id].flip2=!!a.flip2;} } });
+      }
+      setConfig({...config, coderSchemes:{...coderSchemes,[cd.id]:scheme}, coders:{...(config.coders||{}),[cd.id]:assign}});
+      setBusy(''); alert(cd.name+' derived '+scheme.length+' categories and coded all constructs. Compare schemes below, then adopt one as the agreed scheme.');
+    }catch(e){ setBusy(''); alert('Failed: '+e.message); }
+  }
+  // Adopt one coder's independent scheme as the shared/agreed categorisation.
+  function adoptScheme(cdId){
+    const scheme=coderSchemes[cdId]; const assign=(config.coders||{})[cdId];
+    if(!scheme||!assign){ return; }
+    setConfig({...config, categories:scheme.map(c=>({...c,quote:c.quote||''})), assignments:{...assign}});
+    alert('Adopted as the agreed scheme. It now drives the composite constructs and Honey tables; refine on this tab as needed.');
+  }
   // ---- Coder panel: up to 4 coders, each AI (with a reasoning stance) or human.
   const STANCES={A:'Definition-led',B:'Participant-language-led',C:'Contrast-led',D:'Exemplar-led'};
   const meta=config.coderMeta||[];
   const coders=config.coders||{};
   const catName=(id)=>(categories.find(c=>c.id===id)||{}).name||'—';
+  // Independent-scheme comparison: how similarly two coders GROUPED the constructs.
+  const schemeCoders=meta.filter(cd=>coderSchemes[cd.id]&&coderSchemes[cd.id].length);
+  const coderClusters=(cdId)=>{ const a=coders[cdId]||{}; const cl={}; Object.keys(a).forEach(k=>{ const c=a[k].cat; if(!c) return; (cl[c]=cl[c]||new Set()).add(k); }); return cl; };
+  const schemeOverlap=(idA,idB)=>{ const A=coderClusters(idA),B=coderClusters(idB); const bc=Object.keys(B); let ws=0,tot=0; const rows=[];
+    Object.keys(A).forEach(ca=>{ const sa=A[ca]; let best=0,bestB=null; bc.forEach(cb=>{ const sb=B[cb]; let inter=0; sa.forEach(x=>{if(sb.has(x))inter++;}); const uni=sa.size+sb.size-inter; const j=uni?inter/uni:0; if(j>best){best=j;bestB=cb;} }); rows.push({ca,size:sa.size,bestB,jac:best}); ws+=best*sa.size; tot+=sa.size; });
+    return {rows, overall: tot?ws/tot:0}; };
+  const schemeName=(cdId,catId)=>((coderSchemes[cdId]||[]).find(c=>c.id===catId)||{}).name||'—';
   const setMeta=(m)=>setConfig({...config,coderMeta:m});
   const addCoder=(type)=>{
     if(meta.length>=4){ alert('Maximum of 4 coders.'); return; }
@@ -1344,11 +1431,38 @@ function CompositeConstructs({config,setConfig,responses,onSave,saving,savedMsg,
               {!readOnly&&(cd.type==='ai'
                 ? <button className="btn-p btn-sm" disabled={!!busy} onClick={()=>runAiCoder(cd)}>Run</button>
                 : <button className="btn-p btn-sm" onClick={()=>setCoding(cd.id)}>Code</button>)}
+              {!readOnly&&cd.type==='ai'&&<button className="btn-s btn-sm" disabled={!!busy} title="Derive & code this coder's OWN category scheme (independent of the shared one)" onClick={()=>deriveForCoder(cd)}>Own scheme</button>}
               {!readOnly&&<button className="x" onClick={()=>delCoder(cd.id)}>✕</button>}
             </div>
           );
         })}
       </div>
+
+      {schemeCoders.length>0 && (
+        <div className="card">
+          <div className="sec-tag">Independent coder schemes ({schemeCoders.length})</div>
+          <p className="field-sub">Each coder here derived and coded their <b>own</b> category scheme. Compare how similarly two coders grouped the constructs, then <b>adopt</b> one scheme (or your reconciled edit of it) as the agreed categorisation that drives the Honey tables.</p>
+          {schemeCoders.map(cd=>(
+            <div className="list-row" key={cd.id}>
+              <span className="tag" style={{background:'#f0e2d5',color:'#b5651a'}}>{cd.name}</span>
+              <span className="mini">{coderSchemes[cd.id].length} categories · {Object.keys(coders[cd.id]||{}).length} constructs coded</span>
+              <div className="grow"/>
+              {!readOnly&&<button className="btn-s btn-sm" onClick={()=>adoptScheme(cd.id)}>Adopt as agreed scheme →</button>}
+            </div>
+          ))}
+          {schemeCoders.length>=2 && (()=>{ const a=schemeCoders[0], b=schemeCoders[1]; const ov=schemeOverlap(a.id,b.id); return (
+            <div style={{marginTop:'.7rem'}}>
+              <div className="mini" style={{marginBottom:4}}>Grouping overlap — <b>{a.name}</b> vs <b>{b.name}</b>: <b>{Math.round(ov.overall*100)}%</b> <span style={{color:'#888'}}>(mean best-match Jaccard, weighted by category size — how similarly the two schemes cluster the same constructs)</span></div>
+              <div className="scroll"><table className="grid" style={{fontSize:'.74rem'}}>
+                <thead><tr><th className="pole">{a.name} category</th><th style={{width:40}}>n</th><th className="pole">Best match — {b.name}</th><th style={{width:64}}>Overlap</th></tr></thead>
+                <tbody>{ov.rows.sort((x,y)=>y.size-x.size).map((r,i)=>(
+                  <tr key={i}><td className="pole">{schemeName(a.id,r.ca)}</td><td>{r.size}</td><td className="pole muted">{r.bestB?schemeName(b.id,r.bestB):'—'}</td><td>{Math.round(r.jac*100)}%</td></tr>
+                ))}</tbody>
+              </table></div>
+            </div>
+          );})()}
+        </div>
+      )}
 
       {stats && (
         <div className="card">
@@ -1356,6 +1470,7 @@ function CompositeConstructs({config,setConfig,responses,onSave,saving,savedMsg,
           <div className="row" style={{alignItems:'center'}}>
             <div><div className="mini">Unanimous agreement</div><div style={{fontSize:'1.4rem',fontWeight:700,color:'#16a34a'}}>{(stats.po*100).toFixed(1)}%</div></div>
             <div><div className="mini">{stats.kind}</div><div style={{fontSize:'1.4rem',fontWeight:700}}>{stats.kappa.toFixed(2)}</div></div>
+            {stats.krip&&stats.krip.alpha!=null&&<div><div className="mini">Krippendorff’s α</div><div style={{fontSize:'1.4rem',fontWeight:700}} title={'over '+stats.krip.n+' constructs coded by ≥2 coders'}>{stats.krip.alpha.toFixed(2)}</div></div>}
             <div><div className="mini">Agreed</div><div style={{fontSize:'1.4rem',fontWeight:700}}>{stats.unanimous}</div></div>
             <div><div className="mini">To settle</div><div style={{fontSize:'1.4rem',fontWeight:700,color:'#dc2626'}}>{stats.disagree.length}</div></div>
           </div>
@@ -1363,7 +1478,7 @@ function CompositeConstructs({config,setConfig,responses,onSave,saving,savedMsg,
             <button className="btn-s btn-sm" onClick={acceptAllAgreed}>Accept unanimous</button>
             {activeIds.length>=3 && <button className="btn-s btn-sm" onClick={acceptMajority}>Accept majority</button>}
           </div>
-          <p className="field-sub" style={{marginTop:'.4rem'}}>{activeIds.length===2?'Cohen’s κ':'Fleiss’ κ'} over the {stats.n} constructs all coders coded. κ &gt; 0.80 is conventionally “almost perfect”, 0.61–0.80 “substantial”.</p>
+          <p className="field-sub" style={{marginTop:'.4rem'}}>{activeIds.length===2?'Cohen’s κ':'Fleiss’ κ'} is computed over the {stats.n} constructs all coders coded; <b>Krippendorff’s α</b> also includes constructs coded by only some coders ({stats.krip?stats.krip.n:0}), which is why researchers often prefer it. Both: &gt; 0.80 “almost perfect”, 0.67–0.80 “acceptable/substantial”.</p>
         </div>
       )}
 
@@ -1451,10 +1566,13 @@ function CompositeTable({config,responses}){
   const elemCats=[...new Set([].concat(...responses.map(r=>elementsFor(config,r,null).map(e=>e.category))).filter(Boolean))];
   const catFull=(c)=>{ const m=(config.elementCategories||[]).find(x=>(x.short||x.name)===c); return m?m.name:c; };
   const [seg,setSeg]=useState('all');
-  const [refId,setRefId]=useState('supplied');
+  const outcomes=(config.suppliedConstructs&&config.suppliedConstructs.length)?config.suppliedConstructs:[{id:'supplied',left:config.suppliedLeft||'Preferred',right:config.suppliedRight||'Opposite'}];
+  const prescribedRef=(config.constructs||[]).filter(x=>x.left||x.right);
+  const refOptions=[...outcomes,...prescribedRef];
+  const [refId,setRefId]=useState(outcomes[0].id);
   const [threshold,setThreshold]=useState(0);
   const categories=config.categories||[], assignments=config.assignments||{};
-  const refCons=(config.constructs||[]).filter(x=>x.left||x.right);
+  const refCons=refOptions;
   const memAll=useMemo(()=>pooledMembers(responses,config,null,refId),[responses,config,refId]);
   const totalP=totalParticipants(memAll);
   const fixedOrient=useMemo(()=>fixedOrientOf(memAll),[memAll]);
@@ -1462,7 +1580,8 @@ function CompositeTable({config,responses}){
   const all=useMemo(()=>rowsFor(null),[responses,config,seg,refId]);
   const segRows=useMemo(()=> (seg==='all'||seg==='compare')?null:rowsFor(seg),[responses,config,seg,refId]);
   const cmp=useMemo(()=> (seg==='compare'&&elemCats.length>=2)? elemCats.map(c=>({c, rows:rowsFor(c)})):null,[responses,config,seg,refId]);
-  const refLabel = refId==='supplied' ? (config.suppliedLeft+' → '+config.suppliedRight) : ((refCons.find(c=>c.id===refId)||{}).left||'reference');
+  const refObj = refOptions.find(x=>x.id===refId)||outcomes[0];
+  const refLabel = (refObj.left||'Preferred')+' → '+(refObj.right||'Opposite');
 
   if(categories.length===0) return <div className="help-box"><span className="help-h">Step 3 · Composite table (the final result)</span>Nothing to show yet. First build your <b>composite constructs</b> on the <b>2 · Composite constructs</b> tab. Once you have categories, this tab automatically turns them into the <b>Honey Content Table</b> — the headline finding of the whole study.</div>;
 
@@ -1525,6 +1644,23 @@ function CompositeTable({config,responses}){
     elemCats.forEach(c=> push('Honey Content Table — '+catFull(c)+' elements only', rowsFor(c)));
     downloadCsv(rows, slug(config.title)+'_Honey_Content_Table.csv');
   }
+  // Per-construct × every outcome matrix (similarity % + H/I/L band) — one row per construct.
+  function exportOutcomesMatrix(){
+    const perO={}; outcomes.forEach(o=>{ perO[o.id]={}; pooledMembers(responses,config,null,o.id).forEach(m=>{ perO[o.id][m.key]=m; }); });
+    const keys=new Set(); outcomes.forEach(o=>Object.keys(perO[o.id]).forEach(k=>keys.add(k)));
+    const hdr=['Participant','Construct','Opposite pole','Category'];
+    outcomes.forEach(o=>{ hdr.push(o.left+' — sim %'); hdr.push(o.left+' — band'); });
+    const rows=[hdr];
+    [...keys].forEach(k=>{
+      let rep=null; for(const o of outcomes){ if(perO[o.id][k]){ rep=perO[o.id][k]; break; } }
+      if(!rep) return;
+      const catId=(assignments[k]||{}).cat; const cat=(categories.find(c=>c.id===catId)||{}).name||'';
+      const row=[rep.participant, rep.left, rep.right, cat];
+      outcomes.forEach(o=>{ const m=perO[o.id][k]; if(m){ row.push((Math.max(m.leftAlignPct,m.rightAlignPct)*2-100).toFixed(1)); row.push(m.band); } else { row.push(''); row.push(''); } });
+      rows.push(row);
+    });
+    downloadCsv(rows, slug(config.title)+'_outcomes_matrix.csv');
+  }
   return (
     <div className="fade">
       <div className="help-box"><span className="help-h">Step 3 · Composite table — the Honey Content Table</span>This is the payoff. For each <b>composite construct</b>, it shows the average similarity of its preferred pole to the effectiveness reference (<b>{refLabel}</b>), how many people mentioned it, and its <b>H/I/L</b> spread — so you can read off which shared themes matter most. Split it by <b>element category</b> ({elemCats.length?elemCats.map(c=>c+' = '+catFull(c)).join(' · '):'none yet'}) to get a table per category plus a comparative view, change the <b>reference construct</b> to analyse against a different criterion, or apply a <b>frequency threshold</b> (a common cut-off keeps only categories cited by ≥50% of participants). Held-out elements are excluded.</div>
@@ -1535,13 +1671,14 @@ function CompositeTable({config,responses}){
         {elemCats.map(c=><button key={c} className="btn-s btn-sm" style={seg===c?{borderColor:'#1a1a1a'}:{}} onClick={()=>setSeg(c)}>{catFull(c)}</button>)}
         {elemCats.length>=2 && <button className="btn-s btn-sm" style={seg==='compare'?{borderColor:'#1a1a1a'}:{}} onClick={()=>setSeg('compare')}>Comparative</button>}
         <div className="grow"/>
+        {outcomes.length>1 && <button className="btn-s btn-sm" onClick={exportOutcomesMatrix}>Export outcomes matrix</button>}
         <button className="btn-s btn-sm" onClick={exportHoney}>Export Honey tables</button>
       </div>
       <div className="toolbar" style={{gap:'.6rem',flexWrap:'wrap',marginTop:'-.6rem'}}>
-        {refCons.length>0 && <span className="mini">Reference:
-          <select className="inp inp-sm" style={{width:220,marginLeft:6}} value={refId} onChange={e=>setRefId(e.target.value)}>
-            <option value="supplied">{config.suppliedLeft} → {config.suppliedRight} (yardstick)</option>
-            {refCons.map(x=><option key={x.id} value={x.id}>{x.left} → {x.right}</option>)}
+        {refOptions.length>1 && <span className="mini">{outcomes.length>1?'Outcome:':'Reference:'}
+          <select className="inp inp-sm" style={{width:240,marginLeft:6}} value={refId} onChange={e=>setRefId(e.target.value)}>
+            {outcomes.map(x=><option key={x.id} value={x.id}>{x.left} → {x.right}</option>)}
+            {prescribedRef.length>0 && <optgroup label="Other reference constructs">{prescribedRef.map(x=><option key={x.id} value={x.id}>{x.left} → {x.right}</option>)}</optgroup>}
           </select></span>}
         <span className="mini">Freq. threshold:</span>
         {[0,25,50].map(t=><button key={t} className="btn-s btn-sm" style={threshold===t?{borderColor:'#1a1a1a'}:{}} onClick={()=>setThreshold(t)}>{t===0?'off':'≥'+t+'%'}</button>)}
@@ -1585,6 +1722,7 @@ function Dashboard({code, onSignOut}){
       : {title:'',description:'',scaleMin:1,scaleMax:10,suppliedLeft:'Highly effective',suppliedRight:'Not effective at all',suppliedDesc:'',elementCategories:[],elements:[],constructs:[]};
     cfg.categories=cfg.categories||[]; cfg.assignments=cfg.assignments||{};
     cfg.elementCategories=cfg.elementCategories||[]; cfg.description=cfg.description||''; cfg.suppliedDesc=cfg.suppliedDesc||'';
+    cfg.suppliedConstructs=cfg.suppliedConstructs||[]; cfg.coderSchemes=cfg.coderSchemes||{};
     setConfig(cfg); setResponses(j.responses||[]); setLoading(false);
   }
   useEffect(()=>{ reload().catch(e=>{ setLoading(false); alert('Load failed: '+e.message); }); /* eslint-disable-next-line */ },[]);
