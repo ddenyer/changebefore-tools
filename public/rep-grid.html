@@ -2397,6 +2397,70 @@ function ChangeModule({config,responses}){
     </div>
   );
 }
+// Branded PDF deliverable — follows the ChangeBefore house style used by stat-group
+// (A4 mm, Times headlines / Helvetica body, orange accent, cover + About page).
+function generateStudyPDF(config, responses){
+  if(!window.jspdf||!window.jspdf.jsPDF){ alert('The PDF library did not load. Please refresh the page and try again.'); return; }
+  const { jsPDF }=window.jspdf;
+  const doc=new jsPDF({unit:'mm',format:'a4'});
+  const pageW=210,pageH=297,margin=18,cw=pageW-margin*2;
+  const TEXT=[26,26,26],MUTED=[107,107,107],ACCENT=[224,112,48],BG=[240,237,232],BORDER=[216,211,203];
+  let y=margin, pageNum=0;
+  const F=(s,w,c,f)=>{ doc.setFont(f||'helvetica',w||'normal'); doc.setFontSize(s); if(c)doc.setTextColor(...c); };
+  function chrome(){ F(8,'bold',MUTED); doc.text('CHANGEBEFORE',margin,10); F(8,'normal',MUTED); doc.text('Repertory Grid Study',pageW-margin,10,{align:'right'});
+    doc.setDrawColor(...BORDER); doc.setLineWidth(0.2); doc.line(margin,12,pageW-margin,12);
+    pageNum++; F(8,'normal',MUTED); doc.text('ChangeBefore · Repertory Grid',margin,pageH-8); doc.text(String(pageNum),pageW-margin,pageH-8,{align:'right'}); }
+  function page(){ doc.addPage(); chrome(); y=22; }
+  function ensure(need){ if(y+need>pageH-16) page(); }
+  function heading(t){ ensure(14); F(14,'bold',TEXT,'times'); doc.text(t,margin,y); y+=2; doc.setDrawColor(...ACCENT); doc.setLineWidth(0.5); doc.line(margin,y,margin+cw,y); y+=6; }
+  function para(t,size){ F(size||10,'normal',TEXT); doc.splitTextToSize(t,cw).forEach(ln=>{ ensure(6); doc.text(ln,margin,y); y+=5; }); y+=2; }
+  function kv(label,val){ ensure(6); F(10,'bold',TEXT); doc.text(label+': ',margin,y); const lw=doc.getTextWidth(label+': '); F(10,'normal',TEXT); doc.text(String(val),margin+lw,y); y+=6; }
+  // cover
+  doc.setFillColor(...BG); doc.rect(0,0,pageW,pageH,'F');
+  F(11,'bold',TEXT); doc.text('CHANGEBEFORE',margin,32);
+  F(9,'normal',MUTED); doc.text('Diagnostic consulting · Change before you have to.',margin,37);
+  F(30,'bold',TEXT,'times'); doc.text(doc.splitTextToSize(config.title||'Repertory Grid Study',cw),margin,116);
+  F(15,'normal',ACCENT); doc.text('Repertory Grid Study',margin,150);
+  F(10,'normal',MUTED); doc.text('Prepared '+new Date().toLocaleDateString(),margin,164);
+  doc.text(responses.length+' interview'+(responses.length===1?'':'s')+' · Honey content analysis',margin,170);
+  // stats
+  const withGrid=responses.filter(r=>gridFor(config,r).cons.length>=2);
+  const pvs=withGrid.map(r=>pvaff(gridFor(config,r).M).pvaff).filter(v=>v!=null);
+  const cfs=responses.map(r=>{const g=gridFor(config,r);return g.cons.length>=3?triadicConflict(g.M).pct:null;}).filter(v=>v!=null);
+  const avg=a=>a.length?a.reduce((s,v)=>s+v,0)/a.length:null;
+  const dist=distributionOf(config,responses);
+  const sis=responses.map(r=>selfIdeal(config,r)).filter(Boolean);
+  const dils=responses.map(r=>dilemmas(config,r)).filter(Boolean); const withDil=dils.filter(d=>d.found.length>0).length;
+  // content
+  page();
+  heading('Overview');
+  para(config.description||'A repertory-grid study analysed with Honey’s (1979) content analysis.');
+  kv('Interviews', responses.length);
+  kv('Rating scale', config.scaleMin+'–'+config.scaleMax);
+  kv('Content categories', (config.categories||[]).length||'not yet coded');
+  if(dist&&dist.some(d=>d.n>0)){
+    const top=dist.slice().sort((a,b)=>b.pct-a.pct).filter(x=>x.pct>0);
+    heading('Content analysis — dominant themes');
+    para('Constructs elicited across all interviews were coded into '+(config.categories||[]).length+' content categories. The most frequent:');
+    top.slice(0,14).forEach(t=>{ ensure(7); F(9,'normal',TEXT); doc.text(doc.splitTextToSize(t.name,84)[0],margin,y);
+      const barX=margin+90, barW=cw-90-16, w=barW*Math.min(t.pct,100)/100;
+      doc.setFillColor(...BORDER); doc.rect(barX,y-3,barW,3.2,'F'); doc.setFillColor(...ACCENT); doc.rect(barX,y-3,w,3.2,'F');
+      F(8,'normal',MUTED); doc.text(t.pct.toFixed(1)+'%',margin+cw,y,{align:'right'}); y+=6; });
+    y+=2;
+  }
+  heading('Structure');
+  if(avg(pvs)!=null) kv('Mean cognitive complexity (PVAFF)', avg(pvs).toFixed(1)+'%  ('+(avg(pvs)>=60?'simpler / one-dimensional':avg(pvs)>=45?'moderate':'differentiated')+')');
+  if(avg(cfs)!=null) kv('Mean conflict (triadic imbalance)', avg(cfs).toFixed(1)+'%');
+  if(sis.length){ kv('Self–ideal grids', sis.length); kv('Mean self–ideal distance', (sis.reduce((s,x)=>s+x.pct,0)/sis.length).toFixed(1)+'% of max'); }
+  if(dils.length) kv('Participants with an implicative dilemma', withDil+' of '+dils.length);
+  // about
+  page();
+  heading('About ChangeBefore');
+  para('ChangeBefore helps organisations surface how their people actually think — using repertory grids and personal construct psychology to turn individual perspectives into shared, actionable themes.');
+  para('This report was generated automatically from the study data. Figures follow Honey’s (1979) content-analysis method and standard repertory-grid structural measures (PVAFF, triadic-imbalance conflict, self–ideal discrepancy).');
+  F(11,'bold',ACCENT,'times'); ensure(8); doc.text('Change before you have to.',margin,y+4);
+  doc.save((config.title||'rep-grid-study').replace(/[^a-z0-9]+/gi,'-').toLowerCase().replace(/^-|-$/g,'')+'-report.pdf');
+}
 function ReportModule({config,responses,code}){
   const rep=useMemo(()=>{
     const n=responses.length;
@@ -2435,11 +2499,14 @@ function ReportModule({config,responses,code}){
   const top=(rep.dist||[]).slice().sort((a,b)=>b.pct-a.pct).filter(x=>x.pct>0).slice(0,3);
   return (
     <div className="fade">
-      <div className="help-box"><span className="help-h">Narrative report — the write-up, drafted for you</span><b>Why you need it:</b> stakeholders read the story, not the matrix. This assembles the study’s headline numbers into a clean, printable summary you can save as a PDF (via your browser’s print dialog) or paste into a document. <b>How:</b> click <b>Open printable report</b> — it builds a formatted page in a new tab and opens the print/save-PDF dialog.</div>
+      <div className="help-box"><span className="help-h">Narrative report — the write-up, drafted for you</span><b>Why you need it:</b> stakeholders read the story, not the matrix. <b>Download branded PDF</b> generates a polished ChangeBefore-styled deliverable (cover page, dominant themes, structure summary) you can hand to a client, supervisor or examiner. <b>Open printable report</b> builds a plain formatted page in a new tab for the browser’s print / save-as-PDF dialog or to paste into a document.</div>
       <div className="card"><div className="sec-tag">Summary</div>
         <p style={{fontSize:'.9rem'}}><b>{rep.title}</b> — {rep.n} interview{rep.n===1?'':'s'}, scale {rep.scale}.</p>
         <p className="mini">Complexity (PVAFF): {rep.meanPV!=null?rep.meanPV.toFixed(1)+'%':'—'} · Conflict: {rep.meanCf!=null?rep.meanCf.toFixed(1)+'%':'—'} · {rep.coded?('Top themes: '+top.map(t=>t.name+' '+t.pct.toFixed(0)+'%').join(', ')):'Not yet content-analysed'}{rep.sis.length?' · Self–ideal grids: '+rep.sis.length:''}{rep.dils.length?' · Dilemmas: '+rep.withDil+'/'+rep.dils.length:''}</p>
-        <div className="toolbar" style={{marginTop:'.6rem'}}><button className="btn btn-sm" onClick={openReport}>Open printable report (PDF)</button></div>
+        <div className="toolbar" style={{marginTop:'.6rem',gap:'.5rem'}}>
+          <button className="btn btn-sm" onClick={()=>generateStudyPDF(config,responses)}>⬇ Download branded PDF</button>
+          <button className="btn-s btn-sm" onClick={openReport}>Open printable report</button>
+        </div>
       </div>
     </div>
   );
@@ -2477,8 +2544,7 @@ const DASH_NAV=[
     {id:'change',t:'Change over time',d:'Pre/post movement in complexity, conflict & self–ideal.'},
   ]},
   {area:'Report & share', tiles:[
-    {id:'report',t:'Narrative report',d:'Auto-written, printable PDF summary of the study.'},
-    {id:'exports',t:'Branded exports',d:'Word / PowerPoint deliverables.',soon:true},
+    {id:'report',t:'Narrative report & PDF',d:'Auto-written summary + branded ChangeBefore PDF.'},
     {id:'share',t:'Share links',d:'Read-only view links for stakeholders.',soon:true},
   ]},
 ];
