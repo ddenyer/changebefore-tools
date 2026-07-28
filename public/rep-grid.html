@@ -571,6 +571,21 @@ function downloadCsv(rows, filename){
   const a=document.createElement('a'); a.href=url; a.download=filename; a.click(); URL.revokeObjectURL(url);
 }
 const slug=(s)=>String(s||'rep-grid').replace(/[^\w]+/g,'_').slice(0,50);
+// Private name key — real interviewee names are held ONLY in this browser
+// (never sent to the server when a study is anonymised). The researcher keeps
+// the code↔name mapping offline via "Download name key".
+function lsNameKey(code,pid){ return 'rgname:'+code+':'+pid; }
+function lsGetName(code,pid){ try{ return localStorage.getItem(lsNameKey(code,pid))||''; }catch(e){ return ''; } }
+function lsSetName(code,pid,name){ try{ if(name) localStorage.setItem(lsNameKey(code,pid), name); }catch(e){} }
+// Stable per-person code (R1, R2…) for a real name, allocated once per device and
+// reused for that name (so the same person keeps one code across waves). Only the
+// code is ever sent to the server.
+function lsCodeFor(code,name){ if(!name) return '';
+  try{ const k='rgmap:'+code, map=JSON.parse(localStorage.getItem(k)||'{}');
+    if(!map[name]){ map[name]='R'+(Object.keys(map).length+1); localStorage.setItem(k,JSON.stringify(map)); }
+    return map[name];
+  }catch(e){ return name; } }
+function lsCodeMap(code){ try{ return JSON.parse(localStorage.getItem('rgmap:'+code)||'{}'); }catch(e){ return {}; } }
 async function api(path, body){
   const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   const j=await r.json().catch(()=>({}));
@@ -816,7 +831,8 @@ function GuidedCheck({constructs, elements, ratings, lo, hi, onAddConstruct, onA
   );
 }
 function Interview({config, code, resp, onBack, readOnly, participant}){
-  const [name,setName]=useState(resp.participant_name||'');
+  const anon=!!(config&&config.anon);
+  const [name,setName]=useState((anon? lsGetName(code,resp.participant_id):'') || resp.participant_name || '');
   const [ratings,setRatings]=useState((resp.data&&resp.data.ratings)||{});
   const outcomes=(config.suppliedConstructs&&config.suppliedConstructs.length)?config.suppliedConstructs:[{id:'supplied',left:config.suppliedLeft||'Preferred',right:config.suppliedRight||'Opposite'}];
   const [suppliedRatings,setSuppliedRatings]=useState(()=>{
@@ -849,9 +865,10 @@ function Interview({config, code, resp, onBack, readOnly, participant}){
     if(readOnly) return;
     setSaveState('saving'); clearTimeout(timer.current);
     const snap={ratings,suppliedRatings,supplied:suppliedRatings['supplied']||{},quotes,elicited,elicitedElements,noPolarity,elementNames,wave,status:nextStatus||status};
+    if(anon) lsSetName(code,resp.participant_id,name);   // real name stays on this device only
     timer.current=setTimeout(async()=>{
       try{
-        await saveWithRetry({kind:'response',session_code:code,participant_id:resp.participant_id,participant_name:name,
+        await saveWithRetry({kind:'response',session_code:code,participant_id:resp.participant_id,participant_name: anon? lsCodeFor(code,name):name,
           data:{...snap, completedAt: snap.status==='complete'? new Date().toISOString(): null}});
         setSaveState('saved');
       }catch(e){ setSaveState('error'); alert("We couldn't save right now. Please check your connection and try again."); }
@@ -1047,7 +1064,8 @@ function Interview({config, code, resp, onBack, readOnly, participant}){
       {!readOnly&&<div className="btn-row"><div className="grow"/><button className="btn-p" onClick={async()=>{
         setStatus('complete');
         if(participant){ const snap={ratings,suppliedRatings,supplied:suppliedRatings['supplied']||{},quotes,elicited,elicitedElements,noPolarity,elementNames,wave,status:'complete'};
-          try{ await saveWithRetry({kind:'response',session_code:code,participant_id:resp.participant_id,participant_name:name,data:{...snap,completedAt:new Date().toISOString()}}); }catch(e){}
+          if(anon) lsSetName(code,resp.participant_id,name);
+          try{ await saveWithRetry({kind:'response',session_code:code,participant_id:resp.participant_id,participant_name: anon? lsCodeFor(code,name):name,data:{...snap,completedAt:new Date().toISOString()}}); }catch(e){}
           onBack&&onBack();
         } else scheduleSave('complete');
       }}>{participant?'Submit my grid':'Mark interview complete'}</button></div>}
@@ -1092,7 +1110,7 @@ function Setup({config,setConfig,onSave,saving,savedMsg,readOnly}){
   }
   return (
     <div className="fade">
-      {!readOnly&&<div className="help-box"><span className="help-h">Setup · define the study (do this first)</span>Set this up once. Give the study a <b>title</b> and a short <b>description</b>, choose the <b>rating scale</b> (1–10 is common), and define your <b>element categories</b> — the kinds of situation each interviewee brings (for example two categories with a target of three each). The actual elements and constructs are elicited from each person during their interview; shared (prescribed) ones — like the effectiveness yardstick and any “ideal” element — live on the next two tabs. New here? Pick a <b>template</b> or <b>Load example</b> to fill in a generic design you can adapt.</div>}
+      {!readOnly&&<div className="help-box"><span className="help-h">Setup · define the study (do this first)</span>Set this up once. Give the study a <b>title</b> and a short <b>description</b>, choose the <b>rating scale</b> (1–10 is common), and define your <b>element categories</b> — the kinds of situation each interviewee brings (for example two categories with a target of three each). The actual elements and constructs are elicited from each person during their interview; shared (prescribed) ones — like the effectiveness yardstick and any “ideal” element — live on the next two tabs. New here? Pick a <b>template</b> above to fill in a generic starting design you can adapt, or read the <b>Setup guide</b> tile first.</div>}
       {!readOnly&&<div className="card"><div className="toolbar">
         <div className="sec-tag" style={{margin:0}}>Start from a template</div><div className="grow"/>
         <select className="inp inp-sm" style={{width:220}} value={tpl} onChange={e=>setTpl(e.target.value)}>
@@ -1113,6 +1131,11 @@ function Setup({config,setConfig,onSave,saving,savedMsg,readOnly}){
           <div><label className="field-lbl">Scale min</label><input className="inp inp-sm" type="number" value={c.scaleMin} readOnly={readOnly} onChange={e=>set({scaleMin:Number(e.target.value)})}/></div>
           <div><label className="field-lbl">Scale max</label><input className="inp inp-sm" type="number" value={c.scaleMax} readOnly={readOnly} onChange={e=>set({scaleMax:Number(e.target.value)})}/></div>
         </div>
+        <div className="sp"/>
+        <label className="anon-toggle" style={{display:'flex',alignItems:'center',gap:8}}>
+          <input type="checkbox" checked={!!c.anon} disabled={readOnly} onChange={e=>set({anon:e.target.checked})}/>
+          <span><b>Anonymise this study</b> — interviewees are stored as codes (R1, R2…) and elements shown as E1, E2… . You can still type real names during an interview for convenience, but the name is kept <b>only in this browser</b> and never sent to the server; download the <b>Name key</b> (Interviews tab) to keep the code↔name link safely offline. Analysis, the PDF and shared views show codes only.</span>
+        </label>
       </div>
 
       <div className="card">
@@ -1132,7 +1155,6 @@ function Setup({config,setConfig,onSave,saving,savedMsg,readOnly}){
       </div>
 
       {!readOnly&&<div className="btn-row">
-        <button className="btn-s" onClick={()=>setConfig(freshExample())}>Load example</button>
         <div className="grow"/>
         {savedMsg&&<span className="small" style={{color:'#16794a'}}>{savedMsg}</span>}
         <button className="btn-p" onClick={onSave} disabled={saving}>{saving?'Saving…':'Save setup'}</button>
@@ -1311,15 +1333,24 @@ function AllConstructs({config,responses,onSaveResponse,readOnly}){
 }
 
 /* ============================ Interviews ====================== */
-function Interviews({config,responses,onOpen,onNew,onDelete,readOnly}){
+function Interviews({config,code,responses,onOpen,onNew,onDelete,readOnly}){
   const ready=config.elements.length>0;
+  const anon=!!(config&&config.anon);
+  function downloadKey(){
+    const map=lsCodeMap(code); const rows=[['Code','Name']].concat(Object.keys(map).map(nm=>[map[nm],nm]));
+    if(rows.length<2){ alert('No names are stored on this device yet.'); return; }
+    downloadCsv(rows, slug(config.title)+'_name_key.csv');
+  }
   return (
     <div className="fade">
       {!readOnly&&<div className="help-box"><span className="help-h">Interviews · collect the grids</span>Run one repertory grid per person. Click <b>+ New interview</b>, enter their name, then rate every element on every construct using your scale. You can also add <b>elicited constructs</b> — ones that surface in the person’s own words — as you go, and capture a supporting quote. Mark each interview <b>complete</b> when done. Aim for enough people that themes start to repeat (often 8–20). If you share your screen, the interviewee can watch the grid fill in live.</div>}
       <div className="topbar">
         <div className="sec-tag" style={{margin:0}}>Interviews ({responses.length})</div>
+        <div className="grow"/>
+        {anon&&<button className="btn-s btn-sm" title="Download the code↔name key held on this device — keep it somewhere safe and offline" onClick={downloadKey}>⬇ Name key</button>}
         {!readOnly&&<button className="btn-p btn-sm" disabled={!ready} onClick={onNew}>+ New interview</button>}
       </div>
+      {anon&&<div className="inf-box" style={{fontSize:'.8rem'}}>This study is <b>anonymised</b>: interviewee names are stored only on this device and never sent to the server (the server keeps codes like R1, R2…). Download the <b>Name key</b> and keep it safely offline — it’s the only record linking a code to a person.</div>}
       {!ready&&!readOnly&&<div className="inf-box">Add elements in Setup and save the grid design before running interviews. Prescribed constructs are optional — you can add elicited constructs during each interview.</div>}
       {responses.length===0&&ready&&<p className="muted small">No interviews yet.</p>}
       <div className="card" style={{padding:responses.length?'.4rem 1.25rem':'1.1rem 1.25rem'}}>
@@ -1327,7 +1358,7 @@ function Interviews({config,responses,onOpen,onNew,onDelete,readOnly}){
           const st=(r.data&&r.data.status)||'draft';
           return (
             <div className="list-row" key={r.participant_id}>
-              <b style={{minWidth:130}}>{r.participant_name||'(unnamed)'}</b>
+              <b style={{minWidth:130}}>{(anon? lsGetName(code,r.participant_id):'') || r.participant_name || '(unnamed)'}{anon&&r.participant_name&&<span className="mini" style={{fontWeight:400,marginLeft:6}}>({r.participant_name})</span>}</b>
               <span className={"tag "+(st==='complete'?'done':st==='in_progress'?'prog':'')}>{st}</span>
               <div className="grow"/>
               <button className="btn-s btn-sm" onClick={()=>onOpen(r)}>{readOnly?'View':'Open'}</button>
@@ -2427,6 +2458,25 @@ function sharedFrame(config, responses){
   const cons=(config.constructs||[]);
   return {els, cons};
 }
+// Anonymise for display/export: interviewees → R1, R2… (same person keeps one
+// label across waves), elements → E1, E2… . Ids are untouched, so all analysis
+// still works; only the visible names change.
+function anonymise(config, responses){
+  const pre=(config.elements||[]);
+  const cfg={...config, elements:pre.map((e,i)=>({...e, name:'E'+(i+1)}))};
+  const m=pre.length;
+  // Interviewee names are already stored as codes (see save paths); only the
+  // element text needs masking here. Legacy real names left in place still get a
+  // stable R-label so they don't leak through.
+  const nameMap={}; let rc=0;
+  responses.forEach(r=>{ const mm=/^R(\d+)$/.exec(r.participant_name||''); if(mm) rc=Math.max(rc,+mm[1]); });
+  const rlabel=(r)=>{ const nm=r.participant_name||r.participant_id||''; if(/^R\d+$/.test(nm)) return nm; if(!(nm in nameMap)) nameMap[nm]='R'+(++rc); return nameMap[nm]; };
+  const resp=responses.map(r=>{ const d=r.data||{};
+    const eli=(d.elicitedElements||[]).map((e,i)=>({...e, name:'E'+(m+i+1)}));
+    return {...r, participant_name:rlabel(r), data:{...d, elicitedElements:eli, elementNames:null}};
+  });
+  return {config:cfg, responses:resp};
+}
 function distributionOf(config, responses){
   const cats=config.categories||[]; const sum={}; cats.forEach(c=>sum[c.id]=0); let tot=0;
   responses.forEach(r=>{ const p=categoryProfile(config,r); cats.forEach(c=>{ sum[c.id]+=p[c.id]||0; tot+=p[c.id]||0; }); });
@@ -2659,6 +2709,43 @@ function ReportModule({config,responses,code}){
     </div>
   );
 }
+function SetupGuide(){
+  const rows=[
+    ['Group everyone’s ideas into themes (the core Honey result)','Add <b>one outcome construct</b> on Prescribed constructs (e.g. “effective → not effective”). Run interviews, then code the constructs into categories on Composite constructs. No special design needed.'],
+    ['Analyse against several criteria at once','Add <b>more than one outcome construct</b> on Prescribed constructs (e.g. Effective, Confident, Aligned). Each one gets its own Honey table.'],
+    ['Self–ideal gap &amp; implicative dilemmas','Every interviewee needs one element tagged <b>Self</b> and one tagged <b>Ideal</b> (the role dropdown on an element, inside the interview). Decide this <i>before</i> you interview.'],
+    ['Change over time (pre / post)','Interview the same people more than once. Give each of their interviews the <b>same display name</b> and a different <b>Wave</b> (e.g. “Pre”, “Post”) — the wave box is at the top of the interview.'],
+    ['Consensus &amp; difference (a group grid)','Everyone must rate the <b>same</b> elements on the <b>same</b> constructs. Add these as <b>Prescribed elements</b> and <b>Prescribed constructs</b> — per-person elicited items can’t be averaged.'],
+    ['Segmentation &amp; norm bases','Both need your constructs <b>coded into categories</b> first (Composite constructs). After that they compute automatically.'],
+    ['Compare against a standard scheme','Instead of building your own categories, open the <b>CSPC</b> tile and load the dictionary, then code against it — so your results line up with the wider literature.'],
+    ['Keep interviewees anonymous','Tick <b>Anonymise…</b> on Setup. Analysis, the PDF and shared views then show R1, R2… and E1, E2…, while your own interview screens keep the real names.'],
+    ['Let a supervisor or client see results','Use the <b>Share links</b> tile for a read-only link (they need the access code, not the facilitator password). To collect grids remotely, give participants the code and the “I’m a participant” button.'],
+  ];
+  const examples=[
+    {t:'Example A — leadership effectiveness (a one-off study)', b:'Set one outcome construct “Highly effective → Not effective”. No self/ideal, no waves. Interview ~15 leaders, elicit 6–10 constructs each by triads, code them into categories, and read the Composite table. Turn on Anonymise for the write-up if needed.'},
+    {t:'Example B — coaching, measured before and after', b:'As Example A, but tag a <b>Self</b> and an <b>Ideal</b> element in every interview, and interview each coachee <b>twice</b> — same name, wave “Pre” then “Post”. You can then use Self–ideal, Implicative dilemmas and Change over time.'},
+    {t:'Example C — brand comparison (shared elements)', b:'Add the brands as <b>Prescribed elements</b> and a “Very appealing → Not appealing” outcome. Because everyone rates the same brands, the <b>Consensus &amp; difference</b> grid works and shows where customers agree or split.'},
+  ];
+  return (
+    <div className="fade">
+      <div className="help-box"><span className="help-h">Setup guide — plan the study before you collect data</span>
+        <p className="hp">A few of the analyses only work if you set the study up for them <i>up front</i> — you can’t add “before and after” or a self–ideal gap after the interviews are done. Use this page to decide what you’ll need, then set it on Setup and the Prescribed tabs.</p>
+      </div>
+      <div className="card"><div className="sec-tag">If you want to… → set it up like this</div>
+        <table className="grid" style={{fontSize:'.85rem'}}>
+          <thead><tr><th className="pole" style={{textAlign:'left',width:'38%'}}>If you want to…</th><th className="pole" style={{textAlign:'left'}}>Set it up like this</th></tr></thead>
+          <tbody>{rows.map((r,i)=><tr key={i}><td className="pole" style={{textAlign:'left',verticalAlign:'top'}} dangerouslySetInnerHTML={{__html:r[0]}}/><td style={{textAlign:'left'}} dangerouslySetInnerHTML={{__html:r[1]}}/></tr>)}</tbody>
+        </table>
+      </div>
+      <div className="card"><div className="sec-tag">Hypothetical examples</div>
+        {examples.map((e,i)=><div key={i} style={{marginBottom:'.7rem'}}>
+          <div style={{fontWeight:700,fontSize:'.88rem'}}>{e.t}</div>
+          <p className="hp" style={{marginTop:'.15rem'}} dangerouslySetInnerHTML={{__html:e.b}}/>
+        </div>)}
+      </div>
+    </div>
+  );
+}
 function ShareModule({code}){
   const url=location.origin+location.pathname+'?code='+encodeURIComponent(code)+'&view=1';
   const [copied,setCopied]=useState(false);
@@ -2676,7 +2763,8 @@ function ShareModule({code}){
 }
 const DASH_NAV=[
   {area:'Design', tiles:[
-    {id:'setup',t:'Study setup',d:'Title, rating scale, description and element categories.'},
+    {id:'guide',t:'Setup guide',d:'How to set the tool up for each analysis — with worked examples.'},
+    {id:'setup',t:'Study setup',d:'Title, rating scale, description, anonymise and element categories.'},
     {id:'pconstructs',t:'Prescribed constructs',d:'Outcome constructs (the Honey yardsticks) + shared constructs.'},
     {id:'pelements',t:'Prescribed elements',d:'Shared elements added to every grid (e.g. an “ideal”).'},
   ]},
@@ -2757,7 +2845,9 @@ function Dashboard({code, onSignOut, viewer}){
   }
   async function saveResponse(resp){
     if(config&&config.readOnly) return;
-    try{ await saveWithRetry({kind:'response',session_code:code,participant_id:resp.participant_id,participant_name:resp.participant_name||'',data:resp.data}); await reload(); }
+    const anon=!!(config&&config.anon);
+    if(anon&&resp.participant_name) lsSetName(code,resp.participant_id,resp.participant_name);
+    try{ await saveWithRetry({kind:'response',session_code:code,participant_id:resp.participant_id,participant_name: anon? lsCodeFor(code,resp.participant_name||''):(resp.participant_name||''),data:resp.data}); await reload(); }
     catch(e){ alert('Save failed: '+e.message); }
   }
   function newInterview(){ if(config&&config.readOnly) return; setActive({participant_id:uid(),participant_name:'',data:{ratings:{},supplied:{},quotes:{},status:'in_progress'}}); }
@@ -2770,6 +2860,10 @@ function Dashboard({code, onSignOut, viewer}){
 
   if(loading) return <div className="content"><p className="muted">Loading session…</p></div>;
   const readOnly=!!(config&&config.readOnly)||!!viewer;
+  // Analysis/export views use anonymised labels (R1, E1…) when the study opts in;
+  // management views (interviews, coding, setup) always show the real names.
+  const aData=(config&&config.anon)? anonymise(config,responses) : {config,responses};
+  const aConfig=aData.config, aResponses=aData.responses;
   if(active) return <Interview config={config} code={code} resp={active} readOnly={readOnly} onBack={()=>{ setActive(null); reload(); }}/>;
 
   return (
@@ -2805,28 +2899,29 @@ function Dashboard({code, onSignOut, viewer}){
       ) : (
         <div className="fade">
           <button className="mod-back" onClick={()=>setTab(null)}>← Dashboard</button>
+          {tab==='guide'&&<SetupGuide/>}
           {tab==='setup'&&<Setup config={config} setConfig={setConfig} onSave={saveConfig} saving={saving} savedMsg={savedMsg} readOnly={readOnly}/>}
           {tab==='pconstructs'&&<PrescribedConstructs config={config} setConfig={setConfig} onSave={saveConfig} saving={saving} savedMsg={savedMsg} readOnly={readOnly}/>}
           {tab==='pelements'&&<PrescribedElements config={config} setConfig={setConfig} onSave={saveConfig} saving={saving} savedMsg={savedMsg} readOnly={readOnly}/>}
-          {tab==='interviews'&&<Interviews config={config} responses={responses} onOpen={setActive} onNew={newInterview} onDelete={deleteResponse} readOnly={readOnly}/>}
+          {tab==='interviews'&&<Interviews config={config} code={code} responses={responses} onOpen={setActive} onNew={newInterview} onDelete={deleteResponse} readOnly={readOnly}/>}
           {tab==='allelements'&&<AllElements config={config} setConfig={setConfig} onSaveConfig={saveConfig} responses={responses} onSaveResponse={saveResponse} readOnly={readOnly}/>}
           {tab==='allconstructs'&&<AllConstructs config={config} responses={responses} onSaveResponse={saveResponse} readOnly={readOnly}/>}
-          {tab==='individual'&&<Analysis config={config} responses={responses} onOpen={setActive}/>}
+          {tab==='individual'&&<Analysis config={aConfig} responses={aResponses} onOpen={(r)=>setActive(responses.find(x=>x.participant_id===r.participant_id)||r)}/>}
           {tab==='composite'&&<CompositeConstructs config={config} setConfig={setConfig} responses={responses} onSave={saveConfig} saving={saving} savedMsg={savedMsg} readOnly={readOnly}/>}
-          {tab==='table'&&<CompositeTable config={config} responses={responses}/>}
-          {tab==='complexity'&&<ComplexityModule config={config} responses={responses}/>}
-          {tab==='matrices'&&<MatricesModule config={config} responses={responses}/>}
-          {tab==='maps'&&<MapsModule config={config} responses={responses}/>}
-          {tab==='dendro'&&<DendroModule config={config} responses={responses}/>}
-          {tab==='selfideal'&&<SelfIdealModule config={config} responses={responses}/>}
-          {tab==='dilemmas'&&<DilemmasModule config={config} responses={responses}/>}
-          {tab==='conflict'&&<ConflictModule config={config} responses={responses}/>}
+          {tab==='table'&&<CompositeTable config={aConfig} responses={aResponses}/>}
+          {tab==='complexity'&&<ComplexityModule config={aConfig} responses={aResponses}/>}
+          {tab==='matrices'&&<MatricesModule config={aConfig} responses={aResponses}/>}
+          {tab==='maps'&&<MapsModule config={aConfig} responses={aResponses}/>}
+          {tab==='dendro'&&<DendroModule config={aConfig} responses={aResponses}/>}
+          {tab==='selfideal'&&<SelfIdealModule config={aConfig} responses={aResponses}/>}
+          {tab==='dilemmas'&&<DilemmasModule config={aConfig} responses={aResponses}/>}
+          {tab==='conflict'&&<ConflictModule config={aConfig} responses={aResponses}/>}
           {tab==='cspc'&&<CSPCModule config={config} setConfig={setConfig} onSaveConfig={saveConfig} readOnly={readOnly}/>}
-          {tab==='segments'&&<SegmentsModule config={config} responses={responses}/>}
-          {tab==='compare'&&<CompareModule config={config} responses={responses}/>}
+          {tab==='segments'&&<SegmentsModule config={aConfig} responses={aResponses}/>}
+          {tab==='compare'&&<CompareModule config={aConfig} responses={aResponses}/>}
           {tab==='norms'&&<NormsModule config={config} setConfig={setConfig} onSaveConfig={saveConfig} responses={responses} readOnly={readOnly}/>}
-          {tab==='change'&&<ChangeModule config={config} responses={responses}/>}
-          {tab==='report'&&<ReportModule config={config} responses={responses} code={code}/>}
+          {tab==='change'&&<ChangeModule config={aConfig} responses={aResponses}/>}
+          {tab==='report'&&<ReportModule config={aConfig} responses={aResponses} code={code}/>}
           {tab==='share'&&<ShareModule code={code}/>}
         </div>
       )}
