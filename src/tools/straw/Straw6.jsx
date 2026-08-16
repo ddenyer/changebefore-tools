@@ -141,18 +141,13 @@ const COST_LINES = [
 /* Below-the-line items that convert the operating (contribution) surplus into
    the fully-loaded net result. Service charge held flat; loan editable. */
 const UNI_CHARGE = { id:"uni_charge", name:"University service charge (TRAC)", q3:8991, bud:8991 };
-/* Management charge — FBaM forecast (provisional), recalculated and confirmed by
-   the Finance Director (Sarah Tose). The "Adjusted management charge" is the sum
-   of three components per year — core Management Charge, Building Savings due to
-   relocation, and the remaining Apprenticeship charge (inflation at 3.5% already
-   included). These are the DEFAULTS — the service-charge cells remain fully
-   editable, and an explicit edit overrides the default for that year.
-     25/26 (Q3): 3,601 + 3,237 + 589 = 7,427
-     26/27:      3,727 + 1,195 + 508 = 5,430
-     27/28:      3,857 + 1,237 + 150 = 5,245
-     28/29:      3,992 + 1,281 + 155 = 5,428
-     29/30:      4,132 + 1,325 +   0 = 5,458                                       */
-const DEFAULT_UNI_BY_YEAR = { 2026: 7427, 2027: 5430, 2028: 5245, 2029: 5428, 2030: 5458 };
+/* University management charge. £8,398k is the University Executive's confirmed
+   figure for 2025/26 (Ian Sibbald / Centre). Agreed forward forecasts for
+   2026/27–2029/30 are not yet available from the University, so the 2025/26
+   figure is held FLAT across the estimate years as a PLACEHOLDER pending those
+   forecasts (see the note shown beneath the P&L). The cells remain fully
+   editable, so any confirmed forward figures can be entered directly.           */
+const DEFAULT_UNI_BY_YEAR = { 2026: 8398, 2027: 8398, 2028: 8398, 2029: 8398, 2030: 8398 };
 const LOAN        = { id:"loan",       name:"University loan repayment",        q3:0,    bud:0    };
 
 const STAFF_IDS     = COST_LINES.filter(l => l.group === "staff").map(l => l.id);
@@ -359,10 +354,35 @@ function loanGrowthRequirement(m) {
   return out;
 }
 
+/* Alternative to growth: on the do-nothing trajectory (no strategic growth),
+   what COST reduction would bring the net surplus back to the target — measured
+   both before the loan and after it (i.e. also covering the loan). Expressed as
+   the reduction to the University service charge (the preferred lever, since it
+   is a transfer to the centre), and equivalently the reduction that would have
+   to come from the operating cost base if the charge were fixed. Same pounds,
+   different lever. Computed against the current-trajectory (do-nothing) P&L.     */
+function costReductionRequirement(m) {
+  const dn = { ...m, _ignoreRevOverride: true, posture: {} };
+  const tp = targetPath(m);
+  const out = { years: {} };
+  [2028, 2029, 2030].forEach(yr => {
+    const k = yearKpis(yr, dn);
+    const g = tp[yr] / 100;
+    const target = k.revTotal * g;          /* net £ needed for target % */
+    const cutPre = target - k.net;          /* reduction to reach target pre-loan */
+    const loan = loanFor(yr, m);
+    const cutAfter = cutPre + loan;         /* also cover the loan */
+    const charge = uniFor(yr, m);
+    out.years[yr] = {
+      cutPre, cutAfter, loan, charge,
+      chargePre: charge - cutPre,           /* charge would need to fall to this (pre-loan) */
+      chargeAfter: charge - cutAfter,       /* charge would need to fall to this (after-loan) */
+    };
+  });
+  return out;
+}
+
 /* ── SOLVE TO TARGET ──────────────────────────────────────────────────────────
-   Given the per-year net% targets, find the configuration that hits them by
-   growing the three expandable lines — CED Customised, Open Programmes and
-   Micro-credentials — holding every other line on its trajectory.
    Solve revTotal for a net% target g, with marginal cost rate c and budget rev B:
      R = (baseCost − c·B + uni + loan) / (1 − c − g)
    then distribute the shortfall across the three growth lines.                  */
@@ -863,7 +883,7 @@ function PLTable({ m, years, editBase = false, editYears = [], onCell, compact =
         {editBase ? "Every figure here is editable — correct any line or the service charge if the numbers have moved." : "Columns marked * are estimates."}
       </div>
       <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "#999", marginTop: 4 }}>
-        Service charge reflects the management charge confirmed by the Finance Director (FBaM forecast, provisional): the adjusted charge — core management charge plus building savings from relocation, less the reducing apprenticeship element — is £5,430k in 2026/27, then £5,245k / £5,428k / £5,458k across the estimate years (£7,427k in the Q3 position). The cells remain editable.
+        <strong>University management charge:</strong> £8,398k is the University Executive's confirmed figure for 2025/26. Agreed University forecasts for 2026/27 onward are not yet available, so this figure is held flat across the estimate years as a placeholder, pending confirmed forward forecasts from the University. The cells remain editable, and the forward figures should be updated once the University provides them.
       </div>
       {loanPanel && (() => {
         const lg = loanGrowthRequirement(m);
@@ -913,11 +933,60 @@ function PLTable({ m, years, editBase = false, editYears = [], onCell, compact =
           </div>
         );
       })()}
+      {loanPanel && (() => {
+        const cr = costReductionRequirement(m);
+        const anyLoan = [2028, 2029, 2030].some(y => loanFor(y, m) > 0);
+        const tgt = nv(m.targetPct, 7.5);
+        const cell = (v, extra = {}) => <td style={{ textAlign: "right", padding: "4px 8px", ...extra }}>{fmtK(v)}</td>;
+        return (
+          <div style={{ marginTop: 18, padding: "14px 16px", background: "#f4f6f4", borderLeft: "3px solid #2d7d46", borderRadius: 4 }}>
+            <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 18, fontWeight: 600, color: "#1a1a1a", marginBottom: 4 }}>
+              The alternative: cost reduction instead of growth
+            </div>
+            <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12.5, color: "#444", marginBottom: 12, lineHeight: 1.5 }}>
+              If revenue simply stayed on its current trajectory, with no strategic growth, this is the annual cost reduction that would instead be needed to reach {tgt}%. The preferred lever is the University management charge (a transfer to the centre); the same figure could alternatively come from the operating cost base (staff and other costs) if the charge is fixed.
+            </div>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "'IBM Plex Mono',monospace", fontSize: 13 }}>
+              <thead>
+                <tr style={{ borderBottom: "1px solid #ddd", textAlign: "right" }}>
+                  <th style={{ textAlign: "left", padding: "4px 8px", fontWeight: 600 }}>£k</th>
+                  <th style={{ padding: "4px 8px", fontWeight: 600 }}>Est 27/28</th>
+                  <th style={{ padding: "4px 8px", fontWeight: 600 }}>Est 28/29</th>
+                  <th style={{ padding: "4px 8px", fontWeight: 600 }}>Est 29/30</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style={{ textAlign: "left", padding: "4px 8px", fontWeight: 600 }}>Cut to reach {tgt}% before loan</td>
+                  {[2028, 2029, 2030].map(y => cell(cr.years[y].cutPre, { key: y, color: "#2d7d46", fontWeight: 600 }))}
+                </tr>
+                <tr>
+                  <td style={{ textAlign: "left", padding: "4px 8px", color: "#666" }}>— management charge would fall to</td>
+                  {[2028, 2029, 2030].map(y => cell(cr.years[y].chargePre, { key: y, color: "#666" }))}
+                </tr>
+                {anyLoan && <>
+                  <tr>
+                    <td style={{ textAlign: "left", padding: "4px 8px", fontWeight: 600 }}>Cut to reach {tgt}% after loan</td>
+                    {[2028, 2029, 2030].map(y => cell(cr.years[y].cutAfter, { key: y, color: "#b83232", fontWeight: 600 }))}
+                  </tr>
+                  <tr>
+                    <td style={{ textAlign: "left", padding: "4px 8px", color: "#666" }}>— management charge would fall to</td>
+                    {[2028, 2029, 2030].map(y => cell(cr.years[y].chargeAfter, { key: y, color: "#666" }))}
+                  </tr>
+                </>}
+              </tbody>
+            </table>
+            {anyLoan && (
+              <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12.5, color: "#444", marginTop: 12, lineHeight: 1.5 }}>
+                <strong>The difference between the two lines is the loan.</strong> Reaching {tgt}% on the operating position alone would need a reduction of roughly £{fmtK(cr.years[2030].cutPre)} a year by 2029/30. Covering the loan repayment as well raises that to roughly £{fmtK(cr.years[2030].cutAfter)} a year — an additional £{fmtK(cr.years[2030].loan)} of cost that must be found, every year, on top. Whether taken from the management charge or from staff and operating costs, the loan roughly doubles the scale of reduction required, which is why it cannot sensibly be treated as a residual once the target is set.
+              </div>
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 }
-
-/* ── ENTRY SCREEN ─────────────────────────────────────────────────────────── */
 function Entry({ onEnter }) {
   const [pwd, setPwd] = useState("");
   const [showPwd, setShowPwd] = useState(false);
@@ -1955,7 +2024,7 @@ function Workspace({ name, onExit }) {
   return (
     <div className="sl-shell">
       <div className="sl-header">
-        <div className="sl-header-title">STRAWPERSON — FBaM Financial Scenario · shared model <span style={{ color: "#bbb", fontWeight: 400 }}>· build 6.33</span></div>
+        <div className="sl-header-title">STRAWPERSON — FBaM Financial Scenario · shared model <span style={{ color: "#bbb", fontWeight: 400 }}>· build 6.35</span></div>
         <div className="sl-header-right">{name}{m.lastEditedBy && m.lastEditedBy !== name ? ` · last edit: ${m.lastEditedBy}` : ""} &nbsp;·&nbsp;
           <button style={{ background: "none", border: "none", fontSize: 11, color: "#888", cursor: "pointer", textDecoration: "underline" }} onClick={onExit}>Exit</button>
         </div>
