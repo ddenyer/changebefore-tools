@@ -354,32 +354,40 @@ function loanGrowthRequirement(m) {
   return out;
 }
 
-/* Alternative to growth: on the do-nothing trajectory (no strategic growth),
-   what COST reduction would bring the net surplus back to the target — measured
-   both before the loan and after it (i.e. also covering the loan). Expressed as
-   the reduction to the University service charge (the preferred lever, since it
-   is a transfer to the centre), and equivalently the reduction that would have
-   to come from the operating cost base if the charge were fixed. Same pounds,
-   different lever. Computed against the current-trajectory (do-nothing) P&L.     */
-function costReductionRequirement(m) {
-  const dn = { ...m, _ignoreRevOverride: true, posture: {} };
-  const tp = targetPath(m);
-  const out = { years: {} };
-  [2028, 2029, 2030].forEach(yr => {
-    const k = yearKpis(yr, dn);
-    const g = tp[yr] / 100;
-    const target = k.revTotal * g;          /* net £ needed for target % */
-    const cutPre = target - k.net;          /* reduction to reach target pre-loan */
-    const loan = loanFor(yr, m);
-    const cutAfter = cutPre + loan;         /* also cover the loan */
-    const charge = uniFor(yr, m);
-    out.years[yr] = {
-      cutPre, cutAfter, loan, charge,
-      chargePre: charge - cutPre,           /* charge would need to fall to this (pre-loan) */
-      chargeAfter: charge - cutAfter,       /* charge would need to fall to this (after-loan) */
-    };
+/* BOX 1 — the operating trade-off (pre-loan, 2029/30). For a range of overall
+   total-income growth rates, the cost reduction still needed to reach the target
+   pre-loan, and the service charge that implies. Shows growth and cost as two
+   levers on the same target: more growth, less cut needed, and vice versa.       */
+function growthCostTradeoff(m, yr = 2030) {
+  const B = budgetRevTotal(m);
+  const baseCost = COST_LINES.reduce((s, l) => s + projCost(l, yr, m), 0);
+  const c = marginalRate(m) / 100;
+  const charge = uniFor(yr, m);
+  const g = nv(m.targetPct, 7.5) / 100;
+  const rates = [3, 2, 1, 0, -1, -2, -3];
+  return rates.map(gp => {
+    const income = B * Math.pow(1 + gp / 100, 3);
+    const marg = Math.max(0, income - B) * c;
+    const contribution = income - (baseCost + marg);
+    const net = contribution - charge;
+    const cut = income * g - net;             /* reduction to reach target pre-loan */
+    return { growthPct: gp, income, netPct: net / income * 100, cut, chargeTo: charge - cut };
   });
-  return out;
+}
+
+/* BOX 2 — the loan (post-loan). Uses the model-derived growth to hold target
+   pre-loan, and the (much larger) growth to also cover the loan, plus the
+   service-charge reduction that would cover the loan instead of growth.          */
+function loanRealityCheck(m) {
+  const s = solvedModel(m);
+  const preCustom = round1((Math.pow((s.rev[2030]?.ced_custom || 0) / 5700, 1 / 3) - 1) * 100);
+  const preOpen   = round1((Math.pow((s.rev[2030]?.open || 0) / 3326, 1 / 3) - 1) * 100);
+  const lg = loanGrowthRequirement(m);
+  const loanTotal = [2028, 2029, 2030].reduce((t, y) => t + loanFor(y, m), 0);
+  // charge that would cover the loan (per year): current charge minus the loan
+  const chargeIfLoan = {};
+  [2028, 2029, 2030].forEach(y => { chargeIfLoan[y] = { charge: uniFor(y, m), loan: loanFor(y, m), chargeTo: uniFor(y, m) - loanFor(y, m) }; });
+  return { preCustom, preOpen, afterCustom: lg.cagr.custom, afterOpen: lg.cagr.open, loanTotal, chargeIfLoan };
 }
 
 /* ── SOLVE TO TARGET ──────────────────────────────────────────────────────────
@@ -934,55 +942,74 @@ function PLTable({ m, years, editBase = false, editYears = [], onCell, compact =
         );
       })()}
       {loanPanel && (() => {
-        const cr = costReductionRequirement(m);
-        const anyLoan = [2028, 2029, 2030].some(y => loanFor(y, m) > 0);
         const tgt = nv(m.targetPct, 7.5);
-        const cell = (v, extra = {}) => <td style={{ textAlign: "right", padding: "4px 8px", ...extra }}>{fmtK(v)}</td>;
-        return (
+        const tradeoff = growthCostTradeoff(m, 2030);
+        const rc = loanRealityCheck(m);
+        const anyLoan = [2028, 2029, 2030].some(y => loanFor(y, m) > 0);
+        const rcell = (v, extra = {}) => <td style={{ textAlign: "right", padding: "4px 10px", ...extra }}>{v}</td>;
+        return (<>
+          {/* BOX 1 — growth / cost trade-off, pre-loan */}
           <div style={{ marginTop: 18, padding: "14px 16px", background: "#f4f6f4", borderLeft: "3px solid #2d7d46", borderRadius: 4 }}>
             <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 18, fontWeight: 600, color: "#1a1a1a", marginBottom: 4 }}>
-              The alternative: cost reduction instead of growth
+              Growth and cost: the operating trade-off
             </div>
             <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12.5, color: "#444", marginBottom: 12, lineHeight: 1.5 }}>
-              If revenue simply stayed on its current trajectory, with no strategic growth, this is the annual cost reduction that would instead be needed to reach {tgt}%. The preferred lever is the University management charge (a transfer to the centre); the same figure could alternatively come from the operating cost base (staff and other costs) if the charge is fixed.
+              Reaching {tgt}% on the operating surplus (before the loan) can come from revenue growth, from cost reduction, or from a mix. This shows, for a range of overall income-growth outcomes by 2029/30, the cost reduction that would still be needed to reach {tgt}% — and the management charge that implies. The more growth achieved, the smaller the cut required.
             </div>
             <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "'IBM Plex Mono',monospace", fontSize: 13 }}>
               <thead>
-                <tr style={{ borderBottom: "1px solid #ddd", textAlign: "right" }}>
-                  <th style={{ textAlign: "left", padding: "4px 8px", fontWeight: 600 }}>£k</th>
-                  <th style={{ padding: "4px 8px", fontWeight: 600 }}>Est 27/28</th>
-                  <th style={{ padding: "4px 8px", fontWeight: 600 }}>Est 28/29</th>
-                  <th style={{ padding: "4px 8px", fontWeight: 600 }}>Est 29/30</th>
+                <tr style={{ borderBottom: "1px solid #ddd" }}>
+                  <th style={{ textAlign: "left", padding: "4px 10px", fontWeight: 600 }}>Overall income growth (to 2029/30)</th>
+                  <th style={{ textAlign: "right", padding: "4px 10px", fontWeight: 600 }}>Surplus reached</th>
+                  <th style={{ textAlign: "right", padding: "4px 10px", fontWeight: 600 }}>Cost cut still needed</th>
+                  <th style={{ textAlign: "right", padding: "4px 10px", fontWeight: 600 }}>Charge would fall to</th>
                 </tr>
               </thead>
               <tbody>
-                <tr>
-                  <td style={{ textAlign: "left", padding: "4px 8px", fontWeight: 600 }}>Cut to reach {tgt}% before loan</td>
-                  {[2028, 2029, 2030].map(y => cell(cr.years[y].cutPre, { key: y, color: "#2d7d46", fontWeight: 600 }))}
-                </tr>
-                <tr>
-                  <td style={{ textAlign: "left", padding: "4px 8px", color: "#666" }}>— management charge would fall to</td>
-                  {[2028, 2029, 2030].map(y => cell(cr.years[y].chargePre, { key: y, color: "#666" }))}
-                </tr>
-                {anyLoan && <>
-                  <tr>
-                    <td style={{ textAlign: "left", padding: "4px 8px", fontWeight: 600 }}>Cut to reach {tgt}% after loan</td>
-                    {[2028, 2029, 2030].map(y => cell(cr.years[y].cutAfter, { key: y, color: "#b83232", fontWeight: 600 }))}
-                  </tr>
-                  <tr>
-                    <td style={{ textAlign: "left", padding: "4px 8px", color: "#666" }}>— management charge would fall to</td>
-                    {[2028, 2029, 2030].map(y => cell(cr.years[y].chargeAfter, { key: y, color: "#666" }))}
-                  </tr>
-                </>}
+                {tradeoff.map(row => {
+                  const noCut = row.cut <= 0;
+                  return (
+                    <tr key={row.growthPct} style={{ borderBottom: "1px solid #eee" }}>
+                      <td style={{ textAlign: "left", padding: "4px 10px", fontWeight: 600 }}>{row.growthPct >= 0 ? "+" : ""}{row.growthPct}% per year</td>
+                      {rcell(row.netPct.toFixed(1) + "%", { color: row.netPct >= tgt ? "#2d7d46" : "#444" })}
+                      {rcell(noCut ? "none" : fmtK(row.cut), { color: noCut ? "#2d7d46" : "#1a1a1a", fontWeight: 600 })}
+                      {rcell(noCut ? "—" : fmtK(row.chargeTo), { color: "#666" })}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
-            {anyLoan && (
-              <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12.5, color: "#444", marginTop: 12, lineHeight: 1.5 }}>
-                <strong>The difference between the two lines is the loan.</strong> Reaching {tgt}% on the operating position alone would need a reduction of roughly £{fmtK(cr.years[2030].cutPre)} a year by 2029/30. Covering the loan repayment as well raises that to roughly £{fmtK(cr.years[2030].cutAfter)} a year — an additional £{fmtK(cr.years[2030].loan)} of cost that must be found, every year, on top. Whether taken from the management charge or from staff and operating costs, the loan roughly doubles the scale of reduction required, which is why it cannot sensibly be treated as a residual once the target is set.
-              </div>
-            )}
+            <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12.5, color: "#444", marginTop: 12, lineHeight: 1.5 }}>
+              The cut can be taken from the University management charge (a transfer to the centre — shown here) or from the operating cost base (staff and other costs) if the charge is fixed. At the growth rates realistically achievable, some cost reduction is needed alongside growth to reach {tgt}% at the current charge of {fmtK(uniFor(2030, m))}.
+            </div>
           </div>
-        );
+          {/* BOX 2 — the loan, post-loan reality check */}
+          {anyLoan && (
+            <div style={{ marginTop: 18, padding: "14px 16px", background: "#fbf2f2", borderLeft: "3px solid #b83232", borderRadius: 4 }}>
+              <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 18, fontWeight: 600, color: "#1a1a1a", marginBottom: 4 }}>
+                The loan: not deliverable by growth alone
+              </div>
+              <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12.5, color: "#444", marginBottom: 12, lineHeight: 1.5 }}>
+                Holding {tgt}% on the operating surplus already requires CED Customised to grow at about <strong>{rc.preCustom}% a year</strong> and Open Programmes at about <strong>{rc.preOpen}%</strong>. Covering the loan repayment <em>through growth as well</em> would require:
+              </div>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "'IBM Plex Mono',monospace", fontSize: 13 }}>
+                <tbody>
+                  <tr style={{ borderBottom: "1px solid #eee" }}>
+                    <td style={{ textAlign: "left", padding: "4px 10px" }}>CED Customised — to also cover the loan</td>
+                    {rcell((rc.afterCustom != null ? "+" + rc.afterCustom + "%" : "—") + " / yr", { color: "#b83232", fontWeight: 600 })}
+                  </tr>
+                  <tr>
+                    <td style={{ textAlign: "left", padding: "4px 10px" }}>Open Programmes — to also cover the loan</td>
+                    {rcell((rc.afterOpen != null ? "+" + rc.afterOpen + "%" : "—") + " / yr", { color: "#b83232", fontWeight: 600 })}
+                  </tr>
+                </tbody>
+              </table>
+              <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12.5, color: "#444", marginTop: 12, lineHeight: 1.5 }}>
+                Sustained compound growth of around 30% and 25% on two large, established income lines is not a credible plan. The loan therefore cannot realistically be met from growth. Met from the management charge instead, the charge would have to fall from {fmtK(uniFor(2030, m))} to about <strong>{fmtK(rc.chargeIfLoan[2030].chargeTo)}</strong> by 2029/30 — i.e. the loan is, in effect, a {fmtK(rc.chargeIfLoan[2030].loan)}-a-year question about the charge, not a growth target for the School.
+              </div>
+            </div>
+          )}
+        </>);
       })()}
     </div>
   );
@@ -2024,7 +2051,7 @@ function Workspace({ name, onExit }) {
   return (
     <div className="sl-shell">
       <div className="sl-header">
-        <div className="sl-header-title">STRAWPERSON — FBaM Financial Scenario · shared model <span style={{ color: "#bbb", fontWeight: 400 }}>· build 6.35</span></div>
+        <div className="sl-header-title">STRAWPERSON — FBaM Financial Scenario · shared model <span style={{ color: "#bbb", fontWeight: 400 }}>· build 6.36</span></div>
         <div className="sl-header-right">{name}{m.lastEditedBy && m.lastEditedBy !== name ? ` · last edit: ${m.lastEditedBy}` : ""} &nbsp;·&nbsp;
           <button style={{ background: "none", border: "none", fontSize: 11, color: "#888", cursor: "pointer", textDecoration: "underline" }} onClick={onExit}>Exit</button>
         </div>
