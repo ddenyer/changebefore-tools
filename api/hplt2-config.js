@@ -29,7 +29,7 @@ export default async function handler(req, res) {
   try {
     if (action === 'get') {
       const r = await fetch(
-        `${SUPABASE_URL}/rest/v1/session_configs?${codeFilter}&select=client_logo,hidden_comments&limit=1`,
+        `${SUPABASE_URL}/rest/v1/session_configs?${codeFilter}&select=client_logo,client_name,hidden_comments&limit=1`,
         { headers }
       );
       if (!r.ok) {
@@ -39,11 +39,31 @@ export default async function handler(req, res) {
       const rows = await r.json();
       const row = (Array.isArray(rows) && rows[0]) ? rows[0] : {};
       const clientLogo = row.client_logo ? row.client_logo : '';
+      const clientName = row.client_name ? row.client_name : '';
       let hiddenComments = [];
       if (row.hidden_comments) {
         try { const p = JSON.parse(row.hidden_comments); if (Array.isArray(p)) hiddenComments = p; } catch (e) {}
       }
-      return res.status(200).json({ ok: true, clientLogo, hiddenComments });
+      return res.status(200).json({ ok: true, clientLogo, clientName, hiddenComments });
+    }
+
+    if (action === 'setname') {
+      let name = body.clientName;
+      if (typeof name !== 'string') name = '';
+      name = name.slice(0, 200);
+      const r = await fetch(
+        `${SUPABASE_URL}/rest/v1/session_configs?${codeFilter}`,
+        {
+          method: 'PATCH',
+          headers: { ...headers, 'Prefer': 'return=minimal' },
+          body: JSON.stringify({ client_name: name || null })
+        }
+      );
+      if (!r.ok) {
+        const t = await r.text();
+        return res.status(500).json({ error: `Save failed: ${t}` });
+      }
+      return res.status(200).json({ ok: true });
     }
 
     if (action === 'sethidden') {
