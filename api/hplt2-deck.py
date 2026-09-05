@@ -104,7 +104,7 @@ def _insert_logo(slide, ph, logo_bytes):
         pass
     CW=1200; CH=max(1,int(CW/ar))
     canvas=Image.new('RGBA',(CW,CH),(255,255,255,255))
-    scale=min(CW*0.62/logo.width, CH*0.62/logo.height)
+    scale=min(CW*0.50/logo.width, CH*0.50/logo.height)
     nw,nh=max(1,int(logo.width*scale)),max(1,int(logo.height*scale))
     canvas.alpha_composite(logo.resize((nw,nh),Image.LANCZOS),((CW-nw)//2,(CH-nh)//2))
     tmp=io.BytesIO(); canvas.convert('RGB').save(tmp,'PNG'); tmp.seek(0)
@@ -122,15 +122,19 @@ def build_deck(p):
 
     # 1 COVER
     s=S[0]
-    _settext(_find(s,'Title 3'),'HPLT')
+    tsh=_find(s,'Title 3')
+    tf=tsh.text_frame; tf.clear()
+    from pptx.util import Pt as _Pt
+    p0=tf.paragraphs[0]; p0.alignment=PP_ALIGN.LEFT
+    r0=p0.add_run(); r0.text='HIGH PERFORMING LEADERSHIP TEAMS'
+    r0.font.size=_Pt(9); r0.font.bold=True; r0.font.color.rgb=WHITE; r0.font.name=F
+    try: p0.space_after=_Pt(4)
+    except Exception: pass
+    p1=tf.add_paragraph(); p1.alignment=PP_ALIGN.LEFT
+    r1=p1.add_run(); r1.text='HPLT'
+    r1.font.size=_Pt(40); r1.font.bold=True; r1.font.color.rgb=WHITE; r1.font.name=F
     _settext(_find(s,'Subtitle 4'),cname)
     _settext(_find(s,'Text Placeholder 6'),date)
-    # Eyebrow "HIGH PERFORMING LEADERSHIP TEAMS" just above the HPLT title
-    tsh=_find(s,'Title 3'); tg=_phgeom(tsh,s)
-    if tg:
-        from pptx.util import Emu as _Emu
-        ex,ey,ew=_Emu(tg[0]).inches,_Emu(tg[1]).inches,_Emu(tg[2]).inches
-        _box(s,ex,max(0.1,ey-0.34),max(ew,5.5),0.3,'HIGH PERFORMING LEADERSHIP TEAMS',9,WHITE,bold=True)
     logo_du=p.get('clientLogo') or ''
     ph=_find(s,'Picture Placeholder 1')
     if logo_du and ph is not None and ',' in logo_du:
