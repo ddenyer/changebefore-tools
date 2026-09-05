@@ -29,7 +29,7 @@ export default async function handler(req, res) {
   try {
     if (action === 'get') {
       const r = await fetch(
-        `${SUPABASE_URL}/rest/v1/session_configs?${codeFilter}&select=client_logo&limit=1`,
+        `${SUPABASE_URL}/rest/v1/session_configs?${codeFilter}&select=client_logo,hidden_comments&limit=1`,
         { headers }
       );
       if (!r.ok) {
@@ -37,8 +37,37 @@ export default async function handler(req, res) {
         return res.status(500).json({ error: `Lookup failed: ${t}` });
       }
       const rows = await r.json();
-      const clientLogo = (Array.isArray(rows) && rows[0] && rows[0].client_logo) ? rows[0].client_logo : '';
-      return res.status(200).json({ ok: true, clientLogo });
+      const row = (Array.isArray(rows) && rows[0]) ? rows[0] : {};
+      const clientLogo = row.client_logo ? row.client_logo : '';
+      let hiddenComments = [];
+      if (row.hidden_comments) {
+        try { const p = JSON.parse(row.hidden_comments); if (Array.isArray(p)) hiddenComments = p; } catch (e) {}
+      }
+      return res.status(200).json({ ok: true, clientLogo, hiddenComments });
+    }
+
+    if (action === 'sethidden') {
+      let list = body.hiddenComments;
+      if (!Array.isArray(list)) list = [];
+      // Keep only reasonable string ids, capped, to protect the row.
+      list = list.filter(x => typeof x === 'string' && x.length <= 200).slice(0, 2000);
+      const serialised = JSON.stringify(list);
+      if (serialised.length > 200000) {
+        return res.status(413).json({ error: 'Too many hidden comments' });
+      }
+      const r = await fetch(
+        `${SUPABASE_URL}/rest/v1/session_configs?${codeFilter}`,
+        {
+          method: 'PATCH',
+          headers: { ...headers, 'Prefer': 'return=minimal' },
+          body: JSON.stringify({ hidden_comments: serialised })
+        }
+      );
+      if (!r.ok) {
+        const t = await r.text();
+        return res.status(500).json({ error: `Save failed: ${t}` });
+      }
+      return res.status(200).json({ ok: true });
     }
 
     if (action === 'set') {
