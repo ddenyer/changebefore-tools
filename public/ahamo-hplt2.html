@@ -8,6 +8,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.development.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
 <style>
 :root{
@@ -398,6 +399,60 @@ function ScaleSelect({value,onChange}){
 
 // ── PROGRESS ──────────────────────────────────────────────────────────────────
 // Team members: 5 dimensions + Overall + Comments. Stakeholders: Overall + Comments.
+function InvitePanel({link,code,teamName}){
+  const qrRef=useRef(null);
+  const [copied,setCopied]=useState('');
+  const origin=(typeof window!=='undefined'&&window.location&&window.location.origin)||'';
+  const invite=
+    'You’re invited to take part in the '+(teamName||'team')+' leadership team diagnostic.\n\n'+
+    'It takes about 10 minutes, and your answers are combined with the rest of the team into a single team report — individual responses are never shared.\n\n'+
+    'Join here: '+link+'\n(or scan the QR code)\n\n'+
+    'If the link doesn’t open, go to '+origin+'/ahamo-hplt2 and enter the code '+code+'.\n\n'+
+    'Please complete it by [add your deadline]. Thank you.';
+  useEffect(()=>{
+    if(!qrRef.current)return;
+    qrRef.current.innerHTML='';
+    if(!window.QRCode)return;
+    try{new window.QRCode(qrRef.current,{text:link,width:200,height:200,colorDark:'#20396D',colorLight:'#ffffff',correctLevel:window.QRCode.CorrectLevel.M});}catch(e){}
+  },[link]);
+  function copy(txt,which){
+    const done=()=>{setCopied(which);setTimeout(()=>setCopied(''),1800);};
+    try{
+      if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).then(done,()=>{window.prompt('Copy:',txt);done();});}
+      else{window.prompt('Copy:',txt);done();}
+    }catch(e){window.prompt('Copy:',txt);done();}
+  }
+  function downloadQR(){
+    const el=qrRef.current;if(!el)return;
+    const cv=el.querySelector('canvas'),img=el.querySelector('img');
+    const url=cv?cv.toDataURL('image/png'):(img?img.src:'');
+    if(!url)return;
+    const a=document.createElement('a');a.href=url;a.download='ahamo-hplt-qr.png';
+    document.body.appendChild(a);a.click();a.remove();
+  }
+  return(
+    <div>
+      <p style={{fontSize:'.86rem',color:'#4b5563',lineHeight:1.6,marginBottom:'1.1rem'}}>Everything you need to invite the team. The QR and link go straight into the diagnostic with the code built in — no code to type. Drop them into an email, a doc, or a slide.</p>
+      <div style={{display:'flex',gap:'1.5rem',flexWrap:'wrap',alignItems:'flex-start'}}>
+        <div style={{textAlign:'center'}}>
+          <div ref={qrRef} style={{display:'inline-block',padding:'10px',border:'1px solid var(--line)',borderRadius:'10px',background:'#fff'}}/>
+          <div><button className="btn-s" style={{marginTop:'.6rem'}} onClick={downloadQR}>⤓ Download QR (PNG)</button></div>
+        </div>
+        <div style={{flex:1,minWidth:'260px'}}>
+          <label className="field-lbl">Join link</label>
+          <div style={{display:'flex',gap:'.5rem',alignItems:'center',flexWrap:'wrap',marginBottom:'1rem'}}>
+            <code style={{flex:1,minWidth:'200px',fontSize:'.8rem',background:'#f4f6f9',border:'1px solid var(--line)',borderRadius:'8px',padding:'.6rem .75rem',wordBreak:'break-all',color:'var(--navy)'}}>{link}</code>
+            <button className="btn-s" onClick={()=>copy(link,'link')}>{copied==='link'?'✓ Copied':'⧉ Copy'}</button>
+          </div>
+          <label className="field-lbl">Suggested wording <span style={{color:'var(--muted)',fontWeight:400}}>(edit after pasting)</span></label>
+          <textarea className="inp inp-ta" readOnly value={invite} style={{minHeight:'170px',fontSize:'.85rem'}}/>
+          <div style={{marginTop:'.5rem'}}><button className="btn-p" onClick={()=>copy(invite,'text')}>{copied==='text'?'✓ Copied':'⧉ Copy invite text'}</button></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function BrandHeader({clientLogo}){
   return(
     <div className="brandbar">
@@ -1636,6 +1691,7 @@ function App(){
       {key:'items',eyebrow:'Detail',title:'Item breakdown',desc:'Per-area stacked response bars, grouped by sub-theme.',need:a.teamN>0},
       {key:'verbatim',eyebrow:'Voice',title:'Verbatim feedback',desc:'The three open questions, collated by track.',need:total>0},
       {key:'reflection',eyebrow:'Conversation',title:'Reflection',desc:'Four closing questions to project for the team.',need:true},
+      {key:'invite',eyebrow:'Admin',title:'Invite participants',desc:'QR code, join link, and ready-to-send wording.',need:true},
       {key:'participants',eyebrow:'Admin',title:'Participants',desc:'Everyone who has submitted — remove duplicates or mistakes.',metric:a.allReal.length?String(a.allReal.length):null,unit:'entries',need:a.allReal.length>0},
       {key:'setup',eyebrow:'Admin',title:'Session setup',desc:'Team name, sector, and access details.',need:true},
     ];
@@ -1708,6 +1764,7 @@ function App(){
       topbottom:{title:'Highest & lowest scoring items',sub:'By team-member average · 1–6',body:<TopBottom a={a}/>},
       verbatim:{title:'Verbatim feedback',sub:'Open responses, collated by track',body:<Verbatim a={a}/>},
       reflection:{title:'Reflecting on this team’s results',sub:'Four closing questions for the conversation',body:<ReflectionPanel/>},
+      invite:{title:'Invite participants',sub:'QR, link and wording — with the code built in',body:<InvitePanel link={window.location.origin+'/ahamo-hplt2?code='+encodeURIComponent(codeNorm)} code={codeNorm} teamName={sessionConfig.thing_for_everyone}/>},
       participants:{title:'Participants',sub:'Remove a duplicate or a mistaken entry — this can’t be undone',body:renderParticipants(a)},
     };
     const v=map[facTile];
