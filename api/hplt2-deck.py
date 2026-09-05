@@ -105,19 +105,38 @@ def build_deck(p):
     _settext(_find(s,'Title 3'),'HPLT')
     _settext(_find(s,'Subtitle 4'),cname)
     _settext(_find(s,'Text Placeholder 6'),date)
+    # Eyebrow "HIGH PERFORMING LEADERSHIP TEAMS" just above the HPLT title
+    tsh=_find(s,'Title 3'); tg=_phgeom(tsh,s)
+    if tg:
+        from pptx.util import Emu as _Emu
+        ex,ey,ew=_Emu(tg[0]).inches,_Emu(tg[1]).inches,_Emu(tg[2]).inches
+        _box(s,ex,max(0.1,ey-0.34),max(ew,5.5),0.3,'HIGH PERFORMING LEADERSHIP TEAMS',9,WHITE,bold=True)
     logo_du=p.get('clientLogo') or ''
     ph=_find(s,'Picture Placeholder 1')
     if logo_du and ph is not None and ',' in logo_du:
         try: _insert_logo(s, ph, base64.b64decode(logo_du.split(',',1)[1]))
         except Exception: pass
 
-    # 2 EXPLAINER count
-    s=S[1]; tp=_find(s,'Text Placeholder 2')
-    if tp is not None:
-        for para in tp.text_frame.paragraphs:
-            if 'completed the diagnostic' in ''.join(r.text for r in para.runs) and para.runs:
-                para.runs[0].text=('%d team members and %d external stakeholders completed the diagnostic.'%(teamN,stakeN))
-                for r in para.runs[1:]: r.text=''
+    # 2 EXPLAINER — rebuild as clean headings + body (drop the uniform bullet wall)
+    s=S[1]
+    tp=_find(s,'Text Placeholder 2')
+    if tp is not None: tp._element.getparent().remove(tp._element)
+    qa=[('What is this tool?',
+         'The High Performing Leadership Teams (HPLT) Diagnostic. It measures the extent to which people feel your team shows the five traits that define a high-performing leadership team — described in full on the next page.'),
+        ('What data have we gathered?',
+         'Team members rated their agreement with 46 statements across the five traits, from 1 (strongly disagree) to 6 (strongly agree), plus three open questions and a final 1–10 rating of overall performance. External stakeholders answered the overall rating and the three open questions.'),
+        ('Who completed?',
+         '%d team members and %d external stakeholders completed the diagnostic.'%(teamN,stakeN)),
+        ('How will we use this report?',
+         'Team members read and reflect on the results. A facilitated conversation then helps the team make sense of them together and identify next steps.')]
+    y=1.05
+    for q,ans in qa:
+        _box(s,0.5,y,9.0,0.32,q,12,NAVY,bold=True)
+        tb=_box(s,0.5,y+0.34,9.0,0.9,ans,9.5,MUT,line=1.25)
+        # estimate lines to advance y (roughly 108 chars per line at this width/size)
+        import math
+        lines=max(1,math.ceil(len(ans)/108))
+        y+=0.34+lines*0.235+0.28
 
     # 3 WHAT WE MEASURE — rebuild natively (drop template's flawed image)
     s=S[2]
@@ -187,8 +206,13 @@ def build_deck(p):
         _box(s,5.1,1.0,4.4,0.35,'Stakeholders (%d)'%len(ts),10,TEAL,bold=True)
         _box(s,5.1,1.4,4.4,4.0,'\n\n'.join('\u201c'+t+'\u201d' for t in ts) or 'No responses',8.5,INK,line=1.3)
 
-    # CLOSING (last slide, index 21 in the 22-slide file -> becomes last after we drop slide 21)
-    _box(S[21],1.6,1.9,6.8,2.0,'At AhaMo, we partner with you to drive personal and organisational transformation. We understand that lasting change comes from within, which is why we\u2019ve designed a comprehensive suite of services focused on empowering your leaders and teams.',12,WHITE,align=PP_ALIGN.CENTER,anchor=MSO_ANCHOR.MIDDLE,line=1.3)
+    # CLOSING (last slide) — remove the template's empty "Sign off" / "Mission statement"
+    # placeholders (their prompt text was showing through), leave a clean statement.
+    s=S[21]
+    for nm in ('Title 1','Subtitle 2'):
+        sh=_find(s,nm)
+        if sh is not None: sh._element.getparent().remove(sh._element)
+    _box(S[21],1.6,1.9,6.8,2.0,'At AhaMo, we partner with you to drive personal and organisational transformation. We understand that lasting change comes from within, which is why we\u2019ve designed a comprehensive suite of services focused on empowering your leaders and teams.',13,WHITE,align=PP_ALIGN.CENTER,anchor=MSO_ANCHOR.MIDDLE,line=1.3)
 
     # Drop redundant slide 21 (index 20)
     lst=prs.slides._sldIdLst; ids=list(lst)
@@ -220,9 +244,6 @@ class handler(BaseHTTPRequestHandler):
             self.send_response(500); self.send_header('Content-Type','application/json'); self.end_headers()
             self.wfile.write(_json.dumps({'error':str(e)}).encode())
     def do_GET(self):
-        # Health check — visiting this URL in a browser confirms the function deployed
-        # and its Python dependencies (python-pptx, Pillow) imported successfully.
         self.send_response(200)
-        self.send_header('Content-Type','application/json')
-        self.end_headers()
+        self.send_header('Content-Type','application/json'); self.end_headers()
         self.wfile.write(_json.dumps({'ok':True,'service':'hplt2-deck','msg':'Ready. POST session data to generate a deck.'}).encode())
