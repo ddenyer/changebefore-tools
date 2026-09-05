@@ -230,6 +230,16 @@ def build_deck(p):
         _box(s,5.1,1.0,4.4,0.35,'Stakeholders (%d)'%len(ts),10,TEAL,bold=True)
         _box(s,5.1,1.4,4.4,4.0,'\n\n'.join('\u201c'+t+'\u201d' for t in ts) or 'No responses',8.5,INK,line=1.3)
 
+    # SAFETY: if no team members completed, the team-only views have no data.
+    # Overlay a clear note so those slides read as "awaiting responses" rather than blank.
+    if teamN==0:
+        note='Awaiting team-member responses — this view populates once team members complete the diagnostic.'
+        for idx in (5,6,7,9,10,11,12,13):
+            try:
+                nb=_box(S[idx],1.3,2.4,7.4,0.9,note,12,MUT,align=PP_ALIGN.CENTER,anchor=MSO_ANCHOR.MIDDLE,line=1.3)
+                nb.fill.solid(); nb.fill.fore_color.rgb=WHITE
+            except Exception: pass
+
     # CLOSING (last slide) — remove the template's empty "Sign off" / "Mission statement"
     # placeholders (their prompt text was showing through), leave a clean statement.
     s=S[21]
