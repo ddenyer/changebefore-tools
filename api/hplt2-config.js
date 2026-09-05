@@ -29,7 +29,7 @@ export default async function handler(req, res) {
   try {
     if (action === 'get') {
       const r = await fetch(
-        `${SUPABASE_URL}/rest/v1/session_configs?${codeFilter}&select=client_logo&order=created_at.desc&limit=1`,
+        `${SUPABASE_URL}/rest/v1/session_configs?${codeFilter}&select=client_logo&limit=1`,
         { headers }
       );
       if (!r.ok) {
