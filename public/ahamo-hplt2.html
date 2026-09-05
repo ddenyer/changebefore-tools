@@ -32,8 +32,9 @@ button{-webkit-tap-highlight-color:rgba(0,0,0,0)}
 /* Co-brand header — AhaMo left, client logo right, matched height, every page */
 .brandbar{display:flex;align-items:center;justify-content:space-between;gap:1rem;max-width:820px;margin:0 auto;padding:1.1rem 1.5rem .4rem;min-height:54px}
 .brandbar img{height:34px;width:auto;max-width:210px;display:block;object-fit:contain}
+.brandbar img.bb-r{height:44px;max-width:200px}
 .brandbar .bb-r{margin-left:auto}
-@media(max-width:560px){.brandbar img{height:26px;max-width:150px}}
+@media(max-width:560px){.brandbar img{height:26px;max-width:150px}.brandbar img.bb-r{height:34px;max-width:130px}}
 .brand .dot{color:var(--red)}
 
 /* Progress */
@@ -1838,7 +1839,7 @@ function App(){
           <div>
             <div style={{display:'flex',alignItems:'center',gap:'.9rem',marginBottom:'.4rem',flexWrap:'wrap'}}>
               <img src={AHAMO_LOGO} alt="AhaMo" style={{height:'30px',width:'auto',display:'block'}}/>
-              {clientLogo&&<img src={clientLogo} alt="Client logo" style={{height:'30px',width:'auto',maxWidth:'160px',objectFit:'contain',display:'block'}}/>}
+              {clientLogo&&<img src={clientLogo} alt="Client logo" style={{height:'40px',width:'auto',maxWidth:'170px',objectFit:'contain',display:'block'}}/>}
             </div>
             <div className="pg-tag" style={{marginBottom:'.2rem'}}>Facilitator dashboard · {codeNorm}</div>
             <h2 style={{fontSize:'1.5rem',fontWeight:800,color:'var(--navy)',lineHeight:1.15}}>{displayName()}</h2>
