@@ -1,0 +1,1822 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>HPLT Diagnostic — AhaMo (v2)</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.development.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.development.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+:root{
+  --navy:#20396D; --red:#EF4136; --green:#8DC640; --blue:#32449C;
+  --ltblue:#2484C6; --teal:#2295A0; --grey:#E8E8E8; --yellow:#FDE00A;
+  --ink:#1a1a1a; --muted:#6b7280; --line:#e2e4e8; --bg:#ffffff;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+html,body{font-family:'Poppins',sans-serif;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased;overflow-x:hidden;-webkit-tap-highlight-color:rgba(0,0,0,0)}
+button{-webkit-tap-highlight-color:rgba(0,0,0,0)}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+.fade{animation:fadeIn .3s ease both}
+.shell{min-height:auto;display:flex;flex-direction:column}
+.main{flex:1}
+.content{max-width:780px;margin:0 auto;padding:2rem 1.5rem 3rem}
+
+/* Wordmark */
+.brand{display:inline-flex;align-items:baseline;font-weight:800;font-size:1.6rem;letter-spacing:-.02em;line-height:1;color:var(--navy)}
+/* Co-brand header — AhaMo left, client logo right, matched height, every page */
+.brandbar{display:flex;align-items:center;justify-content:space-between;gap:1rem;max-width:820px;margin:0 auto;padding:1.1rem 1.5rem .4rem;min-height:54px}
+.brandbar img{height:34px;width:auto;max-width:210px;display:block;object-fit:contain}
+.brandbar .bb-r{margin-left:auto}
+@media(max-width:560px){.brandbar img{height:26px;max-width:150px}}
+.brand .dot{color:var(--red)}
+
+/* Progress */
+.prog-wrap{max-width:900px;margin:0 auto;padding:1rem 1.5rem .2rem}
+.prog-bars{display:flex;gap:3px;margin-bottom:.35rem}
+.prog-bar{flex:1;height:4px;border-radius:2px;background:var(--grey);transition:background .3s}
+.prog-bar.done{background:var(--green)}.prog-bar.now{background:var(--navy)}
+.prog-lbls{display:flex;gap:3px}
+.prog-lbl{flex:1;font-size:.54rem;font-weight:600;text-transform:uppercase;letter-spacing:.03em;color:#b6bcc6;text-align:center}
+.prog-lbl.done{color:var(--green)}.prog-lbl.now{color:var(--navy)}
+@media(max-width:560px){.prog-lbl{font-size:.44rem}}
+
+/* Headings */
+.pg-tag{font-size:.66rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--teal);margin-bottom:.5rem}
+.pg-title{font-size:1.9rem;font-weight:800;color:var(--navy);line-height:1.15;margin-bottom:.4rem;position:relative;display:inline}
+.hl{background:var(--yellow);box-decoration-break:clone;-webkit-box-decoration-break:clone;padding:.05em .12em}
+.title-rule{height:5px;width:170px;border-radius:3px;background:linear-gradient(90deg,var(--ltblue),var(--green));margin:.7rem 0 1.3rem}
+.pg-sub{font-size:.95rem;color:#4b5563;line-height:1.65;margin-bottom:1.5rem;max-width:620px}
+h2.pg-title{display:block}
+
+/* Landing hero */
+.land-hero{border-bottom:1px solid var(--line);padding-bottom:1.75rem;margin-bottom:1.75rem}
+.land-title{font-size:2.2rem;font-weight:800;color:var(--navy);line-height:1.12;margin:.9rem 0 .7rem}
+.land-desc{font-size:.98rem;color:#4b5563;line-height:1.7;max-width:600px}
+.land-time{display:inline-flex;align-items:center;gap:.4rem;background:var(--grey);border-radius:20px;padding:.35rem .9rem;font-size:.78rem;font-weight:600;color:#555;margin-top:.9rem}
+
+/* Fields + buttons */
+.field-lbl{font-size:.74rem;font-weight:700;color:var(--navy);display:block;margin-bottom:.35rem;letter-spacing:.02em}
+.field-sub{font-size:.74rem;color:var(--muted);margin-bottom:.4rem;line-height:1.5}
+.inp{width:100%;border:1.5px solid var(--line);border-radius:8px;padding:.72rem 1rem;font-family:'Poppins',sans-serif;font-size:16px;color:var(--ink);outline:none;min-height:48px;transition:border-color .15s;background:#fff;display:block;-webkit-appearance:none;appearance:none}
+.inp:focus{border-color:var(--navy)}.inp::placeholder{color:#b6bcc6}
+.inp-ta{min-height:120px;resize:vertical;line-height:1.6}
+select.inp{cursor:pointer;background-image:url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20width%3D%2712%27%20height%3D%278%27%20viewBox%3D%270%200%2012%208%27%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%3E%3Cpath%20d%3D%27M1%201l5%205%205-5%27%20stroke%3D%27%236b7280%27%20stroke-width%3D%271.5%27%20fill%3D%27none%27%20fill-rule%3D%27evenodd%27/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 1rem center;padding-right:2.5rem}
+.btn-p{display:inline-flex;align-items:center;gap:.4rem;background:var(--navy);color:#fff;border:none;border-radius:8px;font-weight:600;padding:.8rem 1.7rem;font-family:'Poppins',sans-serif;font-size:.9rem;cursor:pointer;min-height:46px;transition:background .15s,opacity .15s}
+.btn-p:hover:not([disabled]){background:#182b54}.btn-p[disabled]{opacity:.35;cursor:not-allowed}
+.btn-s{display:inline-flex;align-items:center;gap:.4rem;background:#fff;color:var(--navy);border:1.5px solid var(--line);border-radius:8px;font-weight:600;padding:.8rem 1.3rem;font-family:'Poppins',sans-serif;font-size:.9rem;cursor:pointer;min-height:46px;transition:border-color .15s}
+.btn-s:hover{border-color:var(--navy)}
+.btn-row{display:flex;gap:.7rem;align-items:center;flex-wrap:wrap;margin-top:1.75rem}
+.back-btn{display:inline-flex;align-items:center;gap:.3rem;background:none;border:none;font-family:'Poppins',sans-serif;font-size:.84rem;font-weight:600;color:var(--muted);cursor:pointer;padding:0;margin-bottom:1.4rem}
+.back-btn:hover{color:var(--navy)}
+
+/* Info / warn boxes */
+.inf-box{background:#f4f7fb;border-left:4px solid var(--ltblue);padding:.85rem 1.1rem;border-radius:0 8px 8px 0;margin-bottom:1.2rem;font-size:.88rem;line-height:1.6;color:#374151}
+.warn-box{background:#fff5f4;border:1px solid #f6c6c0;border-radius:8px;padding:.85rem 1.1rem;margin:.7rem 0;font-size:.85rem;color:#b23028}
+.disc{font-size:.74rem;color:var(--muted);line-height:1.6;padding:.85rem 1rem;background:#f7f8fa;border-radius:8px;border:1px solid var(--line);margin-top:.75rem}
+
+/* Chips (track / role) */
+.chip{padding:.5rem .95rem;border-radius:22px;border:1.5px solid var(--line);background:#fff;color:#4b5563;font-size:.82rem;font-weight:600;cursor:pointer;transition:all .15s;font-family:'Poppins',sans-serif;min-height:42px;display:inline-flex;align-items:center}
+.chip.on{border-color:var(--navy);background:#f0f3f9;color:var(--navy)}
+
+/* Track cards */
+.track-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin:.25rem 0 .5rem}
+@media(max-width:560px){.track-grid{grid-template-columns:1fr}}
+.track-card{border:2px solid var(--line);border-radius:12px;padding:1.25rem;background:#fff;cursor:pointer;transition:all .15s}
+.track-card:hover{border-color:var(--ltblue)}
+.track-card.on{border-color:var(--navy);background:#f0f3f9}
+.track-card h3{font-size:1rem;font-weight:700;color:var(--navy);margin-bottom:.35rem}
+.track-card p{font-size:.82rem;color:#4b5563;line-height:1.55}
+
+/* Item / scale */
+.dim-band{border-radius:10px;padding:1.1rem 1.25rem;margin-bottom:1.4rem;color:#fff}
+.dim-band .dim-name{font-size:1.15rem;font-weight:700;line-height:1.2}
+.dim-band .dim-desc{font-size:.84rem;opacity:.92;margin-top:.3rem;line-height:1.5}
+.sub-hdr{font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--teal);margin:1.4rem 0 .5rem;padding-top:.6rem;border-top:1px solid var(--line)}
+.stem{font-size:.82rem;color:var(--muted);font-style:italic;margin-bottom:.9rem}
+.item-card{border:1.5px solid var(--line);border-radius:10px;padding:.95rem 1.05rem;margin-bottom:.65rem;background:#fff;transition:border-color .15s}
+.item-card.answered{border-color:#d3e7bd;background:#fbfdf7}
+.item-text{font-size:.92rem;font-weight:500;color:var(--ink);line-height:1.4;margin-bottom:.75rem}
+.item-text .lead{color:var(--muted);font-weight:400}
+.scale{display:grid;grid-template-columns:repeat(6,1fr);gap:.4rem}
+.scale-btn{border:1.5px solid var(--line);border-radius:8px;padding:.5rem .2rem;cursor:pointer;text-align:center;background:#fff;transition:all .12s;min-height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.2rem}
+.scale-btn:hover{border-color:#b6bcc6}
+.scale-btn .sn{font-size:1rem;font-weight:700;line-height:1}
+.scale-btn .sl{font-size:.56rem;font-weight:600;line-height:1.15;color:var(--muted)}
+.scale-btn.on{border-color:transparent;color:#fff}
+.scale-btn.on .sl{color:rgba(255,255,255,.9)}
+.scale-btn.on.light{color:var(--ink)}
+.scale-btn.on.light .sl{color:#4b5563}
+@media(max-width:560px){
+  .scale-btn .sl{display:none}
+  .scale-btn{min-height:48px}
+  .scale{gap:.3rem}
+}
+.scale-legend{display:flex;justify-content:space-between;font-size:.66rem;color:var(--muted);margin-top:.4rem;padding:0 .2rem}
+
+/* Overall 1-10 */
+.ten{display:grid;grid-template-columns:repeat(10,1fr);gap:.35rem;margin:.5rem 0}
+@media(max-width:560px){.ten{grid-template-columns:repeat(5,1fr)}}
+.ten-btn{border:1.5px solid var(--line);border-radius:8px;min-height:52px;font-size:1.05rem;font-weight:700;cursor:pointer;background:#fff;color:var(--ink);transition:all .12s;display:flex;align-items:center;justify-content:center}
+.ten-btn:hover{border-color:var(--ltblue)}
+.ten-btn.on{background:var(--navy);border-color:var(--navy);color:#fff}
+.ten-anchor{display:flex;justify-content:space-between;font-size:.72rem;color:var(--muted);margin-top:.3rem}
+
+/* Thank you */
+.ty-card{background:#f4f7fb;border:1px solid var(--line);border-radius:14px;padding:2rem 1.75rem;text-align:center;max-width:560px;margin:1.5rem auto}
+.ty-mark{width:56px;height:56px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.7rem;margin:0 auto 1rem}
+.ty-card h2{font-size:1.4rem;font-weight:700;color:var(--navy);margin-bottom:.6rem}
+.ty-card p{font-size:.92rem;color:#4b5563;line-height:1.65;margin-bottom:.6rem}
+
+/* Facilitator */
+.pulse{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--green);animation:pulse 2s ease-in-out infinite;margin-right:.4rem}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.85)}}
+
+.resume-box{background:#f4f7fb;border:1px solid #cdd9ea;border-radius:10px;padding:1.25rem;margin-bottom:1.25rem}
+.resume-box h3{font-size:.95rem;font-weight:700;color:var(--navy);margin-bottom:.5rem}
+.resume-box p{font-size:.84rem;color:#4b5563;line-height:1.55;margin-bottom:.75rem}
+
+.think{display:flex;align-items:center;gap:.75rem;padding:1.25rem 0}
+.dots{display:flex;gap:5px}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--ltblue);animation:blink 1.2s ease-in-out infinite}
+.dot:nth-child(2){animation-delay:.2s}.dot:nth-child(3){animation-delay:.4s}
+.think-txt{font-size:.9rem;color:var(--muted);font-style:italic}
+
+/* ── Dashboard ── */
+.dash-head{max-width:1080px;margin:0 auto;padding:1.25rem 1.5rem .5rem}
+.dash-top{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap}
+.dash-counts{display:flex;gap:.55rem;flex-wrap:wrap;align-items:center}
+.count-pill{background:#f4f7fb;border:1px solid var(--line);border-radius:20px;padding:.35rem .85rem;font-size:.8rem;font-weight:600;color:var(--navy)}
+.count-pill .cn{font-weight:800;margin-right:.25rem}
+.dash-actions{display:flex;gap:.5rem;flex-wrap:wrap}
+.dash-wrap{max-width:1080px;margin:0 auto;padding:.5rem 1.5rem 3rem}
+.tile-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:1rem;margin-top:1rem}
+.tile{border:1.5px solid var(--line);border-radius:14px;padding:1.15rem 1.25rem;background:#fff;cursor:pointer;transition:all .15s;text-align:left;font-family:'Poppins',sans-serif;position:relative;overflow:hidden;min-height:132px;display:flex;flex-direction:column}
+.tile:hover{border-color:var(--navy);transform:translateY(-2px);box-shadow:0 10px 24px -14px rgba(32,56,109,.4)}
+.tile-accent{position:absolute;top:0;left:0;right:0;height:5px;background:linear-gradient(90deg,var(--ltblue),var(--green))}
+.tile-eyebrow{font-size:.64rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--teal);margin-bottom:.4rem}
+.tile-title{font-size:1.05rem;font-weight:700;color:var(--navy);line-height:1.2;margin-bottom:.3rem}
+.tile-desc{font-size:.78rem;color:#6b7280;line-height:1.5;flex:1}
+.tile-metric{font-size:1.9rem;font-weight:800;color:var(--navy);line-height:1;margin-top:.5rem}
+.tile-metric small{font-size:.9rem;font-weight:600;color:var(--muted)}
+.tile[disabled]{opacity:.5;cursor:not-allowed}
+.tile[disabled]:hover{transform:none;box-shadow:none;border-color:var(--line)}
+
+/* ── Overlay ── */
+.ov{position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:60;display:flex;align-items:flex-start;justify-content:center;padding:2.5vh 1rem;overflow-y:auto;-webkit-overflow-scrolling:touch;animation:fadeIn .2s ease both}
+.ov-card{background:#fff;border-radius:16px;width:100%;max-width:960px;margin:auto;box-shadow:0 30px 80px -20px rgba(0,0,0,.5)}
+.ov-head{position:sticky;top:0;background:#fff;border-bottom:1px solid var(--line);border-radius:16px 16px 0 0;padding:1.1rem 1.5rem;display:flex;justify-content:space-between;align-items:center;gap:1rem;z-index:2}
+.ov-head h2{font-size:1.3rem;font-weight:800;color:var(--navy);line-height:1.15}
+.ov-head .sub{font-size:.78rem;color:var(--muted);margin-top:.15rem}
+.ov-close{background:#f4f7fb;border:none;width:38px;height:38px;border-radius:10px;font-size:1.2rem;color:var(--navy);cursor:pointer;flex-shrink:0;line-height:1}
+.ov-close:hover{background:var(--grey)}
+.ov-body{padding:1.5rem}
+@media(max-width:560px){.ov-body{padding:1.1rem}.ov-head{padding:1rem 1.1rem}.ov-head h2{font-size:1.1rem}}
+
+/* ── Charts ── */
+.big3{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:1.5rem}
+@media(max-width:560px){.big3{grid-template-columns:1fr}}
+.big-stat{border:1.5px solid var(--line);border-radius:12px;padding:1.25rem;text-align:center}
+.big-stat.hero{background:var(--navy);border-color:var(--navy)}
+.big-stat.hero .bs-num,.big-stat.hero .bs-lbl{color:#fff}
+.bs-num{font-size:2.6rem;font-weight:800;color:var(--navy);line-height:1}
+.bs-num small{font-size:1.1rem;font-weight:600;color:var(--muted)}
+.big-stat.hero .bs-num small{color:rgba(255,255,255,.7)}
+.bs-lbl{font-size:.74rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-top:.4rem}
+.bs-sub{font-size:.72rem;color:var(--muted);margin-top:.2rem}
+
+.dist10{display:flex;align-items:flex-end;gap:.4rem;height:130px;margin:.5rem 0}
+.dist10 .col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}
+.dist10 .bar{width:100%;background:var(--ltblue);border-radius:4px 4px 0 0;min-height:3px;transition:height .3s;position:relative}
+.dist10 .cnt{font-size:.7rem;font-weight:700;color:var(--navy);margin-bottom:.15rem}
+.dist10 .xlab{font-size:.72rem;color:var(--muted);margin-top:.3rem}
+
+.area-row{display:flex;align-items:center;gap:.85rem;padding:.7rem 0;border-bottom:1px solid var(--line)}
+.area-row:last-child{border-bottom:none}
+.area-rank{font-size:.85rem;font-weight:700;color:#b6bcc6;width:24px;flex-shrink:0}
+.area-swatch{width:12px;height:38px;border-radius:4px;flex-shrink:0}
+.area-info{flex:1;min-width:0}
+.area-name{font-size:.95rem;font-weight:700;color:var(--navy)}
+.area-desc{font-size:.72rem;color:var(--muted);line-height:1.4;margin-top:.1rem}
+.area-track{flex:1;height:9px;background:var(--grey);border-radius:5px;overflow:hidden;max-width:180px}
+.area-fill{height:100%;border-radius:5px}
+.area-score{font-size:1.25rem;font-weight:800;color:var(--navy);width:52px;text-align:right;flex-shrink:0}
+.area-score small{font-size:.7rem;color:var(--muted);font-weight:600}
+
+.item-row{display:flex;align-items:center;gap:.75rem;padding:.55rem 0;border-bottom:1px solid #f0f1f4}
+.item-row:last-child{border-bottom:none}
+.item-num{font-size:.68rem;font-weight:700;color:#fff;background:var(--navy);border-radius:5px;padding:.15rem .4rem;flex-shrink:0}
+.item-lab{flex:1;font-size:.84rem;color:var(--ink);line-height:1.35}
+.item-lab .dim{font-size:.68rem;color:var(--muted);display:block}
+.item-mean{font-size:1.05rem;font-weight:800;width:44px;text-align:right;flex-shrink:0}
+
+.sbar{display:flex;height:24px;border-radius:5px;overflow:hidden;background:#f0f1f4}
+.sbar-seg{display:flex;align-items:center;justify-content:center;font-size:.64rem;font-weight:700;color:#fff;min-width:0}
+.sbar-seg.light{color:#1a1a1a}
+.sb-row{display:flex;align-items:center;gap:.7rem;margin-bottom:.55rem}
+.sb-txt{flex:1;font-size:.82rem;color:var(--ink);line-height:1.3;min-width:0}
+.sb-bar{flex:1.4;max-width:340px}
+.sb-mean{font-size:.95rem;font-weight:800;color:var(--navy);width:38px;text-align:right;flex-shrink:0}
+.sub-block{margin-bottom:1.4rem}
+.sub-block h4{font-size:.72rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--teal);margin-bottom:.6rem}
+
+.dim-tab{display:inline-flex;flex-wrap:wrap;gap:.4rem;margin-bottom:1.25rem}
+.dim-pill{border:1.5px solid var(--line);background:#fff;border-radius:20px;padding:.4rem .85rem;font-size:.78rem;font-weight:600;color:#4b5563;cursor:pointer;font-family:'Poppins',sans-serif}
+.dim-pill.on{color:#fff;border-color:transparent}
+
+.verb-q{margin-bottom:1.75rem}
+.verb-q h4{font-size:.95rem;font-weight:700;color:var(--navy);margin-bottom:.15rem}
+.verb-split{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:.7rem}
+@media(max-width:640px){.verb-split{grid-template-columns:1fr}}
+.verb-col h5{font-size:.68rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin-bottom:.5rem}
+.verb-item{background:#f7f8fa;border-left:3px solid var(--ltblue);border-radius:0 8px 8px 0;padding:.6rem .8rem;margin-bottom:.5rem;font-size:.84rem;line-height:1.5;color:#374151}
+.verb-col.stake .verb-item{border-left-color:var(--teal)}
+.verb-empty{font-size:.8rem;color:#b6bcc6;font-style:italic;padding:.4rem 0}
+
+.empty-dash{text-align:center;padding:3rem 1rem;color:var(--muted)}
+.empty-dash .big{font-size:1.2rem;font-weight:700;color:var(--navy);margin-bottom:.5rem}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const {useState,useRef,useEffect}=React;
+
+// ── HPLT MODEL ───────────────────────────────────────────────────────────────
+// 5 dimensions · 46 agreement items (1–6) · sub-themes. Item stem:
+// "To what extent do you agree team members…" then each item completes it.
+const STEM='To what extent do you agree team members…';
+const MODEL=[
+  {key:'mindset',name:'Team mindset',colour:'#8DC640',
+   desc:'How much team members have a shared direction and consistently pull in that same direction.',
+   subs:[
+     {name:'Know where the team is headed',items:[
+       {n:1,t:'Share clear and compelling team goals'},
+       {n:2,t:'Use clear metrics to track performance against team goals'},
+       {n:3,t:'Share a clear view of what the team stands for'},
+     ]},
+     {name:'Pull in the same direction',items:[
+       {n:4,t:'Prioritise collective goals over personal goals'},
+       {n:5,t:"Share accountability for the team's performance"},
+       {n:6,t:'Focus on outcomes instead of politics or power dynamics'},
+     ]},
+   ]},
+  {key:'relationships',name:'Valued relationships',colour:'#2295A0',
+   desc:'How much team members share mutual respect, show genuine care, and feel safe to be themselves.',
+   subs:[
+     {name:'Embrace diverse thinking',items:[
+       {n:7,t:'Seek and celebrate different perspectives'},
+       {n:8,t:'Share mistakes, concerns, and different viewpoints without fear of being judged'},
+       {n:9,t:'Handle mistakes constructively instead of playing a blame game'},
+     ]},
+     {name:'Show genuine care for one another',items:[
+       {n:10,t:'Actively look out for and support one another'},
+       {n:11,t:'Develop each other and help one another to grow'},
+       {n:12,t:'Praise and celebrate each other'},
+     ]},
+     {name:'Share mutual respect',items:[
+       {n:13,t:'Truly listen to one another'},
+       {n:14,t:'Trust other team members to do their jobs well'},
+       {n:15,t:'Trust the positive intent of other team members'},
+       {n:16,t:"Adapt to each other's needs and preferences"},
+     ]},
+   ]},
+  {key:'learning',name:'Continuous learning',colour:'#2484C6',
+   desc:'How well the team uses feedback, conflict, reflection, and risks to keep improving every day.',
+   subs:[
+     {name:'Learn from successes and failures',items:[
+       {n:17,t:'Celebrate and learn from team successes'},
+       {n:18,t:'Regularly review and learn from team performance'},
+       {n:19,t:'Have processes to gather, listen, and act on feedback'},
+       {n:20,t:'Share knowledge openly and effectively with one another'},
+       {n:21,t:'Embrace risk and change as potential ways to improve performance'},
+     ]},
+     {name:'Use conflict constructively',items:[
+       {n:22,t:'Share constructive feedback to help each other develop'},
+       {n:23,t:'Disagree openly with one another and use conflict to come up with better solutions'},
+     ]},
+   ]},
+  {key:'processes',name:'Frictionless processes',colour:'#32449C',
+   desc:'How well the team uses processes and structures that help them be efficient and make great decisions.',
+   subs:[
+     {name:'Share effective ways of working',items:[
+       {n:24,t:'Share clear ways of working'},
+       {n:25,t:'Coordinate tasks across the team in a seamless way'},
+       {n:26,t:'Have efficient and effective processes to help us perform'},
+     ]},
+     {name:'Make smart decisions',items:[
+       {n:27,t:'Have complementary strengths and areas of expertise'},
+       {n:28,t:'Use the diverse expertise in the team to make great decisions'},
+       {n:29,t:'Use outside-in perspectives to inform decisions'},
+       {n:30,t:'Have clear processes for making decisions'},
+     ]},
+     {name:'Know and play personal roles',items:[
+       {n:31,t:'Have clear roles and responsibilities'},
+       {n:32,t:'Deliver on their personal roles'},
+       {n:33,t:"Understand each other's areas and responsibilities"},
+     ]},
+     {name:'Manage time efficiently',items:[
+       {n:34,t:'Have productive and well-run meetings'},
+       {n:35,t:'Focus the right amount of time on the right things'},
+     ]},
+   ]},
+  {key:'leadership',name:'Strategic leadership',colour:'#20396D',
+   desc:'How well the team operate strategically and have far-reaching positive impact across the organisation.',
+   subs:[
+     {name:'Operate strategically',items:[
+       {n:36,t:'Balance short-term operational priorities with long-term strategy'},
+       {n:37,t:'Make decisions that balance commercial and broader needs (e.g., culture, sustainability)'},
+       {n:38,t:'Empower the teams they lead to step up, so they can operate strategically'},
+     ]},
+     {name:'Collaborate well with others',items:[
+       {n:39,t:'Push back to stakeholders above the team when needed'},
+       {n:40,t:'Work well with other teams or stakeholders'},
+     ]},
+     {name:'Communicate well to the organisation',items:[
+       {n:41,t:'Are a united front on decisions, even if they disagree in private'},
+       {n:42,t:'Communicates its decisions to the organisation clearly and compellingly'},
+       {n:43,t:'Know when to share and when to hold back information with their respective teams'},
+       {n:44,t:'Share a compelling strategy and vision with their respective teams'},
+       {n:45,t:'Role model the right behaviours to the people and teams they lead'},
+       {n:46,t:'Show accessibility and collective visibility within the organisation'},
+     ]},
+   ]},
+];
+const ALL_ITEMS=MODEL.flatMap(d=>d.subs.flatMap(s=>s.items.map(i=>i.n)));
+
+// 1–6 forced-choice scale, red → green. `light` marks pale swatches (dark text).
+const SCALE=[
+  {v:1,label:'Strongly disagree',c:'#E23B33'},
+  {v:2,label:'Disagree',c:'#EF7B5B'},
+  {v:3,label:'Slightly disagree',c:'#F6C0B0',light:true},
+  {v:4,label:'Slightly agree',c:'#CDE3A6',light:true},
+  {v:5,label:'Agree',c:'#97C93D'},
+  {v:6,label:'Strongly agree',c:'#5FA02A'},
+];
+
+const OPEN_QS=[
+  {key:'open_1',q:'What does this team do really well?'},
+  {key:'open_2',q:"What's the change that would make the biggest impact on team performance?"},
+  {key:'open_3',q:'What have we not asked you that you think is important?'},
+];
+
+const ROLES=['Team member','Team leader','Manager','Senior leader','Executive / Board','Other'];
+
+// ── LOCAL STORAGE ─────────────────────────────────────────────────────────────
+function lsKey(code){return 'ahamo_hplt_'+(code||'anon').toLowerCase().trim().replace(/\s+/g,'_');}
+function saveProgress(code,data){try{localStorage.setItem(lsKey(code),JSON.stringify({...data,savedAt:Date.now()}));}catch(e){}}
+function loadProgress(code){try{const r=localStorage.getItem(lsKey(code));return r?JSON.parse(r):null;}catch(e){return null;}}
+function clearProgress(code){try{localStorage.removeItem(lsKey(code));}catch(e){}}
+
+// ── SCALE SELECTOR ────────────────────────────────────────────────────────────
+function ScaleSelect({value,onChange}){
+  return(
+    <div>
+      <div className="scale">
+        {SCALE.map(s=>{
+          const on=value===s.v;
+          return(
+            <button key={s.v} type="button"
+              className={'scale-btn'+(on?' on'+(s.light?' light':''):'')}
+              style={on?{background:s.c,borderColor:s.c}:{}}
+              onClick={()=>onChange(s.v)}
+              title={s.label}>
+              <span className="sn">{s.v}</span>
+              <span className="sl">{s.label}</span>
+            </button>
+          );
+        })}
+      </div>
+      <div className="scale-legend"><span>Strongly disagree</span><span>Strongly agree</span></div>
+    </div>
+  );
+}
+
+// ── PROGRESS ──────────────────────────────────────────────────────────────────
+// Team members: 5 dimensions + Overall + Comments. Stakeholders: Overall + Comments.
+function BrandHeader({clientLogo}){
+  return(
+    <div className="brandbar">
+      <img src={AHAMO_LOGO} alt="AhaMo"/>
+      {clientLogo?<img className="bb-r" src={clientLogo} alt="Client logo"/>:<span className="bb-r"/>}
+    </div>
+  );
+}
+
+function Progress({track,step}){
+  const teamLabels=['Mindset','Relationships','Learning','Processes','Leadership','Overall','Comments'];
+  const stakeLabels=['Overall','Comments'];
+  // Map internal step to a nav index per track.
+  let labels,nav;
+  if(track==='stakeholder'){
+    labels=stakeLabels;
+    nav=step===6?0:step===7?1:step>=8?2:0;
+  }else{
+    labels=teamLabels;
+    nav=(step>=1&&step<=5)?(step-1):step===6?5:step===7?6:step>=8?7:0;
+  }
+  return(
+    <div className="prog-wrap">
+      <div className="prog-bars">{labels.map((_,i)=><div key={i} className={'prog-bar'+(i<nav?' done':i===nav?' now':'')}/>)}</div>
+      <div className="prog-lbls">{labels.map((l,i)=><div key={i} className={'prog-lbl'+(i<nav?' done':i===nav?' now':'')}>{l}</div>)}</div>
+    </div>
+  );
+}
+
+// ── SHARED CONSTANTS ──────────────────────────────────────────────────────────
+const SECTORS=['Automotive','Aviation & Aerospace','Charity & Third Sector','Construction','Defence','Education','Energy & Utilities','Financial Services','Food, Drink & Agriculture','Government / Public Sector','Healthcare & Life Sciences','Hospitality & Leisure','Housing','Legal & Professional Services','Manufacturing','Media & Creative','Nuclear','Rail','Retail','Technology & Telecoms','Transport & Logistics','Other'];
+const AHAMO_LOGO='data:image/jpeg;base64,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';
+const REFLECTION_QS=[
+  'What do you have questions about or need more information on, if anything?',
+  'What made you smile when reading through this report?',
+  'What one area would make the biggest impact on team performance?',
+  'What was your biggest ‘aha’ moment when reading this report?',
+];
+
+// ── SCORING ENGINE ────────────────────────────────────────────────────────────
+// One pass over the loaded rows → everything the dashboard and report need.
+// Item statistics are TEAM-MEMBER ONLY (stakeholders don't answer the 46 items).
+// Overall score (1–10) is split three ways: all / team / stakeholder.
+function avg(a){return a.length?a.reduce((x,y)=>x+y,0)/a.length:0;}
+function isRealRow(r){return (r.track==='team'||r.track==='stakeholder')&&r.respondent_name!=='__facilitator__'&&r.respondent_name!=='__session_closed__';}
+// A row "counts" only once the respondent has actually finished the scored part:
+// team → all 46 items + an overall score; stakeholder → an overall score.
+// This keeps people who began and abandoned out of the counts, stats and report.
+function rowComplete(r){
+  const o=r.overall_score;
+  if(!(o>=1&&o<=10))return false;
+  if(r.track==='stakeholder')return true;
+  if(r.track==='team'){const s=r.item_scores||{};return ALL_ITEMS.every(n=>{const v=s[n];return typeof v==='number'&&v>=1&&v<=6;});}
+  return false;
+}
+
+function analyse(rows){
+  const allReal=(Array.isArray(rows)?rows:[]).filter(isRealRow);
+  const real=allReal.filter(rowComplete);            // completed only — used for every stat
+  const team=real.filter(r=>r.track==='team');
+  const stake=real.filter(r=>r.track==='stakeholder');
+  // In-progress (began, not yet complete) — counted for awareness, never in the stats.
+  const inProgress=allReal.filter(r=>!rowComplete(r));
+  const inProgressTeam=inProgress.filter(r=>r.track==='team').length;
+  const inProgressStake=inProgress.filter(r=>r.track==='stakeholder').length;
+
+  // Per-item stats (team only): mean, six-bucket distribution, n
+  const items={};
+  ALL_ITEMS.forEach(n=>{
+    const vals=team.map(r=>(r.item_scores||{})[n]).filter(v=>typeof v==='number'&&v>=1&&v<=6);
+    const dist=[0,0,0,0,0,0];
+    vals.forEach(v=>dist[v-1]++);
+    items[n]={mean:avg(vals),dist,n:vals.length};
+  });
+
+  // Sub-theme + dimension means (mean of item means, over items that have data)
+  const dims=MODEL.map(d=>{
+    const subs=d.subs.map(s=>{
+      const withData=s.items.filter(it=>items[it.n].n>0);
+      return {name:s.name,items:s.items,mean:withData.length?avg(withData.map(it=>items[it.n].mean)):0,hasData:withData.length>0};
+    });
+    const dItems=d.subs.flatMap(s=>s.items).filter(it=>items[it.n].n>0);
+    return {key:d.key,name:d.name,colour:d.colour,desc:d.desc,subs,mean:dItems.length?avg(dItems.map(it=>items[it.n].mean)):0,hasData:dItems.length>0};
+  });
+  const ranked=[...dims].filter(d=>d.hasData).sort((a,b)=>b.mean-a.mean);
+
+  // Flat item list (with dimension label) → top 5 / bottom 5 by mean
+  const flat=[];
+  MODEL.forEach(d=>d.subs.forEach(s=>s.items.forEach(it=>{
+    if(items[it.n].n>0)flat.push({n:it.n,t:it.t,dim:d.name,colour:d.colour,mean:items[it.n].mean});
+  })));
+  const byMean=[...flat].sort((a,b)=>b.mean-a.mean);
+  const top=byMean.slice(0,5);
+  const bottom=[...byMean].reverse().slice(0,5);
+
+  // Overall performance (Q47, 1–10)
+  const oAll=avg(real.map(r=>r.overall_score).filter(v=>v>=1&&v<=10));
+  const oTeam=avg(team.map(r=>r.overall_score).filter(v=>v>=1&&v<=10));
+  const oStake=avg(stake.map(r=>r.overall_score).filter(v=>v>=1&&v<=10));
+  const oDist=Array(10).fill(0);
+  real.forEach(r=>{if(r.overall_score>=1&&r.overall_score<=10)oDist[r.overall_score-1]++;});
+
+  // Open-ended, collated by question, split by track
+  const open=OPEN_QS.map(q=>({
+    q:q.q,
+    team:team.map(r=>r[q.key]).filter(t=>t&&String(t).trim()),
+    stake:stake.map(r=>r[q.key]).filter(t=>t&&String(t).trim()),
+  }));
+
+  return {allReal,real,team,stake,teamN:team.length,stakeN:stake.length,
+    inProgress:inProgress.length,inProgressTeam,inProgressStake,
+    items,dims,ranked,top,bottom,oAll,oTeam,oStake,oDist,open};
+}
+
+// 1–6 mean → red→amber→green colour
+function meanColour(m){
+  if(!m)return '#e8e8e8';
+  const t=Math.max(0,Math.min(1,(m-1)/5));
+  const S=[[226,59,51],[246,192,80],[95,160,42]];
+  const lerp=(a,b,k)=>a.map((v,i)=>v+(b[i]-v)*k);
+  const c=t<0.5?lerp(S[0],S[1],t/0.5):lerp(S[1],S[2],(t-0.5)/0.5);
+  return 'rgb('+(c[0]|0)+','+(c[1]|0)+','+(c[2]|0)+')';
+}
+function scoreText(m){return m?m.toFixed(1):'—';}
+
+// ── CHART COMPONENTS ──────────────────────────────────────────────────────────
+// Stacked 6-segment distribution bar (red→green) for one item.
+function StackBar({dist}){
+  const total=dist.reduce((a,b)=>a+b,0)||1;
+  return(
+    <div className="sbar">
+      {dist.map((c,i)=>{
+        if(c===0)return null;
+        const pct=c/total*100;
+        return <div key={i} className={'sbar-seg'+(SCALE[i].light?' light':'')} style={{width:pct+'%',background:SCALE[i].c}} title={SCALE[i].label+': '+c}>{pct>=9?c:''}</div>;
+      })}
+    </div>
+  );
+}
+
+function OverallPanel({a}){
+  const max=Math.max(1,...a.oDist);
+  return(
+    <div>
+      <div className="big3">
+        <div className="big-stat hero"><div className="bs-num">{scoreText(a.oAll)}<small>/10</small></div><div className="bs-lbl">All respondents</div><div className="bs-sub" style={{color:'rgba(255,255,255,.7)'}}>{a.real.length} in total</div></div>
+        <div className="big-stat"><div className="bs-num" style={{color:'var(--green)'}}>{scoreText(a.oTeam)}<small>/10</small></div><div className="bs-lbl">Team members</div><div className="bs-sub">{a.teamN} responses</div></div>
+        <div className="big-stat"><div className="bs-num" style={{color:'var(--teal)'}}>{scoreText(a.oStake)}<small>/10</small></div><div className="bs-lbl">Stakeholders</div><div className="bs-sub">{a.stakeN} responses</div></div>
+      </div>
+      <div className="sub-block"><h4>Distribution — “How is this team performing?” (1–10)</h4>
+        <div className="dist10">
+          {a.oDist.map((c,i)=>(
+            <div key={i} className="col">
+              <div className="cnt">{c>0?c:''}</div>
+              <div className="bar" style={{height:(c/max*100)+'%',background:i<3?'#EF7B5B':i<6?'#F6C080':'#8DC640'}}/>
+              <div className="xlab">{i+1}</div>
+            </div>
+          ))}
+        </div>
+        <div className="scale-legend" style={{maxWidth:'none'}}><span>1 · Underperforming</span><span>Excelling · 10</span></div>
+      </div>
+    </div>
+  );
+}
+
+function AreasRanked({a}){
+  const max=6;
+  return(
+    <div>
+      {a.ranked.map((d,i)=>(
+        <div key={d.key} className="area-row">
+          <div className="area-rank">{i+1}</div>
+          <div className="area-swatch" style={{background:d.colour}}/>
+          <div className="area-info">
+            <div className="area-name">{d.name}</div>
+            <div className="area-desc">{d.desc}</div>
+          </div>
+          <div className="area-track"><div className="area-fill" style={{width:(d.mean/max*100)+'%',background:d.colour}}/></div>
+          <div className="area-score">{scoreText(d.mean)}<small>/6</small></div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function TopBottom({a}){
+  const List=({title,rows,accent})=>(
+    <div>
+      <h4 style={{fontSize:'.8rem',fontWeight:700,color:accent,marginBottom:'.6rem',textTransform:'uppercase',letterSpacing:'.05em'}}>{title}</h4>
+      {rows.map(it=>(
+        <div key={it.n} className="item-row">
+          <span className="item-num" style={{background:it.colour}}>{it.n}</span>
+          <div className="item-lab"><span className="dim">{it.dim}</span>Team members {it.t.charAt(0).toLowerCase()+it.t.slice(1)}</div>
+          <div className="item-mean" style={{color:meanColour(it.mean)}}>{scoreText(it.mean)}</div>
+        </div>
+      ))}
+    </div>
+  );
+  return(
+    <div style={{display:'grid',gridTemplateColumns:'1fr',gap:'1.75rem'}}>
+      <List title="Highest scoring — top 5" rows={a.top} accent="#5FA02A"/>
+      <List title="Lowest scoring — bottom 5" rows={a.bottom} accent="#E23B33"/>
+    </div>
+  );
+}
+
+function ItemDetail({a}){
+  const [active,setActive]=React.useState(a.dims.findIndex(d=>d.hasData)>=0?a.dims.findIndex(d=>d.hasData):0);
+  const d=a.dims[active];
+  return(
+    <div>
+      <div className="dim-tab">
+        {a.dims.map((dm,i)=>(
+          <button key={dm.key} className={'dim-pill'+(i===active?' on':'')} style={i===active?{background:dm.colour}:{}} disabled={!dm.hasData} onClick={()=>setActive(i)}>{dm.name}</button>
+        ))}
+      </div>
+      <div className="dim-band" style={{background:d.colour,marginBottom:'1.25rem'}}>
+        <div className="dim-name">{d.name}<span style={{float:'right'}}>{scoreText(d.mean)}<span style={{fontSize:'.8rem',opacity:.8}}>/6</span></span></div>
+        <div className="dim-desc">{d.desc}</div>
+      </div>
+      {d.subs.map(sub=>(
+        <div key={sub.name} className="sub-block">
+          <h4>{sub.name} · {scoreText(sub.mean)}/6</h4>
+          {sub.items.map(it=>{
+            const st=a.items[it.n];
+            return(
+              <div key={it.n} className="sb-row">
+                <div className="sb-txt"><strong style={{color:'var(--muted)',fontWeight:600}}>{it.n}.</strong> {it.t}</div>
+                <div className="sb-bar">{st.n>0?<StackBar dist={st.dist}/>:<div style={{fontSize:'.74rem',color:'#b6bcc6',fontStyle:'italic'}}>No responses</div>}</div>
+                <div className="sb-mean" style={{color:meanColour(st.mean)}}>{scoreText(st.mean)}</div>
+              </div>
+            );
+          })}
+        </div>
+      ))}
+      <div className="scale-legend" style={{maxWidth:'none',marginTop:'.5rem'}}>
+        {SCALE.map(s=><span key={s.v} style={{display:'inline-flex',alignItems:'center',gap:'.25rem'}}><span style={{width:10,height:10,borderRadius:2,background:s.c,display:'inline-block'}}/>{s.label}</span>)}
+      </div>
+    </div>
+  );
+}
+
+function Verbatim({a}){
+  return(
+    <div>
+      {a.open.map((q,i)=>(
+        <div key={i} className="verb-q">
+          <h4>{i+1}. {q.q}</h4>
+          <div className="verb-split">
+            <div className="verb-col">
+              <h5>Team members ({q.team.length})</h5>
+              {q.team.length?q.team.map((t,j)=><div key={j} className="verb-item">{t}</div>):<div className="verb-empty">No responses</div>}
+            </div>
+            <div className="verb-col stake">
+              <h5>Stakeholders ({q.stake.length})</h5>
+              {q.stake.length?q.stake.map((t,j)=><div key={j} className="verb-item">{t}</div>):<div className="verb-empty">No responses</div>}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SubAreasChart({a}){
+  return(
+    <div>
+      <p style={{fontSize:'.86rem',color:'#4b5563',lineHeight:1.6,marginBottom:'1.1rem'}}>Each area breaks into sub-areas. Average agreement per sub-area (team members only), scored 1–6.</p>
+      {a.dims.map(d=>(
+        <div key={d.key} className="sub-block">
+          <h4 style={{color:d.colour}}>{d.name} · {scoreText(d.mean)}/6</h4>
+          {d.subs.map(s=>(
+            <div key={s.name} style={{display:'flex',alignItems:'center',gap:'.7rem',marginBottom:'.4rem'}}>
+              <div style={{flex:'0 0 200px',fontSize:'.82rem',color:'var(--ink)',lineHeight:1.3}}>{s.name}</div>
+              <div style={{flex:1,height:'14px',background:'var(--grey)',borderRadius:'7px',overflow:'hidden',maxWidth:'360px'}}>
+                {s.hasData&&<div style={{height:'100%',width:(s.mean/6*100)+'%',background:d.colour,borderRadius:'7px'}}/>}
+              </div>
+              <div style={{width:'36px',textAlign:'right',fontSize:'.92rem',fontWeight:800,color:s.hasData?'var(--navy)':'#b6bcc6'}}>{s.hasData?scoreText(s.mean):'—'}</div>
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ReflectionPanel(){
+  return(
+    <div>
+      <p style={{fontSize:'.86rem',color:'#4b5563',lineHeight:1.6,marginBottom:'1.25rem'}}>Four questions for the team to sit with ahead of the facilitated conversation. Project these to close the session.</p>
+      {REFLECTION_QS.map((q,i)=>(
+        <div key={i} style={{background:'var(--navy)',borderRadius:'12px',padding:'1.1rem 1.35rem',marginBottom:'.85rem'}}>
+          <div style={{fontSize:'.68rem',fontWeight:700,letterSpacing:'.06em',color:'var(--green)',marginBottom:'.35rem'}}>QUESTION {i+1}</div>
+          <div style={{fontSize:'1.05rem',color:'#fff',lineHeight:1.4}}>{q}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── PDF REPORT ────────────────────────────────────────────────────────────────
+// Reproduces Ahamo's report outputs. jsPDF has no Poppins built in, so the body
+// is set in Helvetica (a close geometric sans); the palette and layout match.
+function generateReport(a,meta){
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({unit:'mm',format:'a4'});
+  const W=210,H=297,M=16;
+  const NAVY=[32,57,109],RED=[239,65,54],TEAL=[34,149,160],GREEN=[141,198,64],INK=[26,26,26],MUT=[107,114,128],LINE=[226,228,232];
+  const SC=[[226,59,51],[239,123,91],[246,192,176],[205,227,166],[151,201,61],[95,160,42]];
+  let y=0;
+  const pageBottom=H-16;
+  function need(h){if(y+h>pageBottom){doc.addPage();y=M;drawRunningHead();}}
+  function imgFmt(u){return /^data:image\/png/i.test(u||'')?'PNG':'JPEG';}
+  function drawRunningHead(){
+    // AhaMo master logo (full colour on white), left
+    try{doc.addImage(AHAMO_LOGO,'JPEG',M,6,17.9,7,'ahamo','FAST');}catch(e){}
+    // Client logo, right — matched height
+    if(meta.clientLogo){
+      const h=7,w=Math.min(40,h*(meta.clientRatio||2));
+      try{doc.addImage(meta.clientLogo,imgFmt(meta.clientLogo),W-M-w,6,w,h,'client','FAST');}catch(e){}
+    }
+    doc.setDrawColor(...LINE);doc.setLineWidth(.2);doc.line(M,15.5,W-M,15.5);
+    y=Math.max(y,M+4);
+  }
+  function h2(txt){
+    need(16);doc.setFont('helvetica','bold');doc.setFontSize(15);doc.setTextColor(...NAVY);
+    doc.text(txt,M,y);y+=2.5;
+    doc.setDrawColor(...TEAL);doc.setLineWidth(1.1);doc.line(M,y,M+34,y);y+=7;
+  }
+  function para(txt,size){
+    doc.setFont('helvetica','normal');doc.setFontSize(size||9.5);doc.setTextColor(...MUT);
+    const lines=doc.splitTextToSize(txt,W-M*2);need(lines.length*4.6);
+    doc.text(lines,M,y);y+=lines.length*4.6+2;
+  }
+  function subhead(txt){
+    need(9);doc.setFont('helvetica','bold');doc.setFontSize(9.5);doc.setTextColor(...NAVY);
+    doc.text(txt,M,y);y+=5;
+  }
+  function divider(part,title,sub){
+    doc.addPage();doc.setFillColor(...NAVY);doc.rect(0,0,W,H,'F');
+    doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(...GREEN);
+    doc.text(part.toUpperCase(),M,H/2-18);
+    doc.setFont('helvetica','bold');doc.setFontSize(28);doc.setTextColor(255,255,255);
+    doc.text(title,M,H/2-4);
+    doc.setDrawColor(...TEAL);doc.setLineWidth(1.4);doc.line(M,H/2+2,M+50,H/2+2);
+    if(sub){doc.setFont('helvetica','normal');doc.setFontSize(11);doc.setTextColor(200,208,224);
+      const sl=doc.splitTextToSize(sub,W-M*2-40);doc.text(sl,M,H/2+14);}
+    y=H; // force next section to addPage
+  }
+
+  // ── COVER ──
+  doc.setFillColor(...NAVY);doc.rect(0,0,W,H,'F');
+  doc.setFont('helvetica','bold');doc.setFontSize(30);doc.setTextColor(255,255,255);
+  doc.text('Aha',M,45);
+  const ahaW=doc.getTextWidth('Aha');
+  doc.setFillColor(...RED);doc.circle(M+ahaW+3,43.4,1.7,'F');
+  doc.text('Mo',M+ahaW+7,45);
+  // Client logo — white chip top-right so any logo reads on the navy cover
+  if(meta.clientLogo){
+    const h=13,w=Math.min(52,h*(meta.clientRatio||2)),pad=3.5;
+    doc.setFillColor(255,255,255);
+    doc.roundedRect(W-M-w-pad*2,20,w+pad*2,h+pad*2,2.5,2.5,'F');
+    try{doc.addImage(meta.clientLogo,imgFmt(meta.clientLogo),W-M-w-pad,20+pad,w,h,'client','FAST');}catch(e){}
+  }
+  doc.setFontSize(9);doc.setTextColor(...GREEN);doc.setFont('helvetica','bold');
+  doc.text('HIGH PERFORMING LEADERSHIP TEAMS',M,72);
+  doc.setFont('helvetica','bold');doc.setFontSize(30);doc.setTextColor(255,255,255);
+  const tl=doc.splitTextToSize('Diagnostic Report',W-M*2);doc.text(tl,M,88);
+  doc.setDrawColor(...TEAL);doc.setLineWidth(1.4);doc.line(M,104,M+50,104);
+  doc.setFont('helvetica','normal');doc.setFontSize(15);doc.setTextColor(255,255,255);
+  doc.text(meta.team,M,118);
+  doc.setFontSize(10);doc.setTextColor(200,208,224);
+  doc.text([meta.sector||'',meta.date].filter(Boolean),M,128);
+  doc.setFontSize(9);doc.setTextColor(160,172,196);
+  doc.text(a.teamN+' team members · '+a.stakeN+' stakeholders',M,H-24);
+  doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(...RED);
+  doc.text('CONFIDENTIAL',M,H-16);
+  doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(160,172,196);
+  doc.text('Please do not forward this report unless agreed with the team.',M,H-11);
+
+  // ── BEFORE YOU GET INTO THE REPORT ──
+  doc.addPage();y=M;drawRunningHead();
+  h2('Before you get into the report');
+  subhead('What is this tool?');
+  para('This is the High Performing Leadership Teams (HPLT) Diagnostic Report. It measures the extent to which people feel your team shows the five traits that define a high-performing leadership team. The five traits make up the HPLT model, described in full on the next page.');
+  subhead('What data have we gathered?');
+  para('Team members rated their agreement with 46 statements across the five traits, from 1 (strongly disagree) to 6 (strongly agree). They also answered three open-ended questions and a final question rating the team’s overall performance from 1 to 10. External stakeholders — nominated by the team leader — answered the overall performance question and the three open-ended questions.');
+  subhead('Who completed?');
+  para(a.teamN+' team member'+(a.teamN===1?'':'s')+' and '+a.stakeN+' external stakeholder'+(a.stakeN===1?'':'s')+' completed the diagnostic.');
+  subhead('How will we use this report?');
+  para('Team members get a chance to read and reflect on the results. A facilitated conversation then helps the team make sense of them together and identify next steps.');
+
+  // ── WHAT WE MEASURE ──
+  doc.addPage();y=M;drawRunningHead();
+  h2('What we measure here');
+  MODEL.forEach((d,i)=>{
+    const rgb=hexToRgb(d.colour);
+    need(24);
+    doc.setFillColor(...rgb);doc.roundedRect(M,y-4,7,7,1,1,'F');
+    doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(255,255,255);
+    doc.text('0'+(i+1),M+3.5,y+0.6,{align:'center'});
+    doc.setFont('helvetica','bold');doc.setFontSize(11.5);doc.setTextColor(...rgb);
+    doc.text(d.name,M+11,y);y+=5;
+    doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.setTextColor(...MUT);
+    const dl=doc.splitTextToSize(d.desc,W-M*2-11);doc.text(dl,M+11,y);y+=dl.length*4.2+1.5;
+    doc.setFont('helvetica','italic');doc.setFontSize(8);doc.setTextColor(...INK);
+    const subs=d.subs.map(s=>s.name).join('  ·  ');
+    const sl=doc.splitTextToSize(subs,W-M*2-11);doc.text(sl,M+11,y);y+=sl.length*4+6;
+  });
+
+  divider('Part 1','Overview','The scores for the five areas, the fourteen sub-areas, and your highest and lowest scoring items.');
+
+  // ── PARTICIPATION + OVERALL ──
+  doc.addPage();y=M;drawRunningHead();
+  h2('Overall performance');
+  para('“How is this team performing?” — scored 1 (underperforming) to 10 (excelling). Team members and stakeholders both answer this question.');
+  const boxes=[['All respondents',a.oAll,NAVY,a.real.length+' in total'],['Team members',a.oTeam,GREEN,a.teamN+' responses'],['Stakeholders',a.oStake,TEAL,a.stakeN+' responses']];
+  const bw=(W-M*2-8)/3;need(30);
+  boxes.forEach((b,i)=>{
+    const x=M+i*(bw+4);
+    doc.setDrawColor(...LINE);doc.setLineWidth(.3);
+    if(i===0){doc.setFillColor(...NAVY);doc.roundedRect(x,y,bw,26,2,2,'F');}
+    else doc.roundedRect(x,y,bw,26,2,2,'S');
+    doc.setFont('helvetica','bold');doc.setFontSize(20);
+    doc.setTextColor(...(i===0?[255,255,255]:b[2]));
+    doc.text((b[1]?b[1].toFixed(1):'—')+'/10',x+bw/2,y+13,{align:'center'});
+    doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(...(i===0?[210,216,230]:MUT));
+    doc.text(String(b[0]).toUpperCase(),x+bw/2,y+19,{align:'center'});
+    doc.setFont('helvetica','normal');doc.setFontSize(7);
+    doc.text(b[3],x+bw/2,y+23.5,{align:'center'});
+  });
+  y+=32;
+  // 1–10 distribution
+  need(40);doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(...INK);
+  doc.text('Distribution of scores',M,y);y+=5;
+  const dmax=Math.max(1,...a.oDist),chH=26,cw=(W-M*2)/10;
+  a.oDist.forEach((c,i)=>{
+    const x=M+i*cw,bh=c/dmax*chH;
+    const col=i<3?[239,123,91]:i<6?[246,192,128]:[141,198,64];
+    doc.setFillColor(...col);doc.rect(x+1.5,y+chH-bh,cw-3,bh,'F');
+    doc.setFont('helvetica','bold');doc.setFontSize(7);doc.setTextColor(...NAVY);
+    if(c>0)doc.text(String(c),x+cw/2,y+chH-bh-1.5,{align:'center'});
+    doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(...MUT);
+    doc.text(String(i+1),x+cw/2,y+chH+4,{align:'center'});
+  });
+  y+=chH+10;
+
+  // ── FIVE AREAS RANKED ──
+  h2('The five areas, ranked');
+  para('Average agreement across each area’s items (team members only), scored 1–6. Ordered strongest to weakest.');
+  a.ranked.forEach((d,i)=>{
+    need(16);
+    const rgb=hexToRgb(d.colour);
+    doc.setFillColor(...rgb);doc.rect(M,y,3,12,'F');
+    doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(...NAVY);
+    doc.text((i+1)+'.  '+d.name,M+6,y+5);
+    doc.setFont('helvetica','bold');doc.setFontSize(14);doc.setTextColor(...rgb);
+    doc.text(d.mean.toFixed(1),W-M,y+6,{align:'right'});
+    doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(...MUT);
+    doc.text('/6',W-M+0.5,y+6,{align:'left'});
+    // track bar
+    doc.setFillColor(240,241,244);doc.roundedRect(M+6,y+8,W-M*2-24,2.6,1,1,'F');
+    doc.setFillColor(...rgb);doc.roundedRect(M+6,y+8,(W-M*2-24)*(d.mean/6),2.6,1,1,'F');
+    y+=16;
+  });
+  y+=2;
+
+  // ── 14 SUB-AREAS ──
+  doc.addPage();y=M;drawRunningHead();
+  h2('The fourteen sub-areas');
+  para('Each area breaks into sub-areas. Average agreement per sub-area (team members only), scored 1–6.');
+  const axL=M+64, axR=W-M-8, axW=axR-axL;
+  a.dims.forEach(d=>{
+    const rgb=hexToRgb(d.colour);
+    need(d.subs.length*7+11);
+    doc.setFont('helvetica','bold');doc.setFontSize(8.5);doc.setTextColor(...rgb);
+    doc.text(d.name,M,y);y+=5.5;
+    d.subs.forEach(s=>{
+      const bh=4.2;
+      doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(...INK);
+      const lab=doc.splitTextToSize(s.name,axL-M-6);
+      doc.text(lab[0]+(lab.length>1?'…':''),axL-3,y+3,{align:'right'});
+      doc.setFillColor(240,241,244);doc.rect(axL,y,axW,bh,'F');
+      if(s.hasData){doc.setFillColor(...rgb);doc.rect(axL,y,axW*(s.mean/6),bh,'F');
+        doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(...NAVY);
+        doc.text(s.mean.toFixed(1),axR+1.5,y+3.4,{align:'left'});}
+      else{doc.setFont('helvetica','italic');doc.setFontSize(6.5);doc.setTextColor(...MUT);doc.text('—',axR+1.5,y+3.4,{align:'left'});}
+      y+=7;
+    });
+    y+=3.5;
+  });
+  // axis ticks 1..6
+  for(let t=1;t<=6;t++){const x=axL+axW*((t-1)/5);doc.setFont('helvetica','normal');doc.setFontSize(6.5);doc.setTextColor(...MUT);doc.text(String(t),x,y+1,{align:'center'});}
+
+  // ── HIGHEST / LOWEST ITEMS ──
+  doc.addPage();y=M;drawRunningHead();
+  h2('Highest and lowest scoring items');
+  const itemBlock=(title,rows,col)=>{
+    need(10);doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(...col);
+    doc.text(title,M,y);y+=5.5;
+    rows.forEach(it=>{
+      need(9);
+      const rgb=hexToRgb(it.colour);
+      doc.setFillColor(...rgb);doc.roundedRect(M,y-3.4,6,5,1,1,'F');
+      doc.setFont('helvetica','bold');doc.setFontSize(6.5);doc.setTextColor(255,255,255);
+      doc.text(String(it.n),M+3,y,{align:'center'});
+      doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.setTextColor(...INK);
+      const t=doc.splitTextToSize('Team members '+it.t.charAt(0).toLowerCase()+it.t.slice(1),W-M*2-30);
+      doc.text(t[0]+(t.length>1?'…':''),M+9,y);
+      doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(...mc(it.mean));
+      doc.text(it.mean.toFixed(1),W-M,y,{align:'right'});
+      y+=6.4;
+    });
+    y+=3;
+  };
+  itemBlock('Highest scoring — top 5',a.top,[95,160,42]);
+  itemBlock('Lowest scoring — bottom 5',a.bottom,[226,59,51]);
+
+  divider('Part 2','Distribution','A breakdown so you can see how the team scored each question.');
+
+  // ── PER-DIMENSION ITEM DETAIL ──
+  a.dims.forEach(d=>{
+    if(!d.hasData)return;
+    doc.addPage();y=M;drawRunningHead();
+    const rgb=hexToRgb(d.colour);
+    doc.setFillColor(...rgb);doc.roundedRect(M,y,W-M*2,16,2,2,'F');
+    doc.setFont('helvetica','bold');doc.setFontSize(13);doc.setTextColor(255,255,255);
+    doc.text(d.name,M+4,y+7);
+    doc.setFont('helvetica','bold');doc.setFontSize(13);
+    doc.text(d.mean.toFixed(1)+'/6',W-M-4,y+7,{align:'right'});
+    doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(240,244,248);
+    const dl=doc.splitTextToSize(d.desc,W-M*2-8);doc.text(dl,M+4,y+12);
+    y+=20;
+    d.subs.forEach(sub=>{
+      need(8);doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(...TEAL);
+      doc.text(sub.name.toUpperCase()+'   ·   '+(sub.mean?sub.mean.toFixed(1):'—')+'/6',M,y);y+=5;
+      sub.items.forEach(it=>{
+        const st=a.items[it.n];need(11);
+        doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(...INK);
+        const t=doc.splitTextToSize(it.n+'. '+it.t,W-M*2-64);
+        doc.text(t[0]+(t.length>1?'…':''),M,y);
+        // stacked bar
+        const barX=W-M-58,barW=48,barH=4.2;
+        if(st.n>0){
+          const total=st.dist.reduce((x,z)=>x+z,0)||1;let cx=barX;
+          st.dist.forEach((c,i)=>{if(c>0){const w=c/total*barW;doc.setFillColor(...SC[i]);doc.rect(cx,y-3.2,w,barH,'F');cx+=w;}});
+          doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(...mc(st.mean));
+          doc.text(st.mean.toFixed(1),W-M,y,{align:'right'});
+        }else{
+          doc.setFont('helvetica','italic');doc.setFontSize(7);doc.setTextColor(...MUT);
+          doc.text('no responses',W-M,y,{align:'right'});
+        }
+        y+=6.6;
+      });
+      y+=2;
+    });
+  });
+
+  divider('Part 3','Verbatim feedback','What team members and external stakeholders wrote about your team.');
+
+  // ── VERBATIM ──
+  doc.addPage();y=M;drawRunningHead();
+  h2('In their own words');
+  para('Open responses, verbatim, split by team members and stakeholders.');
+  a.open.forEach((q,i)=>{
+    need(12);doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(...NAVY);
+    const ql=doc.splitTextToSize((i+1)+'. '+q.q,W-M*2);doc.text(ql,M,y);y+=ql.length*5+2;
+    const grp=(label,arr,col)=>{
+      need(7);doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(...col);
+      doc.text(label.toUpperCase()+' ('+arr.length+')',M,y);y+=4.5;
+      if(!arr.length){doc.setFont('helvetica','italic');doc.setFontSize(8);doc.setTextColor(...MUT);doc.text('No responses',M+2,y);y+=5;return;}
+      arr.forEach(t=>{
+        const lines=doc.splitTextToSize(t,W-M*2-6);need(lines.length*4.4+2);
+        doc.setFillColor(...col);doc.rect(M,y-3.2,1.2,lines.length*4.4,'F');
+        doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.setTextColor(...INK);
+        doc.text(lines,M+4,y);y+=lines.length*4.4+2.5;
+      });
+      y+=1.5;
+    };
+    grp('Team members',q.team,[95,160,42]);
+    grp('Stakeholders',q.stake,[34,152,160]);
+    y+=3;
+  });
+
+  divider('Part 4','Reflection','Four questions to sit with ahead of the conversation with your team.');
+
+  // ── REFLECTION ──
+  doc.addPage();y=M;drawRunningHead();
+  h2('Reflecting on this team’s results');
+  para('Ahead of the facilitated conversation, take a few minutes with these four questions.');
+  y+=2;
+  REFLECTION_QS.forEach((q,i)=>{
+    need(20);
+    doc.setFillColor(...NAVY);doc.roundedRect(M,y,W-M*2,17,2,2,'F');
+    doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(...GREEN);
+    doc.text('QUESTION '+(i+1),M+5,y+6);
+    doc.setFont('helvetica','normal');doc.setFontSize(10.5);doc.setTextColor(255,255,255);
+    const ql=doc.splitTextToSize(q,W-M*2-10);doc.text(ql,M+5,y+12);
+    y+=22;
+  });
+
+  // Footer page numbers
+  const pages=doc.internal.getNumberOfPages();
+  for(let p=2;p<=pages;p++){doc.setPage(p);doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(...MUT);doc.text('Aha.Mo · HPLT Diagnostic',M,H-8);doc.text(String(p)+' / '+pages,W-M,H-8,{align:'right'});}
+
+  const safe=(meta.team||'team').replace(/[^a-z0-9]+/gi,'-').toLowerCase();
+  doc.save('HPLT-Report-'+safe+'.pdf');
+
+  function hexToRgb(h){const m=h.replace('#','').match(/\w\w/g);return m.map(x=>parseInt(x,16));}
+  function mc(m){if(!m)return MUT;const t=Math.max(0,Math.min(1,(m-1)/5));const S=[[226,59,51],[246,192,80],[95,160,42]];const l=(a,b,k)=>a.map((v,i)=>v+(b[i]-v)*k);const c=t<0.5?l(S[0],S[1],t/0.5):l(S[1],S[2],(t-0.5)/0.5);return [c[0]|0,c[1]|0,c[2]|0];}
+}
+
+// ── APP ───────────────────────────────────────────────────────────────────────
+function App(){
+  // step: -1 gate · 0 landing · 1-5 dimension screens · 6 overall · 7 open · 8 thanks · 20 facilitator
+  const [step,setStep]=useState(-1);
+
+  // Gate / session
+  const [accessCode,setAccessCode]=useState('');
+  const [codeInput,setCodeInput]=useState('');
+  const [codeError,setCodeError]=useState('');
+  const [codeChecking,setCodeChecking]=useState(false);
+  const [sessionConfig,setSessionConfig]=useState(null);
+  const [clientLogo,setClientLogo]=useState('');   // data URL, shown top-right on every page + PDF
+  const [clientLogoRatio,setClientLogoRatio]=useState(2); // width/height, for PDF sizing
+  const [logoErr,setLogoErr]=useState('');
+  const [logoBusy,setLogoBusy]=useState(false);
+
+  // Participant
+  const [participantUuid,setParticipantUuid]=useState('');
+  const [participantId,setParticipantId]=useState('');
+  const [respondentName,setRespondentName]=useState('');
+  const [track,setTrack]=useState('');   // 'team' | 'stakeholder'
+  const [role,setRole]=useState('');
+  const [roleCustom,setRoleCustom]=useState('');
+  const [beginning,setBeginning]=useState(false);
+  const [beginError,setBeginError]=useState('');
+
+  // Answers
+  const [scores,setScores]=useState({});   // {itemNumber: 1..6}
+  const [overall,setOverall]=useState(0);  // 1..10
+  const [open1,setOpen1]=useState('');
+  const [open2,setOpen2]=useState('');
+  const [open3,setOpen3]=useState('');
+  const [submitting,setSubmitting]=useState(false);
+  const [submitError,setSubmitError]=useState('');
+
+  const [resumeData,setResumeData]=useState(null);
+
+  // Facilitator
+  const [facUnlocked,setFacUnlocked]=useState(false);
+  const [cfgTeam,setCfgTeam]=useState('');
+  const [cfgSector,setCfgSector]=useState('');
+  const [cfgSaving,setCfgSaving]=useState(false);
+  const [cfgError,setCfgError]=useState('');
+  const [respondents,setRespondents]=useState([]);
+  const [facTile,setFacTile]=useState('');   // which dashboard overlay is open
+  const [facEditing,setFacEditing]=useState(false); // setup edit mode
+  const [pdfBusy,setPdfBusy]=useState(false);
+  const [removeConfirmId,setRemoveConfirmId]=useState(''); // row awaiting delete confirm
+  const [removingId,setRemovingId]=useState('');          // row currently deleting
+  const [removeErr,setRemoveErr]=useState('');
+  const [linkCopied,setLinkCopied]=useState(false);
+
+  const topRef=useRef(null);
+  const codeNorm=(accessCode||'').trim().toUpperCase();
+  const openMap={open_1:open1,open_2:open2,open_3:open3};
+
+  useEffect(()=>{topRef.current&&topRef.current.scrollIntoView({behavior:'smooth'});},[step]);
+
+  // URL ?code= shortcut
+  useEffect(()=>{
+    try{
+      const c=(new URLSearchParams(window.location.search).get('code')||'').trim();
+      if(!c)return;
+      setCodeInput(c);setCodeChecking(true);
+      (async()=>{
+        const ok=await validateCode(c);
+        setCodeChecking(false);
+        if(!ok)setCodeError('That code wasn’t recognised. Check it and try again.');
+      })();
+    }catch(e){}
+  },[]);
+
+  // Autosave to localStorage
+  useEffect(()=>{
+    if(!accessCode||step<=0)return;
+    saveProgress(accessCode,{step,track,role,roleCustom,scores,overall,open1,open2,open3,
+      participantUuid,participantId,accessCode});
+  },[step,track,role,roleCustom,scores,overall,open1,open2,open3,accessCode,participantUuid,participantId]);
+
+  // Resume detection
+  useEffect(()=>{
+    if(!accessCode||step!==0)return;
+    const saved=loadProgress(accessCode);
+    if(!saved||saved.step<=0)return;
+    const answered=(saved.scores&&Object.keys(saved.scores).length>0)||saved.overall>0;
+    if(answered)setResumeData(saved);
+  },[accessCode,step]);
+
+  // Debounced Supabase autosave once assigned + past landing
+  useEffect(()=>{
+    if(!codeNorm||!participantUuid)return;
+    if(step<1||step>7)return;
+    const t=setTimeout(()=>saveToServer(false),700);
+    return()=>clearTimeout(t);
+  },[scores,overall,open1,open2,open3,step,codeNorm,participantUuid]);
+
+  // Poll respondents in facilitator mode
+  useEffect(()=>{
+    if(!facUnlocked||step!==20||!codeNorm)return;
+    loadRespondents();
+    const id=setInterval(loadRespondents,15000);
+    return()=>clearInterval(id);
+  },[facUnlocked,step,codeNorm]);
+
+  // ── Server calls ────────────────────────────────────────────────────────────
+  async function validateCode(c){
+    try{
+      const r=await fetch('/api/validate-code',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({code:c,tool:'ahamo-hplt'})});
+      const d=await r.json().catch(()=>({}));
+      if(r.ok&&d&&d.valid){
+        setAccessCode(c.toUpperCase());
+        setSessionConfig(d.session_config||null);
+        loadClientLogo(c.toUpperCase());
+        setStep(0);
+        return true;
+      }
+      return false;
+    }catch(e){return false;}
+  }
+
+  // Track the client logo's aspect ratio (for correct PDF sizing), on upload or server-load.
+  useEffect(()=>{
+    if(!clientLogo){setClientLogoRatio(2);return;}
+    const im=new Image();
+    im.onload=()=>{if(im.height)setClientLogoRatio(im.width/im.height);};
+    im.src=clientLogo;
+  },[clientLogo]);
+
+  // ── Client logo (v2 branding) ───────────────────────────────────────────────
+  async function loadClientLogo(code){
+    const c=code||codeNorm;if(!c)return;
+    try{
+      const r=await fetch('/api/hplt2-config',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({sessionCode:c,action:'get'})});
+      const d=await r.json().catch(()=>({}));
+      if(r.ok&&d&&typeof d.clientLogo==='string')setClientLogo(d.clientLogo);
+    }catch(e){}
+  }
+  async function saveClientLogo(dataUrl){
+    if(!codeNorm)return false;
+    try{
+      const r=await fetch('/api/hplt2-config',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({sessionCode:codeNorm,action:'set',clientLogo:dataUrl})});
+      const d=await r.json().catch(()=>({}));
+      return !!(r.ok&&d&&d.ok);
+    }catch(e){return false;}
+  }
+  function onLogoFile(file){
+    setLogoErr('');
+    if(!file)return;
+    if(!/^image\/(png|jpeg|jpg)$/.test(file.type)){setLogoErr('Please choose a PNG or JPEG image.');return;}
+    if(file.size>10*1024*1024){setLogoErr('That file is over 10MB — please choose a smaller one.');return;}
+    setLogoBusy(true);
+    const reader=new FileReader();
+    reader.onerror=()=>{setLogoErr('Could not read that file.');setLogoBusy(false);};
+    reader.onload=()=>{
+      const img=new Image();
+      img.onerror=()=>{setLogoErr('That image could not be loaded.');setLogoBusy(false);};
+      img.onload=async()=>{
+        const render=(maxH,type,q)=>{
+          const s=Math.min(1,maxH/img.height);
+          const w=Math.max(1,Math.round(img.width*s)),h=Math.max(1,Math.round(img.height*s));
+          const cv=document.createElement('canvas');cv.width=w;cv.height=h;
+          cv.getContext('2d').drawImage(img,0,0,w,h);
+          return cv.toDataURL(type,q);
+        };
+        let url=render(200,'image/png');            // preserve transparency at a sensible height
+        if(url.length>200000)url=render(150,'image/png');
+        if(url.length>200000)url=render(150,'image/jpeg',0.85);
+        if(url.length>260000){setLogoErr('That image is too detailed to store — please use a simpler or smaller logo.');setLogoBusy(false);return;}
+        setClientLogo(url);
+        const ok=await saveClientLogo(url);
+        setLogoBusy(false);
+        if(!ok)setLogoErr('Shown here, but it couldn’t be stored for participants. Please try again.');
+      };
+      img.src=reader.result;
+    };
+    reader.readAsDataURL(file);
+  }
+  async function removeClientLogo(){
+    setLogoBusy(true);setLogoErr('');setClientLogo('');
+    await saveClientLogo('');
+    setLogoBusy(false);
+  }
+
+  async function checkCode(){
+    const c=codeInput.trim();
+    if(!c){setCodeError('Please enter a code.');return;}
+    setCodeChecking(true);setCodeError('');
+    const ok=await validateCode(c);
+    setCodeChecking(false);
+    if(!ok)setCodeError('That code wasn’t recognised. Check it and try again.');
+  }
+
+  async function beginParticipant(){
+    if(!entryReady())return;
+    // Already assigned earlier this session (e.g. went Back to the landing and
+    // returned)? Reuse the same id so we never create a second row.
+    if(participantUuid){setStep(track==='stakeholder'?6:1);return;}
+    setBeginning(true);setBeginError('');
+    try{
+      const r=await fetch('/api/assign-participant',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({sessionCode:accessCode})});
+      const d=await r.json().catch(()=>({}));
+      if(r.ok&&d&&d.id){
+        setParticipantUuid(d.id);
+        setParticipantId(d.participantId||'');
+        setBeginning(false);
+        setStep(track==='stakeholder'?6:1);
+      }else{setBeginError('We couldn’t start your session. Please try again.');setBeginning(false);}
+    }catch(e){setBeginError('We couldn’t start your session. Please try again.');setBeginning(false);}
+  }
+
+  async function saveToServer(isGenerate){
+    if(!codeNorm||!participantUuid)return false;
+    try{
+      const r=await fetch('/api/hplt-save',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          session_code:codeNorm,
+          participant_id:participantUuid,
+          respondent_name:respondentName.trim()||undefined,
+          track,
+          role:role==='Other'?roleCustom:role,
+          item_scores:track==='team'?scores:{},
+          overall_score:overall||null,
+          open_1:open1,open_2:open2,open_3:open3,
+          generate_report:!!isGenerate,
+          date:new Date().toISOString(),
+        })});
+      return r&&r.ok;
+    }catch(e){console.warn('hplt-save error',e);return false;}
+  }
+
+  async function loadRespondents(){
+    if(!codeNorm)return;
+    try{
+      const r=await fetch('/api/hplt-load?code='+encodeURIComponent(codeNorm)+'&_='+Date.now(),{cache:'no-store'});
+      if(!r.ok)return;
+      const d=await r.json();
+      if(Array.isArray(d))setRespondents(d);
+    }catch(e){}
+  }
+
+  async function removeParticipant(id){
+    if(!codeNorm||!id)return;
+    setRemovingId(id);setRemoveErr('');
+    try{
+      const r=await fetch('/api/hplt-delete',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({session_code:codeNorm,id})});
+      const d=await r.json().catch(()=>({}));
+      if(r.ok&&d&&d.ok){
+        setRespondents(prev=>prev.filter(x=>x.id!==id));
+        setRemoveConfirmId('');
+        loadRespondents();
+      }else{setRemoveErr((d&&d.error)||'Could not remove. Please try again.');}
+    }catch(e){setRemoveErr('Could not remove. Please try again.');}
+    setRemovingId('');
+  }
+
+  async function submitFinal(){
+    setSubmitting(true);setSubmitError('');
+    let ok=false,attempt=0;
+    while(!ok&&attempt<3){ok=await saveToServer(true);if(!ok){attempt++;if(attempt<3)await new Promise(r=>setTimeout(r,600));}}
+    setSubmitting(false);
+    if(!ok){setSubmitError('We couldn’t save your responses. Please check your connection and try again.');return;}
+    try{clearProgress(accessCode);}catch(e){}
+    setStep(8);
+  }
+
+  async function saveConfig(){
+    if(!cfgTeam.trim()||!cfgSector)return false;
+    setCfgSaving(true);setCfgError('');
+    try{
+      const r=await fetch('/api/save-session-config',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({sessionCode:accessCode,tool:'ahamo-hplt',thingForEveryone:cfgTeam.trim(),thingType:'Team',sector:cfgSector})});
+      const d=await r.json().catch(()=>({}));
+      if(r.ok&&d&&d.ok){setSessionConfig(d.sessionConfig||null);setCfgSaving(false);return true;}
+      setCfgError((d&&d.error)||'Could not save. Please try again.');setCfgSaving(false);return false;
+    }catch(e){setCfgError('Could not save. Please try again.');setCfgSaving(false);return false;}
+  }
+
+  async function copyParticipantLink(){
+    const url=window.location.origin+'/ahamo-hplt2?code='+encodeURIComponent(codeNorm);
+    try{
+      if(navigator.clipboard&&navigator.clipboard.writeText){await navigator.clipboard.writeText(url);}
+      else{window.prompt('Copy this participant link:',url);}
+      setLinkCopied(true);setTimeout(()=>setLinkCopied(false),2200);
+    }catch(e){window.prompt('Copy this participant link:',url);}
+  }
+
+  function unlockFacilitator(){
+    const pw=window.prompt('Enter facilitator password:');
+    if(pw==='Admin1*'){
+      setFacUnlocked(true);
+      if(sessionConfig){setCfgTeam(sessionConfig.thing_for_everyone||'');setCfgSector(sessionConfig.sector||'');}
+      setStep(20);
+    }else if(pw!==null){window.alert('Incorrect password.');}
+  }
+
+  // ── Validation helpers ────────────────────────────────────────────────────────
+  function entryReady(){
+    if(!track)return false;
+    if(!role||(role==='Other'&&!roleCustom.trim()))return false;
+    return true;
+  }
+  function dimComplete(dim){return MODEL[dim].subs.every(s=>s.items.every(it=>scores[it.n]>0));}
+
+  function setScore(n,v){setScores(p=>({...p,[n]:v}));}
+
+  function applyResume(d){
+    if(d.track)setTrack(d.track);
+    if(d.role)setRole(d.role);if(d.roleCustom)setRoleCustom(d.roleCustom);
+    if(d.scores)setScores(d.scores);
+    if(typeof d.overall==='number')setOverall(d.overall);
+    if(d.open1)setOpen1(d.open1);if(d.open2)setOpen2(d.open2);if(d.open3)setOpen3(d.open3);
+    if(d.participantUuid)setParticipantUuid(d.participantUuid);
+    if(d.participantId)setParticipantId(d.participantId);
+    setResumeData(null);
+    setStep(d.step||(d.track==='stakeholder'?6:1));
+  }
+
+  function restart(){
+    clearProgress(accessCode);
+    setStep(-1);setAccessCode('');setCodeInput('');setCodeError('');setCodeChecking(false);setSessionConfig(null);
+    setClientLogo('');setLogoErr('');setLogoBusy(false);
+    setParticipantUuid('');setParticipantId('');setRespondentName('');setTrack('');setRole('');setRoleCustom('');
+    setScores({});setOverall(0);setOpen1('');setOpen2('');setOpen3('');
+    setBeginning(false);setBeginError('');setSubmitting(false);setSubmitError('');
+    setResumeData(null);setFacUnlocked(false);setRespondents([]);
+    setCfgTeam('');setCfgSector('');setCfgSaving(false);setCfgError('');
+    setFacTile('');setFacEditing(false);setPdfBusy(false);
+    setRemoveConfirmId('');setRemovingId('');setRemoveErr('');
+  }
+
+  // ── RENDERERS ─────────────────────────────────────────────────────────────────
+  const teamName=(sessionConfig&&sessionConfig.thing_for_everyone)||'this team';
+
+  function renderGate(){
+    return(
+      <div style={{maxWidth:'440px',margin:'2rem auto 0'}}>
+        <label className="field-lbl">Enter your access code</label>
+        <input className="inp" value={codeInput}
+          onChange={e=>{setCodeInput(e.target.value);if(codeError)setCodeError('');}}
+          onKeyDown={e=>{if(e.key==='Enter'&&!codeChecking)checkCode();}}
+          autoFocus autoCapitalize="characters" autoComplete="off" spellCheck={false}
+          style={{textTransform:'uppercase',letterSpacing:'.05em'}}/>
+        {codeError&&<div style={{marginTop:'.65rem',fontSize:'.84rem',color:'#b23028',lineHeight:1.5}}>{codeError}</div>}
+        <div className="btn-row" style={{marginTop:'1.25rem'}}>
+          <button className="btn-p" disabled={!codeInput.trim()||codeChecking} onClick={checkCode}>
+            {codeChecking?'Checking…':'Continue →'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  function renderResume(){
+    if(!resumeData)return null;
+    const when=resumeData.savedAt?new Date(resumeData.savedAt).toLocaleString('en-GB',{day:'numeric',month:'long',hour:'2-digit',minute:'2-digit'}):'recently';
+    return(
+      <div className="resume-box">
+        <h3>Welcome back — continue where you left off?</h3>
+        <p>We found a saved session from {when}.</p>
+        <div className="btn-row" style={{marginTop:'.5rem'}}>
+          <button className="btn-p" onClick={()=>applyResume(resumeData)}>Resume →</button>
+          <button className="btn-s" onClick={()=>setResumeData(null)}>Start fresh</button>
+        </div>
+      </div>
+    );
+  }
+
+  function renderLanding(){
+    const ready=!!(sessionConfig&&sessionConfig.thing_for_everyone);
+    return(
+      <div>
+        <div className="land-hero">
+          <h1 className="land-title">High Performing Leadership Teams Diagnostic</h1>
+          <p className="land-desc">This short diagnostic captures how your team is working today across five areas that define high-performing leadership teams. Your responses are combined with the rest of the team to produce a single team report.</p>
+          <div className="land-time">⏱ Team members: about 10 minutes · Stakeholders: about 3 minutes</div>
+        </div>
+
+        {!ready&&(
+          <div style={{background:'#fff',border:'1px solid var(--line)',borderRadius:'10px',padding:'1.25rem',marginBottom:'1.25rem'}}>
+            <div style={{fontSize:'1rem',fontWeight:700,color:'var(--navy)',marginBottom:'.5rem'}}>The diagnostic isn’t open yet</div>
+            <p style={{fontSize:'.86rem',color:'#4b5563',lineHeight:1.6,margin:0}}>Your facilitator hasn’t finished setting up this session. Please contact them, or wait a moment and refresh.</p>
+            <div className="btn-row" style={{marginTop:'1rem'}}>
+              <button className="btn-s" onClick={unlockFacilitator}>Facilitator ★</button>
+            </div>
+          </div>
+        )}
+
+        {ready&&(
+          <div>
+            <div style={{background:'#f4f7fb',border:'1px solid var(--line)',borderRadius:'10px',padding:'1rem 1.25rem',marginBottom:'1.5rem'}}>
+              <div style={{fontSize:'.7rem',fontWeight:700,color:'var(--muted)',letterSpacing:'.05em',textTransform:'uppercase',marginBottom:'.3rem'}}>You are assessing</div>
+              <div style={{fontSize:'1.1rem',fontWeight:700,color:'var(--navy)'}}>{sessionConfig.thing_for_everyone}</div>
+            </div>
+
+            <label className="field-lbl">Are you a member of this team, or a stakeholder assessing it? <span style={{color:'var(--red)'}}>*</span></label>
+            <div className="track-grid">
+              <div className={'track-card'+(track==='team'?' on':'')} onClick={()=>setTrack('team')}>
+                <h3>Team member</h3>
+                <p>You’re part of this leadership team. You’ll answer 46 short statements plus a few open questions.</p>
+              </div>
+              <div className={'track-card'+(track==='stakeholder'?' on':'')} onClick={()=>setTrack('stakeholder')}>
+                <h3>Stakeholder</h3>
+                <p>You work with this team from outside it. You’ll give an overall score and answer three open questions.</p>
+              </div>
+            </div>
+
+            <div style={{marginTop:'1.5rem'}}>
+              <label className="field-lbl">Your role <span style={{color:'var(--red)'}}>*</span></label>
+              <div style={{display:'flex',flexWrap:'wrap',gap:'.5rem',marginBottom:'.5rem'}}>
+                {ROLES.map(r=>(
+                  <button key={r} className={'chip'+(role===r?' on':'')} onClick={()=>{setRole(r);if(r!=='Other')setRoleCustom('');}}>{r}</button>
+                ))}
+              </div>
+              {role==='Other'&&<input className="inp" placeholder="Describe your role…" value={roleCustom} onChange={e=>setRoleCustom(e.target.value)} style={{maxWidth:'360px'}}/>}
+            </div>
+
+            {renderResume()}
+
+            <div className="disc"><strong>Privacy:</strong> Your responses are combined with the rest of the group to produce the team report. Individual answers are not attributed to you by name in the report.</div>
+
+            <div className="btn-row">
+              <button className="btn-p" disabled={!entryReady()||beginning} onClick={beginParticipant}>{beginning?'Starting…':'Begin →'}</button>
+              <button className="btn-s" onClick={unlockFacilitator}>Facilitator ★</button>
+            </div>
+            {beginError&&<div style={{marginTop:'.65rem',fontSize:'.84rem',color:'#b23028'}}>{beginError}</div>}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  function renderDimension(dimIdx){
+    const dim=MODEL[dimIdx];
+    const done=dimComplete(dimIdx);
+    const missing=dim.subs.flatMap(s=>s.items).filter(it=>!(scores[it.n]>0)).map(it=>it.n);
+    const next=()=>setStep(dimIdx+1<5?dimIdx+2:6);
+    const back=()=>setStep(dimIdx===0?0:dimIdx);
+    return(
+      <div className="fade">
+        <button className="back-btn" onClick={back}>← Back</button>
+        <div className="pg-tag">Area {dimIdx+1} of 5 · {teamName}</div>
+        <div className="dim-band" style={{background:dim.colour}}>
+          <div className="dim-name">{dim.name}</div>
+          <div className="dim-desc">{dim.desc}</div>
+        </div>
+        <div className="stem">{STEM}</div>
+        {dim.subs.map(sub=>(
+          <div key={sub.name}>
+            <div className="sub-hdr">{sub.name}</div>
+            {sub.items.map(it=>(
+              <div key={it.n} id={'itemcard-'+it.n} className={'item-card'+(scores[it.n]>0?' answered':'')}>
+                <div className="item-text"><span className="lead">Team members </span>{it.t.charAt(0).toLowerCase()+it.t.slice(1)}</div>
+                <ScaleSelect value={scores[it.n]||0} onChange={v=>setScore(it.n,v)}/>
+              </div>
+            ))}
+          </div>
+        ))}
+        {!done&&(
+          <div style={{fontSize:'.82rem',color:'var(--muted)',marginTop:'.9rem',lineHeight:1.9}}>
+            {missing.length<=10?(
+              <span>Still to do — tap to jump: {missing.map(n=>(
+                <button key={n} type="button"
+                  onClick={()=>{const el=document.getElementById('itemcard-'+n);if(el)el.scrollIntoView({behavior:'smooth',block:'center'});}}
+                  style={{background:'#f0f3f9',border:'1px solid #cdd9ea',color:'var(--navy)',borderRadius:'7px',padding:'.2rem .55rem',margin:'0 .2rem',fontSize:'.82rem',fontWeight:700,cursor:'pointer',fontFamily:'Poppins,sans-serif',minHeight:'34px'}}>{n}</button>
+              ))}</span>
+            ):(
+              <span>Answer every statement to continue — {missing.length} still to do.</span>
+            )}
+          </div>
+        )}
+        <div className="btn-row">
+          <button className="btn-p" disabled={!done} onClick={next}>{dimIdx<4?'Next area →':'Continue →'}</button>
+          <button className="btn-s" onClick={back}>← Back</button>
+        </div>
+      </div>
+    );
+  }
+
+  function renderOverall(){
+    const back=()=>setStep(track==='stakeholder'?0:5);
+    return(
+      <div className="fade">
+        <button className="back-btn" onClick={back}>← Back</button>
+        <div className="pg-tag">Overall performance · {teamName}</div>
+        <h2 className="pg-title"><span className="hl">How is this team performing?</span></h2>
+        <div className="title-rule"/>
+        <p className="pg-sub">How would you score this team’s current performance, from 1 (underperforming) to 10 (excelling)?</p>
+        <div className="ten">
+          {Array.from({length:10},(_,i)=>i+1).map(v=>(
+            <button key={v} type="button" className={'ten-btn'+(overall===v?' on':'')} onClick={()=>setOverall(v)}>{v}</button>
+          ))}
+        </div>
+        <div className="ten-anchor"><span>1 · Underperforming</span><span>Excelling · 10</span></div>
+        <div className="btn-row">
+          <button className="btn-p" disabled={!overall} onClick={()=>setStep(7)}>Continue →</button>
+          <button className="btn-s" onClick={back}>← Back</button>
+        </div>
+      </div>
+    );
+  }
+
+  function renderOpen(){
+    const setters={open_1:setOpen1,open_2:setOpen2,open_3:setOpen3};
+    return(
+      <div className="fade">
+        <button className="back-btn" onClick={()=>setStep(6)}>← Back</button>
+        <div className="pg-tag">A few open questions · {teamName}</div>
+        <h2 className="pg-title"><span className="hl">In your own words</span></h2>
+        <div className="title-rule"/>
+        <p className="pg-sub">These three short answers are read alongside the scores. Say as much or as little as you like.</p>
+        {OPEN_QS.map((q,i)=>(
+          <div key={q.key} style={{marginBottom:'1.4rem'}}>
+            <label className="field-lbl">{i+1}. {q.q}</label>
+            <textarea className="inp inp-ta" value={openMap[q.key]} onChange={e=>setters[q.key](e.target.value)} placeholder="Your answer (optional)…"/>
+          </div>
+        ))}
+        {submitError&&<div className="warn-box">{submitError}</div>}
+        <div className="btn-row">
+          {submitting?(
+            <div className="think"><div className="dots"><div className="dot"/><div className="dot"/><div className="dot"/></div><span className="think-txt">Saving your responses…</span></div>
+          ):(
+            <button className="btn-p" onClick={submitFinal}>Submit →</button>
+          )}
+          <button className="btn-s" onClick={()=>setStep(6)}>← Back</button>
+        </div>
+      </div>
+    );
+  }
+
+  function renderThanks(){
+    return(
+      <div className="fade">
+        <div className="ty-card">
+          <div className="ty-mark">✓</div>
+          <h2>Thank you</h2>
+          <p>Your responses for <strong>{teamName}</strong> have been recorded.</p>
+          <p>They’ll be combined with the rest of the team to produce a single team report, which your facilitator will share and talk through with the group.</p>
+        </div>
+      </div>
+    );
+  }
+
+  function renderFacilitator(){
+    const ready=!!(sessionConfig&&sessionConfig.thing_for_everyone);
+    const a=analyse(respondents);
+    const total=a.real.length;
+
+    // Setup not done yet, or explicitly editing → show the setup form
+    if(!ready||facEditing){
+      return(
+        <div className="fade">
+          <img src={AHAMO_LOGO} alt="AhaMo" style={{height:'32px',width:'auto',display:'block',marginBottom:'.5rem'}}/>
+          <div className="pg-tag">Facilitator · {codeNorm}</div>
+          <h2 className="pg-title" style={{fontSize:'1.5rem'}}>Session setup</h2>
+          <div className="title-rule"/>
+          {!ready&&<div className="inf-box">Fill these in to open the session. Until you save, participants who enter this code see “The diagnostic isn’t open yet.”</div>}
+          <div style={{maxWidth:'560px'}}>
+            <div style={{marginBottom:'1.1rem'}}>
+              <label className="field-lbl">Name the team being assessed <span style={{color:'var(--red)'}}>*</span></label>
+              <div className="field-sub">e.g. “The Executive Leadership Team”, “Product Leadership Team”.</div>
+              <input className="inp" placeholder="Which team is this?" value={cfgTeam} onChange={e=>setCfgTeam(e.target.value)} disabled={cfgSaving}/>
+            </div>
+            <div style={{marginBottom:'1.1rem'}}>
+              <label className="field-lbl">Sector <span style={{color:'var(--red)'}}>*</span></label>
+              <select className="inp" value={cfgSector} onChange={e=>setCfgSector(e.target.value)} disabled={cfgSaving}>
+                <option value="">Select…</option>
+                {SECTORS.map(s=><option key={s}>{s}</option>)}
+              </select>
+            </div>
+            <div style={{marginBottom:'1.1rem'}}>
+              <label className="field-lbl">Client logo <span style={{color:'var(--muted)',fontWeight:400}}>(optional)</span></label>
+              <div className="field-sub">Appears top-right — opposite the AhaMo logo — on every participant page and on the PDF report.</div>
+              {clientLogo?(
+                <div style={{display:'flex',alignItems:'center',gap:'1rem',flexWrap:'wrap',marginTop:'.5rem'}}>
+                  <div style={{border:'1px solid var(--line)',borderRadius:'8px',padding:'.6rem .9rem',background:'#fff',display:'flex',alignItems:'center',minHeight:'56px'}}>
+                    <img src={clientLogo} alt="Client logo preview" style={{height:'34px',width:'auto',maxWidth:'200px',objectFit:'contain',display:'block'}}/>
+                  </div>
+                  <label className="btn-s" style={{cursor:'pointer',margin:0}}>
+                    {logoBusy?'Working…':'Replace'}
+                    <input type="file" accept="image/png,image/jpeg" style={{display:'none'}} disabled={logoBusy} onChange={e=>{onLogoFile(e.target.files&&e.target.files[0]);e.target.value='';}}/>
+                  </label>
+                  <button className="btn-s" style={{color:'#b23028',borderColor:'#f0c8c2'}} disabled={logoBusy} onClick={removeClientLogo}>Remove</button>
+                </div>
+              ):(
+                <label style={{display:'block',cursor:'pointer',marginTop:'.5rem'}}>
+                  <div onDragOver={e=>{e.preventDefault();}} onDrop={e=>{e.preventDefault();onLogoFile(e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0]);}}
+                    style={{border:'1.5px dashed var(--line)',borderRadius:'10px',padding:'1.25rem',textAlign:'center',background:'#fafbfc'}}>
+                    <div style={{fontWeight:600,color:'var(--navy)',fontSize:'.92rem'}}>{logoBusy?'Working…':'Tap to choose a logo, or drop a file here'}</div>
+                    <div style={{fontSize:'.78rem',color:'var(--muted)',marginTop:'.35rem',lineHeight:1.5}}>PNG or JPEG. A <strong>transparent PNG</strong> works best — it sits cleanly with no background box. Landscape or square logos suit the space; it’s resized automatically, so any size is fine (up to 10MB).</div>
+                  </div>
+                  <input type="file" accept="image/png,image/jpeg" style={{display:'none'}} disabled={logoBusy}
+                    onChange={e=>{onLogoFile(e.target.files&&e.target.files[0]);e.target.value='';}}/>
+                </label>
+              )}
+              {logoErr&&<div className="warn-box" style={{marginTop:'.6rem'}}>{logoErr}</div>}
+            </div>
+            {cfgError&&<div className="warn-box">{cfgError}</div>}
+            <div className="btn-row" style={{marginTop:'.5rem'}}>
+              <button className="btn-p" disabled={!cfgTeam.trim()||!cfgSector||cfgSaving} onClick={async()=>{const ok=await saveConfig();if(ok&&ready)setFacEditing(false);}}>{cfgSaving?'Saving…':ready?'Save changes':'Save and open session'}</button>
+              {ready&&<button className="btn-s" onClick={()=>setFacEditing(false)}>Cancel</button>}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    const meta={team:sessionConfig.thing_for_everyone,sector:sessionConfig.sector||'',date:new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'}),clientLogo:clientLogo||'',clientRatio:clientLogoRatio||2};
+    const doPdf=()=>{
+      if(!window.jspdf){window.alert('The report library is still loading — try again in a moment.');return;}
+      setPdfBusy(true);
+      setTimeout(()=>{try{generateReport(a,meta);}catch(e){console.error(e);window.alert('Report error: '+e.message);}setPdfBusy(false);},60);
+    };
+
+    const tiles=[
+      {key:'overall',eyebrow:'Performance',title:'Overall performance',desc:'The 1–10 score, split three ways, with the full distribution.',metric:total?scoreText(a.oAll):null,unit:'/10',need:total>0},
+      {key:'areas',eyebrow:'The five areas',title:'Areas, ranked',desc:'Every area scored 1–6 and ordered strongest to weakest.',metric:a.ranked.length?scoreText(a.ranked[0].mean):null,unit:'top',need:a.teamN>0},
+      {key:'subareas',eyebrow:'The five areas',title:'Sub-areas',desc:'All fourteen sub-areas scored 1–6, grouped by area.',need:a.teamN>0},
+      {key:'topbottom',eyebrow:'Detail',title:'Highest & lowest',desc:'The five strongest and five weakest items.',need:a.teamN>0},
+      {key:'items',eyebrow:'Detail',title:'Item breakdown',desc:'Per-area stacked response bars, grouped by sub-theme.',need:a.teamN>0},
+      {key:'verbatim',eyebrow:'Voice',title:'Verbatim feedback',desc:'The three open questions, collated by track.',need:total>0},
+      {key:'reflection',eyebrow:'Conversation',title:'Reflection',desc:'Four closing questions to project for the team.',need:true},
+      {key:'participants',eyebrow:'Admin',title:'Participants',desc:'Everyone who has submitted — remove duplicates or mistakes.',metric:a.allReal.length?String(a.allReal.length):null,unit:'entries',need:a.allReal.length>0},
+      {key:'setup',eyebrow:'Admin',title:'Session setup',desc:'Team name, sector, and access details.',need:true},
+    ];
+
+    return(
+      <div className="fade" style={{maxWidth:'1080px',margin:'0 auto'}}>
+        <div className="dash-top">
+          <div>
+            <div style={{display:'flex',alignItems:'center',gap:'.9rem',marginBottom:'.4rem',flexWrap:'wrap'}}>
+              <img src={AHAMO_LOGO} alt="AhaMo" style={{height:'30px',width:'auto',display:'block'}}/>
+              {clientLogo&&<img src={clientLogo} alt="Client logo" style={{height:'30px',width:'auto',maxWidth:'160px',objectFit:'contain',display:'block'}}/>}
+            </div>
+            <div className="pg-tag" style={{marginBottom:'.2rem'}}>Facilitator dashboard · {codeNorm}</div>
+            <h2 style={{fontSize:'1.5rem',fontWeight:800,color:'var(--navy)',lineHeight:1.15}}>{sessionConfig.thing_for_everyone}</h2>
+          </div>
+          <div className="dash-actions">
+            <button className="btn-s" onClick={copyParticipantLink}>{linkCopied?'✓ Link copied':'⧉ Copy participant link'}</button>
+            <button className="btn-p" onClick={doPdf} disabled={pdfBusy||!total}>{pdfBusy?'Building…':'⤓ Generate report'}</button>
+          </div>
+        </div>
+        <div className="dash-counts" style={{marginTop:'.9rem'}}>
+          <span className="count-pill"><span className="pulse"/>Live</span>
+          <span className="count-pill"><span className="cn">{a.teamN}</span>team members</span>
+          <span className="count-pill"><span className="cn">{a.stakeN}</span>stakeholders</span>
+          <span className="count-pill"><span className="cn">{total}</span>completed</span>
+          {a.inProgress>0&&<span className="count-pill" style={{color:'var(--muted)'}}><span className="cn">{a.inProgress}</span>in progress</span>}
+          <button className="btn-s" style={{padding:'.35rem .85rem',minHeight:0,fontSize:'.8rem'}} onClick={loadRespondents}>Refresh</button>
+        </div>
+
+        {a.allReal.length===0&&(
+          <div className="empty-dash">
+            <div className="big">No responses yet</div>
+            <p style={{fontSize:'.9rem',lineHeight:1.6,maxWidth:'440px',margin:'0 auto'}}>Share the access code with the team. As people complete the diagnostic, their responses appear here — the tiles fill in live.</p>
+          </div>
+        )}
+
+        {a.allReal.length>0&&total===0&&(
+          <div className="inf-box" style={{marginTop:'1rem'}}>{a.inProgress} {a.inProgress===1?'person has':'people have'} started but nobody has finished yet. The results tiles unlock once at least one person completes.</div>
+        )}
+
+        {a.allReal.length>0&&(
+          <div className="tile-grid">
+            {tiles.map(t=>(
+              <button key={t.key} className="tile" disabled={!t.need} onClick={()=>{if(t.key==='setup'){setFacEditing(true);}else setFacTile(t.key);}}>
+                <div className="tile-accent"/>
+                <div className="tile-eyebrow">{t.eyebrow}</div>
+                <div className="tile-title">{t.title}</div>
+                <div className="tile-desc">{t.desc}</div>
+                {t.metric&&<div className="tile-metric">{t.metric}<small> {t.unit}</small></div>}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className="btn-row" style={{marginTop:'2rem'}}>
+          <button className="btn-s" onClick={restart}>Exit facilitator</button>
+        </div>
+      </div>
+    );
+  }
+
+  function renderOverlay(){
+    if(!facTile)return null;
+    const a=analyse(respondents);
+    const map={
+      overall:{title:'Overall performance',sub:'“How is this team performing?” · 1–10',body:<OverallPanel a={a}/>},
+      areas:{title:'The five areas, ranked',sub:'Average agreement per area · 1–6 · team members',body:<AreasRanked a={a}/>},
+      subareas:{title:'The fourteen sub-areas',sub:'Average agreement per sub-area · 1–6 · team members',body:<SubAreasChart a={a}/>},
+      items:{title:'Item breakdown',sub:'Response distribution per item · team members',body:<ItemDetail a={a}/>},
+      topbottom:{title:'Highest & lowest scoring items',sub:'By team-member average · 1–6',body:<TopBottom a={a}/>},
+      verbatim:{title:'Verbatim feedback',sub:'Open responses, collated by track',body:<Verbatim a={a}/>},
+      reflection:{title:'Reflecting on this team’s results',sub:'Four closing questions for the conversation',body:<ReflectionPanel/>},
+      participants:{title:'Participants',sub:'Remove a duplicate or a mistaken entry — this can’t be undone',body:renderParticipants(a)},
+    };
+    const v=map[facTile];
+    if(!v)return null;
+    return(
+      <div className="ov" onClick={e=>{if(e.target===e.currentTarget){setFacTile('');setRemoveConfirmId('');}}}>
+        <div className="ov-card">
+          <div className="ov-head">
+            <div><h2>{v.title}</h2><div className="sub">{v.sub}</div></div>
+            <button className="ov-close" onClick={()=>{setFacTile('');setRemoveConfirmId('');}}>✕</button>
+          </div>
+          <div className="ov-body">{v.body}</div>
+        </div>
+      </div>
+    );
+  }
+
+  function renderParticipants(a){
+    // Real rows only (track set), in submission order, numbered to aid the facilitator.
+    const rows=respondents.filter(isRealRow);
+    if(!rows.length)return <div className="verb-empty">No participants yet.</div>;
+    const fmt=(ts)=>{try{return new Date(ts).toLocaleString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});}catch(e){return '';}};
+    const itemsAnswered=(r)=>r.item_scores?Object.keys(r.item_scores).filter(k=>r.item_scores[k]>=1&&r.item_scores[k]<=6).length:0;
+    return(
+      <div>
+        <p style={{fontSize:'.86rem',color:'#4b5563',lineHeight:1.6,marginBottom:'1rem'}}>{rows.length} {rows.length===1?'entry':'entries'}. If someone completed twice or entered by mistake, remove the extra row — the scores and report update straight away. Only completed entries count toward the results.</p>
+        {removeErr&&<div className="warn-box">{removeErr}</div>}
+        <div style={{border:'1px solid var(--line)',borderRadius:'10px',overflow:'hidden'}}>
+          {rows.map((r,i)=>{
+            const isTeam=r.track==='team';
+            const complete=rowComplete(r);
+            const confirming=removeConfirmId===r.id;
+            const deleting=removingId===r.id;
+            return(
+              <div key={r.id||i} style={{display:'flex',alignItems:'center',gap:'.85rem',padding:'.75rem 1rem',borderBottom:i<rows.length-1?'1px solid var(--line)':'none',background:confirming?'#fff5f4':'#fff',flexWrap:'wrap'}}>
+                <span style={{fontSize:'.72rem',fontWeight:700,color:'#fff',background:isTeam?'var(--green)':'var(--teal)',borderRadius:'6px',padding:'.2rem .5rem',flexShrink:0}}>{isTeam?'Team':'Stakeholder'}</span>
+                <div style={{flex:1,minWidth:'160px'}}>
+                  <div style={{fontSize:'.9rem',fontWeight:600,color:'var(--navy)'}}>Entry {i+1}{r.role?' · '+r.role:''} {complete?<span style={{fontSize:'.66rem',fontWeight:700,color:'var(--green)'}}>✓ COMPLETE</span>:<span style={{fontSize:'.66rem',fontWeight:700,color:'#c98a00'}}>◷ IN PROGRESS</span>}</div>
+                  <div style={{fontSize:'.74rem',color:'var(--muted)'}}>
+                    {r.overall_score?('Overall '+r.overall_score+'/10'):'no overall score'}
+                    {isTeam?' · '+itemsAnswered(r)+'/46 items':''}
+                    {r.created_at?' · '+fmt(r.created_at):''}
+                    {r.pending_review?' · ⚠ after close':''}
+                  </div>
+                </div>
+                {!confirming?(
+                  <button className="btn-s" style={{padding:'.4rem .8rem',minHeight:0,fontSize:'.8rem',color:'#b23028',borderColor:'#f0c8c2'}} onClick={()=>{setRemoveErr('');setRemoveConfirmId(r.id);}}>Remove</button>
+                ):(
+                  <div style={{display:'flex',gap:'.4rem',alignItems:'center'}}>
+                    <span style={{fontSize:'.78rem',color:'#b23028',fontWeight:600}}>Remove?</span>
+                    <button className="btn-s" style={{padding:'.4rem .8rem',minHeight:0,fontSize:'.8rem'}} onClick={()=>setRemoveConfirmId('')} disabled={deleting}>Cancel</button>
+                    <button className="btn-p" style={{padding:'.4rem .8rem',minHeight:0,fontSize:'.8rem',background:'#c0392b'}} onClick={()=>removeParticipant(r.id)} disabled={deleting}>{deleting?'Removing…':'Yes, remove'}</button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  // ── ROUTER ────────────────────────────────────────────────────────────────────
+  return(
+    <div className="shell" ref={topRef}>
+      {step!==20&&<BrandHeader clientLogo={clientLogo}/>}
+      {step>=1&&step<=7&&<Progress track={track} step={step}/>}
+      {participantId&&step>=1&&step<=7&&(
+        <div style={{maxWidth:'780px',margin:'.75rem auto 0',padding:'0 1.5rem'}}>
+          <div style={{background:'var(--navy)',color:'#fff',padding:'.5rem .85rem',borderRadius:'8px',fontSize:'.78rem',display:'flex',justifyContent:'space-between',gap:'.65rem',flexWrap:'wrap'}}>
+            <span style={{opacity:.85}}>You are <strong>Participant {participantId}</strong> ({track==='team'?'team member':'stakeholder'})</span>
+            <span style={{opacity:.6}}>Session {codeNorm}</span>
+          </div>
+        </div>
+      )}
+      <div className="main">
+        {step===20?(
+          <div className="dash-wrap fade">{renderFacilitator()}</div>
+        ):(
+          <div className="content fade" key={step}>
+            {step===-1&&renderGate()}
+            {step===0&&renderLanding()}
+            {step>=1&&step<=5&&renderDimension(step-1)}
+            {step===6&&renderOverall()}
+            {step===7&&renderOpen()}
+            {step===8&&renderThanks()}
+          </div>
+        )}
+      </div>
+      {step===20&&renderOverlay()}
+    </div>
+  );
+}
+
+class ErrorBoundary extends React.Component{
+  constructor(p){super(p);this.state={error:null};}
+  componentDidCatch(e){this.setState({error:e.message});}
+  render(){
+    if(this.state.error){
+      return React.createElement('div',{style:{padding:'2rem',fontFamily:"'Poppins',sans-serif",background:'#fff5f4',border:'2px solid #EF4136',margin:'2rem',borderRadius:'10px'}},
+        React.createElement('h3',{style:{color:'#EF4136',marginBottom:'1rem'}},'Something went wrong'),
+        React.createElement('pre',{style:{fontSize:'.75rem',color:'#555',whiteSpace:'pre-wrap'}},this.state.error),
+        React.createElement('button',{onClick:()=>this.setState({error:null}),style:{marginTop:'1rem',padding:'.5rem 1rem',background:'#20386D',color:'#fff',border:'none',borderRadius:'6px',cursor:'pointer'}},'Try again'));
+    }
+    return this.props.children;
+  }
+}
+const root=ReactDOM.createRoot(document.getElementById('root'));
+root.render(React.createElement(ErrorBoundary,null,React.createElement(App,null)));
+</script>
+</body>
+</html>
