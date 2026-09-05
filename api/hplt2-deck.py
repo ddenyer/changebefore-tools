@@ -82,9 +82,29 @@ def _insert_logo(slide, ph, logo_bytes):
         logo=Image.open(io.BytesIO(logo_bytes)).convert('RGBA')
     except Exception:
         return
+    # Trim uniform white / transparent borders so the logo fills the panel.
+    try:
+        bbox=None
+        px=logo.load(); W,H=logo.size
+        minX,minY,maxX,maxY=W,H,-1,-1
+        step=max(1,min(W,H)//400)  # sample for speed on large images
+        for y in range(0,H,step):
+            for x in range(0,W,step):
+                r,gg,b,a=px[x,y]
+                if a>24 and not(r>245 and gg>245 and b>245):
+                    if x<minX:minX=x
+                    if x>maxX:maxX=x
+                    if y<minY:minY=y
+                    if y>maxY:maxY=y
+        if maxX>minX and maxY>minY:
+            pad=int(max(maxX-minX,maxY-minY)*0.04)
+            box=(max(0,minX-pad),max(0,minY-pad),min(W,maxX+pad),min(H,maxY+pad))
+            logo=logo.crop(box)
+    except Exception:
+        pass
     CW=1200; CH=max(1,int(CW/ar))
     canvas=Image.new('RGBA',(CW,CH),(255,255,255,255))
-    scale=min(CW*0.60/logo.width, CH*0.60/logo.height)
+    scale=min(CW*0.62/logo.width, CH*0.62/logo.height)
     nw,nh=max(1,int(logo.width*scale)),max(1,int(logo.height*scale))
     canvas.alpha_composite(logo.resize((nw,nh),Image.LANCZOS),((CW-nw)//2,(CH-nh)//2))
     tmp=io.BytesIO(); canvas.convert('RGB').save(tmp,'PNG'); tmp.seek(0)
