@@ -509,7 +509,8 @@ function rowComplete(r){
   return false;
 }
 
-function analyse(rows){
+function analyse(rows,hiddenList){
+  const hiddenSet=new Set(Array.isArray(hiddenList)?hiddenList:[]);
   const allReal=(Array.isArray(rows)?rows:[]).filter(isRealRow);
   const real=allReal.filter(rowComplete);            // completed only — used for every stat
   const team=real.filter(r=>r.track==='team');
@@ -555,12 +556,15 @@ function analyse(rows){
   const oDist=Array(10).fill(0);
   real.forEach(r=>{if(r.overall_score>=1&&r.overall_score<=10)oDist[r.overall_score-1]++;});
 
-  // Open-ended, collated by question, split by track
-  const open=OPEN_QS.map(q=>({
-    q:q.q,
-    team:team.map(r=>r[q.key]).filter(t=>t&&String(t).trim()),
-    stake:stake.map(r=>r[q.key]).filter(t=>t&&String(t).trim()),
-  }));
+  // Open-ended, collated by question, split by track. Each comment carries a
+  // stable id (rowId:questionKey) and a hidden flag the facilitator controls.
+  const open=OPEN_QS.map(q=>{
+    const collect=(arr)=>arr.map(r=>{
+      const id=(r.id||'')+':'+q.key;
+      return {id,text:r[q.key],hidden:hiddenSet.has(id)};
+    }).filter(c=>c.text&&String(c.text).trim());
+    return {q:q.q,key:q.key,team:collect(team),stake:collect(stake)};
+  });
 
   return {allReal,real,team,stake,teamN:team.length,stakeN:stake.length,
     inProgress:inProgress.length,inProgressTeam,inProgressStake,
@@ -695,20 +699,30 @@ function ItemDetail({a}){
   );
 }
 
-function Verbatim({a}){
+function Verbatim({a,onToggleHide,logoBusy}){
+  const col=(list)=>(
+    list.length?list.map((c,j)=>(
+      <div key={c.id||j} className="verb-item" style={{display:'flex',alignItems:'flex-start',gap:'.6rem',opacity:c.hidden?.55:1,background:c.hidden?'#f7f8fa':undefined}}>
+        <span style={{flex:1}}>{c.hidden&&<span style={{fontSize:'.66rem',fontWeight:700,color:'#c98a00',marginRight:'.4rem'}}>HIDDEN</span>}{c.text}</span>
+        {onToggleHide&&<button className="btn-s" style={{padding:'.25rem .6rem',minHeight:0,fontSize:'.72rem',flexShrink:0,color:c.hidden?'var(--navy)':'#b23028',borderColor:c.hidden?'var(--line)':'#f0c8c2'}} disabled={logoBusy} onClick={()=>onToggleHide(c.id,!c.hidden)}>{c.hidden?'Unhide':'Hide'}</button>}
+      </div>
+    )):<div className="verb-empty">No responses</div>
+  );
+  const vis=(list)=>list.filter(c=>!c.hidden).length;
   return(
     <div>
+      {onToggleHide&&<p style={{fontSize:'.82rem',color:'#4b5563',lineHeight:1.6,marginBottom:'1rem'}}>Hidden comments are removed from the report and the team’s view. Counts show what the team will see.</p>}
       {a.open.map((q,i)=>(
         <div key={i} className="verb-q">
           <h4>{i+1}. {q.q}</h4>
           <div className="verb-split">
             <div className="verb-col">
-              <h5>Team members ({q.team.length})</h5>
-              {q.team.length?q.team.map((t,j)=><div key={j} className="verb-item">{t}</div>):<div className="verb-empty">No responses</div>}
+              <h5>Team members ({vis(q.team)})</h5>
+              {col(q.team)}
             </div>
             <div className="verb-col stake">
-              <h5>Stakeholders ({q.stake.length})</h5>
-              {q.stake.length?q.stake.map((t,j)=><div key={j} className="verb-item">{t}</div>):<div className="verb-empty">No responses</div>}
+              <h5>Stakeholders ({vis(q.stake)})</h5>
+              {col(q.stake)}
             </div>
           </div>
         </div>
@@ -1020,7 +1034,8 @@ function generateReport(a,meta){
   a.open.forEach((q,i)=>{
     need(12);doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(...NAVY);
     const ql=doc.splitTextToSize((i+1)+'. '+q.q,W-M*2);doc.text(ql,M,y);y+=ql.length*5+2;
-    const grp=(label,arr,col)=>{
+    const grp=(label,arr0,col)=>{
+      const arr=(arr0||[]).filter(c=>!c.hidden).map(c=>c.text);
       need(7);doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(...col);
       doc.text(label.toUpperCase()+' ('+arr.length+')',M,y);y+=4.5;
       if(!arr.length){doc.setFont('helvetica','italic');doc.setFontSize(8);doc.setTextColor(...MUT);doc.text('No responses',M+2,y);y+=5;return;}
@@ -1080,6 +1095,8 @@ function App(){
   const [clientLogoRatio,setClientLogoRatio]=useState(2); // width/height, for PDF sizing
   const [logoErr,setLogoErr]=useState('');
   const [logoBusy,setLogoBusy]=useState(false);
+  const [hiddenComments,setHiddenComments]=useState([]); // comment ids the facilitator has hidden
+  const [hideBusy,setHideBusy]=useState(false);
 
   // Participant
   const [participantUuid,setParticipantUuid]=useState('');
@@ -1201,8 +1218,28 @@ function App(){
       const r=await fetch('/api/hplt2-config',{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({sessionCode:c,action:'get'})});
       const d=await r.json().catch(()=>({}));
-      if(r.ok&&d&&typeof d.clientLogo==='string')setClientLogo(d.clientLogo);
+      if(r.ok&&d){
+        if(typeof d.clientLogo==='string')setClientLogo(d.clientLogo);
+        if(Array.isArray(d.hiddenComments))setHiddenComments(d.hiddenComments);
+      }
     }catch(e){}
+  }
+  async function saveHidden(list){
+    if(!codeNorm)return false;
+    try{
+      const r=await fetch('/api/hplt2-config',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({sessionCode:codeNorm,action:'sethidden',hiddenComments:list})});
+      const d=await r.json().catch(()=>({}));
+      return !!(r.ok&&d&&d.ok);
+    }catch(e){return false;}
+  }
+  async function toggleHideComment(id,hide){
+    if(!id)return;
+    setHideBusy(true);
+    const next=hide?Array.from(new Set([...hiddenComments,id])):hiddenComments.filter(x=>x!==id);
+    setHiddenComments(next);
+    await saveHidden(next);
+    setHideBusy(false);
   }
   async function saveClientLogo(dataUrl){
     if(!codeNorm)return false;
@@ -1391,6 +1428,7 @@ function App(){
     clearProgress(accessCode);
     setStep(-1);setAccessCode('');setCodeInput('');setCodeError('');setCodeChecking(false);setSessionConfig(null);
     setClientLogo('');setLogoErr('');setLogoBusy(false);
+    setHiddenComments([]);setHideBusy(false);
     setParticipantUuid('');setParticipantId('');setRespondentName('');setTrack('');setRole('');setRoleCustom('');
     setScores({});setOverall(0);setOpen1('');setOpen2('');setOpen3('');
     setBeginning(false);setBeginError('');setSubmitting(false);setSubmitError('');
@@ -1579,7 +1617,7 @@ function App(){
         <div className="pg-tag">A few open questions · {teamName}</div>
         <h2 className="pg-title"><span className="hl">In your own words</span></h2>
         <div className="title-rule"/>
-        <p className="pg-sub">These three short answers are read alongside the scores. Say as much or as little as you like.</p>
+        <p className="pg-sub">These three short answers are read alongside the scores, and shared with the team as part of the report. Say as much or as little as you like — and keep it professional as it will be visible to others.</p>
         {OPEN_QS.map((q,i)=>(
           <div key={q.key} style={{marginBottom:'1.4rem'}}>
             <label className="field-lbl">{i+1}. {q.q}</label>
@@ -1614,7 +1652,7 @@ function App(){
 
   function renderFacilitator(){
     const ready=!!(sessionConfig&&sessionConfig.thing_for_everyone);
-    const a=analyse(respondents);
+    const a=analyse(respondents,hiddenComments);
     const total=a.real.length;
 
     // Setup not done yet, or explicitly editing → show the setup form
@@ -1755,14 +1793,14 @@ function App(){
 
   function renderOverlay(){
     if(!facTile)return null;
-    const a=analyse(respondents);
+    const a=analyse(respondents,hiddenComments);
     const map={
       overall:{title:'Overall performance',sub:'“How is this team performing?” · 1–10',body:<OverallPanel a={a}/>},
       areas:{title:'The five areas, ranked',sub:'Average agreement per area · 1–6 · team members',body:<AreasRanked a={a}/>},
       subareas:{title:'The fourteen sub-areas',sub:'Average agreement per sub-area · 1–6 · team members',body:<SubAreasChart a={a}/>},
       items:{title:'Item breakdown',sub:'Response distribution per item · team members',body:<ItemDetail a={a}/>},
       topbottom:{title:'Highest & lowest scoring items',sub:'By team-member average · 1–6',body:<TopBottom a={a}/>},
-      verbatim:{title:'Verbatim feedback',sub:'Open responses, collated by track',body:<Verbatim a={a}/>},
+      verbatim:{title:'Verbatim feedback',sub:'Open responses — hide anything unsuitable before it reaches the team',body:<Verbatim a={a} onToggleHide={toggleHideComment} logoBusy={hideBusy}/>},
       reflection:{title:'Reflecting on this team’s results',sub:'Four closing questions for the conversation',body:<ReflectionPanel/>},
       invite:{title:'Invite participants',sub:'QR, link and wording — with the code built in',body:<InvitePanel link={window.location.origin+'/ahamo-hplt2?code='+encodeURIComponent(codeNorm)} code={codeNorm} teamName={sessionConfig.thing_for_everyone}/>},
       participants:{title:'Participants',sub:'Remove a duplicate or a mistaken entry — this can’t be undone',body:renderParticipants(a)},
