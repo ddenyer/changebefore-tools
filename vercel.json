@@ -12,5 +12,8 @@
     { "source": "/ahamo-hplt2", "destination": "/ahamo-hplt2.html" },
     { "source": "/rep-grid", "destination": "/rep-grid.html" },
     { "source": "/(.*)", "destination": "/index.html" }
-  ]
+  ],
+  "functions": {
+    "api/hplt2-deck.py": { "runtime": "@vercel/python@4.3.1" }
+  }
 }
