@@ -119,6 +119,12 @@ select.inp{cursor:pointer;background-image:url("data:image/svg+xml;charset=US-AS
   .scale{gap:.3rem}
 }
 .scale-legend{display:flex;justify-content:space-between;font-size:.66rem;color:var(--muted);margin-top:.4rem;padding:0 .2rem}
+.scale-picked{font-size:.72rem;color:var(--navy);margin-top:.4rem;padding:0 .2rem}
+.scale-picked strong{color:var(--navy)}
+.ov-prog{margin:.4rem 0 1.1rem}
+.ov-prog-bar{height:6px;background:var(--grey);border-radius:6px;overflow:hidden}
+.ov-prog-bar>div{height:100%;background:linear-gradient(90deg,var(--ltblue),var(--green));border-radius:6px;transition:width .35s ease}
+.ov-prog-txt{font-size:.72rem;color:var(--muted);margin-top:.35rem}
 
 /* Overall 1-10 */
 .ten{display:grid;grid-template-columns:repeat(10,1fr);gap:.35rem;margin:.5rem 0}
@@ -377,6 +383,7 @@ function clearProgress(code){try{localStorage.removeItem(lsKey(code));}catch(e){
 
 // ── SCALE SELECTOR ────────────────────────────────────────────────────────────
 function ScaleSelect({value,onChange}){
+  const sel=SCALE.find(s=>s.v===value);
   return(
     <div>
       <div className="scale">
@@ -394,7 +401,9 @@ function ScaleSelect({value,onChange}){
           );
         })}
       </div>
-      <div className="scale-legend"><span>Strongly disagree</span><span>Strongly agree</span></div>
+      {sel
+        ? <div className="scale-picked">You chose <strong>{sel.label}</strong></div>
+        : <div className="scale-legend"><span>Strongly disagree</span><span>Strongly agree</span></div>}
     </div>
   );
 }
@@ -406,8 +415,8 @@ function InvitePanel({link,code,teamName}){
   const [copied,setCopied]=useState('');
   const origin=(typeof window!=='undefined'&&window.location&&window.location.origin)||'';
   const invite=
-    'You’re invited to take part in the '+(teamName||'team')+' leadership team diagnostic.\n\n'+
-    'It takes about 10 minutes, and your answers are combined with the rest of the team into a single team report — individual responses are never shared.\n\n'+
+    'You’ve been invited to take part in a short High Performing Leadership Teams diagnostic'+(teamName&&teamName!=='this team'?' for '+teamName:'')+'.\n\n'+
+    'It takes about 10 minutes, and your answers are combined with the rest of the team into a single report — individual responses are never shared.\n\n'+
     'Join here: '+link+'\n(or scan the QR code)\n\n'+
     'If the link doesn’t open, go to '+origin+'/ahamo-hplt2 and enter the code '+code+'.\n\n'+
     'Please complete it by [add your deadline]. Thank you.';
@@ -1113,6 +1122,9 @@ function App(){
   const [clientLogo,setClientLogo]=useState('');   // data URL, shown top-right on every page + PDF
   const [clientLogoRatio,setClientLogoRatio]=useState(2); // width/height, for PDF sizing
   const [clientName,setClientName]=useState('');   // client name shown on the deck cover
+  const [facPrompt,setFacPrompt]=useState(false);
+  const [facPw,setFacPw]=useState('');
+  const [facPwErr,setFacPwErr]=useState('');
   const [deckBusy,setDeckBusy]=useState(false);
   const [deckErr,setDeckErr]=useState('');
   const [logoErr,setLogoErr]=useState('');
@@ -1449,12 +1461,14 @@ function App(){
   }
 
   function unlockFacilitator(){
-    const pw=window.prompt('Enter facilitator password:');
-    if(pw==='Admin1*'){
-      setFacUnlocked(true);
+    setFacPw('');setFacPwErr('');setFacPrompt(true);
+  }
+  function submitFacPw(){
+    if(facPw==='Admin1*'){
+      setFacPrompt(false);setFacUnlocked(true);
       if(sessionConfig){setCfgTeam(sessionConfig.thing_for_everyone||'');setCfgSector(sessionConfig.sector||'');}
       setStep(20);
-    }else if(pw!==null){window.alert('Incorrect password.');}
+    }else{setFacPwErr('Incorrect password. Please try again.');}
   }
 
   // ── Validation helpers ────────────────────────────────────────────────────────
@@ -1489,6 +1503,7 @@ function App(){
     setStep(-1);setAccessCode('');setCodeInput('');setCodeError('');setCodeChecking(false);setSessionConfig(null);
     setClientLogo('');setLogoErr('');setLogoBusy(false);
     setClientName('');setDeckBusy(false);setDeckErr('');
+    setFacPrompt(false);setFacPw('');setFacPwErr('');
     setHiddenComments([]);setHideBusy(false);
     setParticipantUuid('');setParticipantId('');setRespondentName('');setTrack('');setRole('');setRoleCustom('');
     setScores({});setOverall(0);setOpen1('');setOpen2('');setOpen3('');
@@ -1500,12 +1515,14 @@ function App(){
   }
 
   // ── RENDERERS ─────────────────────────────────────────────────────────────────
-  const teamName=(sessionConfig&&sessionConfig.thing_for_everyone)||'this team';
+  const teamName=displayName()||(sessionConfig&&sessionConfig.thing_for_everyone)||'this team';
 
   function renderGate(){
     return(
-      <div style={{maxWidth:'440px',margin:'2rem auto 0'}}>
-        <label className="field-lbl">Enter your access code</label>
+      <div className="fade" style={{maxWidth:'440px',margin:'2rem auto 0'}}>
+        <h2 style={{fontSize:'1.35rem',fontWeight:800,color:'var(--navy)',lineHeight:1.2,marginBottom:'.4rem'}}>High Performing Leadership Teams Diagnostic</h2>
+        <p style={{fontSize:'.9rem',color:'#4b5563',lineHeight:1.6,marginBottom:'1.25rem'}}>Enter the access code your facilitator gave you to begin.</p>
+        <label className="field-lbl">Access code</label>
         <input className="inp" value={codeInput}
           onChange={e=>{setCodeInput(e.target.value);if(codeError)setCodeError('');}}
           onKeyDown={e=>{if(e.key==='Enter'&&!codeChecking)checkCode();}}
@@ -1545,7 +1562,7 @@ function App(){
   function renderLanding(){
     const ready=!!(sessionConfig&&sessionConfig.thing_for_everyone);
     return(
-      <div>
+      <div className="fade">
         <div className="land-hero">
           <h1 className="land-title">High Performing Leadership Teams Diagnostic</h1>
           <p className="land-desc">This short diagnostic captures how your team is working today across five areas that define high-performing leadership teams. Your responses are combined with the rest of the team to produce a single team report.</p>
@@ -1606,12 +1623,17 @@ function App(){
     const dim=MODEL[dimIdx];
     const done=dimComplete(dimIdx);
     const missing=dim.subs.flatMap(s=>s.items).filter(it=>!(scores[it.n]>0)).map(it=>it.n);
+    const answered=ALL_ITEMS.filter(n=>scores[n]>0).length;
     const next=()=>setStep(dimIdx+1<5?dimIdx+2:6);
     const back=()=>setStep(dimIdx===0?0:dimIdx);
     return(
       <div className="fade">
         <button className="back-btn" onClick={back}>← Back</button>
         <div className="pg-tag">Area {dimIdx+1} of 5 · {teamName}</div>
+        <div className="ov-prog">
+          <div className="ov-prog-bar"><div style={{width:(answered/46*100)+'%'}}/></div>
+          <div className="ov-prog-txt">{answered} of 46 answered · progress saved automatically</div>
+        </div>
         <div className="dim-band" style={{background:dim.colour}}>
           <div className="dim-name">{dim.name}</div>
           <div className="dim-desc">{dim.desc}</div>
@@ -1643,7 +1665,6 @@ function App(){
         )}
         <div className="btn-row">
           <button className="btn-p" disabled={!done} onClick={next}>{dimIdx<4?'Next area →':'Continue →'}</button>
-          <button className="btn-s" onClick={back}>← Back</button>
         </div>
       </div>
     );
@@ -1666,7 +1687,6 @@ function App(){
         <div className="ten-anchor"><span>1 · Underperforming</span><span>Excelling · 10</span></div>
         <div className="btn-row">
           <button className="btn-p" disabled={!overall} onClick={()=>setStep(7)}>Continue →</button>
-          <button className="btn-s" onClick={back}>← Back</button>
         </div>
       </div>
     );
@@ -1688,13 +1708,13 @@ function App(){
           </div>
         ))}
         {submitError&&<div className="warn-box">{submitError}</div>}
+        <div className="inf-box" style={{marginTop:'.5rem'}}>{track==='team'?'You’ve answered all 46 statements and given an overall score.':'You’ve given an overall score.'} Add any comments above, then submit — your responses are final once submitted.</div>
         <div className="btn-row">
           {submitting?(
             <div className="think"><div className="dots"><div className="dot"/><div className="dot"/><div className="dot"/></div><span className="think-txt">Saving your responses…</span></div>
           ):(
             <button className="btn-p" onClick={submitFinal}>Submit →</button>
           )}
-          <button className="btn-s" onClick={()=>setStep(6)}>← Back</button>
         </div>
       </div>
     );
@@ -1846,7 +1866,7 @@ function App(){
           </div>
           <div className="dash-actions">
             <button className="btn-s" onClick={copyParticipantLink}>{linkCopied?'✓ Link copied':'⧉ Copy participant link'}</button>
-            <button className="btn-p" onClick={downloadDeck} disabled={deckBusy||!total}>{deckBusy?'Building deck…':'⤓ Download PowerPoint'}</button>
+            <button className="btn-p" onClick={downloadDeck} disabled={deckBusy||!total} title={!total?'Available once at least one person has completed the diagnostic':'Build the branded PowerPoint report'}>{deckBusy?'Building deck…':'⤓ Download PowerPoint'}</button>
           </div>
         </div>
         <div className="dash-counts" style={{marginTop:'.9rem'}}>
@@ -1968,6 +1988,23 @@ function App(){
   // ── ROUTER ────────────────────────────────────────────────────────────────────
   return(
     <div className="shell" ref={topRef}>
+      {facPrompt&&(
+        <div className="ov" onClick={e=>{if(e.target===e.currentTarget)setFacPrompt(false);}}>
+          <div className="ov-card" style={{maxWidth:'380px'}}>
+            <div className="ov-head"><div><h2>Facilitator access</h2><div className="sub">Enter the facilitator password</div></div>
+              <button className="ov-close" onClick={()=>setFacPrompt(false)}>✕</button></div>
+            <div className="ov-body">
+              <input className="inp" type="password" autoFocus value={facPw}
+                onChange={e=>{setFacPw(e.target.value);if(facPwErr)setFacPwErr('');}}
+                onKeyDown={e=>{if(e.key==='Enter')submitFacPw();}} placeholder="Password"/>
+              {facPwErr&&<div style={{marginTop:'.6rem',fontSize:'.84rem',color:'#b23028'}}>{facPwErr}</div>}
+              <div className="btn-row" style={{marginTop:'1rem'}}>
+                <button className="btn-p" disabled={!facPw} onClick={submitFacPw}>Continue →</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {step!==20&&<BrandHeader clientLogo={clientLogo}/>}
       {step>=1&&step<=7&&<Progress track={track} step={step}/>}
       {participantId&&step>=1&&step<=7&&(
