@@ -1802,7 +1802,8 @@ function App(){
       );
     }
 
-    const meta={team:sessionConfig.thing_for_everyone,sector:sessionConfig.sector||'',date:new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'}),clientLogo:clientLogo||'',clientRatio:clientLogoRatio||2};
+    const sc=sessionConfig||{};
+    const meta={team:sc.thing_for_everyone,sector:sc.sector||'',date:new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'}),clientLogo:clientLogo||'',clientRatio:clientLogoRatio||2};
     const doPdf=()=>{
       if(!window.jspdf){window.alert('The report library is still loading — try again in a moment.');return;}
       setPdfBusy(true);
@@ -1821,7 +1822,7 @@ function App(){
           team:q.team.filter(c=>!c.hidden).map(c=>c.text),
           stake:q.stake.filter(c=>!c.hidden).map(c=>c.text)};});
         const payload={
-          clientName:displayName()||(sessionConfig.thing_for_everyone||''),
+          clientName:displayName()||(sc.thing_for_everyone||''),
           date:new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'}),
           clientLogo:clientLogo||'',
           teamN:a.teamN,stakeN:a.stakeN,
@@ -2036,13 +2037,13 @@ function App(){
 
 class ErrorBoundary extends React.Component{
   constructor(p){super(p);this.state={error:null};}
-  componentDidCatch(e){this.setState({error:e.message});}
+  componentDidCatch(e){try{console.error(e);}catch(x){}this.setState({error:(e&&e.message)||'error'});}
   render(){
     if(this.state.error){
-      return React.createElement('div',{style:{padding:'2rem',fontFamily:"'Poppins',sans-serif",background:'#fff5f4',border:'2px solid #EF4136',margin:'2rem',borderRadius:'10px'}},
-        React.createElement('h3',{style:{color:'#EF4136',marginBottom:'1rem'}},'Something went wrong'),
-        React.createElement('pre',{style:{fontSize:'.75rem',color:'#555',whiteSpace:'pre-wrap'}},this.state.error),
-        React.createElement('button',{onClick:()=>this.setState({error:null}),style:{marginTop:'1rem',padding:'.5rem 1rem',background:'#20386D',color:'#fff',border:'none',borderRadius:'6px',cursor:'pointer'}},'Try again'));
+      return React.createElement('div',{style:{maxWidth:'480px',margin:'3rem auto',padding:'2rem',fontFamily:"'Poppins',sans-serif",background:'#fff',border:'1px solid #e2e4e8',borderRadius:'12px',textAlign:'center'}},
+        React.createElement('h3',{style:{color:'#20396D',marginBottom:'.75rem',fontSize:'1.15rem'}},'Sorry — something went wrong'),
+        React.createElement('p',{style:{color:'#4b5563',fontSize:'.9rem',lineHeight:1.6,marginBottom:'1.25rem'}},'Please reload the page to continue. If you were part-way through, your progress has been saved and you can pick up where you left off.'),
+        React.createElement('button',{onClick:()=>{try{window.location.reload();}catch(x){this.setState({error:null});}},style:{padding:'.7rem 1.6rem',background:'#20396D',color:'#fff',border:'none',borderRadius:'8px',cursor:'pointer',fontFamily:"'Poppins',sans-serif",fontWeight:600,fontSize:'.95rem'}},'Reload'));
     }
     return this.props.children;
   }
