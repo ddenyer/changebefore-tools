@@ -1293,11 +1293,34 @@ function App(){
       const img=new Image();
       img.onerror=()=>{setLogoErr('That image could not be loaded.');setLogoBusy(false);};
       img.onload=async()=>{
+        // Trim uniform white / transparent borders so the logo fills its box and
+        // sits at a size comparable to the AhaMo mark (and pads cleanly on the deck cover).
+        const trimSrc=(function(){
+          try{
+            const c=document.createElement('canvas');c.width=img.width;c.height=img.height;
+            const cx=c.getContext('2d');cx.drawImage(img,0,0);
+            const d=cx.getImageData(0,0,c.width,c.height).data;
+            let minX=c.width,minY=c.height,maxX=-1,maxY=-1;
+            for(let y=0;y<c.height;y++)for(let x=0;x<c.width;x++){
+              const i=(y*c.width+x)*4,r=d[i],g=d[i+1],b=d[i+2],a=d[i+3];
+              if(a>24&&!(r>245&&g>245&&b>245)){if(x<minX)minX=x;if(x>maxX)maxX=x;if(y<minY)minY=y;if(y>maxY)maxY=y;}
+            }
+            if(maxX<minX||maxY<minY)return img; // blank / all-white: keep original
+            const pad=Math.round(Math.max(maxX-minX,maxY-minY)*0.04);
+            minX=Math.max(0,minX-pad);minY=Math.max(0,minY-pad);
+            maxX=Math.min(c.width-1,maxX+pad);maxY=Math.min(c.height-1,maxY+pad);
+            const w=maxX-minX+1,h=maxY-minY+1;
+            const o=document.createElement('canvas');o.width=w;o.height=h;
+            o.getContext('2d').drawImage(c,minX,minY,w,h,0,0,w,h);
+            return o;
+          }catch(e){return img;}
+        })();
         const render=(maxH,type,q)=>{
-          const s=Math.min(1,maxH/img.height);
-          const w=Math.max(1,Math.round(img.width*s)),h=Math.max(1,Math.round(img.height*s));
+          const sw=trimSrc.width,sh=trimSrc.height;
+          const s=Math.min(1,maxH/sh);
+          const w=Math.max(1,Math.round(sw*s)),h=Math.max(1,Math.round(sh*s));
           const cv=document.createElement('canvas');cv.width=w;cv.height=h;
-          cv.getContext('2d').drawImage(img,0,0,w,h);
+          cv.getContext('2d').drawImage(trimSrc,0,0,w,h);
           return cv.toDataURL(type,q);
         };
         let url=render(200,'image/png');            // preserve transparency at a sensible height
@@ -1512,6 +1535,12 @@ function App(){
     );
   }
 
+  function displayName(){
+    const org=(clientName||'').trim();
+    const team=(sessionConfig&&sessionConfig.thing_for_everyone||'').trim();
+    return [org,team].filter(Boolean).join(': ');
+  }
+
   function renderLanding(){
     const ready=!!(sessionConfig&&sessionConfig.thing_for_everyone);
     return(
@@ -1536,7 +1565,7 @@ function App(){
           <div>
             <div style={{background:'#f4f7fb',border:'1px solid var(--line)',borderRadius:'10px',padding:'1rem 1.25rem',marginBottom:'1.5rem'}}>
               <div style={{fontSize:'.7rem',fontWeight:700,color:'var(--muted)',letterSpacing:'.05em',textTransform:'uppercase',marginBottom:'.3rem'}}>You are assessing</div>
-              <div style={{fontSize:'1.1rem',fontWeight:700,color:'var(--navy)'}}>{sessionConfig.thing_for_everyone}</div>
+              <div style={{fontSize:'1.1rem',fontWeight:700,color:'var(--navy)'}}>{displayName()}</div>
             </div>
 
             <label className="field-lbl">Your role <span style={{color:'var(--red)'}}>*</span></label>
@@ -1699,9 +1728,9 @@ function App(){
           {!ready&&<div className="inf-box">Fill these in to open the session. Until you save, participants who enter this code see “The diagnostic isn’t open yet.”</div>}
           <div style={{maxWidth:'560px'}}>
             <div style={{marginBottom:'1.1rem'}}>
-              <label className="field-lbl">Name the team being assessed <span style={{color:'var(--red)'}}>*</span></label>
-              <div className="field-sub">e.g. “The Executive Leadership Team”, “Product Leadership Team”.</div>
-              <input className="inp" placeholder="Which team is this?" value={cfgTeam} onChange={e=>setCfgTeam(e.target.value)} disabled={cfgSaving}/>
+              <label className="field-lbl">Team <span style={{color:'var(--red)'}}>*</span></label>
+              <div className="field-sub">The specific group or cohort being assessed, e.g. “Cohort 1”, “The Executive Team”.</div>
+              <input className="inp" placeholder="e.g. Cohort 1" value={cfgTeam} onChange={e=>setCfgTeam(e.target.value)} disabled={cfgSaving}/>
             </div>
             <div style={{marginBottom:'1.1rem'}}>
               <label className="field-lbl">Sector <span style={{color:'var(--red)'}}>*</span></label>
@@ -1711,9 +1740,9 @@ function App(){
               </select>
             </div>
             <div style={{marginBottom:'1.1rem'}}>
-              <label className="field-lbl">Client name <span style={{color:'var(--muted)',fontWeight:400}}>(for the report cover)</span></label>
-              <div className="field-sub">The organisation this report is for — appears on the PowerPoint cover, e.g. “Ryder”.</div>
-              <input className="inp" placeholder="Client organisation" value={clientName} onChange={e=>setClientName(e.target.value)} disabled={cfgSaving}/>
+              <label className="field-lbl">Organisation <span style={{color:'var(--muted)',fontWeight:400}}>(optional)</span></label>
+              <div className="field-sub">The client organisation, e.g. “Ryder”. Shown with the team as “Organisation: Team” on the pages and the report.</div>
+              <input className="inp" placeholder="e.g. Ryder" value={clientName} onChange={e=>setClientName(e.target.value)} disabled={cfgSaving}/>
             </div>
             <div style={{marginBottom:'1.1rem'}}>
               <label className="field-lbl">Client logo <span style={{color:'var(--muted)',fontWeight:400}}>(optional)</span></label>
@@ -1771,7 +1800,7 @@ function App(){
           team:q.team.filter(c=>!c.hidden).map(c=>c.text),
           stake:q.stake.filter(c=>!c.hidden).map(c=>c.text)};});
         const payload={
-          clientName:(clientName||sessionConfig.thing_for_everyone||'').trim(),
+          clientName:displayName()||(sessionConfig.thing_for_everyone||''),
           date:new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'}),
           clientLogo:clientLogo||'',
           teamN:a.teamN,stakeN:a.stakeN,
@@ -1812,7 +1841,7 @@ function App(){
               {clientLogo&&<img src={clientLogo} alt="Client logo" style={{height:'30px',width:'auto',maxWidth:'160px',objectFit:'contain',display:'block'}}/>}
             </div>
             <div className="pg-tag" style={{marginBottom:'.2rem'}}>Facilitator dashboard · {codeNorm}</div>
-            <h2 style={{fontSize:'1.5rem',fontWeight:800,color:'var(--navy)',lineHeight:1.15}}>{sessionConfig.thing_for_everyone}</h2>
+            <h2 style={{fontSize:'1.5rem',fontWeight:800,color:'var(--navy)',lineHeight:1.15}}>{displayName()}</h2>
           </div>
           <div className="dash-actions">
             <button className="btn-s" onClick={copyParticipantLink}>{linkCopied?'✓ Link copied':'⧉ Copy participant link'}</button>
@@ -1872,7 +1901,7 @@ function App(){
       topbottom:{title:'Highest & lowest scoring items',sub:'By team-member average · 1–6',body:<TopBottom a={a}/>},
       verbatim:{title:'Verbatim feedback',sub:'Open responses — hide anything unsuitable before it reaches the team',body:<Verbatim a={a} onToggleHide={toggleHideComment} logoBusy={hideBusy}/>},
       reflection:{title:'Reflecting on this team’s results',sub:'Four closing questions for the conversation',body:<ReflectionPanel/>},
-      invite:{title:'Invite participants',sub:'QR, link and wording — with the code built in',body:<InvitePanel link={window.location.origin+'/ahamo-hplt2?code='+encodeURIComponent(codeNorm)} code={codeNorm} teamName={sessionConfig.thing_for_everyone}/>},
+      invite:{title:'Invite participants',sub:'QR, link and wording — with the code built in',body:<InvitePanel link={window.location.origin+'/ahamo-hplt2?code='+encodeURIComponent(codeNorm)} code={codeNorm} teamName={displayName()}/>},
       participants:{title:'Participants',sub:'Remove a duplicate or a mistaken entry — this can’t be undone',body:renderParticipants(a)},
     };
     const v=map[facTile];
