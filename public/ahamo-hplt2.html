@@ -365,7 +365,8 @@ const OPEN_QS=[
   {key:'open_3',q:'What have we not asked you that you think is important?'},
 ];
 
-const ROLES=['Team member','Team leader','Manager','Senior leader','Executive / Board','Other'];
+const ROLES=['Team member','Team leader','Manager','Senior leader','Executive / Board','Other stakeholder'];
+const STAKEHOLDER_ROLE='Other stakeholder'; // this chip means: stakeholder track, no seniority recorded
 
 // ── LOCAL STORAGE ─────────────────────────────────────────────────────────────
 function lsKey(code){return 'ahamo_hplt_'+(code||'anon').toLowerCase().trim().replace(/\s+/g,'_');}
@@ -1325,7 +1326,7 @@ function App(){
           participant_id:participantUuid,
           respondent_name:respondentName.trim()||undefined,
           track,
-          role:role==='Other'?roleCustom:role,
+          role:role||undefined,
           item_scores:track==='team'?scores:{},
           overall_score:overall||null,
           open_1:open1,open_2:open2,open_3:open3,
@@ -1404,9 +1405,14 @@ function App(){
 
   // ── Validation helpers ────────────────────────────────────────────────────────
   function entryReady(){
-    if(!track)return false;
-    if(!role||(role==='Other'&&!roleCustom.trim()))return false;
-    return true;
+    if(track==='stakeholder')return true;      // chose "Other stakeholder"
+    if(track==='team'&&role)return true;       // chose an internal role
+    return false;
+  }
+  function pickRole(r){
+    if(r===STAKEHOLDER_ROLE){setTrack('stakeholder');setRole('');}
+    else{setTrack('team');setRole(r);}
+    setRoleCustom('');
   }
   function dimComplete(dim){return MODEL[dim].subs.every(s=>s.items.every(it=>scores[it.n]>0));}
 
@@ -1502,26 +1508,24 @@ function App(){
               <div style={{fontSize:'1.1rem',fontWeight:700,color:'var(--navy)'}}>{sessionConfig.thing_for_everyone}</div>
             </div>
 
-            <label className="field-lbl">Are you a member of this team, or a stakeholder assessing it? <span style={{color:'var(--red)'}}>*</span></label>
+            <label className="field-lbl">Your role <span style={{color:'var(--red)'}}>*</span></label>
+            <div className="field-sub">This tells us how you’re connected to the team.</div>
+            <div style={{display:'flex',flexWrap:'wrap',gap:'.5rem',marginTop:'.5rem',marginBottom:'1.25rem'}}>
+              {ROLES.map(r=>{
+                const active=r===STAKEHOLDER_ROLE?(track==='stakeholder'):(track==='team'&&role===r);
+                return <button key={r} className={'chip'+(active?' on':'')} onClick={()=>pickRole(r)}>{r}</button>;
+              })}
+            </div>
+
             <div className="track-grid">
-              <div className={'track-card'+(track==='team'?' on':'')} onClick={()=>setTrack('team')}>
+              <div className={'track-card'+(track==='team'?' on':'')} style={{cursor:'default'}}>
                 <h3>Team member</h3>
                 <p>You’re part of this leadership team. You’ll answer 46 short statements plus a few open questions.</p>
               </div>
-              <div className={'track-card'+(track==='stakeholder'?' on':'')} onClick={()=>setTrack('stakeholder')}>
-                <h3>Stakeholder</h3>
+              <div className={'track-card'+(track==='stakeholder'?' on':'')} style={{cursor:'default'}}>
+                <h3>Other stakeholder</h3>
                 <p>You work with this team from outside it. You’ll give an overall score and answer three open questions.</p>
               </div>
-            </div>
-
-            <div style={{marginTop:'1.5rem'}}>
-              <label className="field-lbl">Your role <span style={{color:'var(--red)'}}>*</span></label>
-              <div style={{display:'flex',flexWrap:'wrap',gap:'.5rem',marginBottom:'.5rem'}}>
-                {ROLES.map(r=>(
-                  <button key={r} className={'chip'+(role===r?' on':'')} onClick={()=>{setRole(r);if(r!=='Other')setRoleCustom('');}}>{r}</button>
-                ))}
-              </div>
-              {role==='Other'&&<input className="inp" placeholder="Describe your role…" value={roleCustom} onChange={e=>setRoleCustom(e.target.value)} style={{maxWidth:'360px'}}/>}
             </div>
 
             {renderResume()}
