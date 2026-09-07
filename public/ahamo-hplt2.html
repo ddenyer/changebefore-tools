@@ -1216,6 +1216,8 @@ function App(){
   useEffect(()=>{
     if(!facUnlocked||step!==20||!codeNorm)return;
     loadRespondents();
+    // Pre-warm the deck generator so the first "Download PowerPoint" isn't slowed by a cold start.
+    try{fetch('/api/hplt2-deck',{method:'GET',cache:'no-store'}).catch(()=>{});}catch(e){}
     const id=setInterval(loadRespondents,15000);
     return()=>clearInterval(id);
   },[facUnlocked,step,codeNorm]);
@@ -1829,7 +1831,17 @@ function App(){
           overall:{all:a.oAll,team:a.oTeam,stake:a.oStake},
           areaMeans,subMeans,itemMean,itemDist,verbatim
         };
-        const r=await fetch('/api/hplt2-deck',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+        const ctrl=new AbortController();
+        const timer=setTimeout(()=>ctrl.abort(),90000);
+        let r;
+        try{
+          r=await fetch('/api/hplt2-deck',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),signal:ctrl.signal});
+        }catch(fe){
+          clearTimeout(timer);
+          if(fe&&fe.name==='AbortError')throw new Error('The deck took too long to build. Please try again.');
+          throw new Error('Network problem while building the deck. Please check your connection and try again.');
+        }
+        clearTimeout(timer);
         if(!r.ok){let msg='Could not build the deck.';try{const e=await r.json();if(e&&e.error)msg=e.error;}catch(x){}throw new Error(msg);}
         const blob=await r.blob();
         const url=URL.createObjectURL(blob);
@@ -1881,29 +1893,24 @@ function App(){
         {deckErr&&<div className="warn-box" style={{marginTop:'.7rem'}}>Couldn’t build the PowerPoint: {deckErr}</div>}
 
         {a.allReal.length===0&&(
-          <div className="empty-dash">
-            <div className="big">No responses yet</div>
-            <p style={{fontSize:'.9rem',lineHeight:1.6,maxWidth:'440px',margin:'0 auto'}}>Share the access code with the team. As people complete the diagnostic, their responses appear here — the tiles fill in live.</p>
-          </div>
+          <div className="inf-box" style={{marginTop:'1rem'}}>No responses yet. Use <strong>Session setup</strong> to check the branding, then <strong>Invite participants</strong> to share the code — responses appear here as people complete the diagnostic.</div>
         )}
 
         {a.allReal.length>0&&total===0&&(
           <div className="inf-box" style={{marginTop:'1rem'}}>{a.inProgress} {a.inProgress===1?'person has':'people have'} started but nobody has finished yet. The results tiles unlock once at least one person completes.</div>
         )}
 
-        {a.allReal.length>0&&(
-          <div className="tile-grid">
-            {tiles.map(t=>(
-              <button key={t.key} className="tile" disabled={!t.need} onClick={()=>{if(t.key==='setup'){setFacEditing(true);}else setFacTile(t.key);}}>
-                <div className="tile-accent"/>
-                <div className="tile-eyebrow">{t.eyebrow}</div>
-                <div className="tile-title">{t.title}</div>
-                <div className="tile-desc">{t.desc}</div>
-                {t.metric&&<div className="tile-metric">{t.metric}<small> {t.unit}</small></div>}
-              </button>
-            ))}
-          </div>
-        )}
+        <div className="tile-grid">
+          {tiles.map(t=>(
+            <button key={t.key} className="tile" disabled={!t.need} onClick={()=>{if(t.key==='setup'){setFacEditing(true);}else setFacTile(t.key);}}>
+              <div className="tile-accent"/>
+              <div className="tile-eyebrow">{t.eyebrow}</div>
+              <div className="tile-title">{t.title}</div>
+              <div className="tile-desc">{t.desc}</div>
+              {t.metric&&<div className="tile-metric">{t.metric}<small> {t.unit}</small></div>}
+            </button>
+          ))}
+        </div>
 
         <div className="btn-row" style={{marginTop:'2rem'}}>
           <button className="btn-s" onClick={restart}>Exit facilitator</button>
