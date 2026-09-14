@@ -75,6 +75,21 @@ def _stacked(sl,x,y,w,h,cats,series):
     ch.legend.font.size=Pt(6.5); ch.legend.font.name=F
     plot=ch.plots[0]; plot.gap_width=40
     ca=ch.category_axis; ca.tick_labels.font.size=Pt(7); ca.tick_labels.font.name=F
+    # Tighten line spacing within each wrapped label so multi-line labels read as one block.
+    try:
+        from pptx.oxml.ns import qn
+        txPr=ca._element.find(qn('c:txPr'))
+        if txPr is not None:
+            for p in txPr.findall(qn('a:p')):
+                pPr=p.find(qn('a:pPr'))
+                if pPr is None:
+                    pPr=p.makeelement(qn('a:pPr'),{}); p.insert(0,pPr)
+                for e in pPr.findall(qn('a:lnSpc')): pPr.remove(e)
+                lnSpc=pPr.makeelement(qn('a:lnSpc'),{})
+                spcPct=lnSpc.makeelement(qn('a:spcPct'),{}); spcPct.set('val','85000')
+                lnSpc.append(spcPct); pPr.insert(0,lnSpc)
+    except Exception:
+        pass
     for si,s in enumerate(plot.series):
         s.format.fill.solid(); s.format.fill.fore_color.rgb=BUCKET[si]
 
@@ -360,4 +375,4 @@ class handler(BaseHTTPRequestHandler):
         except Exception as e:
             self.send_response(500); self.send_header("Content-Type","application/json"); self.end_headers(); self.wfile.write(_json.dumps({"error":str(e)}).encode())
     def do_GET(self):
-        self.send_response(200); self.send_header("Content-Type","application/json"); self.end_headers(); self.wfile.write(_json.dumps({"ok":True,"service":"hplt2-deck","version":"v3-columns-wraplabels"}).encode())
+        self.send_response(200); self.send_header("Content-Type","application/json"); self.end_headers(); self.wfile.write(_json.dumps({"ok":True,"service":"hplt2-deck","version":"v7-tight-lines"}).encode())
