@@ -66,6 +66,8 @@ def _bar(sl,x,y,w,h,cats,vals,colors,catsize=8,labelsize=8,gap=60):
     for i,pt in enumerate(plot.series[0].points):
         pt.format.fill.solid(); pt.format.fill.fore_color.rgb=colors[i%len(colors)]
 def _stacked(sl,x,y,w,h,cats,series):
+    # cats = FULL item texts (unwrapped). We hide the chart's own category labels and
+    # draw the statements as text boxes beside each bar, so they wrap reliably in PowerPoint.
     cd=CategoryChartData(); cd.categories=cats
     labs=['Strongly disagree','Disagree','Slightly disagree','Slightly agree','Agree','Strongly agree']
     for i in range(6): cd.add_series(labs[i],[series[c][i] for c in range(len(cats))])
@@ -75,43 +77,42 @@ def _stacked(sl,x,y,w,h,cats,series):
     ch.legend.font.size=Pt(6.5); ch.legend.font.name=F
     plot=ch.plots[0]; plot.gap_width=40
     ca=ch.category_axis; ca.tick_labels.font.size=Pt(7); ca.tick_labels.font.name=F
-    # Give the category labels ~32% of the chart width so wrapped statements aren't clipped,
-    # by pinning the plot (bars) area to start further right.
+    from pptx.oxml.ns import qn
+    # Pin the plot (bars) area so we know exactly where each bar sits.
+    PX,PY,PW,PH=0.36,0.03,0.61,0.82
     try:
-        from pptx.oxml.ns import qn
-        cs=ch._chartSpace
-        pa=cs.find('.//'+qn('c:plotArea'))
+        cs=ch._chartSpace; pa=cs.find('.//'+qn('c:plotArea'))
         if pa is not None:
             old=pa.find(qn('c:layout'))
             if old is not None: pa.remove(old)
-            lay=pa.makeelement(qn('c:layout'),{})
-            ml=lay.makeelement(qn('c:manualLayout'),{})
-            def _e(tag,val):
-                x=ml.makeelement(qn('c:'+tag),{}); x.set('val',val); return x
-            ml.append(_e('layoutTarget','inner'))
-            ml.append(_e('xMode','edge')); ml.append(_e('yMode','edge'))
-            ml.append(_e('x','0.40')); ml.append(_e('y','0.03'))
-            ml.append(_e('w','0.57')); ml.append(_e('h','0.82'))
+            lay=pa.makeelement(qn('c:layout'),{}); ml=lay.makeelement(qn('c:manualLayout'),{})
+            def _e(t,v):
+                e=ml.makeelement(qn('c:'+t),{}); e.set('val',v); return e
+            ml.append(_e('layoutTarget','inner')); ml.append(_e('xMode','edge')); ml.append(_e('yMode','edge'))
+            ml.append(_e('x',str(PX))); ml.append(_e('y',str(PY))); ml.append(_e('w',str(PW))); ml.append(_e('h',str(PH)))
             lay.append(ml); pa.insert(0,lay)
-    except Exception:
-        pass
-    # Tighten line spacing within each wrapped label so multi-line labels read as one block.
+    except Exception: pass
+    # Hide the chart's own category labels (we draw our own text boxes instead).
     try:
-        from pptx.oxml.ns import qn
-        txPr=ca._element.find(qn('c:txPr'))
-        if txPr is not None:
-            for p in txPr.findall(qn('a:p')):
-                pPr=p.find(qn('a:pPr'))
-                if pPr is None:
-                    pPr=p.makeelement(qn('a:pPr'),{}); p.insert(0,pPr)
-                for e in pPr.findall(qn('a:lnSpc')): pPr.remove(e)
-                lnSpc=pPr.makeelement(qn('a:lnSpc'),{})
-                spcPct=lnSpc.makeelement(qn('a:spcPct'),{}); spcPct.set('val','85000')
-                lnSpc.append(spcPct); pPr.insert(0,lnSpc)
-    except Exception:
-        pass
+        tlp=ca._element.find(qn('c:tickLblPos'))
+        if tlp is not None: tlp.set('val','none')
+    except Exception: pass
     for si,s in enumerate(plot.series):
         s.format.fill.solid(); s.format.fill.fore_color.rgb=BUCKET[si]
+    # Draw the statement labels as text boxes, each vertically centred on its bar.
+    N=len(cats)
+    if N:
+        plotT=y+PY*h; plotH=PH*h; plotL=x+PX*w; row=plotH/N
+        lblw=max(1.2, plotL-x-0.08)
+        for i,txt in enumerate(cats):
+            top=plotT+plotH-(i+1)*row  # category i renders from the bottom up
+            tb=sl.shapes.add_textbox(Inches(x),Inches(top),Inches(lblw),Inches(row))
+            tf=tb.text_frame; tf.word_wrap=True; tf.auto_size=MSO_AUTO_SIZE.NONE; tf.vertical_anchor=MSO_ANCHOR.MIDDLE
+            for m in ('margin_left','margin_right','margin_top','margin_bottom'): setattr(tf,m,0)
+            tf.text=str(txt)
+            for p in tf.paragraphs:
+                p.alignment=PP_ALIGN.RIGHT; p.line_spacing=0.92
+                for r in p.runs: r.font.size=Pt(7); r.font.name=F; r.font.color.rgb=INK
 
 def _phgeom(ph,sl):
     if ph.left is not None: return ph.left,ph.top,ph.width,ph.height
@@ -273,7 +274,7 @@ def build_deck(p):
     # 10-14 PER-AREA DISTRIBUTIONS
     for di,d in enumerate(MODEL):
         its=[it for su in d['subs'] for it in su['items']]
-        cats=[_wrap(it['t'],22) for it in its]
+        cats=[it['t'] for it in its]
         _stacked(S[9+di],0.4,0.95,9.2,4.25,cats,[idist(it['n']) for it in its])
 
     # 16-18 VERBATIM — three-column flow, spilling onto continuation slides
@@ -395,4 +396,4 @@ class handler(BaseHTTPRequestHandler):
         except Exception as e:
             self.send_response(500); self.send_header("Content-Type","application/json"); self.end_headers(); self.wfile.write(_json.dumps({"error":str(e)}).encode())
     def do_GET(self):
-        self.send_response(200); self.send_header("Content-Type","application/json"); self.end_headers(); self.wfile.write(_json.dumps({"ok":True,"service":"hplt2-deck","version":"v9-widelabels"}).encode())
+        self.send_response(200); self.send_header("Content-Type","application/json"); self.end_headers(); self.wfile.write(_json.dumps({"ok":True,"service":"hplt2-deck","version":"v10-textbox-labels"}).encode())
