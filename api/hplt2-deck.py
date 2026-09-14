@@ -360,4 +360,4 @@ class handler(BaseHTTPRequestHandler):
         except Exception as e:
             self.send_response(500); self.send_header("Content-Type","application/json"); self.end_headers(); self.wfile.write(_json.dumps({"error":str(e)}).encode())
     def do_GET(self):
-        self.send_response(200); self.send_header("Content-Type","application/json"); self.end_headers(); self.wfile.write(_json.dumps({"ok":True,"service":"hplt2-deck"}).encode())
+        self.send_response(200); self.send_header("Content-Type","application/json"); self.end_headers(); self.wfile.write(_json.dumps({"ok":True,"service":"hplt2-deck","version":"v3-columns-wraplabels"}).encode())
