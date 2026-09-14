@@ -90,8 +90,8 @@ def _stacked(sl,x,y,w,h,cats,series):
                 x=ml.makeelement(qn('c:'+tag),{}); x.set('val',val); return x
             ml.append(_e('layoutTarget','inner'))
             ml.append(_e('xMode','edge')); ml.append(_e('yMode','edge'))
-            ml.append(_e('x','0.34')); ml.append(_e('y','0.03'))
-            ml.append(_e('w','0.63')); ml.append(_e('h','0.82'))
+            ml.append(_e('x','0.40')); ml.append(_e('y','0.03'))
+            ml.append(_e('w','0.57')); ml.append(_e('h','0.82'))
             lay.append(ml); pa.insert(0,lay)
     except Exception:
         pass
@@ -273,7 +273,7 @@ def build_deck(p):
     # 10-14 PER-AREA DISTRIBUTIONS
     for di,d in enumerate(MODEL):
         its=[it for su in d['subs'] for it in su['items']]
-        cats=[_wrap(it['t'],26) for it in its]
+        cats=[_wrap(it['t'],22) for it in its]
         _stacked(S[9+di],0.4,0.95,9.2,4.25,cats,[idist(it['n']) for it in its])
 
     # 16-18 VERBATIM — three-column flow, spilling onto continuation slides
@@ -395,4 +395,4 @@ class handler(BaseHTTPRequestHandler):
         except Exception as e:
             self.send_response(500); self.send_header("Content-Type","application/json"); self.end_headers(); self.wfile.write(_json.dumps({"error":str(e)}).encode())
     def do_GET(self):
-        self.send_response(200); self.send_header("Content-Type","application/json"); self.end_headers(); self.wfile.write(_json.dumps({"ok":True,"service":"hplt2-deck","version":"v8-widelabels"}).encode())
+        self.send_response(200); self.send_header("Content-Type","application/json"); self.end_headers(); self.wfile.write(_json.dumps({"ok":True,"service":"hplt2-deck","version":"v9-widelabels"}).encode())
