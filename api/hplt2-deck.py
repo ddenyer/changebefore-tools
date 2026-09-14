@@ -75,6 +75,26 @@ def _stacked(sl,x,y,w,h,cats,series):
     ch.legend.font.size=Pt(6.5); ch.legend.font.name=F
     plot=ch.plots[0]; plot.gap_width=40
     ca=ch.category_axis; ca.tick_labels.font.size=Pt(7); ca.tick_labels.font.name=F
+    # Give the category labels ~32% of the chart width so wrapped statements aren't clipped,
+    # by pinning the plot (bars) area to start further right.
+    try:
+        from pptx.oxml.ns import qn
+        cs=ch._chartSpace
+        pa=cs.find('.//'+qn('c:plotArea'))
+        if pa is not None:
+            old=pa.find(qn('c:layout'))
+            if old is not None: pa.remove(old)
+            lay=pa.makeelement(qn('c:layout'),{})
+            ml=lay.makeelement(qn('c:manualLayout'),{})
+            def _e(tag,val):
+                x=ml.makeelement(qn('c:'+tag),{}); x.set('val',val); return x
+            ml.append(_e('layoutTarget','inner'))
+            ml.append(_e('xMode','edge')); ml.append(_e('yMode','edge'))
+            ml.append(_e('x','0.34')); ml.append(_e('y','0.03'))
+            ml.append(_e('w','0.63')); ml.append(_e('h','0.82'))
+            lay.append(ml); pa.insert(0,lay)
+    except Exception:
+        pass
     # Tighten line spacing within each wrapped label so multi-line labels read as one block.
     try:
         from pptx.oxml.ns import qn
@@ -375,4 +395,4 @@ class handler(BaseHTTPRequestHandler):
         except Exception as e:
             self.send_response(500); self.send_header("Content-Type","application/json"); self.end_headers(); self.wfile.write(_json.dumps({"error":str(e)}).encode())
     def do_GET(self):
-        self.send_response(200); self.send_header("Content-Type","application/json"); self.end_headers(); self.wfile.write(_json.dumps({"ok":True,"service":"hplt2-deck","version":"v7-tight-lines"}).encode())
+        self.send_response(200); self.send_header("Content-Type","application/json"); self.end_headers(); self.wfile.write(_json.dumps({"ok":True,"service":"hplt2-deck","version":"v8-widelabels"}).encode())
