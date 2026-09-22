@@ -1,14 +1,16 @@
 // Vercel serverless function: load a rep-grid session (config + all responses).
 // POST { session_code } -> { config, responses }
-// Uses SUPABASE_URL / SUPABASE_ANON_KEY from Vercel env (same as other tools).
+// Uses SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY from Vercel env. Service role ONLY:
+// there is deliberately no SUPABASE_ANON_KEY fallback — if the service-role key is
+// missing this function fails hard (see guard below) rather than degrading to anon.
 
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://vxovyhzqzlvjvntjnzej.supabase.co';
-const ANON = process.env.SUPABASE_ANON_KEY;
+const SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 function sbHeaders() {
   return {
-    apikey: ANON,
-    Authorization: `Bearer ${ANON}`,
+    apikey: SERVICE_ROLE,
+    Authorization: `Bearer ${SERVICE_ROLE}`,
     'Content-Type': 'application/json',
   };
 }
@@ -19,7 +21,7 @@ export default async function handler(req, res) {
   }
   const { session_code } = req.body || {};
   if (!session_code) return res.status(400).json({ error: 'session_code required' });
-  if (!ANON) return res.status(500).json({ error: 'SUPABASE_ANON_KEY not configured' });
+  if (!SERVICE_ROLE) return res.status(500).json({ error: 'SUPABASE_SERVICE_ROLE_KEY not configured — refusing to run (no anon fallback)' });
 
   const code = encodeURIComponent(session_code);
 

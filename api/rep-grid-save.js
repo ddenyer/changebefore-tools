@@ -3,14 +3,18 @@
 // POST { kind: 'response', session_code, participant_id, participant_name, data }
 // GET-then-PATCH-or-POST (never Prefer: merge-duplicates — see building reference).
 
+// Service role ONLY: there is deliberately no SUPABASE_ANON_KEY fallback — if the
+// service-role key is missing this function fails hard (see guard) rather than
+// degrading to anon (which, once the always-true RLS policies are dropped, would
+// be denied anyway). Never reintroduce an anon fallback here.
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://vxovyhzqzlvjvntjnzej.supabase.co';
-const ANON = process.env.SUPABASE_ANON_KEY;
+const SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 function sbHeaders(extra) {
   return Object.assign(
     {
-      apikey: ANON,
-      Authorization: `Bearer ${ANON}`,
+      apikey: SERVICE_ROLE,
+      Authorization: `Bearer ${SERVICE_ROLE}`,
       'Content-Type': 'application/json',
     },
     extra || {}
@@ -30,7 +34,7 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
-  if (!ANON) return res.status(500).json({ error: 'SUPABASE_ANON_KEY not configured' });
+  if (!SERVICE_ROLE) return res.status(500).json({ error: 'SUPABASE_SERVICE_ROLE_KEY not configured — refusing to run (no anon fallback)' });
 
   const { kind, session_code } = req.body || {};
   if (!kind || !session_code) {
